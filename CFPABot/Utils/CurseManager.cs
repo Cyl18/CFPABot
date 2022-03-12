@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
@@ -35,7 +36,7 @@ namespace CFPABot.Utils
             var sb = new StringBuilder();
             try
             {
-                foreach (var file in addon.Files.OrderByDescending(s => s.GameVersion.Replace(".", "").ToIntOrZero()))
+                foreach (var file in addon.Files.OrderByDescending(s => new Version(s.GameVersion)))
                 {
                     if (versions.Any(v => file.GameVersion.StartsWith(v.ToVersionString())))
                     {
@@ -94,6 +95,29 @@ namespace CFPABot.Utils
         public static Task<Addon> GetAddon(string modid)
         {
             return new ForgeClient().Addons.RetriveAddon(MapModIDToProjectID(modid));
+        }
+
+        public static async Task<string> GetModID(Addon addon, MCVersion? version)
+        {
+            if (version == null) return "未知";
+            try
+            {
+                if (addon.Files.FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToVersionString())) is {} file)
+                {
+                    var fileName = await Download.DownloadFile(GetDownloadUrl(file));
+                    await using var fs = File.OpenRead(fileName);
+                    var modid = new ZipArchive(fs).Entries.Where(a => a.FullName.StartsWith("assets"))
+                        .Select(a => a.FullName.Split("/")[1]).Distinct().Where(n => !n.IsNullOrWhiteSpace())
+                        .Connect("/");
+                    return modid;
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "GetModID 出错");
+                return $"未知";
+            }
+            return "未知";
         }
     }
 

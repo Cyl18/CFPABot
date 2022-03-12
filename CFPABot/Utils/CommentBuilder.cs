@@ -67,7 +67,7 @@ namespace CFPABot.Utils
             }
             using (await AcquireLock("UpdateLock"))
             {
-                await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->" + sb2.ToString());
+                await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->\n" + sb2.ToString());
             }
 
             try
@@ -98,7 +98,7 @@ namespace CFPABot.Utils
             }
             using (await AcquireLock("UpdateLock"))
             {
-                await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->" + sb.ToString());
+                await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->\n" + sb.ToString());
             }
             SaveContext();
         }
@@ -106,7 +106,7 @@ namespace CFPABot.Utils
 
         Task<IssueComment> CreateComment()
         {
-            return GitHub.Instance.Issue.Comment.Create(Constants.Owner, Constants.RepoName, PullRequestID, "<!--CYBOT-->" + "正在更新数据...");
+            return GitHub.Instance.Issue.Comment.Create(Constants.Owner, Constants.RepoName, PullRequestID, "<!--CYBOT-->\n" + "正在更新数据...");
         }
 
         public async Task UpdateModLinkSegment(FileDiff[] diffs)
@@ -136,8 +136,8 @@ namespace CFPABot.Utils
                     return;
                 }
 
-                sb.AppendLine("| | 模组名 | :hammer: CurseForge | :art: 最新模组文件 | :mag: 源代码 |");
-                sb.AppendLine("| --- | --- | :-: | --- | :-: |");
+                sb.AppendLine("| | 模组名 | 🆔 ModID | :hammer: CurseForge | :art: 最新模组文件 | :mag: 源代码 |");
+                sb.AppendLine("| --- | --- | --- | :-: | --- | :-: |");
 
                 //sb.AppendLine("| 模组名 | CurseForge | 最新模组文件 | 源代码 |");
                 //sb.AppendLine("|  --- | --- | --- | --- |");
@@ -145,11 +145,13 @@ namespace CFPABot.Utils
                 {
                     try
                     {
+                        var versions = modInfos.Where(i => i.CurseForgeID == addon.Slug).Select(i => i.Version).ToArray();
                         sb.AppendLine($"| " +
                                       $"{await CurseManager.GetThumbnailText(addon)} |" +
                                       $" **{addon.Name}** |" +
+                                      $" {await CurseManager.GetModID(addon, versions.FirstOrDefault())} |" +
                                       $" [链接]({addon.Website}) |" +
-                                      $" {CurseManager.GetDownloadsText(addon, modInfos.Where(i => i.CurseForgeID == addon.Slug).Select(i => i.Version).ToArray())} |" +
+                                      $" {CurseManager.GetDownloadsText(addon, versions)} |" +
                                       $" {await CurseManager.GetRepoText(addon)} |");
                     }
                     catch (Exception e)
@@ -235,10 +237,10 @@ namespace CFPABot.Utils
             if (IsMoreThanTwoWaiting(nameof(UpdateCheckSegment))) return;
             using var l = await AcquireLock(nameof(UpdateCheckSegment));
             var sb = new StringBuilder();
+            var reportSb = new StringBuilder();
             try
             {
                 var pr = await GitHub.GetPullRequest(PullRequestID);
-                var reportSb = new StringBuilder();
 
                 var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}";
                 var filePath = "wwwroot/" + fileName;
@@ -247,6 +249,7 @@ namespace CFPABot.Utils
 
                 // 检查大小写
                 var reportedCap = false;
+                var reportedID = false;
                 foreach (var diff in diffs)
                 {
                     var names = diff.To.Split('/');
@@ -262,16 +265,17 @@ namespace CFPABot.Utils
                             reportedCap = true;
                         }
                     }
-
                 }
                 // 检查中英文 key
 
 
                 if (reportedCap)
                 {
+                    File.WriteAllText(filePath, reportSb.ToString());
                     sb.AppendLine($"更多报告可以在 [这里]({webPath}) 查看.");
                 }
 
+                // 检查 ModID
             }
             catch (Exception e)
             {
