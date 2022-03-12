@@ -35,11 +35,11 @@ namespace CFPABot.Utils
             var sb = new StringBuilder();
             try
             {
-                foreach (var file in addon.Files)
+                foreach (var file in addon.Files.OrderByDescending(s => s.GameVersion.Replace(".", "").ToIntOrZero()))
                 {
                     if (versions.Any(v => file.GameVersion.StartsWith(v.ToVersionString())))
                     {
-                        sb.Append($"[{file.GameVersion}]({GetDownloadUrl(file)})/");
+                        sb.Append($"\\*[{file.GameVersion}]({GetDownloadUrl(file)})  ");
                     }
                 }
                 

@@ -130,7 +130,7 @@ namespace CFPABot.Utils
                     }
                 }
 
-                if (addons.Count > 15)
+                if (addons.Count > 20)
                 {
                     sb.AppendLine("模组数量过多, 将不显示模组链接.");
                     return;
@@ -232,17 +232,17 @@ namespace CFPABot.Utils
 
         public async Task UpdateCheckSegment(FileDiff[] diffs)
         {
-            if (IsMoreThanTwoWaiting(nameof(UpdateBuildArtifactsSegment))) return;
-            using var l = await AcquireLock(nameof(UpdateBuildArtifactsSegment));
+            if (IsMoreThanTwoWaiting(nameof(UpdateCheckSegment))) return;
+            using var l = await AcquireLock(nameof(UpdateCheckSegment));
             var sb = new StringBuilder();
-            var pr = await GitHub.GetPullRequest(PullRequestID);
-            var reportSb = new StringBuilder();
-
-            var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}";
-            var filePath = "wwwroot/" + fileName;
-            var webPath = $"https://cfpa.cyan.cafe/static/{fileName}";
             try
             {
+                var pr = await GitHub.GetPullRequest(PullRequestID);
+                var reportSb = new StringBuilder();
+
+                var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}";
+                var filePath = "wwwroot/" + fileName;
+                var webPath = $"https://cfpa.cyan.cafe/static/{fileName}";
                 if (File.Exists(filePath)) return;
 
                 // 检查大小写
