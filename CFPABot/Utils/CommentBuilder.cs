@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 using CFPABot.Models.A;
 using DiffPatch.Data;
 using ForgedCurse;
@@ -149,8 +150,8 @@ namespace CFPABot.Utils
                     return;
                 }
 
-                sb.AppendLine("| | 模组名 | 🆔 ModID | :hammer: CurseForge | :art: 最新模组文件 | :mag: 源代码 |");
-                sb.AppendLine("| --- | --- | --- | :-: | --- | :-: |");
+                sb.AppendLine("| | 模组名 | 🆔 ModID | :hammer: CurseForge | :art: 最新模组文件 | 🟩 mcmod | :mag: 源代码 |");
+                sb.AppendLine("| --- | --- | --- | :-: | --- | :-: | :-: |");
 
                 //sb.AppendLine("| 模组名 | CurseForge | 最新模组文件 | 源代码 |");
                 //sb.AppendLine("|  --- | --- | --- | --- |");
@@ -165,7 +166,10 @@ namespace CFPABot.Utils
                         /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault())} |" +
                         /* Curse    */ $" [链接]({addon.Website}) |" +
                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)} |" +
-                        /* Source   */ $" {await CurseManager.GetRepoText(addon)} |");
+                        /* Mcmod    */ $" [百度](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) |" +
+                        /* Source   */ $" {await CurseManager.GetRepoText(addon)} |" +
+                        ""
+                        );
 
                         try
                         {
@@ -176,15 +180,22 @@ namespace CFPABot.Utils
 
                                 foreach (var dep in deps)
                                 {
+                                    if (dep.Type == 2) continue;
+                                    // 2 都是一些不需要的附属
+                                    // 3 是需要的
+                                    // 还没遇到 1
                                     var depAddon = await new ForgeClient().Addons.RetriveAddon((int)dep.AddonId);
 
                                     sb.AppendLine($"| " +
-                                        /* Thumbnail*/ $" {await CurseManager.GetThumbnailText(depAddon)} |" +
+                                        /* Thumbnail*/ $" \\*{await CurseManager.GetThumbnailText(depAddon)} |" +
                                         /* Mod Name */ $" 附属-{depAddon.Name} |" +
                                         /* Mod ID   */ $" \\* |" +
                                         /* Curse    */ $" [链接]({depAddon.Website}) |" +
                                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} |" +
-                                        /* Source   */ $" {await CurseManager.GetRepoText(depAddon)} |");
+                                        /* Mcmod    */ $" [百度](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(depAddon.Name)}) |" +
+                                        /* Source   */ $" {await CurseManager.GetRepoText(depAddon)} |" +
+                                        ""
+                                            );
                                 }
                             }
                         }
@@ -461,7 +472,7 @@ namespace CFPABot.Utils
                         sb.Append($"\n<details> <summary>详细检查报告</summary> \n");
                         sb.Append(report.Replace("\n", "<br>").Replace(" ", "&nbsp;"));
                         sb.Append($"</details>\n\n");
-                        sb.AppendLine($"更多报告也可以在 [这里]({webPath}) 查看。在 PR 更新时这里的检查也会自动更新。");
+                        sb.AppendLine($"报告也可以在 [这里]({webPath}) 查看。在 PR 更新时这里的检查也会自动更新。");
                     }
                 }
             }

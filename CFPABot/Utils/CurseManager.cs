@@ -32,7 +32,7 @@ namespace CFPABot.Utils
             var fileName = $"{url.Split("/").Last()}";
             await using var fs = File.OpenWrite($"wwwroot/{fileName}");
             await stream.CopyToAsync(fs);
-            return $"<image src=\"https://cfpa.cyan.cafe/static/{fileName}\" width=\"28\"/>";
+            return $"<image src=\"https://cfpa.cyan.cafe/static/{fileName}\" width=\"32\"/>";
         }
 
         // 因为那个ForgeCursed api不全所以还得手动请求一次..
