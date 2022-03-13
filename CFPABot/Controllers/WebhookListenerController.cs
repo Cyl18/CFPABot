@@ -51,9 +51,35 @@ namespace CFPABot.Controllers
                 case "pull_request":
                     PR(data);
                     break;
+                case "issue_comment":
+                    IssueComment(data);
+                    break;
             }
 
             return Ok();
+        }
+
+        async void IssueComment(JsonElement jsonElement)
+        {
+            if (jsonElement.GetProperty("issue").GetProperty("html_url").GetString().Contains("pull"))
+            {
+                var prid = jsonElement.GetProperty("issue").GetProperty("number").GetInt32();
+                var comments = await GitHub.GetPRComments(prid);
+                if (comments.Any(c => c.User.Login == "Cyl18-Bot" && c.Body.StartsWith("<!--CYBOT-->")))
+                {
+                    var pr = await GitHub.GetPullRequest(prid);
+                    var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}.txt";
+                    var filePath = "wwwroot/" + fileName;
+                    if (System.IO.File.Exists(filePath)) System.IO.File.Delete(filePath);
+                    
+                    var builder = GetOrCreateCommentBuilder(prid);
+                    builder.Update(async () =>
+                    {
+                        await builder.UpdateBuildArtifactsSegment();
+                        await builder.UpdateModLinkSegment(await GitHub.Diff(prid));
+                    });
+                }
+            }
         }
 
         static Dictionary<int, CommentBuilder> commentBuilders = new();

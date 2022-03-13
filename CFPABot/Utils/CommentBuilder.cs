@@ -22,6 +22,7 @@ namespace CFPABot.Utils
         public string BuildArtifactsSegment { get; set; } = "";
         public string CheckSegment { get; set; } = "";
         public string UpdateSegment { get; set; } = "";
+        public string ReloadSegment { get; set; } = "- [ ] 🔃 勾选这个复选框来强制刷新";
     }
     public sealed class CommentBuilder
     {
@@ -67,6 +68,8 @@ namespace CFPABot.Utils
                 sb2.AppendLine("---");
                 sb2.AppendLine(Context.CheckSegment);
             }
+            sb2.AppendLine("---");
+            sb2.AppendLine(Context.ReloadSegment);
 
             Interlocked.Increment(ref UpdatingCount);
             if (UpdatingCount > 0)
@@ -99,6 +102,8 @@ namespace CFPABot.Utils
                 sb.AppendLine("---");
                 sb.AppendLine(Context.CheckSegment);
             }
+            sb.AppendLine("---");
+            sb.AppendLine(Context.ReloadSegment);
 
             if (UpdatingCount > 0)
             {
@@ -111,7 +116,6 @@ namespace CFPABot.Utils
             }
             SaveContext();
         }
-        
 
         Task<IssueComment> CreateComment()
         {
@@ -418,8 +422,19 @@ namespace CFPABot.Utils
                 
                 if (reportedCap || reportedKey)
                 {
-                    File.WriteAllText(filePath, reportSb.ToString());
-                    sb.AppendLine($"\n更多报告可以在 [这里]({webPath}) 查看。 在 PR 更新时这里的检查也会自动更新。");
+                    var report = reportSb.ToString();
+                    File.WriteAllText(filePath, report);
+                    if (report.Length > 40000) // GitHub issues 字数链接理论65536
+                    {
+                        sb.AppendLine($"\n更多报告可以在 [这里]({webPath}) 查看。 在 PR 更新时这里的检查也会自动更新。");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"在 PR 更新时这里的检查也会自动更新。");
+                        sb.Append($"<details> <summary>详细检查报告</summary> \n");
+                        sb.Append(report);
+                        sb.Append($" </details>");
+                    }
                 }
             }
             catch (Exception e)
