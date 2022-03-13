@@ -18,7 +18,8 @@ namespace CFPABot.Utils
         public static void Init()
         {
             Instance = new GitHubClient(new ProductHeaderValue("Cyl18-Bot"));
-            Instance.Credentials = new Credentials(Constants.GitHubOAuthToken);
+            if (Constants.GitHubOAuthToken != null)
+                Instance.Credentials = new Credentials(Constants.GitHubOAuthToken);
         }
 
         public static Task<PullRequest> PRInfo(int id) 

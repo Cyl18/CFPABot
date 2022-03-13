@@ -17,8 +17,6 @@ using GammaLibrary;
 using GammaLibrary.Extensions;
 using Serilog;
 
-//todo 不设置width
-//todo mod标beta
 namespace CFPABot.Utils
 {
     public class CurseManager

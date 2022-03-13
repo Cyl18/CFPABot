@@ -39,7 +39,7 @@ namespace CFPABot.Models.A
         [J("dateReleased")] public DateTimeOffset DateReleased { get; set; }
         [J("isAvailable")] public bool IsAvailable { get; set; }
         [J("isExperiemental")] public bool IsExperiemental { get; set; }
-        [J("allowModDistribution")] public bool AllowModDistribution { get; set; }
+        //[J("allowModDistribution")] public object AllowModDistribution { get; set; }
     }
 
     public partial class Attachment

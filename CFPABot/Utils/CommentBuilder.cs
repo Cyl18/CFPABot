@@ -150,7 +150,7 @@ namespace CFPABot.Utils
                     return;
                 }
 
-                sb.AppendLine("| | 模组名 | 🆔 ModID | :hammer: CurseForge | :art: 最新模组文件 | 🟩 mcmod | :mag: 源代码 |");
+                sb.AppendLine("| | 模组名 | 🆔 ModID | :hammer: CurseForge | :art: 最新模组 | 🟩 mcmod | :mag: 源代码 |");
                 sb.AppendLine("| --- | --- | --- | :-: | --- | :-: | :-: |");
 
                 //sb.AppendLine("| 模组名 | CurseForge | 最新模组文件 | 源代码 |");
@@ -181,14 +181,14 @@ namespace CFPABot.Utils
                                 foreach (var dep in deps)
                                 {
                                     if (dep.Type == 2) continue;
-                                    // 2 都是一些不需要的附属
+                                    // 2 都是附属
                                     // 3 是需要的
                                     // 还没遇到 1
                                     var depAddon = await new ForgeClient().Addons.RetriveAddon((int)dep.AddonId);
 
                                     sb.AppendLine($"| " +
-                                        /* Thumbnail*/ $" \\*{await CurseManager.GetThumbnailText(depAddon)} |" +
-                                        /* Mod Name */ $" 附属-{depAddon.Name} |" +
+                                        /* Thumbnail*/ $" {await CurseManager.GetThumbnailText(depAddon)} |" +
+                                        /* Mod Name */ $" \\*依赖-{depAddon.Name}* |" +
                                         /* Mod ID   */ $" \\* |" +
                                         /* Curse    */ $" [链接]({depAddon.Website}) |" +
                                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} |" +
@@ -201,7 +201,7 @@ namespace CFPABot.Utils
                         }
                         catch (Exception e)
                         {
-                            Log.Error(e, "获取附属失败");
+                            Log.Error(e, "获取依赖失败");
                         }
                         
                     }               
@@ -488,7 +488,7 @@ namespace CFPABot.Utils
         }
 
         Dictionary<string, CommentBuilderLock> locks = new();
-        async Task<CommentBuilderLock> AcquireLock(string lockName)
+        async ValueTask<CommentBuilderLock> AcquireLock(string lockName)
         {
             CommentBuilderLock l;
             lock (this)

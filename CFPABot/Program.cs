@@ -35,6 +35,11 @@ namespace CFPABot
             Directory.CreateDirectory("wwwroot");
             Directory.CreateDirectory("config/pr_context");
             Directory.CreateDirectory("logs");
+            Directory.CreateDirectory("config/repo_analyze_results");
+            Directory.CreateDirectory("caches/");
+            await RepoAnalyzer.Analyze("https://github.com/Flemmli97/MobBattle");
+            Console.WriteLine("OK");
+            Console.ReadKey();
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
                 .WriteTo.Console()
