@@ -412,12 +412,14 @@ namespace CFPABot.Utils
                     {
                         reportedKey = true;
                     }
+
+                    sb.AppendLine();
                 }
                 
                 if (reportedCap || reportedKey)
                 {
                     File.WriteAllText(filePath, reportSb.ToString());
-                    sb.AppendLine($"更多报告可以在 [这里]({webPath}) 查看。 在 PR 有更新时这里的检查也会自动更新。");
+                    sb.AppendLine($"\n更多报告可以在 [这里]({webPath}) 查看。 在 PR 更新时这里的检查也会自动更新。");
                 }
             }
             catch (Exception e)
