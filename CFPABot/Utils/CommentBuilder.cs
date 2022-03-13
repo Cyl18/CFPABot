@@ -332,7 +332,7 @@ namespace CFPABot.Utils
                     var cnlink = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/lang/{mcVersion.ToCNLangFile()}";
                     Log.Information(enlink);
                     Log.Information(cnlink);
-                    string cnfile, enfile;
+                    string cnfile = null, enfile = null;
                     string[] modENFile = null;
                     string downloadModName = null;
 
@@ -342,8 +342,14 @@ namespace CFPABot.Utils
                     }
                     catch (Exception)
                     {
-                        sb.AppendLine($"ℹ 下载 PR 中 {modid} 的中文语言文件失败。");
-                        continue;
+                        try
+                        {
+                            cnfile = await Download.String(cnlink.Replace("zh_cn", "zh_CN"));
+                        }
+                        catch (Exception e)
+                        {
+                            sb.AppendLine($"ℹ 下载 PR 中 {modid} 的中文语言文件失败。");
+                        }
                     }
 
                     try
@@ -352,10 +358,15 @@ namespace CFPABot.Utils
                     }
                     catch (Exception)
                     {
-                        sb.AppendLine($"ℹ 下载 PR 中 {modid} 的英文语言文件失败。");
-                        continue;
+                        try
+                        {
+                            enfile = await Download.String(enlink.Replace("en_us", "en_US"));
+                        }
+                        catch (Exception e)
+                        {
+                            sb.AppendLine($"ℹ 下载 PR 中 {modid} 的英文语言文件失败。");
+                        }
                     }
-                    Log.Information(cnfile);
 
                     try
                     {
@@ -371,12 +382,14 @@ namespace CFPABot.Utils
                     }
 
                     // 检查 PR 提供的中英文 Key
-                    var keyResult = KeyAnalyzer.Analyze(modid,enfile, cnfile, mcVersion, sb, reportSb);
+                    bool keyResult = false;
+                    if (cnfile != null && enfile != null)
+                        keyResult = KeyAnalyzer.Analyze(modid,enfile, cnfile, mcVersion, sb, reportSb);
                     var modKeyResult = false;
                     // 检查英文Key和Mod内英文Key
                     do
                     {
-                        if (modENFile != null)
+                        if (modENFile != null && enfile != null)
                         {
                             if (modENFile.Length == 0)
                             {

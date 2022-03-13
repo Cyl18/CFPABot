@@ -48,7 +48,7 @@ namespace CFPABot.Utils
                     p.Add(file.FileId);
                     if (versions.Any(v => file.GameVersion.StartsWith(v.ToVersionString())))
                     {
-                        sb.Append($"[{(file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" })}{file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar","")}]({GetDownloadUrl(file)})<br />");
+                        sb.Append($"[{(!file.FileName.Contains(file.GameVersion) ? file.GameVersion : "")}{(file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" })}{file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar","")}]({GetDownloadUrl(file)})<br />");
                     }
                 }
                 sb.Append("</details>");

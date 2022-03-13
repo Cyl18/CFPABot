@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using GammaLibrary.Extensions;
+using Octokit;
 using Serilog;
 
 namespace CFPABot.Utils
