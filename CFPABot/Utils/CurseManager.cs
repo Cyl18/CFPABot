@@ -9,12 +9,15 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 using ForgedCurse;
 using ForgedCurse.Json;
 using GammaLibrary;
 using GammaLibrary.Extensions;
 using Serilog;
 
+//todo 不设置width
+//todo mod标beta
 namespace CFPABot.Utils
 {
     public class CurseManager
@@ -28,7 +31,7 @@ namespace CFPABot.Utils
             var fileName = $"{url.Split("/").Last()}";
             await using var fs = File.OpenWrite($"wwwroot/{fileName}");
             await stream.CopyToAsync(fs);
-            return $"<image src=\"https://cfpa.cyan.cafe/static/{fileName}\" height=\"24\"/>";
+            return $"<image src=\"https://cfpa.cyan.cafe/static/{fileName}\" width=\"28\"/>";
         }
 
         public static string GetDownloadsText(Addon addon, MCVersion[] versions)
@@ -36,14 +39,19 @@ namespace CFPABot.Utils
             var sb = new StringBuilder();
             try
             {
+                sb.Append("<details> <summary>展开</summary>");
+                var p = new HashSet<int>();
                 foreach (var file in addon.Files.OrderByDescending(s => new Version(s.GameVersion)))
                 {
+                    if (p.Contains(file.FileId)) continue;
+                    
+                    p.Add(file.FileId);
                     if (versions.Any(v => file.GameVersion.StartsWith(v.ToVersionString())))
                     {
-                        sb.Append($"\\*[{file.GameVersion}]({GetDownloadUrl(file)})  ");
+                        sb.Append($"[{(file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" })}{file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar","")}]({GetDownloadUrl(file)})<br />");
                     }
                 }
-                
+                sb.Append("</details>");
             }
             catch (Exception e)
             {
@@ -51,7 +59,7 @@ namespace CFPABot.Utils
                 Log.Error(e, $"GetDownloadsText: {addon.Slug}");
             }
 
-            return sb.ToString().TrimEnd('/');
+            return sb.ToString();
         }
 
         public static async Task<string> GetRepoText(Addon addon)
@@ -72,7 +80,7 @@ namespace CFPABot.Utils
         {
             var s = release.FileId.ToString();
             return
-                $"https://edge.forgecdn.net/files/{s.Substring(0, 4)}/{s.Substring(4, 3).ToInt()}/{release.FileName}";
+                $"https://edge.forgecdn.net/files/{s.Substring(0, 4)}/{s.Substring(4, 3).ToInt()}/{HttpUtility.UrlEncode(release.FileName)}";
         }
 
         public static int MapModIDToProjectID(string modid)
@@ -106,9 +114,12 @@ namespace CFPABot.Utils
                 {
                     var fileName = await Download.DownloadFile(GetDownloadUrl(file));
                     await using var fs = File.OpenRead(fileName);
-                    var modid = new ZipArchive(fs).Entries.Where(a => a.FullName.StartsWith("assets"))
+
+                    var modid = new ZipArchive(fs).Entries
+                        .Where(a => a.FullName.StartsWith("assets"))
                         .Select(a => a.FullName.Split("/")[1]).Distinct().Where(n => !n.IsNullOrWhiteSpace())
-                        .Connect("/");
+                        .Where(id => id != "minecraft")
+                        .Connect(" \\| ", "*", "*");
                     return modid;
                 }
             }
