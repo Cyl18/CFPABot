@@ -35,5 +35,23 @@ namespace CFPABot.Utils
                 _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
             };
         }
+
+        public static string ToCNLangFile(this MCVersion version)
+        {
+            return version switch
+            {
+                MCVersion.v116 or MCVersion.v118 => "zh_cn.json",
+                MCVersion.v1122 => "zh_cn.lang"
+            };
+        }
+
+        public static string ToENLangFile(this MCVersion version)
+        {
+            return version switch
+            {
+                MCVersion.v116 or MCVersion.v118 => "en_us.json",
+                MCVersion.v1122 => "en_us.lang"
+            };
+        }
     }
 }

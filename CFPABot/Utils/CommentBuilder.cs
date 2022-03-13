@@ -28,7 +28,16 @@ namespace CFPABot.Utils
         public CommentBuilder(int pullRequestID)
         {
             PullRequestID = pullRequestID;
-            Context = !File.Exists(ContextFilePath) ? new CommentContext() {ID = pullRequestID} : JsonSerializer.Deserialize<CommentContext>(File.ReadAllText(ContextFilePath));
+            try
+            {
+                Context = !File.Exists(ContextFilePath) ? new CommentContext() { ID = pullRequestID } : JsonSerializer.Deserialize<CommentContext>(File.ReadAllText(ContextFilePath));
+
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "new CommentBuilder 失败");
+                Context = new CommentContext() {ID = pullRequestID};
+            }
         }
 
         public int PullRequestID { get; }
@@ -147,13 +156,13 @@ namespace CFPABot.Utils
                     {
                         var versions = modInfos.Where(i => i.CurseForgeID == addon.Slug).Select(i => i.Version).ToArray();
                         sb.AppendLine($"| " +
-                                      $"{await CurseManager.GetThumbnailText(addon)} |" +
-                                      $" **{addon.Name}** |" +
-                                      $" {await CurseManager.GetModID(addon, versions.FirstOrDefault())} |" +
-                                      $" [链接]({addon.Website}) |" +
-                                      $" {CurseManager.GetDownloadsText(addon, versions)} |" +
-                                      $" {await CurseManager.GetRepoText(addon)} |");
-                    }
+                        /* Thumbnail*/ $"{await CurseManager.GetThumbnailText(addon)} |" +
+                        /* Mod Name */ $" **{addon.Name}** |" +
+                        /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault())} |" +
+                        /* Curse    */ $" [链接]({addon.Website}) |" +
+                        /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)} |" +
+                        /* Source   */ $" {await CurseManager.GetRepoText(addon)} |");
+                    }               
                     catch (Exception e)
                     {
                         sb.AppendLine($"| | [链接]({addon.Website}) | {e.Message} | |");
@@ -242,21 +251,23 @@ namespace CFPABot.Utils
             {
                 var pr = await GitHub.GetPullRequest(PullRequestID);
 
-                var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}";
+                var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}.txt";
                 var filePath = "wwwroot/" + fileName;
                 var webPath = $"https://cfpa.cyan.cafe/static/{fileName}";
                 if (File.Exists(filePath)) return;
 
                 // 检查大小写
                 var reportedCap = false;
-                var reportedID = false;
+                var reportedKey = false;
+
                 foreach (var diff in diffs)
                 {
                     var names = diff.To.Split('/');
                     if (names.Length < 7) continue; // 超级硬编码
                     if (names[0] != "projects") continue;
-
-                    if (names.Any(s => s.ToLower() != s))
+                    if (names[5] != "lang") continue; // 只检查语言文件
+                    
+                    if (names.Any(s => s.ToLower() != s && s != "1UNKNOWN"))
                     {
                         reportSb.AppendLine($"检测到大写字母：{diff.To}");
                         if (!reportedCap)
@@ -266,16 +277,135 @@ namespace CFPABot.Utils
                         }
                     }
                 }
-                // 检查中英文 key
+                // 检查中英文 key 是否对应
+                // 检查 ModID
+                var checkedSet = new HashSet<(string version, string curseID)>();
+                foreach (var diff in diffs)
+                {
+                    var names = diff.To.Split('/');
+                    if (names.Length < 7) continue; // 超级硬编码
+                    if (names[0] != "projects") continue;
+                    if (names[5] != "lang") continue;
 
+                    var versionString = names[1];
+                    var curseID = names[3];
+                    var modid = names[4];
+                    var check = (versionString, curseID);
+                    var mcVersion = versionString.ToMCVersion();
+                    
+                    if (checkedSet.Contains(check)) continue;
+                    checkedSet.Add(check);
+                    Addon addon = null;
+                    try
+                    {
+                        addon = await CurseManager.GetAddon(curseID);
+                    }
+                    catch (Exception)
+                    {
+                        sb.AppendLine($"⚠ 找不到模组: {curseID}-{versionString}。");
+                    }
+                    if (addon != null)
+                    try
+                    {
+                        var filemodid = await CurseManager.GetModIDForCheck(addon, mcVersion);
+                        if (filemodid == null || filemodid.Length == 0) continue;
+                        if (filemodid.Any(id => id == modid))
+                        {
+                            sb.AppendLine($"✔ `{modid}` ModID 验证通过。");
+                        }
+                        else
+                        {
+                            sb.AppendLine($"⚠ 警告：ModID 验证不通过。文件 ModID 为 `{filemodid.Connect("/")}`；但 PR ModID `{modid}`。");
+                            
+                            //continue;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        sb.AppendLine($"⚠ ModID 验证失败：{e.Message}");
+                    }
 
-                if (reportedCap)
+                    // 检查文件
+                    reportSb.AppendLine($"开始检查 {modid} {versionString}");
+                    var headSha = pr.Head.Sha;
+                    var enlink = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/lang/{mcVersion.ToENLangFile()}";
+                    var cnlink = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/lang/{mcVersion.ToCNLangFile()}";
+                    Log.Information(enlink);
+                    Log.Information(cnlink);
+                    string cnfile, enfile;
+                    string[] modENFile = null;
+                    string downloadModName = null;
+
+                    try
+                    {
+                        cnfile = await Download.String(cnlink);
+                    }
+                    catch (Exception)
+                    {
+                        sb.AppendLine($"ℹ 下载 PR 中 {modid} 的中文语言文件失败。");
+                        continue;
+                    }
+
+                    try
+                    {
+                        enfile = await Download.String(enlink);
+                    }
+                    catch (Exception)
+                    {
+                        sb.AppendLine($"ℹ 下载 PR 中 {modid} 的英文语言文件失败。");
+                        continue;
+                    }
+                    Log.Information(cnfile);
+
+                    try
+                    {
+                        if (addon != null && names[3] != "1UNKNOWN")
+                        {
+                            (modENFile, downloadModName) = await CurseManager.GetModEnFile(addon, mcVersion);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        sb.Append($"ℹ 获取 {modid} 的模组内语言文件失败。");
+                        Console.WriteLine(e);
+                    }
+
+                    // 检查 PR 提供的中英文 Key
+                    var keyResult = KeyAnalyzer.Analyze(modid,enfile, cnfile, mcVersion, sb, reportSb);
+                    var modKeyResult = false;
+                    // 检查英文Key和Mod内英文Key
+                    do
+                    {
+                        if (modENFile != null)
+                        {
+                            if (modENFile.Length == 0)
+                            {
+                                sb.AppendLine($"ℹ 没有找到 {modid}-{versionString} 的模组内语言文件。");
+                                break;
+                            }
+                            if (modENFile.Length > 1)
+                            {
+                                sb.AppendLine($"ℹ 找到了多个 {modid}-{versionString} 的模组内语言文件。将不进行模组语言文件检查。");
+                                break;
+                            }
+
+                            if (addon == null) break;
+                            
+                            modKeyResult = ModKeyAnalyzer.Analyze(modid, enfile, modENFile[0], mcVersion, sb, reportSb, downloadModName);
+                        }
+                    } while (false);
+                    
+                    if (keyResult || modKeyResult)
+                    {
+                        reportedKey = true;
+                    }
+                }
+                
+                if (reportedCap || reportedKey)
                 {
                     File.WriteAllText(filePath, reportSb.ToString());
-                    sb.AppendLine($"更多报告可以在 [这里]({webPath}) 查看.");
+                    sb.AppendLine($"更多报告可以在 [这里]({webPath}) 查看。 在 PR 有更新时这里的检查也会自动更新。");
                 }
-
-                // 检查 ModID
             }
             catch (Exception e)
             {

@@ -80,7 +80,7 @@ namespace CFPABot.Utils
         {
             var s = release.FileId.ToString();
             return
-                $"https://edge.forgecdn.net/files/{s.Substring(0, 4)}/{s.Substring(4, 3).ToInt()}/{HttpUtility.UrlEncode(release.FileName)}";
+                $"https://edge.forgecdn.net/files/{s.Substring(0, 4)}/{s.Substring(4, 3).ToInt()}/{(release.FileName.Replace(" ", "%20"))}";
         }
 
         public static int MapModIDToProjectID(string modid)
@@ -96,7 +96,7 @@ namespace CFPABot.Utils
             catch (Exception e)
             {
                 Log.Error(e, "MapModIDToProjectID");
-                throw new CheckException($"无法找到{modid}的 ModID 到 ProjectID 的映射. {e} 请检查文件路径是否正确.");
+                throw new CheckException($"⚠ 无法找到 {modid} 的 ModID 到 ProjectID 的映射. 请检查文件路径是否正确.");
             }
         }
 
@@ -129,6 +129,62 @@ namespace CFPABot.Utils
                 return $"未知";
             }
             return "未知";
+        }
+
+
+        public static async Task<string[]> GetModIDForCheck(Addon addon, MCVersion? version)
+        {
+            if (version == null) return null;
+            try
+            {
+                if (addon.Files.FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToVersionString())) is { } file)
+                {
+                    var fileName = await Download.DownloadFile(GetDownloadUrl(file));
+                    await using var fs = File.OpenRead(fileName);
+
+                    var modids = new ZipArchive(fs).Entries
+                        .Where(a => a.FullName.StartsWith("assets"))
+                        .Select(a => a.FullName.Split("/")[1]).Distinct().Where(n => !n.IsNullOrWhiteSpace())
+                        .Where(id => id != "minecraft")
+                        .ToArray();
+                    return modids;
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "GetModID 出错");
+                return null;
+            }
+
+            return null;
+        }
+
+        public static async Task<(string[] files, string downloadFileName)> GetModEnFile(Addon addon, MCVersion? version)
+        {
+            if (version == null) return (null, null);
+            try
+            {
+                if (addon.Files.OrderByDescending(f => f.FileId).FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToVersionString())) is { } file)
+                {
+                    var fileName = await Download.DownloadFile(GetDownloadUrl(file));
+                    await using var fs = File.OpenRead(fileName);
+
+                    var files = new ZipArchive(fs).Entries
+                        .Where(f => f.FullName.Contains("lang") && f.FullName.Contains("assets") &&
+                                             f.FullName.Split('/').All(n => n != "minecraft") &&
+                                             (f.Name.Equals("en_us.lang", StringComparison.OrdinalIgnoreCase) ||
+                                              f.Name.Equals("en_us.json", StringComparison.OrdinalIgnoreCase)));
+
+                    return (files.Select(f => f.Open().ReadToEnd()).ToArray(), file.FileName);
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "GetModID 出错");
+                return (null, null);
+            }
+
+            return (null, null);
         }
     }
 
