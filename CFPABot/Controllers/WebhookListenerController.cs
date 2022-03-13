@@ -65,7 +65,7 @@ namespace CFPABot.Controllers
             {
                 var prid = jsonElement.GetProperty("issue").GetProperty("number").GetInt32();
                 var comments = await GitHub.GetPRComments(prid);
-                if (comments.Any(c => c.User.Login == "Cyl18-Bot" && c.Body.StartsWith("<!--CYBOT-->")))
+                if (comments.Any(c => c.User.Login == "Cyl18-Bot" && c.Body.StartsWith("<!--CYBOT-->") && c.Body.Contains("- [x] 🔃")))
                 {
                     var pr = await GitHub.GetPullRequest(prid);
                     var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}.txt";
@@ -82,7 +82,7 @@ namespace CFPABot.Controllers
             }
         }
 
-        static Dictionary<int, CommentBuilder> commentBuilders = new();
+        internal static Dictionary<int, CommentBuilder> commentBuilders = new();
 
         static CommentBuilder GetOrCreateCommentBuilder(int id)
         {

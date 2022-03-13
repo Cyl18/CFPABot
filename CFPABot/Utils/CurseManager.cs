@@ -10,6 +10,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using CFPABot.Models.A;
 using ForgedCurse;
 using ForgedCurse.Json;
 using GammaLibrary;
@@ -34,6 +35,14 @@ namespace CFPABot.Utils
             return $"<image src=\"https://cfpa.cyan.cafe/static/{fileName}\" width=\"28\"/>";
         }
 
+        // 因为那个ForgeCursed api不全所以还得手动请求一次..
+        // 之后可以重构为全部用这个
+        public static async Task<AddonModel> GetAddonModel(Addon addon)
+        {
+            var s = await Download.String($"https://addons-ecs.forgesvc.net/api/v2/addon/{addon.Identifier}");
+            return s.JsonDeserialize<AddonModel>();
+        }
+
         public static string GetDownloadsText(Addon addon, MCVersion[] versions)
         {
             var sb = new StringBuilder();
@@ -48,7 +57,7 @@ namespace CFPABot.Utils
                     p.Add(file.FileId);
                     if (versions.Any(v => file.GameVersion.StartsWith(v.ToVersionString())))
                     {
-                        sb.Append($"[{(!file.FileName.Contains(file.GameVersion) ? file.GameVersion : "")}{(file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" })}{file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar","")}]({GetDownloadUrl(file)})<br />");
+                        sb.Append($"[{(file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" })}{(!file.FileName.Contains(file.GameVersion) ? $"**{file.GameVersion}**" : "")} {file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar","")}]({GetDownloadUrl(file)})<br />");
                     }
                 }
                 sb.Append("</details>");

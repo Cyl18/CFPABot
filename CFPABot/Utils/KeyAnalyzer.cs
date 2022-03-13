@@ -115,7 +115,7 @@ namespace CFPABot.Utils
                 return false;
             }
 
-            sb.AppendLine($"⚠ 警告：PR {modid}-{mcVersion.ToVersionString()} 中所提供的中英文语言文件不对应。");
+            sb.AppendLine($"⚠ 警告：PR 中 {modid}-{mcVersion.ToVersionString()} 的中英文语言文件不对应。");
 
             if (enExcept.Count > 0)
             {

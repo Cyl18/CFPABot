@@ -7,7 +7,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using CFPABot.Models.A;
 using DiffPatch.Data;
+using ForgedCurse;
 using ForgedCurse.Json;
 using GammaLibrary.Extensions;
 using Octokit;
@@ -97,11 +99,9 @@ namespace CFPABot.Utils
             sb.AppendLine(Context.ModLinkSegment);
             sb.AppendLine("---");
             sb.AppendLine(Context.BuildArtifactsSegment);
-            if (!Context.CheckSegment.IsNullOrEmpty())
-            {
-                sb.AppendLine("---");
-                sb.AppendLine(Context.CheckSegment);
-            }
+            sb.AppendLine("---");
+            sb.AppendLine(Context.CheckSegment);
+            
             sb.AppendLine("---");
             sb.AppendLine(Context.ReloadSegment);
 
@@ -166,6 +166,33 @@ namespace CFPABot.Utils
                         /* Curse    */ $" [链接]({addon.Website}) |" +
                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)} |" +
                         /* Source   */ $" {await CurseManager.GetRepoText(addon)} |");
+
+                        try
+                        {
+                            var addonModel = await CurseManager.GetAddonModel(addon);
+                            var deps = addonModel.LatestFiles.FirstOrDefault(a => a.Dependencies.Any())?.Dependencies;
+                            if (deps != null)
+                            {
+
+                                foreach (var dep in deps)
+                                {
+                                    var depAddon = await new ForgeClient().Addons.RetriveAddon((int)dep.AddonId);
+
+                                    sb.AppendLine($"| " +
+                                        /* Thumbnail*/ $" {await CurseManager.GetThumbnailText(depAddon)} |" +
+                                        /* Mod Name */ $" 附属-{depAddon.Name} |" +
+                                        /* Mod ID   */ $" \\* |" +
+                                        /* Curse    */ $" [链接]({depAddon.Website}) |" +
+                                        /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} |" +
+                                        /* Source   */ $" {await CurseManager.GetRepoText(depAddon)} |");
+                                }
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            Log.Error(e, "获取附属失败");
+                        }
+                        
                     }               
                     catch (Exception e)
                     {
@@ -173,6 +200,7 @@ namespace CFPABot.Utils
                         Log.Error(e, "UpdateModLinkSegment");
                     }
                 }
+                
             }
             catch (Exception e)
             {
@@ -424,16 +452,16 @@ namespace CFPABot.Utils
                 {
                     var report = reportSb.ToString();
                     File.WriteAllText(filePath, report);
-                    if (report.Length > 40000) // GitHub issues 字数链接理论65536
+                    if (report.Length > 30000 )// GitHub issues 字数链接理论65536
                     {
                         sb.AppendLine($"\n更多报告可以在 [这里]({webPath}) 查看。 在 PR 更新时这里的检查也会自动更新。");
                     }
                     else
                     {
-                        sb.AppendLine($"在 PR 更新时这里的检查也会自动更新。");
-                        sb.Append($"<details> <summary>详细检查报告</summary> \n");
-                        sb.Append(report);
-                        sb.Append($" </details>");
+                        sb.Append($"\n<details> <summary>详细检查报告</summary> \n");
+                        sb.Append(report.Replace("\n", "<br>").Replace(" ", "&nbsp;"));
+                        sb.Append($"</details>\n\n");
+                        sb.AppendLine($"更多报告也可以在 [这里]({webPath}) 查看。在 PR 更新时这里的检查也会自动更新。");
                     }
                 }
             }
@@ -461,12 +489,11 @@ namespace CFPABot.Utils
             return l;
         }
 
-        public bool IsLockAcquired(string lockName)
+        public bool IsAnyLockAcquired()
         {
             lock (this)
             {
-                if (!locks.ContainsKey(lockName)) return false;
-                return locks[lockName].CurrentCount == 0;
+                return locks.Any(l => l.Value.CurrentCount == 0);
             }
         }
         public bool IsMoreThanTwoWaiting(string lockName)

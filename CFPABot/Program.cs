@@ -6,7 +6,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using CFPABot.Controllers;
 using CFPABot.Utils;
 using Serilog;
 using Serilog.Events;
@@ -17,6 +19,17 @@ namespace CFPABot
     {
         public static async Task Main(string[] args)
         {
+            var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (sender, eventArgs) =>
+            {
+                Wait();
+                cts.Cancel();
+            };
+            AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
+            {
+                Wait();
+                cts.Cancel();
+            };
             GitHub.Init();
             Directory.CreateDirectory("config");
             Directory.CreateDirectory("wwwroot");
@@ -29,7 +42,19 @@ namespace CFPABot
                 .WriteTo.File("logs/myapp-debug.txt", rollingInterval: RollingInterval.Day)
                 .CreateLogger();
             await Init();
-            await CreateHostBuilder(args).Build().RunAsync();
+            try
+            {
+                await CreateHostBuilder(args).Build().RunAsync(cts.Token);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+        }
+
+        static void Wait()
+        {
+            SpinWait.SpinUntil(() => WebhookListenerController.commentBuilders.All(c => !c.Value.IsAnyLockAcquired()));
         }
 
         static async Task Init()
