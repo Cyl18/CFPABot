@@ -500,8 +500,9 @@ namespace CFPABot.Utils
                                     {
                                         typoResult = true;
                                         diffCheckedSet.Add(checkname);
+                                        // {lineDiff.NewIndex}-
                                         sb.AppendLine(
-                                            $"ℹ 注意：检测到可能的争议译名：`{checkname}`，{message}。例如行 {lineDiff.NewIndex}-`{lineDiff.Content.Replace("`", "\\`")}`。");
+                                            $"ℹ 注意：检测到可能的争议译名：`{checkname}`，{message}。例如行 `{lineDiff.Content.Replace("`", "\\`")}`。");
                                     }
 
                                     reportSb.AppendLine(
@@ -518,8 +519,10 @@ namespace CFPABot.Utils
                                     {
                                         typoResult = true;
                                         diffCheckedSet.Add(checkname);
+                                        // todo 显示哪一行
+                                        // {lineDiff.NewIndex}-
                                         sb.AppendLine(
-                                            $"❌ 警告：检测到可能的错误译名：`{checkname}`，{message}。例如行 {lineDiff.NewIndex}-`{lineDiff.Content.Replace("`", "\\`")}`。");
+                                            $"❌ 警告：检测到可能的错误译名：`{checkname}`，{message}。例如行 `{lineDiff.Content.Replace("`", "\\`")}`。");
                                     }
 
                                     reportSb.AppendLine(
