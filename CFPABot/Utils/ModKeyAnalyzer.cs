@@ -109,7 +109,7 @@ namespace CFPABot.Utils
                 return false;
             }
 
-            sb.AppendLine($"⚠ 警告：PR 中 {modid}-{mcVersion.ToVersionString()} 的英文语言文件与最新模组 `{downloadModName}` 内的英文语言文件不对应。这可能是由于机器人自动获取的模组不是最新，语言文件中包含扩展模组，或所提交的语言文件来自模组源代码仓库。");
+            sb.AppendLine($"⚠ 警告：PR 中 {modid}-{mcVersion.ToVersionString()} 的英文语言文件与最新模组 `{downloadModName}` 内的英文语言文件不对应。这可能是由于机器人自动获取的模组不是最新，语言文件中包含扩展模组，或所提交的语言文件来自模组源代码仓库。可以点击上方的对比按钮来进行更加详细的对比。");
 
             if (enExcept.Count > 0)
             {

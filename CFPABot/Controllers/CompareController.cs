@@ -315,7 +315,7 @@ namespace CFPABot.Controllers
 
                 var reader = s1.CreateStreamReader();
                 var writer = s2.CreateStreamWriter();
-                if (f1.TrimStart().StartsWith("{"))
+                if (f2.TrimStart().StartsWith("{"))
                 {
                     new JsonFormatter(reader, writer).Format();
                 }

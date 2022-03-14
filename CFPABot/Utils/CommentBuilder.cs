@@ -150,8 +150,8 @@ namespace CFPABot.Utils
                     return;
                 }
 
-                sb.AppendLine("| | 模组名 | 🆔 ModID | :hammer: CurseForge | :art: 最新模组 | 🟩 mcmod | :mag: 源代码 | :file_folder: 对比 |");
-                sb.AppendLine("| --- | --- | --- | :-: | --- | :-: | :-: | --- |");
+                sb.AppendLine("|     | 模组名 | 🆔 ModID | :art: 最新模组 | 🟩 mcmod | :mag: 源代码 | :file_folder: 对比 |");
+                sb.AppendLine("| --- | --- | :-: | --- | :-: | :-: | :-: |");
 
                 //sb.AppendLine("| 模组名 | CurseForge | 最新模组文件 | 源代码 |");
                 //sb.AppendLine("|  --- | --- | --- | --- |");
@@ -162,9 +162,8 @@ namespace CFPABot.Utils
                         var versions = modInfos.Where(i => i.CurseForgeID == addon.Slug).Select(i => i.Version).ToArray();
                         sb.AppendLine($"| " +
                         /* Thumbnail*/ $"{await CurseManager.GetThumbnailText(addon)} |" +
-                        /* Mod Name */ $" **{addon.Name}** |" +
+                        /* Mod Name */ $" [**{addon.Name.Replace("[","\\[").Replace("]", "\\]")}**]({addon.Website}) |" +
                         /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault())} |" +
-                        /* Curse    */ $" [链接]({addon.Website}) |" +
                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)} |" +
                         /* Mcmod    */ $" [百度](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) |" +
                         /* Source   */ $" {await CurseManager.GetRepoText(addon)} |" +
@@ -189,9 +188,8 @@ namespace CFPABot.Utils
 
                                     sb.AppendLine($"| " +
                                         /* Thumbnail*/ $" {await CurseManager.GetThumbnailText(depAddon)} |" +
-                                        /* Mod Name */ $" \\*依赖-{depAddon.Name}* |" +
+                                        /* Mod Name */ $" 依赖-[*{depAddon.Name.Replace("[", "\\[").Replace("]", "\\]")}*]({depAddon.Website}) |" +
                                         /* Mod ID   */ $" \\* |" +
-                                        /* Curse    */ $" [链接]({depAddon.Website}) |" +
                                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} |" +
                                         /* Mcmod    */ $" [百度](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(depAddon.Name)}) |" +
                                         /* Source   */ $" {await CurseManager.GetRepoText(depAddon)} |" +
@@ -304,7 +302,6 @@ namespace CFPABot.Utils
                 // 检查大小写
                 var reportedCap = false;
                 var reportedKey = false;
-
                 foreach (var diff in diffs)
                 {
                     var names = diff.To.Split('/');
@@ -321,6 +318,7 @@ namespace CFPABot.Utils
                             reportedCap = true;
                         }
                     }
+
                 }
                 // 检查中英文 key 是否对应
                 // 检查 ModID
@@ -429,7 +427,7 @@ namespace CFPABot.Utils
                     // 检查 PR 提供的中英文 Key
                     bool keyResult = false;
                     if (cnfile != null && enfile != null)
-                        keyResult = KeyAnalyzer.Analyze(modid,enfile, cnfile, mcVersion, sb, reportSb);
+                        keyResult = KeyAnalyzer.Analyze(modid, enfile, cnfile, mcVersion, sb, reportSb);
                     var modKeyResult = false;
                     // 检查英文Key和Mod内英文Key
                     do
@@ -453,6 +451,8 @@ namespace CFPABot.Utils
                         }
                     } while (false);
                     
+
+
                     if (keyResult || modKeyResult)
                     {
                         reportedKey = true;
@@ -460,8 +460,80 @@ namespace CFPABot.Utils
 
                     sb.AppendLine();
                 }
-                
-                if (reportedCap || reportedKey)
+
+                // typo check
+                var typoResult = false;
+
+                (string checkname, string message, Predicate<(LineDiff diff, MCVersion version)> customCheck)[] warnings = {
+                    ("萤石", "请注意区分`荧石`（下界的一种发光方块）与`萤石`（氟化钙）", null),
+                    ("凋零", "请注意区分`凋零`（药水效果）与`凋灵`（敌对生物）", null),
+                    ("下届", "可能是`下界`", null),
+                    ("合成台", "可能是`工作台`", null),
+                    ("岩浆", "可能是`熔岩`", t => !t.diff.Content.Contains("岩浆块") && !t.diff.Content.Contains("岩浆怪") && !t.diff.Content.Contains("岩浆膏")),
+                };
+                (string checkname, string message, Predicate<(LineDiff diff, MCVersion version)> customCheck)[] errors = {
+                    ("地狱", "`地狱`在 1.16 后更名为`下界`", tuple => tuple.version != MCVersion.v1122),
+                    ("爬行者", "`爬行者`在 1.16 后更名为`苦力怕`", tuple => tuple.version != MCVersion.v1122),
+                    ("粉色", "原版译名采用`粉红色`", null),
+                    ("浅灰色", "原版译名采用`淡灰色`", null),
+                };
+                // 俺的服务器只有1个U 就不写多线程力
+                var diffCheckedSet = new HashSet<string>();
+                foreach (var diff in diffs)
+                {
+                    var names = diff.To.Split('/');
+                    if (names.Length < 7) continue; // 超级硬编码
+                    if (names[0] != "projects") continue;
+                    if (!names[6].Contains("zh")) continue; // 只检查中文文件
+                    foreach (var chunk in diff.Chunks)
+                    {
+                        foreach (var lineDiff in chunk.Changes)
+                        {
+                            var content = lineDiff.Content;
+
+                            foreach (var (checkname, message, customCheck) in warnings)
+                            {
+                                if (content.Contains(checkname) && (customCheck == null || customCheck((lineDiff, names[1].ToMCVersion()))))
+                                {
+                                    // 进行一个警告的给
+                                    if (!diffCheckedSet.Contains(checkname))
+                                    {
+                                        typoResult = true;
+                                        diffCheckedSet.Add(checkname);
+                                        sb.AppendLine(
+                                            $"ℹ 注意：检测到可能有争议的译名：`{checkname}`，{message}。例如行 {lineDiff.NewIndex}-`{lineDiff.Content.Replace("`", "\\`")}`。");
+                                    }
+
+                                    reportSb.AppendLine(
+                                        $"检测到争议译名：{checkname} {diff.To}-{lineDiff.NewIndex}: {lineDiff.Content}");
+                                }
+                            }
+
+                            foreach (var (checkname, message, customCheck) in errors)
+                            {
+                                if (content.Contains(checkname) && (customCheck == null || customCheck((lineDiff, names[1].ToMCVersion()))))
+                                {
+                                    // 进行一个错误的给
+                                    if (!diffCheckedSet.Contains(checkname))
+                                    {
+                                        typoResult = true;
+                                        diffCheckedSet.Add(checkname);
+                                        sb.AppendLine(
+                                            $"❌ 警告：检测到可能的错误译名：`{checkname}`，{message}。例如行 {lineDiff.NewIndex}-`{lineDiff.Content.Replace("`", "\\`")}`。");
+                                    }
+
+                                    reportSb.AppendLine(
+                                        $"检测到错误译名：{checkname} {diff.To}-{lineDiff.NewIndex}: {lineDiff.Content}");
+                                }
+                            }
+                        }
+                    }
+
+
+                    
+                }
+
+                if (reportedCap || reportedKey || typoResult)
                 {
                     var report = reportSb.ToString();
                     File.WriteAllText(filePath, report);

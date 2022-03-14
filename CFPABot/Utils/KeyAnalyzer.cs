@@ -79,7 +79,7 @@ namespace CFPABot.Utils
                 sb.AppendLine($"ℹ {modid}-{version.ToVersionString()} 的英文语言文件为空。");
                 return false;
             }
-
+            
             return AnalyzeCore(
                 enfile
                     .Split("\n")

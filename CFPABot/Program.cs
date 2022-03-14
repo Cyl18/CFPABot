@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CFPABot.Controllers;
 using CFPABot.Utils;
+using Octokit;
 using Serilog;
 using Serilog.Events;
 
@@ -30,9 +31,13 @@ namespace CFPABot
                 Wait();
                 cts.Cancel();
             };
+
             try
             {
-                Directory.Delete("caches", true);
+                if (Directory.Exists("caches"))
+                {
+                    Directory.Delete("caches", true);
+                }
             }
             catch (Exception e)
             {
