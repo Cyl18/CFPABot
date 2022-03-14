@@ -45,7 +45,7 @@ namespace CFPABot.Controllers
   <meta http-equiv=""refresh"" content=""0; URL=/Compare/PRA/{pr}/{modid}/{modDomain}"" />
 </head>
 <body>
-  <p>正在分析内容，第一次运行需要相当长的时间。你也可以 <a href=""/Compare/PRA/{pr}/{modid}/{modDomain}"">点击这里</a> 来手动跳转。</p>
+  <p>正在分析内容，第一次运行需要相当长的时间，一分钟也有可能。你也可以 <a href=""/Compare/PRA/{pr}/{modid}/{modDomain}"">点击这里</a> 来手动跳转。</p>
 </body>
         ", "text/html; charset=utf-8");
         }
@@ -154,14 +154,16 @@ namespace CFPABot.Controllers
                 foreach (var s in versionName == "1.12.2" ? new [] {"zh_cn.lang", "zh_CN.lang", "en_us.lang", "en_US.lang"} : new [] {"zh_cn.json", "zh_CN.json", "en_us.json", "en_US.json"})
                 {
                     var link =
-                        $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/main/projects/{versionName}/{modid}/{modDomain}/lang/{s}";
+                        $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/main/projects/{versionName}/assets/{modid}/{modDomain}/lang/{s}";
                     
-                    tasks.Add(R());
-                    async Task R()
+                    tasks.Add(R(link));
+                    async Task R(string l)
                     {
-                        if (await LinkExists(link))
+                        Console.WriteLine(l);
+                        if (await LinkExists(l))
                         {
-                            AddRadio($"<a href=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/projects/{versionName}/{modid}/{modDomain}/lang/{s}\">仓库中的</a> {versionName}/{modid}/{modDomain}/{s}", $"link`{link}");
+                        Console.WriteLine(111111);
+                            AddRadio($"<a href=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/projects/{versionName}/assets/{modid}/{modDomain}/lang/{s}\">仓库中的</a> {versionName}/{modid}/{modDomain}/{s}", $"link`{l}");
                         }
                     }
                 }
@@ -296,6 +298,8 @@ namespace CFPABot.Controllers
                 
                 var reader = s1.CreateStreamReader();
                 var writer = s2.CreateStreamWriter();
+                // todo 这里需要改
+                // todo 还需要加入某个地方json的注释跳过
                 if (f1.TrimStart().StartsWith("{"))
                 {
                     new JsonFormatter(reader, writer).Format();
