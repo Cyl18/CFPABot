@@ -45,7 +45,7 @@ namespace CFPABot.Utils
             var owner = sp[^2];
             var repoName = sp[^1];
             var resultPath = $"config/repo_analyze_results/{owner}.{repoName}.json";
-            if (File.Exists(resultPath)) return JsonSerializer.Deserialize<RepoAnalyzeResult>(resultPath);
+            if (File.Exists(resultPath)) return JsonSerializer.Deserialize<RepoAnalyzeResult>(await File.ReadAllTextAsync(resultPath));
             
             var githubBranches = await GitHub.Instance.Repository.Branch.GetAll(owner, repoName);
 
@@ -62,11 +62,11 @@ namespace CFPABot.Utils
                     var relativePath = Path.GetRelativePath(repoPath, filePath);
                     if (fileName.Equals("en_us.lang", StringComparison.OrdinalIgnoreCase) || fileName.Equals("en_us.json", StringComparison.OrdinalIgnoreCase))
                     {
-                        results.Add(new RepoFileAnalyzeResult(branchName, relativePath, fileName, LangType.EN, repo.Head.Tip.Sha));
+                        results.Add(new RepoFileAnalyzeResult(branchName, relativePath, fileName, LangType.EN, repo.Branches[branchName].Tip.Sha));
                     }
                     if (fileName.Equals("zh_cn.lang", StringComparison.OrdinalIgnoreCase) || fileName.Equals("zh_cn.json", StringComparison.OrdinalIgnoreCase))
                     {
-                        results.Add(new RepoFileAnalyzeResult(branchName, relativePath, fileName, LangType.CN, repo.Head.Tip.Sha));
+                        results.Add(new RepoFileAnalyzeResult(branchName, relativePath, fileName, LangType.CN, repo.Branches[branchName].Tip.Sha));
                     }
                 }
             }
@@ -89,21 +89,15 @@ namespace CFPABot.Utils
         // https://stackoverflow.com/questions/46588604/checking-out-remote-branch-using-libgit2sharp
         static Branch SwitchBranch(Repository repo, string branchName)
         {
-            var branch = repo.Branches[branchName];
-
-            if (branch == null)
+            var trackedBranch = repo.Branches[$"origin/{branchName}"];
+            if (repo.Branches[branchName] == null)
             {
-                // Repository returns null object when branch does not exist
-                // so, create a new, LOCAL branch
-                repo.CreateBranch(branchName); // Or repo.Branches.Add("dev", "HEAD");
-                branch = repo.Branches[branchName];
-
-                // You will need more code _here_ if you want to synchronize/set 
-                // an upstream branch...
+                trackedBranch = repo.CreateBranch(branchName, trackedBranch.Tip);
             }
 
-            // Now, checkout the branch
-            return Commands.Checkout(repo, branch);
+
+            repo.Branches.Update(trackedBranch, b => b.UpstreamBranch = trackedBranch.CanonicalName);
+            return Commands.Checkout(repo, branchName);
         }
     }
 }

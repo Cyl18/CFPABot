@@ -150,8 +150,8 @@ namespace CFPABot.Utils
                     return;
                 }
 
-                sb.AppendLine("| | 模组名 | 🆔 ModID | :hammer: CurseForge | :art: 最新模组 | 🟩 mcmod | :mag: 源代码 |");
-                sb.AppendLine("| --- | --- | --- | :-: | --- | :-: | :-: |");
+                sb.AppendLine("| | 模组名 | 🆔 ModID | :hammer: CurseForge | :art: 最新模组 | 🟩 mcmod | :mag: 源代码 | :file_folder: 对比 |");
+                sb.AppendLine("| --- | --- | --- | :-: | --- | :-: | :-: | --- |");
 
                 //sb.AppendLine("| 模组名 | CurseForge | 最新模组文件 | 源代码 |");
                 //sb.AppendLine("|  --- | --- | --- | --- |");
@@ -168,6 +168,7 @@ namespace CFPABot.Utils
                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)} |" +
                         /* Mcmod    */ $" [百度](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) |" +
                         /* Source   */ $" {await CurseManager.GetRepoText(addon)} |" +
+                        /* Compare  */ $" [链接](https://cfpa.cyan.cafe/Compare/PR/{PullRequestID}/{addon.Slug}/{await CurseManager.GetModID(addon, versions.FirstOrDefault(), true, false)}) |" +
                         ""
                         );
 
@@ -194,6 +195,7 @@ namespace CFPABot.Utils
                                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} |" +
                                         /* Mcmod    */ $" [百度](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(depAddon.Name)}) |" +
                                         /* Source   */ $" {await CurseManager.GetRepoText(depAddon)} |" +
+                                        /* Compare  */ $" * |" +
                                         ""
                                             );
                                 }
@@ -415,7 +417,7 @@ namespace CFPABot.Utils
                     {
                         if (addon != null && names[3] != "1UNKNOWN")
                         {
-                            (modENFile, downloadModName) = await CurseManager.GetModEnFile(addon, mcVersion);
+                            (modENFile, downloadModName) = await CurseManager.GetModEnFile(addon, mcVersion, LangType.EN);
                         }
                     }
                     catch (Exception e)

@@ -30,6 +30,14 @@ namespace CFPABot
                 Wait();
                 cts.Cancel();
             };
+            try
+            {
+                Directory.Delete("caches", true);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
             GitHub.Init();
             Directory.CreateDirectory("config");
             Directory.CreateDirectory("wwwroot");
@@ -37,9 +45,8 @@ namespace CFPABot
             Directory.CreateDirectory("logs");
             Directory.CreateDirectory("config/repo_analyze_results");
             Directory.CreateDirectory("caches/");
-            await RepoAnalyzer.Analyze("https://github.com/Flemmli97/MobBattle");
-            Console.WriteLine("OK");
-            Console.ReadKey();
+
+            
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
                 .WriteTo.Console()

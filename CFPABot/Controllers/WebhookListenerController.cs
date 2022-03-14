@@ -37,7 +37,7 @@ namespace CFPABot.Controllers
             var eventName = Request.Headers["X-GitHub-Event"];
             var signature = Request.Headers["X-Hub-Signature-256"];
 
-            var body = await Request.Body.ReadToEndAsync();
+            var body = await Request.Body.ReadToEndAsync1();
 
             if (!IsGithubPushAllowed(body, eventName, signature))
                 return Unauthorized();

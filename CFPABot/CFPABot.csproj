@@ -7,11 +7,13 @@
 
   <ItemGroup>
     <PackageReference Include="DiffPatch" Version="2.0.0" />
+    <PackageReference Include="DiffPlex" Version="1.7.1" />
     <PackageReference Include="ForgedCurse" Version="2.0.0" />
     <PackageReference Include="GammaLibrary" Version="2.3.0" />
     <PackageReference Include="LibGit2Sharp" Version="0.26.2" />
     <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="2.0.306" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.11.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="Octokit" Version="0.50.0" />
     <PackageReference Include="Serilog" Version="2.10.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="4.0.1" />

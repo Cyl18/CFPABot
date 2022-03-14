@@ -83,7 +83,7 @@ namespace CFPABot.Utils
             }
         }
 
-        static string GetDownloadUrl(GameVersionLatestRelease release)
+        public static string GetDownloadUrl(GameVersionLatestRelease release)
         {
             var s = release.FileId.ToString();
             return
@@ -112,7 +112,8 @@ namespace CFPABot.Utils
             return new ForgeClient().Addons.RetriveAddon(MapModIDToProjectID(modid));
         }
 
-        public static async Task<string> GetModID(Addon addon, MCVersion? version)
+        public static async Task<string> GetModID(Addon addon, MCVersion? version, bool enforcedLang = false,
+            bool connect = true)
         {
             if (version == null) return "未知";
             try
@@ -122,12 +123,14 @@ namespace CFPABot.Utils
                     var fileName = await Download.DownloadFile(GetDownloadUrl(file));
                     await using var fs = File.OpenRead(fileName);
 
-                    var modid = new ZipArchive(fs).Entries
+                    var modids = new ZipArchive(fs).Entries
                         .Where(a => a.FullName.StartsWith("assets"))
+                        .Where(a => !enforcedLang || a.FullName.Contains("lang"))
                         .Select(a => a.FullName.Split("/")[1]).Distinct().Where(n => !n.IsNullOrWhiteSpace())
-                        .Where(id => id != "minecraft")
-                        .Connect(" \\| ", "*", "*");
-                    return modid;
+                        .Where(id => id != "minecraft");
+                   
+                    return connect ? modids
+                        .Connect(" \\| ", "*", "*") : modids.First();
                 }
             }
             catch (Exception e)
@@ -166,21 +169,15 @@ namespace CFPABot.Utils
             return null;
         }
 
-        public static async Task<(string[] files, string downloadFileName)> GetModEnFile(Addon addon, MCVersion? version)
+        public static async Task<(string[] files, string downloadFileName)> GetModEnFile(Addon addon, MCVersion? version, LangType type)
         {
             if (version == null) return (null, null);
             try
             {
                 if (addon.Files.OrderByDescending(f => f.FileId).FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToVersionString())) is { } file)
                 {
-                    var fileName = await Download.DownloadFile(GetDownloadUrl(file));
-                    await using var fs = File.OpenRead(fileName);
-
-                    var files = new ZipArchive(fs).Entries
-                        .Where(f => f.FullName.Contains("lang") && f.FullName.Contains("assets") &&
-                                             f.FullName.Split('/').All(n => n != "minecraft") &&
-                                             (f.Name.Equals("en_us.lang", StringComparison.OrdinalIgnoreCase) ||
-                                              f.Name.Equals("en_us.json", StringComparison.OrdinalIgnoreCase)));
+                    var downloadUrl = GetDownloadUrl(file);
+                    var files = await GetModLangFiles(downloadUrl, type);
 
                     return (files.Select(f => f.Open().ReadToEnd()).ToArray(), file.FileName);
                 }
@@ -192,6 +189,22 @@ namespace CFPABot.Utils
             }
 
             return (null, null);
+        }
+
+        public static async Task<IEnumerable<ZipArchiveEntry>> GetModLangFiles(string downloadUrl, LangType type)
+        {
+            var fileName = await Download.DownloadFile(downloadUrl);
+            var fs = File.OpenRead(fileName);
+
+            var files = new ZipArchive(fs).Entries
+                .Where(f => f.FullName.Contains("lang") && f.FullName.Contains("assets") &&
+                            f.FullName.Split('/').All(n => n != "minecraft") &&
+                            type == LangType.EN
+                    ? (f.Name.Equals("en_us.lang", StringComparison.OrdinalIgnoreCase) ||
+                       f.Name.Equals("en_us.json", StringComparison.OrdinalIgnoreCase))
+                    : (f.Name.Equals("zh_cn.lang", StringComparison.OrdinalIgnoreCase) ||
+                       f.Name.Equals("zh_cn.json", StringComparison.OrdinalIgnoreCase)));
+            return files;
         }
     }
 

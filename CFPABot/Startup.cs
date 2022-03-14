@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.FileProviders;
@@ -40,8 +41,10 @@ namespace CFPABot
             app.UseRouting();
 
             app.UseAuthorization();
+            
+            app.UseStaticFiles(new StaticFileOptions { RequestPath = "/static", FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwroot")) });
 
-            app.UseStaticFiles(new StaticFileOptions{RequestPath = "/static", FileProvider = new PhysicalFileProvider("/app/wwwroot")});
+
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
