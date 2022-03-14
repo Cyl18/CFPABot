@@ -297,7 +297,7 @@ namespace CFPABot.Utils
                 var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}.txt";
                 var filePath = "wwwroot/" + fileName;
                 var webPath = $"https://cfpa.cyan.cafe/static/{fileName}";
-                if (File.Exists(filePath)) return;
+                if (File.Exists(filePath) && Context.CheckSegment != "") {return;}
 
                 // 检查大小写
                 var reportedCap = false;
@@ -470,11 +470,11 @@ namespace CFPABot.Utils
                     ("下届", "可能是`下界`", null),
                     ("合成台", "可能是`工作台`", null),
                     ("岩浆", "可能是`熔岩`", t => !t.diff.Content.Contains("岩浆块") && !t.diff.Content.Contains("岩浆怪") && !t.diff.Content.Contains("岩浆膏")),
+                    ("粉色", "原版译名采用`粉红色`", t => !t.diff.Content.Contains("浅粉色") && !t.diff.Content.Contains("艳粉色") && !t.diff.Content.Contains("亮粉色")),
+                    ("地狱", "`地狱`在 1.16 后更名为`下界`", tuple => tuple.version != MCVersion.v1122),
                 };
                 (string checkname, string message, Predicate<(LineDiff diff, MCVersion version)> customCheck)[] errors = {
-                    ("地狱", "`地狱`在 1.16 后更名为`下界`", tuple => tuple.version != MCVersion.v1122),
                     ("爬行者", "`爬行者`在 1.16 后更名为`苦力怕`", tuple => tuple.version != MCVersion.v1122),
-                    ("粉色", "原版译名采用`粉红色`", null),
                     ("浅灰色", "原版译名采用`淡灰色`", null),
                 };
                 // 俺的服务器只有1个U 就不写多线程力
@@ -501,7 +501,7 @@ namespace CFPABot.Utils
                                         typoResult = true;
                                         diffCheckedSet.Add(checkname);
                                         sb.AppendLine(
-                                            $"ℹ 注意：检测到可能有争议的译名：`{checkname}`，{message}。例如行 {lineDiff.NewIndex}-`{lineDiff.Content.Replace("`", "\\`")}`。");
+                                            $"ℹ 注意：检测到可能的争议译名：`{checkname}`，{message}。例如行 {lineDiff.NewIndex}-`{lineDiff.Content.Replace("`", "\\`")}`。");
                                     }
 
                                     reportSb.AppendLine(
@@ -539,13 +539,22 @@ namespace CFPABot.Utils
                     File.WriteAllText(filePath, report);
                     if (report.Length > 30000 )// GitHub issues 字数链接理论65536
                     {
-                        sb.AppendLine($"\n更多报告可以在 [这里]({webPath}) 查看。 在 PR 更新时这里的检查也会自动更新。");
+                        sb.AppendLine();
+                        if (typoResult)
+                        {
+                            sb.AppendLine("上方的译名检测仅有参考价值，可能并没有实际错误。");
+                        }
+                        sb.AppendLine($"更多报告可以在 [这里]({webPath}) 查看。 在 PR 更新时这里的检查也会自动更新。");
                     }
                     else
                     {
                         sb.Append($"\n<details> <summary>详细检查报告</summary> \n");
                         sb.Append(report.Replace("\n", "<br>").Replace(" ", "&nbsp;"));
                         sb.Append($"</details>\n\n");
+                        if (typoResult)
+                        {
+                            sb.AppendLine("上方的译名检测仅有参考价值，可能并没有实际错误。");
+                        }
                         sb.AppendLine($"报告也可以在 [这里]({webPath}) 查看。在 PR 更新时这里的检查也会自动更新。");
                     }
                 }
@@ -557,7 +566,11 @@ namespace CFPABot.Utils
             }
             finally
             {
-                Context.CheckSegment = sb.ToString();
+                var c = sb.ToString();
+                if (!c.IsNullOrWhiteSpace())
+                {
+                    Context.CheckSegment = c;
+                }
             }
         }
 
