@@ -71,12 +71,12 @@ namespace CFPABot.Controllers
 ");
             var radios = await GenRadios(pr.ToInt(), modid,modDomain);
             sb.Append(@"<div class=""row"">");
-            sb.Append(@"<div class=""col"" ><fieldset class=""form-group"" id=""comparea"" style=""margin: 32px;"">");
+            sb.Append(@"<div class=""col"" ><fieldset class=""form-group"" id=""comparea"" style=""margin: 24px;"">");
             sb.Append(radios.Replace("%NAME%", "comparea"));
             sb.Append(@"</fieldset>
 </div>");
             sb.Append(@"<div class=""col"" >");
-            sb.Append(@"<fieldset class=""form-group"" id=""compareb"" style=""margin: 32px;"">");
+            sb.Append(@"<fieldset class=""form-group"" id=""compareb"" style=""margin: 24px;"">");
             sb.Append(radios.Replace("%NAME%", "compareb"));
             sb.Append(@"</fieldset>
 
@@ -139,7 +139,7 @@ namespace CFPABot.Controllers
                     var check = (versionString, curseID);
                     var mcVersion = versionString.ToMCVersion();
                     if (curseID != modid) continue;
-                    AddRadio($"PR 所改动的 {versionString}/{curseID}/{modDomain}/{names[6]}", $"link`https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/{diff.To}");
+                    AddRadio($"<a href=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/{headSha}/{diff.To}\">PR 所改动的</a> {versionString}/{curseID}/{modDomain}/{names[6]}", $"link`https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/{diff.To}");
                 }
             }
             catch (Exception e)
@@ -161,7 +161,7 @@ namespace CFPABot.Controllers
                     {
                         if (await LinkExists(link))
                         {
-                            AddRadio($"仓库中的 {versionName}/{modid}/{modDomain}/{s}", $"link`{link}");
+                            AddRadio($"<a href=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/projects/{versionName}/{modid}/{modDomain}/lang/{s}\">仓库中的</a> {versionName}/{modid}/{modDomain}/{s}", $"link`{link}");
                         }
                     }
                 }
@@ -191,13 +191,16 @@ namespace CFPABot.Controllers
                         try
                         {
                             var downloadUrl = CurseManager.GetDownloadUrl(file);
-                            foreach (var entry in await CurseManager.GetModLangFiles(downloadUrl, LangType.EN))
+                            var enfiles = (await CurseManager.GetModLangFiles(downloadUrl, LangType.EN)).ToArray();
+                            foreach (var entry in enfiles)
                             {
-                                AddRadio($"模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" }}{file.GameVersion}-{file.FileName} 中的英文语言文件: {entry.FullName}", $"mod`{downloadUrl}`{entry.FullName}");
+                                AddRadio($"<a href=\"{downloadUrl}\">模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" }}{file.GameVersion}-{file.FileName}</a> 中的英文语言文件 {(enfiles.Length > 1 ? entry.FullName : "")}", $"mod`{downloadUrl}`{entry.FullName}");
                             }
-                            foreach (var entry in await CurseManager.GetModLangFiles(downloadUrl, LangType.CN))
+
+                            var cnfiles = (await CurseManager.GetModLangFiles(downloadUrl, LangType.CN)).ToArray();
+                            foreach (var entry in cnfiles)
                             {
-                                AddRadio($"模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" }}{file.GameVersion}-{file.FileName} 中的中文语言文件: {entry.FullName}", $"mod`{downloadUrl}`{entry.FullName}");
+                                AddRadio($"<a href=\"{downloadUrl}\">模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" }}{file.GameVersion}-{file.FileName}</a> 中的中文语言文件 {(cnfiles.Length > 1 ? entry.FullName : "")}", $"mod`{downloadUrl}`{entry.FullName}");
                             }
                             //AddRadio($"模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" }}{file.GameVersion}-{file.FileName} 中的中文语言文件", $"mod:{CurseManager.GetDownloadUrl(file)}:en");
 
@@ -223,7 +226,8 @@ namespace CFPABot.Controllers
                 var analyzeResult = await RepoAnalyzer.Analyze(url);
                 foreach (var (branch, filePath, fileName, langType, commitSha) in analyzeResult.Results)
                 {
-                    AddRadio($"模组源代码仓库中 {branch} 分支的 {filePath}", $"link`https://raw.githubusercontent.com/{analyzeResult.Owner}/{analyzeResult.RepoName}/{commitSha}/{filePath}");
+                    AddRadio($"模组源代码<a href=\"https://github.com/{analyzeResult.Owner}/{analyzeResult.RepoName}\">仓库</a>中 {branch} 分支的 <a href=\"https://github.com/{analyzeResult.Owner}/{analyzeResult.RepoName}/blob/{commitSha}/{filePath}\">{filePath}</a>", $"link`" +
+                        $"https://raw.githubusercontent.com/{analyzeResult.Owner}/{analyzeResult.RepoName}/{commitSha}/{filePath}");
                 }
             }
             catch (Exception e)
@@ -233,10 +237,18 @@ namespace CFPABot.Controllers
 
             AddFile();
 
+            var i2 = id++;
+
+            sb.AppendLine($@"
+<div class=""form-check"">
+  <input type=""checkbox"" id=""%NAME%customCheck{i2}"" name=""cn%NAME%"" value=""true"" class=""form-check-input"" />
+  <label class=""custom-control-label"" for=""%NAME%customCheck{i2}"" >勾选：使用上传模组的中文语言文件 不勾选：使用上传模组的英文语言文件</label>
+</div>
+");
             var i1 = id++;
             sb.AppendLine($@"
 <div class=""form-check"">
-  <input type=""checkbox"" id=""%NAME%customCheck{i1}"" name=""format%NAME%"" value=""true"" checked />
+  <input type=""checkbox"" id=""%NAME%customCheck{i1}"" name=""format%NAME%"" value=""true"" class=""form-check-input"" checked />
   <label class=""custom-control-label"" for=""%NAME%customCheck{i1}"" >格式化文本</label>
 </div>
 ");
@@ -250,9 +262,9 @@ namespace CFPABot.Controllers
                 {
                     var i = id++;
                     sb.AppendLine($@"
-<div class=""custom-control custom-radio"">
-  <input type=""radio"" id=""%NAME%customRadio{i}"" name=""%NAME%"" value=""{HttpUtility.HtmlEncode(value)}"" class=""custom-control-input"">
-  <label class=""custom-control-label"" for=""%NAME%customRadio{i}"">{HttpUtility.HtmlEncode(text)}</label>
+<div class=""form-check"" style=""margin: 6px;"">
+  <input type=""radio"" id=""%NAME%customRadio{i}"" name=""%NAME%"" value=""{HttpUtility.HtmlEncode(value)}"" class=""form-check-input"">
+  <label class=""form-check-label"" for=""%NAME%customRadio{i}"" style=""{(text.Contains("zh_") || text.Contains("中文") ? "color: #0077c2" : text.Contains("en_") || text.Contains("英文") ? "color: #b61827" : "")} "">{text}</label>
 </div>");
                 }
                 
@@ -262,8 +274,9 @@ namespace CFPABot.Controllers
             {
                 var i = id++;
                 sb.AppendLine($@"
-<div class=""custom-control custom-radio"">
-  <input type=""radio"" id=""%NAME%customRadio{i}"" name=""%NAME%"" value=""file`"" class=""custom-control-input"">
+<div class=""form-check"" style=""margin: 6px;"">
+  <input type=""radio"" id=""%NAME%customRadio{i}"" name=""%NAME%"" value=""file`"" class=""form-check-input"">
+  <label class=""form-check-label"" for=""%NAME%customRadio{i}"" style="" "">语言文件/模组</label>
   <input type=""file""
        id=""file%NAME%"" name=""file%NAME%"">
 </div>");
@@ -273,8 +286,8 @@ namespace CFPABot.Controllers
         [HttpPost("Do")]
         public async Task<IActionResult> RunCheck(string comparea, string compareb, string checka, string checkb)
         {
-            var f1 = (await GetFile(comparea, HttpContext.Request.Form.Files.FirstOrDefault(f => f.Name == "filecomparea"))).Replace("\r\n", "\n").TrimStart('\uFEFF');
-            var f2 = (await GetFile(compareb, HttpContext.Request.Form.Files.FirstOrDefault(f => f.Name == "filecompareb"))).Replace("\r\n", "\n").TrimStart('\uFEFF');
+            var f1 = (await GetFile(comparea, HttpContext.Request.Form.Files.FirstOrDefault(f => f.Name == "filecomparea"), HttpContext.Request.Form["cncomparea"].FirstOrDefault() == "true")).Replace("\r\n", "\n").TrimStart('\uFEFF');
+            var f2 = (await GetFile(compareb, HttpContext.Request.Form.Files.FirstOrDefault(f => f.Name == "filecompareb"), HttpContext.Request.Form["cncompareb"].FirstOrDefault() == "true")).Replace("\r\n", "\n").TrimStart('\uFEFF');
 
             if (HttpContext.Request.Form["formatcomparea"].FirstOrDefault() == "true")
             {
@@ -316,6 +329,8 @@ namespace CFPABot.Controllers
             
             var f1h = f1.SHA256().ToHexString()[..6];
             var f2h = f2.SHA256().ToHexString()[..6];
+            if (f1 == f2) return Content("文件内容完全相同。");
+            
             var filename = $"{f1h}-{f2h}.html";
             var link = $"/static/{filename}";
             var filePath = $"wwwroot/{filename}";
@@ -377,10 +392,24 @@ namespace CFPABot.Controllers
       diff2htmlUi.highlightCode();
     }}
     document.addEventListener('DOMContentLoaded', function () {{ r(true); }});
+function download(filename, text) {{
+  var element = document.createElement('a');
+  element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+  element.setAttribute('download', filename);
+
+  element.style.display = 'none';
+  document.body.appendChild(element);
+
+  element.click();
+
+  document.body.removeChild(element);
+}}
+
   </script>
   <body>
 <label>Chrome显示有些问题，建议用FireFox</label>
     <button onclick=""r(false);"">切换行显示模式</button>
+    <button onclick=""download('{f1h}-{f2h}.diff', diffString);"">下载 .diff 文件</button>
     <div id=""myDiffElement""></div>
   </body>
 </html>
@@ -396,7 +425,7 @@ namespace CFPABot.Controllers
             }
             return Redirect(link);
 
-            async Task<string> GetFile(string compare, IFormFile file)
+            async Task<string> GetFile(string compare, IFormFile file, bool cn)
             {
                 var s = compare.Split("`");
                 switch (s[0])
@@ -405,7 +434,28 @@ namespace CFPABot.Controllers
                         return await Download.String(s[1]);
                         
                     case "file":
-                        return await file.OpenReadStream().ReadToEndAsync1(Encoding.UTF8);
+                        if (file.FileName.EndsWith(".jar"))
+                        {
+                            var fc1 = file.OpenReadStream();
+                            var path = Path.GetTempFileName();
+                            var wfs = System.IO.File.OpenWrite(path);
+                            await fc1.CopyToAsync(wfs);
+                            wfs.Close();
+
+                            var fs1 = System.IO.File.OpenRead(path);
+                            try
+                            {
+                                var f = CurseManager.GetModLangFilesFromStream(fs1, cn ? LangType.CN : LangType.EN);
+                                return await f.First().Open().ReadToEndAsync1();
+                            }
+                            finally
+                            {
+                                fs1.Close();
+                                System.IO.File.Delete(path);
+                            } 
+                        }
+                        var fc = await file.OpenReadStream().ReadToEndAsync1(Encoding.UTF8);
+                        return fc;
                     case "mod":
                     {
                         var f = await Download.DownloadFile(s[1]);

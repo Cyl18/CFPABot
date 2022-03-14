@@ -196,6 +196,11 @@ namespace CFPABot.Utils
             var fileName = await Download.DownloadFile(downloadUrl);
             var fs = File.OpenRead(fileName);
 
+            return GetModLangFilesFromStream(fs, type);
+        }
+
+        public static IEnumerable<ZipArchiveEntry> GetModLangFilesFromStream(Stream fs, LangType type)
+        {
             var files = new ZipArchive(fs).Entries
                 .Where(f => f.FullName.Contains("lang") && f.FullName.Contains("assets") &&
                             f.FullName.Split('/').All(n => n != "minecraft") &&
@@ -203,7 +208,11 @@ namespace CFPABot.Utils
                     ? (f.Name.Equals("en_us.lang", StringComparison.OrdinalIgnoreCase) ||
                        f.Name.Equals("en_us.json", StringComparison.OrdinalIgnoreCase))
                     : (f.Name.Equals("zh_cn.lang", StringComparison.OrdinalIgnoreCase) ||
-                       f.Name.Equals("zh_cn.json", StringComparison.OrdinalIgnoreCase)));
+                       f.Name.Equals("zh_cn.json", StringComparison.OrdinalIgnoreCase))).ToArray();
+            if (files.Length == 2 && files.Any(f => f.Name.EndsWith(".json")) && files.Any(f => f.Name.EndsWith(".lang"))) // storage drawers
+            {
+                files = new[] {files.First(f => f.Name.EndsWith(".json"))};
+            }
             return files;
         }
     }
