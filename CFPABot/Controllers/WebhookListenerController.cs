@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
+using Octokit;
 
 namespace CFPABot.Controllers
 {
@@ -43,6 +44,7 @@ namespace CFPABot.Controllers
                 return Unauthorized();
 
             var data = JsonDocument.Parse(body).RootElement;
+            if (data.GetProperty("repository").GetProperty("id").GetInt32() != 88008282) return Unauthorized();
             switch (eventName)
             {
                 case "workflow_run":
@@ -59,13 +61,37 @@ namespace CFPABot.Controllers
             return Ok();
         }
 
+        async ValueTask<bool> CheckCommentCount(IssueComment[] comments)
+        {
+            if (comments.Length > 1)
+            {
+                foreach (var comment in comments)
+                {
+                    await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id,
+                        "<!--CYBOT-->❌ CRITICAL_FAILURE：找到了多个 Bot Comment. 请删除到只保留一个. 删除后请点击强制刷新.\n- [ ] 🔄 勾选这个复选框来强制刷新");
+                }
+                return true;
+            }
+
+            return false;
+        }
+
         async void IssueComment(JsonElement jsonElement)
         {
+
             if (jsonElement.GetProperty("issue").GetProperty("html_url").GetString().Contains("pull"))
             {
                 var prid = jsonElement.GetProperty("issue").GetProperty("number").GetInt32();
                 var comments = await GitHub.GetPRComments(prid);
-                if (comments.Any(c => c.User.Login == "Cyl18-Bot" && c.Body.StartsWith("<!--CYBOT-->") && c.Body.Contains("- [x] 🔃")))
+                var botComments = comments.Where(c => (c.User.Login == "Cyl18-Bot" || c.User.Login.Equals("cfpa-bot[bot]", StringComparison.OrdinalIgnoreCase)) && c.Body.StartsWith("<!--CYBOT-->")).ToArray();
+                if (await CheckCommentCount(botComments))
+                {
+                    return;
+                }
+
+                var refreshComments = botComments.Where(c => (c.Body.Contains("- [x] 🔃") || c.Body.Contains("- [x] 🔄")));
+                
+                if (refreshComments.Any())
                 {
                     var pr = await GitHub.GetPullRequest(prid);
                     var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}.txt";
@@ -73,11 +99,11 @@ namespace CFPABot.Controllers
                     if (System.IO.File.Exists(filePath)) System.IO.File.Delete(filePath);
                     
                     var builder = GetOrCreateCommentBuilder(prid);
-                    builder.Update(async () =>
-                    {
-                        await builder.UpdateBuildArtifactsSegment();
-                        await builder.UpdateModLinkSegment(await GitHub.Diff(prid));
-                    });
+                    _ = builder.Update(async () =>
+                      {
+                          await builder.UpdateBuildArtifactsSegment();
+                          await builder.UpdateModLinkSegment(await GitHub.Diff(prid));
+                      });
                 }
             }
         }
@@ -87,8 +113,11 @@ namespace CFPABot.Controllers
         static CommentBuilder GetOrCreateCommentBuilder(int id)
         {
             // 每次都要写一遍这种东西（（
-            if (!commentBuilders.ContainsKey(id)) commentBuilders[id] = new CommentBuilder(id);
-            return commentBuilders[id];
+            lock (typeof(WebhookListenerController))
+            {
+                if (!commentBuilders.ContainsKey(id)) commentBuilders[id] = new CommentBuilder(id);
+                return commentBuilders[id];
+            }
         }
 
         void PR(JsonElement data)
@@ -100,10 +129,10 @@ namespace CFPABot.Controllers
                 {
                     var prid = data.GetProperty("number").GetInt32();
                     var builder = GetOrCreateCommentBuilder(prid);
-                    builder.Update(async () =>
-                    {
-                        await builder.UpdateModLinkSegment(await GitHub.Diff(prid));
-                    });
+                    _ = builder.Update(async () =>
+                      {
+                          await builder.UpdateModLinkSegment(await GitHub.Diff(prid));
+                      });
                 }
                 catch (Exception e)
                 {

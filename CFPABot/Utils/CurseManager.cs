@@ -23,14 +23,21 @@ namespace CFPABot.Utils
     {
         public static async Task<string> GetThumbnailText(Addon addon)
         {
-            var url = addon.Attachments.FirstOrDefault(a => a.Default)?.ThumbnailUrl;
-            if (url == null) return "✨";
+            try
+            {
+                var url = addon.Attachments.FirstOrDefault(a => a.Default)?.ThumbnailUrl;
+                if (url == null) return "✨";
 
-            await using var stream = await new HttpClient().GetStreamAsync(url);
-            var fileName = $"{url.Split("/").Last()}";
-            await using var fs = File.OpenWrite($"wwwroot/{fileName}");
-            await stream.CopyToAsync(fs);
-            return $"<image src=\"https://cfpa.cyan.cafe/static/{fileName}\" width=\"32\"/>";
+                await using var stream = await new HttpClient().GetStreamAsync(url);
+                var fileName = $"{url.Split("/").Last()}";
+                await using var fs = File.OpenWrite($"wwwroot/{fileName}");
+                await stream.CopyToAsync(fs);
+                return $"<image src=\"https://cfpa.cyan.cafe/static/{fileName}\" width=\"32\"/>";
+            }
+            catch (Exception e)
+            {
+                return "✨";
+            }
         }
 
         // 因为那个ForgeCursed api不全所以还得手动请求一次..
@@ -103,7 +110,7 @@ namespace CFPABot.Utils
             catch (Exception e)
             {
                 Log.Error(e, "MapModIDToProjectID");
-                throw new CheckException($"⚠ 无法找到 {modid} 的 ModID 到 ProjectID 的映射. 请检查文件路径是否正确.");
+                throw new CheckException($"⚠ 无法找到 {modid} 的 ProjectName 到 ProjectID 的映射. 请检查文件路径是否正确.");
             }
         }
 

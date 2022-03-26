@@ -23,16 +23,6 @@ using MemoryStream = System.IO.MemoryStream;
 
 namespace CFPABot.Controllers
 {
-    public class CompareForm
-    {
-        public string comparea;
-        public string compareb;
-        public IFormFile compareafile;
-        public IFormFile comparebfile;
-        public string modid;
-        public string pr;
-        public string moddomain;
-    }
     [Route("[controller]")]
     public class CompareController : ControllerBase
     {
@@ -42,6 +32,7 @@ namespace CFPABot.Controllers
             return Content($@"
 <!DOCTYPE html>
 <head>
+  <meta name=""robots"" content=""noindex"">
   <meta http-equiv=""refresh"" content=""0; URL=/Compare/PRA/{pr}/{modid}/{modDomain}"" />
 </head>
 <body>
@@ -57,6 +48,7 @@ namespace CFPABot.Controllers
             sb.Append($@"
 <!DOCTYPE html>
 <head>
+<meta name=""robots"" content=""noindex"">
 <meta name=""viewport"" content=""width=device-width, initial-scale=1"">
 <link href=""https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"" rel=""stylesheet"" integrity=""sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3"" crossorigin=""anonymous"">
 </head>
@@ -159,10 +151,8 @@ namespace CFPABot.Controllers
                     tasks.Add(R(link));
                     async Task R(string l)
                     {
-                        Console.WriteLine(l);
                         if (await LinkExists(l))
                         {
-                        Console.WriteLine(111111);
                             AddRadio($"<a href=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/projects/{versionName}/assets/{modid}/{modDomain}/lang/{s}\">仓库中的</a> {versionName}/{modid}/{modDomain}/{s}", $"link`{l}");
                         }
                     }
@@ -366,6 +356,7 @@ namespace CFPABot.Controllers
 <html lang=""en-us"">
   <head>
     <meta charset=""utf-8"" />
+    <meta name=""robots"" content=""noindex"">
     <!-- Make sure to load the highlight.js CSS file before the Diff2Html CSS file -->
     <link rel=""stylesheet"" href=""https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.1/styles/github.min.css"" />
     <link

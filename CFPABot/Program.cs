@@ -43,7 +43,7 @@ namespace CFPABot
             {
                 Console.WriteLine(e);
             }
-            GitHub.Init();
+            //GitHub.Init();
             Directory.CreateDirectory("config");
             Directory.CreateDirectory("wwwroot");
             Directory.CreateDirectory("config/pr_context");

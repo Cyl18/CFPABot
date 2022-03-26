@@ -18,7 +18,14 @@ namespace CFPABot.Utils
         }
         public static Task<string> String(string url)
         {
-            return hc.GetStringAsync(url);
+            try
+            {
+                return hc.GetStringAsync(url);
+            }
+            catch (Exception)
+            {
+                return hc.GetStringAsync(url);
+            }
         }
 
         public static async Task<string> DownloadFile(string url)

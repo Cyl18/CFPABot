@@ -25,7 +25,7 @@ namespace CFPABot.Utils
         public string BuildArtifactsSegment { get; set; } = "";
         public string CheckSegment { get; set; } = "";
         public string UpdateSegment { get; set; } = "";
-        public string ReloadSegment { get; set; } = "- [ ] 🔃 勾选这个复选框来强制刷新";
+        public string ReloadSegment { get; set; } = "- [ ] 🔄 勾选这个复选框来强制刷新";
     }
     public sealed class CommentBuilder
     {
@@ -49,17 +49,30 @@ namespace CFPABot.Utils
         public CommentContext Context { get; private set; }
         void SaveContext() => File.WriteAllText(ContextFilePath, JsonSerializer.Serialize(Context));
         volatile int UpdatingCount = 0;
+
         public async Task Update(Func<Task> updateCallback)
+        {
+            try
+            {
+                await UpdateInternal(updateCallback);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "Update issue comment error");
+            }
+        }
+        public async Task UpdateInternal(Func<Task> updateCallback)
         {
             // using var l = AcquireLock(nameof(Update));
             var fileDiff = await GitHub.Diff(PullRequestID);
             if (Context.BuildArtifactsSegment.IsNullOrEmpty() && fileDiff.All(d => !d.To.StartsWith("projects/"))) return;
             
-            var comments = await GitHub.GetPRComments(PullRequestID);
             IssueComment comment;
             using (await AcquireLock("UpdateLock"))
             {
-                comment = comments.FirstOrDefault(c => c.User.Login == "Cyl18-Bot" && c.Body.StartsWith("<!--CYBOT-->")) ?? await CreateComment();
+                var comments = await GitHub.GetPRComments(PullRequestID);
+                comment = comments.FirstOrDefault(c => (c.User.Login == "Cyl18-Bot" || c.User.Login.Equals("cfpa-bot[bot]", StringComparison.OrdinalIgnoreCase)) && c.Body.StartsWith("<!--CYBOT-->"))
+                          ?? await CreateComment();
             }
 
             var sb2 = new StringBuilder();
@@ -299,6 +312,10 @@ namespace CFPABot.Utils
                 var webPath = $"https://cfpa.cyan.cafe/static/{fileName}";
                 if (File.Exists(filePath) && Context.CheckSegment != "") {return;}
 
+                if (diffs.Length > 1000)
+                {
+                    sb.AppendLine("⚠ 所涉及文件过多, 将不进行检查。");
+                }
                 // 检查大小写
                 var reportedCap = false;
                 var reportedKey = false;
@@ -373,8 +390,7 @@ namespace CFPABot.Utils
                     var headSha = pr.Head.Sha;
                     var enlink = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/lang/{mcVersion.ToENLangFile()}";
                     var cnlink = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/lang/{mcVersion.ToCNLangFile()}";
-                    Log.Information(enlink);
-                    Log.Information(cnlink);
+                    
                     string cnfile = null, enfile = null;
                     string[] modENFile = null;
                     string downloadModName = null;

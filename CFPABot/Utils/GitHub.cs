@@ -13,13 +13,34 @@ namespace CFPABot.Utils
 {
     public class GitHub
     {
-        public static GitHubClient Instance { get; set; }
+        public static GitHubClient Instance => GetClient();
 
-        public static void Init()
+        public static GitHubClient GetClient()
         {
-            Instance = new GitHubClient(new ProductHeaderValue("Cyl18-Bot"));
+            var generator = new GitHubJwt.GitHubJwtFactory(
+                new GitHubJwt.FilePrivateKeySource("/app/config/cfpa-bot.pem"),
+                new GitHubJwt.GitHubJwtFactoryOptions
+                {
+                    AppIntegrationId = 181747, // The GitHub App Id
+                    ExpirationSeconds = 600 // 10 minutes is the maximum time allowed
+                }
+            );
+
+            var jwtToken = generator.CreateEncodedJwtToken();
+            var i = new GitHubClient(new ProductHeaderValue("Cyl18-Bot"));
             if (Constants.GitHubOAuthToken != null)
-                Instance.Credentials = new Credentials(Constants.GitHubOAuthToken);
+                i.Credentials = new Credentials(jwtToken, AuthenticationType.Bearer);
+            var response =  i.GitHubApps.CreateInstallationToken(24218080).Result;
+
+            // NOTE - the token will expire in 1 hour!
+
+            // Create a new GitHubClient using the installation token as authentication
+            var installationClient = new GitHubClient(new ProductHeaderValue("Cyl18-Bot"))
+            {
+                Credentials = new Credentials(response.Token)
+            };
+            
+            return installationClient;
         }
 
         public static Task<PullRequest> PRInfo(int id) 
@@ -51,7 +72,6 @@ namespace CFPABot.Utils
             {
                 var checkRuns = (await Instance.Check.Run.GetAllForReference(Constants.Owner, Constants.RepoName, headSha)).CheckRuns
                     .OrderByDescending(r => r.StartedAt);
-                checkRuns.Select(c => c.Id).Print();
                 return checkRuns.FirstOrDefault();
             }
             catch (Exception e)
