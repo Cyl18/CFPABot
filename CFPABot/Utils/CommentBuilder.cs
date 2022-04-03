@@ -170,7 +170,7 @@ namespace CFPABot.Utils
                     return;
                 }
 
-                sb.AppendLine("|     | 模组名 | 🆔 Mod Domain | :art: 最新模组 | 🟩 mcmod | :mag: 源代码 | :file_folder: 对比 |");
+                sb.AppendLine("|     | 模组名 | 🆔 Mod Domain | :art: 相关文件 | 🟩 mcmod | :mag: 源代码 | :file_folder: 对比 |");
                 sb.AppendLine("| --- | --- | :-: | --- | :-: | :-: | :-: |");
 
                 //sb.AppendLine("| 模组名 | CurseForge | 最新模组文件 | 源代码 |");
@@ -179,12 +179,13 @@ namespace CFPABot.Utils
                 {
                     try
                     {
-                        var versions = modInfos.Where(i => i.CurseForgeID == addon.Slug).Select(i => i.Version).ToArray();
+                        var infos = modInfos.Where(i => i.CurseForgeID == addon.Slug).ToArray();
+                        var versions = infos.Select(i => i.Version).ToArray();
                         sb.AppendLine($"| " +
                         /* Thumbnail*/ $"{await CurseManager.GetThumbnailText(addon)} |" +
                         /* Mod Name */ $" [**{addon.Name.Replace("[","\\[").Replace("]", "\\]")}**]({addon.Website}) |" +
                         /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault())} |" +
-                        /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)} |" +
+                        /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)}{await CurseManager.GetModRepoLinkText(addon, infos)} |" +
                         /* Mcmod    */ $" [百度](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) |" +
                         /* Source   */ $" {await CurseManager.GetRepoText(addon)} |" +
                         /* Compare  */ $" [链接](https://cfpa.cyan.cafe/Compare/PR/{PullRequestID}/{addon.Slug}/{await CurseManager.GetModID(addon, versions.FirstOrDefault(), true, false)}) |" +
@@ -258,7 +259,7 @@ namespace CFPABot.Utils
                     sb.AppendLine($"⚠ 暂时没有检测到 workflow.");
                     return;
                 }
-                sb.AppendLine($":floppy_disk: 你可以在[链接]({Constants.BaseRepo}/pull/{PullRequestID}/checks) 处点击 Artifacts 下载基于此 PR 所打包的最新资源包。");
+                sb.AppendLine($":floppy_disk: 你可以在 [链接]({Constants.BaseRepo}/pull/{PullRequestID}/checks) 处点击 Artifacts 下载基于此 PR 所打包的最新资源包。");
                 //                 switch (checkRun.Status.Value)
                 //                 {
                 //                     case CheckStatus.Queued:
@@ -321,6 +322,7 @@ namespace CFPABot.Utils
                 if (diffs.Length > 1000)
                 {
                     sb.AppendLine("⚠ 所涉及文件过多, 将不进行检查。");
+                    return;
                 }
                 // 检查大小写
                 var reportedCap = false;
@@ -377,11 +379,11 @@ namespace CFPABot.Utils
                         if (filemodid == null || filemodid.Length == 0) continue;
                         if (filemodid.Any(id => id == modid))
                         {
-                            sb.AppendLine($"✔ `{modid}` ModID 验证通过。");
+                            sb.AppendLine($"✔ `{modid}` Mod Domain 验证通过。");
                         }
                         else
                         {
-                            sb.AppendLine($"⚠ 警告：ModID 验证不通过。文件 ModID 为 `{filemodid.Connect("/")}`；但 PR ModID `{modid}`。");
+                            sb.AppendLine($"⚠ 警告：Mod Domain 验证不通过。文件 Mod Domain 为 `{filemodid.Connect("/")}`；但 PR ModID `{modid}`。");
                             
                             //continue;
                         }

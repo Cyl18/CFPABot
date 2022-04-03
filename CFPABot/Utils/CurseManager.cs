@@ -19,7 +19,7 @@ using Serilog;
 
 namespace CFPABot.Utils
 {
-    public class CurseManager
+    public static class CurseManager
     {
         public static async Task<string> GetThumbnailText(Addon addon)
         {
@@ -53,16 +53,16 @@ namespace CFPABot.Utils
             var sb = new StringBuilder();
             try
             {
-                sb.Append("<details> <summary>展开</summary>");
+                sb.Append("<details> <summary>最新模组文件</summary>");
                 var p = new HashSet<int>();
                 foreach (var file in addon.Files.OrderByDescending(s => new Version(s.GameVersion)))
                 {
                     if (p.Contains(file.FileId)) continue;
-                    
+
                     p.Add(file.FileId);
                     if (versions.Any(v => file.GameVersion.StartsWith(v.ToVersionString())))
                     {
-                        sb.Append($"[{(file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" })}{(!file.FileName.Contains(file.GameVersion) ? $"**{file.GameVersion}**" : "")} {file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar","")}]({GetDownloadUrl(file)})<br />");
+                        sb.Append($"[{(file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" })}{(!file.FileName.Contains(file.GameVersion) ? $"**{file.GameVersion}**" : "")} {file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar", "")}]({GetDownloadUrl(file)})<br />");
                     }
                 }
                 sb.Append("</details>");
@@ -74,6 +74,54 @@ namespace CFPABot.Utils
             }
 
             return sb.ToString();
+        }
+
+
+        public static async Task<string> GetModRepoLinkText(Addon addon, ModInfo[] infos)
+        {
+            var sb = new StringBuilder();
+            try
+            {
+                sb.Append("<details> <summary>语言文件链接</summary>");
+                var (curseForgeID, modDomain, mcVersion) = infos.First();
+                
+                foreach (var v in Enum.GetValues<MCVersion>().Select(n => n.ToVersionString()))
+                {
+                    foreach (var file in v == "1.12.2" ? new[] { "zh_cn.lang", "zh_CN.lang", "en_us.lang", "en_US.lang" } : new[] { "zh_cn.json", "zh_CN.json", "en_us.json", "en_US.json" })
+                    {
+                        var link = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/main/projects/{v}/assets/{curseForgeID}/{modDomain}/lang/{file}";
+                        if (await LinkExists(link))
+                        {
+                            sb.Append($"[{v}/{file}](https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/projects/{v}/assets/{curseForgeID}/{modDomain}/lang/{file}) <br/>");
+                        }
+                    }
+
+                }
+
+                sb.Append("</details>");
+            }
+            catch (Exception e)
+            {
+                sb.Append($"❌ {e.Message}");
+                Log.Error(e, $"GetModRepoLinkText: {addon.Slug}");
+            }
+
+            return sb.ToString();
+        }
+
+        static HttpClient hc = new HttpClient();
+        static async Task<bool> LinkExists(string link)
+        {
+            try
+            {
+                var message = await hc.GetAsync(link);
+                message.EnsureSuccessStatusCode();
+                return true;
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
         }
 
         public static async Task<string> GetRepoText(Addon addon)
@@ -125,7 +173,7 @@ namespace CFPABot.Utils
             if (version == null) return "未知";
             try
             {
-                if (addon.Files.FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToVersionString())) is {} file)
+                if (addon.Files.FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToVersionString())) is { } file)
                 {
                     var fileName = await Download.DownloadFile(GetDownloadUrl(file));
                     await using var fs = File.OpenRead(fileName);
@@ -134,8 +182,8 @@ namespace CFPABot.Utils
                         .Where(a => a.FullName.StartsWith("assets"))
                         .Where(a => !enforcedLang || a.FullName.Contains("lang"))
                         .Select(a => a.FullName.Split("/")[1]).Distinct().Where(n => !n.IsNullOrWhiteSpace())
-                        .Where(id => id != "minecraft");
-                   
+                        .Where(id => id != "minecraft" && id != "icon.png");
+
                     return connect ? modids
                         .Connect(" \\| ", "*", "*") : modids.First();
                 }
@@ -218,10 +266,11 @@ namespace CFPABot.Utils
                        f.Name.Equals("zh_cn.json", StringComparison.OrdinalIgnoreCase))).ToArray();
             if (files.Length == 2 && files.Any(f => f.Name.EndsWith(".json")) && files.Any(f => f.Name.EndsWith(".lang"))) // storage drawers
             {
-                files = new[] {files.First(f => f.Name.EndsWith(".json"))};
+                files = new[] { files.First(f => f.Name.EndsWith(".json")) };
             }
             return files;
         }
+
     }
 
     [ConfigurationPath("config/mappings.json")]

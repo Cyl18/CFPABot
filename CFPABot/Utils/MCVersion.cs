@@ -29,6 +29,19 @@ namespace CFPABot.Utils
             };
         }
 
+        public static string ToStandardVersionString(this MCVersion version)
+        {
+            return version switch
+            {
+                MCVersion.v1122 => "1.12.2",
+                MCVersion.v116 => "1.16",
+                MCVersion.v118 => "1.18",
+                MCVersion.v116fabric => "1.16",
+                MCVersion.v118fabric => "1.18",
+                _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
+            };
+        }
+
         public static MCVersion ToMCVersion(this string version)
         {
             return version switch
@@ -41,13 +54,14 @@ namespace CFPABot.Utils
                 _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
             };
         }
+        
 
         public static string ToCNLangFile(this MCVersion version)
         {
             return version switch
             {
-                MCVersion.v116 or MCVersion.v118 => "zh_cn.json",
-                MCVersion.v1122 => "zh_cn.lang"
+                MCVersion.v116 or MCVersion.v118 or MCVersion.v116fabric or MCVersion.v118fabric => "zh_cn.json",
+                MCVersion.v1122 => "zh_cn.lang",
             };
         }
 
@@ -55,7 +69,7 @@ namespace CFPABot.Utils
         {
             return version switch
             {
-                MCVersion.v116 or MCVersion.v118 => "en_us.json",
+                MCVersion.v116 or MCVersion.v118 or MCVersion.v116fabric or MCVersion.v118fabric => "en_us.json",
                 MCVersion.v1122 => "en_us.lang"
             };
         }
