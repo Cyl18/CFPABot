@@ -206,6 +206,16 @@ namespace CFPABot.Controllers
 
             return builder.ToString();
         }
+
+        [Route("/robots.txt")]
+        public ContentResult RobotsTxt()
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("User-agent: *")
+                .AppendLine("Disallow:");
+
+            return this.Content(sb.ToString(), "text/plain", Encoding.UTF8);
+        }
     }
 }
 

@@ -224,7 +224,7 @@ namespace CFPABot.Controllers
             }
             catch (Exception e)
             {
-                Log.Information(e, "Mod Repo");
+                //Log.Information(e, "Mod Repo");
             }
 
             AddFile();

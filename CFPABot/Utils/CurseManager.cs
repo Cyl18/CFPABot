@@ -260,6 +260,7 @@ namespace CFPABot.Utils
             try
             {
                 await semaphore.WaitAsync();
+                if ((DateTime.Now - config.LastUpdate).TotalDays < 2) return;
                 var addons = await client.Addons.RetriveAddons(Enumerable.Range(last, 1000).ToArray());
                 AddMapping(addons);
                 config.LastUpdate = DateTime.Now;

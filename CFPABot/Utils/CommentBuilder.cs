@@ -47,7 +47,14 @@ namespace CFPABot.Utils
         public int PullRequestID { get; }
         string ContextFilePath => $"config/pr_context/{PullRequestID}.json";
         public CommentContext Context { get; private set; }
-        void SaveContext() => File.WriteAllText(ContextFilePath, JsonSerializer.Serialize(Context));
+        void SaveContext()
+        {
+            lock (this)
+            {
+                File.WriteAllText(ContextFilePath, JsonSerializer.Serialize(Context));
+            }
+        }
+
         volatile int UpdatingCount = 0;
 
         public async Task Update(Func<Task> updateCallback)
@@ -163,7 +170,7 @@ namespace CFPABot.Utils
                     return;
                 }
 
-                sb.AppendLine("|     | 模组名 | 🆔 ModID | :art: 最新模组 | 🟩 mcmod | :mag: 源代码 | :file_folder: 对比 |");
+                sb.AppendLine("|     | 模组名 | 🆔 Mod Domain | :art: 最新模组 | 🟩 mcmod | :mag: 源代码 | :file_folder: 对比 |");
                 sb.AppendLine("| --- | --- | :-: | --- | :-: | :-: | :-: |");
 
                 //sb.AppendLine("| 模组名 | CurseForge | 最新模组文件 | 源代码 |");
@@ -190,7 +197,6 @@ namespace CFPABot.Utils
                             var deps = addonModel.LatestFiles.FirstOrDefault(a => a.Dependencies.Any())?.Dependencies;
                             if (deps != null)
                             {
-
                                 foreach (var dep in deps)
                                 {
                                     if (dep.Type == 2) continue;
@@ -252,37 +258,37 @@ namespace CFPABot.Utils
                     sb.AppendLine($"⚠ 暂时没有检测到 workflow.");
                     return;
                 }
-
-                switch (checkRun.Status.Value)
-                {
-                    case CheckStatus.Queued:
-                        sb.AppendLine($"⚠ 正在等待打包器执行.");
-                        break;
-                    case CheckStatus.InProgress:
-                        sb.AppendLine($":milky_way: 打包器正在执行, 请耐心等待.");
-                        break;
-                    case CheckStatus.Completed:
-                        sb.AppendLine($":floppy_disk: 基于此 PR 所打包的完整汉化资源包 ({checkRun.HeadSha}/{DateTimeOffset.UtcNow.AddHours(8):s} UTC+8):");
-                        // 修不好了
-                        /*
-                        try
-                        {
-                            var artifactsFromWorkflowRunID = await GitHub.GetArtifactsFromWorkflowRunID(checkRun.Id.ToString());
-                            if (artifactsFromWorkflowRunID.TotalCount == 0) sb.Append("没有。");
-
-                            foreach (var ar in artifactsFromWorkflowRunID.Artifacts)
-                            {
-                                sb.Append($"{ar.Name.Split("-").Last()} ");
-                            }
-                        }
-                        catch (Exception e)
-                        {
-
-                        }
-                        */
-                        sb.AppendLine($"    在 [链接]({Constants.BaseRepo}/pull/{PullRequestID}/checks) 处点击 Artifacts 下载。");
-                        break;
-                }
+                sb.AppendLine($":floppy_disk: 你可以在[链接]({Constants.BaseRepo}/pull/{PullRequestID}/checks) 处点击 Artifacts 下载基于此 PR 所打包的最新资源包。");
+                //                 switch (checkRun.Status.Value)
+                //                 {
+                //                     case CheckStatus.Queued:
+                //                         sb.AppendLine($"⚠ 正在等待打包器执行.");
+                //                         break;
+                //                     case CheckStatus.InProgress:
+                //                         sb.AppendLine($":milky_way: 打包器正在执行, 请耐心等待.");
+                //                         break;
+                //                     case CheckStatus.Completed:
+                //                         sb.AppendLine($":floppy_disk: 基于此 PR 所打包的完整汉化资源包 ({checkRun.HeadSha}/{DateTimeOffset.UtcNow.AddHours(8):s} UTC+8):");
+                //                         // 修不好了
+                //                         /*
+                //                         try
+                //                         {
+                //                             var artifactsFromWorkflowRunID = await GitHub.GetArtifactsFromWorkflowRunID(checkRun.Id.ToString());
+                //                             if (artifactsFromWorkflowRunID.TotalCount == 0) sb.Append("没有。");
+                //
+                //                             foreach (var ar in artifactsFromWorkflowRunID.Artifacts)
+                //                             {
+                //                                 sb.Append($"{ar.Name.Split("-").Last()} ");
+                //                             }
+                //                         }
+                //                         catch (Exception e)
+                //                         {
+                //
+                //                         }
+                //                         */
+                //                         sb.AppendLine($"    在 [链接]({Constants.BaseRepo}/pull/{PullRequestID}/checks) 处点击 Artifacts 下载。");
+                //                         break;
+                //                 }
 
 
             }

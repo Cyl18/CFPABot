@@ -16,8 +16,7 @@ namespace CFPABot.Utils
             return version switch
             {
                 MCVersion.v1122 => LangChecker(modid, enfile, cnfile, messageStringBuilder, reportStringBuilder, version, downloadModName),
-                MCVersion.v116 or MCVersion.v118 => JsonChecker(modid, enfile, cnfile, messageStringBuilder, reportStringBuilder, version, downloadModName),
-                _ => false
+                _ => JsonChecker(modid, enfile, cnfile, messageStringBuilder, reportStringBuilder, version, downloadModName)
             };
         }
 
@@ -29,8 +28,8 @@ namespace CFPABot.Utils
                 JsonDocument en, cn;
                 try
                 {
-                    en = JsonDocument.Parse(enfile);
-                    cn = JsonDocument.Parse(cnfile);
+                    en = JsonDocument.Parse(enfile, new JsonDocumentOptions() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+                    cn = JsonDocument.Parse(cnfile, new JsonDocumentOptions() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
                 }
                 catch (Exception e)
                 {

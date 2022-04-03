@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.WebSockets;
+using System.Numerics;
 using System.Threading.Tasks;
 
 namespace CFPABot.Utils
@@ -16,15 +19,25 @@ namespace CFPABot.Utils
             hc = new();
             hc.DefaultRequestHeaders.Add("User-Agent", "Cyl18-Bot");
         }
-        public static Task<string> String(string url)
+        public static async Task<string> String(string url)
         {
+            // xswl
             try
             {
-                return hc.GetStringAsync(url);
+                return await hc.GetStringAsync(url);
             }
             catch (Exception)
             {
-                return hc.GetStringAsync(url);
+                try
+                {
+                    await Task.Delay(500);
+                    return await hc.GetStringAsync(url);
+                }
+                catch (Exception)
+                {
+                    await Task.Delay(500);
+                    return await hc.GetStringAsync(url);
+                }
             }
         }
 
