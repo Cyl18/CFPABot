@@ -383,14 +383,14 @@ namespace CFPABot.Utils
                         }
                         else
                         {
-                            sb.AppendLine($"⚠ 警告：Mod Domain 验证不通过。文件 Mod Domain 为 `{filemodid.Connect("/")}`；但 PR ModID `{modid}`。");
+                            sb.AppendLine($"⚠ 警告：Mod Domain 验证不通过。文件 Mod Domain 为 `{filemodid.Connect("/")}`；但 PR 所提供的 Mod Domain 为 `{modid}`。");
                             
                             //continue;
                         }
                     }
                     catch (Exception e)
                     {
-                        sb.AppendLine($"⚠ ModID 验证失败：{e.Message}");
+                        sb.AppendLine($"⚠ Mod Domain 验证失败：{e.Message}");
                     }
 
                     // 检查文件
