@@ -49,12 +49,23 @@ namespace CFPABot.Utils
                 "1.12.2" => MCVersion.v1122,
                 "1.16" => MCVersion.v116,
                 "1.18" => MCVersion.v118,
-                "1.16-fabric" => MCVersion.v116fabric ,
+                "1.16-fabric" => MCVersion.v116fabric,
                 "1.18-fabric" => MCVersion.v118fabric,
                 _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
             };
         }
-        
+        public static MCVersion ToMCStandardVersion(this string version)
+        {
+            return version switch
+            {
+                "1.12.2" => MCVersion.v1122,
+                "1.16" => MCVersion.v116,
+                "1.18" => MCVersion.v118,
+                "1.16-fabric" => MCVersion.v116,
+                "1.18-fabric" => MCVersion.v118,
+                _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
+            };
+        }
 
         public static string ToCNLangFile(this MCVersion version)
         {

@@ -60,9 +60,9 @@ namespace CFPABot.Utils
                     if (p.Contains(file.FileId)) continue;
 
                     p.Add(file.FileId);
-                    if (versions.Any(v => file.GameVersion.StartsWith(v.ToVersionString())))
+                    if (versions.Any(v => file.GameVersion.StartsWith(v.ToStandardVersionString())))
                     {
-                        sb.Append($"[{(file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" })}{(!file.FileName.Contains(file.GameVersion) ? $"**{file.GameVersion}**" : "")} {file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar", "")}]({GetDownloadUrl(file)})<br />");
+                        sb.Append($"[**{file.GameVersion}**/{(file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" })}{file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar", "")}]({GetDownloadUrl(file)})<br />");
                     }
                 }
                 sb.Append("</details>");
@@ -75,7 +75,7 @@ namespace CFPABot.Utils
 
             return sb.ToString();
         }
-
+        
 
         public static async Task<string> GetModRepoLinkText(Addon addon, ModInfo[] infos)
         {
@@ -158,7 +158,7 @@ namespace CFPABot.Utils
             catch (Exception e)
             {
                 Log.Error(e, "MapModIDToProjectID");
-                throw new CheckException($"⚠ 无法找到 {modid} 的 ProjectName 到 ProjectID 的映射. 请检查文件路径是否正确.");
+                throw new CheckException($"⚠ 无法找到 {modid} 的 CurseForge 项目名到 CurseForge ID 的映射。请检查此[链接](https://www.curseforge.com/minecraft/mc-mods/{modid})是否可以正常打开，如果不能，请修改你的文件路径。如果此项目在 CurseForge 上被标记为 abandoned，请联系 [Cyl18](https://github.com/Cyl18) 解决。{(modid.Any(c => char.IsUpper(c)) ? "此外在项目名中检测到了大写字母，请调整为小写。" : "")}");
             }
         }
 
@@ -173,10 +173,10 @@ namespace CFPABot.Utils
             if (version == null) return "未知";
             try
             {
-                if (addon.Files.FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToVersionString())) is { } file)
+                if (addon.Files.FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToStandardVersionString())) is { } file)
                 {
                     var fileName = await Download.DownloadFile(GetDownloadUrl(file));
-                    await using var fs = File.OpenRead(fileName);
+                    await using var fs = FileUtils.OpenFile(fileName);
 
                     var modids = new ZipArchive(fs).Entries
                         .Where(a => a.FullName.StartsWith("assets"))
@@ -202,10 +202,10 @@ namespace CFPABot.Utils
             if (version == null) return null;
             try
             {
-                if (addon.Files.FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToVersionString())) is { } file)
+                if (addon.Files.FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToStandardVersionString())) is { } file)
                 {
                     var fileName = await Download.DownloadFile(GetDownloadUrl(file));
-                    await using var fs = File.OpenRead(fileName);
+                    await using var fs = FileUtils.OpenFile(fileName);
 
                     var modids = new ZipArchive(fs).Entries
                         .Where(a => a.FullName.StartsWith("assets"))
@@ -229,12 +229,15 @@ namespace CFPABot.Utils
             if (version == null) return (null, null);
             try
             {
-                if (addon.Files.OrderByDescending(f => f.FileId).FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToVersionString())) is { } file)
+                if (addon.Files.OrderByDescending(f => f.FileId).FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToStandardVersionString())) is { } file)
                 {
                     var downloadUrl = GetDownloadUrl(file);
-                    var files = await GetModLangFiles(downloadUrl, type);
+                    var (fs, files) = await GetModLangFiles(downloadUrl, type);
 
-                    return (files.Select(f => f.Open().ReadToEnd()).ToArray(), file.FileName);
+                    await using (fs)
+                    {
+                        return (files.Select(f => f.Open().ReadToEnd()).ToArray(), file.FileName);
+                    }
                 }
             }
             catch (Exception e)
@@ -246,12 +249,12 @@ namespace CFPABot.Utils
             return (null, null);
         }
 
-        public static async Task<IEnumerable<ZipArchiveEntry>> GetModLangFiles(string downloadUrl, LangType type)
+        public static async Task<(Stream, IEnumerable<ZipArchiveEntry>)> GetModLangFiles(string downloadUrl, LangType type)
         {
             var fileName = await Download.DownloadFile(downloadUrl);
-            var fs = File.OpenRead(fileName);
+            var fs = FileUtils.OpenFile(fileName);
 
-            return GetModLangFilesFromStream(fs, type);
+            return (fs, GetModLangFilesFromStream(fs, type));
         }
 
         public static IEnumerable<ZipArchiveEntry> GetModLangFilesFromStream(Stream fs, LangType type)
@@ -319,6 +322,8 @@ namespace CFPABot.Utils
             {
 
                 // 不管
+                // 还是管一下吧
+                Log.Error(e, "Update Mapping");
             }
             finally
             {

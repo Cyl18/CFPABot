@@ -18,6 +18,7 @@ using ForgedCurse.Json;
 using GammaLibrary.Extensions;
 using Language.Core;
 using LibGit2Sharp;
+using Octokit;
 using Serilog;
 using MemoryStream = System.IO.MemoryStream;
 
@@ -183,19 +184,22 @@ namespace CFPABot.Controllers
                         try
                         {
                             var downloadUrl = CurseManager.GetDownloadUrl(file);
-                            var enfiles = (await CurseManager.GetModLangFiles(downloadUrl, LangType.EN)).ToArray();
+                            var enr = (await CurseManager.GetModLangFiles(downloadUrl, LangType.EN));
+                            var enfiles = enr.Item2.ToArray();
                             foreach (var entry in enfiles)
                             {
                                 AddRadio($"<a href=\"{downloadUrl}\">模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" }}{file.GameVersion}-{file.FileName}</a> 中的英文语言文件 {(enfiles.Length > 1 ? entry.FullName : "")}", $"mod`{downloadUrl}`{entry.FullName}");
                             }
 
-                            var cnfiles = (await CurseManager.GetModLangFiles(downloadUrl, LangType.CN)).ToArray();
+                            var cnr = (await CurseManager.GetModLangFiles(downloadUrl, LangType.CN));
+                            var cnfiles = cnr.Item2.ToArray();
                             foreach (var entry in cnfiles)
                             {
                                 AddRadio($"<a href=\"{downloadUrl}\">模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" }}{file.GameVersion}-{file.FileName}</a> 中的中文语言文件 {(cnfiles.Length > 1 ? entry.FullName : "")}", $"mod`{downloadUrl}`{entry.FullName}");
                             }
                             //AddRadio($"模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" }}{file.GameVersion}-{file.FileName} 中的中文语言文件", $"mod:{CurseManager.GetDownloadUrl(file)}:en");
-
+                            enr.Item1.Close();
+                            cnr.Item1.Close();
                         }
                         catch (Exception e)
                         {
@@ -437,7 +441,7 @@ function download(filename, text) {{
                             await fc1.CopyToAsync(wfs);
                             wfs.Close();
 
-                            var fs1 = System.IO.File.OpenRead(path);
+                            var fs1 = FileUtils.OpenFile(path);
                             try
                             {
                                 var f = CurseManager.GetModLangFilesFromStream(fs1, cn ? LangType.CN : LangType.EN);
@@ -454,7 +458,7 @@ function download(filename, text) {{
                     case "mod":
                     {
                         var f = await Download.DownloadFile(s[1]);
-                        await using var fs = System.IO.File.OpenRead(f);
+                        await using var fs = FileUtils.OpenFile(f);
                         var zip = new ZipArchive(fs);
                         return await zip.GetEntry(s[2]).Open().ReadToEndAsync1();
                     }
