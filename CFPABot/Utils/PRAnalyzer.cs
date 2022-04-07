@@ -25,7 +25,7 @@ namespace CFPABot.Utils
                 if (cfid == "1UNKNOWN") continue;
                 if (langOnly && names[5] != "lang") continue;
                 
-                if (!infos.Exists(i => i.ModDomain == domain && i.Version == version)) // O(N^2)是吧 我不管了哈哈
+                if (!infos.Exists(i => i.ModDomain == domain && i.Version == version && i.CurseForgeID == cfid)) // O(N^2)是吧 我不管了哈哈
                 {
                     infos.Add(new ModInfo(cfid, domain, version));
                 }
