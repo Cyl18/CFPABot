@@ -169,7 +169,7 @@ namespace CFPABot.Utils
                     sb.AppendLine("模组数量过多, 将不显示模组链接.");
                     return;
                 }
-
+                
                 sb.AppendLine("|     | 模组 | 🆔 Mod Domain | :art: 相关文件 | 🟩 mcmod | :mag: 源代码 | :file_folder: 对比 |");
                 sb.AppendLine("| --- | --- | :-: | --- | :-: | :-: | :-: |");
                 
@@ -182,7 +182,7 @@ namespace CFPABot.Utils
                         sb.AppendLine($"| " +
                         /* Thumbnail*/ $"{await CurseManager.GetThumbnailText(addon)} |" +
                         /* Mod Name */ $" [**{addon.Name.Replace("[","\\[").Replace("]", "\\]")}**]({addon.Website}) |" +
-                        /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault())} |" +
+                        /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault(), enforcedLang: true)} |" + // 这里应该enforce吗？
                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)}{await CurseManager.GetModRepoLinkText(addon, infos)} |" +
                         /* Mcmod    */ $" [百度](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) |" +
                         /* Source   */ $" {await CurseManager.GetRepoText(addon)} |" +
@@ -193,7 +193,7 @@ namespace CFPABot.Utils
                         try
                         {
                             var addonModel = await CurseManager.GetAddonModel(addon);
-                            var deps = addonModel.LatestFiles.FirstOrDefault(a => a.Dependencies.Any())?.Dependencies;
+                            var deps = addonModel.LatestFiles.OrderByDescending(a => a.FileDate).FirstOrDefault(a => a.Dependencies.Any())?.Dependencies;
                             if (deps != null)
                             {
                                 foreach (var dep in deps)

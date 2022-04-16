@@ -289,7 +289,7 @@ namespace CFPABot.Controllers
             {
                 var s1 = new MemoryStream(f1.ToUTF8Bytes());
                 var s2 = new MemoryStream();
-                
+
                 var reader = s1.CreateStreamReader();
                 var writer = s2.CreateStreamWriter();
                 // todo 这里需要改
@@ -371,7 +371,7 @@ namespace CFPABot.Controllers
     <script type=""text/javascript"" src=""https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js""></script>
   </head>
   <script>
-    const diffString = `{System.IO.File.ReadAllText(diffp).Replace("\\","\\\\").Replace("`", "\\`")}`;
+    const diffString = `{(await System.IO.File.ReadAllTextAsync(diffp)).Replace("\\","\\\\").Replace("`", "\\`")}`;
 
     function r(a) {{
       var targetElement = document.getElementById('myDiffElement');
