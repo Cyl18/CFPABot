@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -87,7 +88,7 @@ namespace CFPABot.Controllers
             sb.Append(@"");
             sb.Append(@"");
             sb.Append(@"");
-
+            
             sb.Append(@"
 <script src=""https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"" integrity=""sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p"" crossorigin=""anonymous""></script>
 </body>
@@ -213,7 +214,7 @@ namespace CFPABot.Controllers
                 }
             }
 
-
+            
             if (addon != null)
             try
             {
@@ -256,6 +257,12 @@ namespace CFPABot.Controllers
             {
                 lock (this)
                 {
+                    if (value.StartsWith("link`"))
+                    {
+                        var link = value[5..];
+                        AntiSSRFQueue.Enqueue(link.SHA256().ToHexString());
+                        if (AntiSSRFQueue.Count > 50) AntiSSRFQueue.TryDequeue(out _);
+                    }
                     var i = id++;
                     sb.AppendLine($@"
 <div class=""form-check"" style=""margin: 6px;"">
@@ -278,6 +285,8 @@ namespace CFPABot.Controllers
 </div>");
             }
         }
+
+        static ConcurrentQueue<string> AntiSSRFQueue = new ();
 
         [HttpPost("Do")]
         public async Task<IActionResult> RunCheck(string comparea, string compareb, string checka, string checkb)
@@ -430,6 +439,10 @@ function download(filename, text) {{
                 switch (s[0])
                 {
                     case "link":
+                        if (!AntiSSRFQueue.Contains(s[1].SHA256().ToHexString()))
+                        {
+                            return "AntiSSRF，请尝试刷新上个页面。";
+                        }
                         return await Download.String(s[1]);
                         
                     case "file":

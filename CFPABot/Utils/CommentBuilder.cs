@@ -98,7 +98,7 @@ namespace CFPABot.Utils
             if (UpdatingCount > 0)
             {
                 sb2.AppendLine("---");
-                sb2.AppendLine("**⚠ 正在更新内容..**");
+                sb2.AppendLine("**:construction: 正在更新内容...**");
             }
             using (await AcquireLock("UpdateLock"))
             {
@@ -129,7 +129,7 @@ namespace CFPABot.Utils
             if (UpdatingCount > 0)
             {
                 sb.AppendLine("---");
-                sb.AppendLine("**⚠ 正在更新内容..**");
+                sb.AppendLine("**:construction: 正在更新内容...**");
             }
             using (await AcquireLock("UpdateLock"))
             {
@@ -170,8 +170,8 @@ namespace CFPABot.Utils
                     return;
                 }
                 
-                sb.AppendLine("|     | 模组 | 🆔 Mod Domain | :art: 相关文件 | 🟩 mcmod | :mag: 源代码 | :file_folder: 对比 |");
-                sb.AppendLine("| --- | --- | :-: | --- | :-: | :-: | :-: |");
+                sb.AppendLine("|     | 模组 | 🔗 链接 | :art: 相关文件 |");
+                sb.AppendLine("| --- | --- | :-: | --- |");
                 
                 foreach (var addon in addons)
                 {
@@ -181,12 +181,12 @@ namespace CFPABot.Utils
                         var versions = infos.Select(i => i.Version).ToArray();
                         sb.AppendLine($"| " +
                         /* Thumbnail*/ $"{await CurseManager.GetThumbnailText(addon)} |" +
-                        /* Mod Name */ $" [**{addon.Name.Replace("[","\\[").Replace("]", "\\]")}**]({addon.Website}) |" +
-                        /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault(), enforcedLang: true)} |" + // 这里应该enforce吗？
+                        /* Mod Name */ $" [**{addon.Name.Trim().Replace("[","\\[").Replace("]", "\\]")}**]({addon.Website}) |" +
+                        // /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault(), enforcedLang: true)} |" + // 这里应该enforce吗？
+                        /* Source   */ $" {await CurseManager.GetRepoText(addon)} \\|" +
+                        /* Mcmod    */ $" [🟩MCMOD](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) \\|" +
+                        /* Compare  */ $" [:file_folder:对比](https://cfpa.cyan.cafe/Compare/PR/{PullRequestID}/{addon.Slug}/{await CurseManager.GetModID(addon, versions.FirstOrDefault(), true, false)}) |" +
                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)}{await CurseManager.GetModRepoLinkText(addon, infos)} |" +
-                        /* Mcmod    */ $" [百度](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) |" +
-                        /* Source   */ $" {await CurseManager.GetRepoText(addon)} |" +
-                        /* Compare  */ $" [链接](https://cfpa.cyan.cafe/Compare/PR/{PullRequestID}/{addon.Slug}/{await CurseManager.GetModID(addon, versions.FirstOrDefault(), true, false)}) |" +
                         ""
                         );
 
@@ -194,6 +194,7 @@ namespace CFPABot.Utils
                         {
                             var addonModel = await CurseManager.GetAddonModel(addon);
                             var deps = addonModel.LatestFiles.OrderByDescending(a => a.FileDate).FirstOrDefault(a => a.Dependencies.Any())?.Dependencies;
+                            var distinctSet = new HashSet<int>();
                             if (deps != null)
                             {
                                 foreach (var dep in deps)
@@ -202,18 +203,20 @@ namespace CFPABot.Utils
                                     // 2 都是附属
                                     // 3 是需要的
                                     // 还没遇到 1
+                                    if (distinctSet.Contains(dep.AddonId)) continue;
                                     var depAddon = await new ForgeClient().Addons.RetriveAddon((int)dep.AddonId);
+                                    distinctSet.Add(dep.AddonId);
 
                                     sb.AppendLine($"| " +
                                         /* Thumbnail*/ $" {await CurseManager.GetThumbnailText(depAddon)} |" +
                                         /* Mod Name */ $" 依赖-[*{depAddon.Name.Replace("[", "\\[").Replace("]", "\\]")}*]({depAddon.Website}) |" +
-                                        /* Mod ID   */ $" \\* |" +
-                                        /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} |" +
-                                        /* Mcmod    */ $" [百度](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(depAddon.Name)}) |" +
+                                        // /* Mod ID   */ $" \\* |" +
                                         /* Source   */ $" {await CurseManager.GetRepoText(depAddon)} |" +
+                                        /* Mcmod    */ $" [🟩MCMOD](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(depAddon.Name)}) \\|" +
                                         /* Compare  */ $" * |" +
+                                        /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} \\|" +
                                         ""
-                                            );
+                                    );
                                 }
                             }
                         }
@@ -414,7 +417,7 @@ namespace CFPABot.Utils
                         }
                         catch (Exception)
                         {
-                            sb.AppendLine($"ℹ 获取 PR 中 {modid}-{versionString} 的中文语言文件失败。如果你是在提交或更新英文语言文件，请忽略此信息。");
+                            sb.AppendLine($"ℹ 获取 PR 中 {modid}-{versionString} 的中文语言文件失败。如果你在提交或更新英文语言文件，请忽略此信息。");
                         }
                     }
 
@@ -430,7 +433,7 @@ namespace CFPABot.Utils
                         }
                         catch (Exception)
                         {
-                            sb.AppendLine($"⚠ 获取 PR 中 {modid}-{versionString} 的英文语言文件失败。你可能没有提交此模组的英文语言文件。");
+                            sb.AppendLine($"❌ 获取 PR 中 {modid}-{versionString} 的英文语言文件失败。你可能没有提交此模组的英文语言文件。");
                         }
                     }
 
@@ -465,6 +468,7 @@ namespace CFPABot.Utils
                             if (modENFile.Length > 1)
                             {
                                 sb.AppendLine($"ℹ 找到了多个 {modid}-{versionString} 的模组内语言文件。将不进行模组语言文件检查。");
+                                //Log.Information($"[pr/{PullRequestID}] 找到了多个语言文件 {modid}-{versionString} [{modENFile.Connect()}]");
                                 break;
                             }
 
@@ -492,12 +496,14 @@ namespace CFPABot.Utils
                     ("凋零", "请注意区分`凋零`（药水效果）与`凋灵`（敌对生物）", null),
                     ("下届", "可能是`下界`", null),
                     ("合成台", "可能是`工作台`", null),
-                    ("岩浆", "可能是`熔岩`", t => !t.diff.Content.Contains("岩浆块") && !t.diff.Content.Contains("岩浆怪") && !t.diff.Content.Contains("岩浆膏")),
+                    ("岩浆", "可能是`熔岩`，具体请**参考英文原文**（`magma`/`lava`）", t => !t.diff.Content.Contains("岩浆块") && !t.diff.Content.Contains("岩浆怪") && !t.diff.Content.Contains("岩浆膏")),
                     ("粉色", "原版译名采用`粉红色`", t => !t.diff.Content.Contains("浅粉色") && !t.diff.Content.Contains("艳粉色") && !t.diff.Content.Contains("亮粉色")),
                     ("地狱", "`地狱`在 1.16 后更名为`下界`", tuple => tuple.version != MCVersion.v1122),
+                    ("漂浮", "请注意区分`漂浮`和`飘浮`", null),
                 };
                 (string checkname, string message, Predicate<(LineDiff diff, MCVersion version)> customCheck)[] errors = {
-                    ("爬行者", "`爬行者`在 1.16 后更名为`苦力怕`", tuple => tuple.version != MCVersion.v1122),
+                    ("爬行者", "`爬行者`在 1.15 后更名为`苦力怕`", tuple => tuple.version != MCVersion.v1122),
+                    ("刷怪箱", "`刷怪箱`在 1.16 后更名为`刷怪笼`", tuple => tuple.version != MCVersion.v1122),
                     ("浅灰色", "原版译名采用`淡灰色`", null),
                 };
                 // 俺的服务器只有1个U 就不写多线程力
@@ -567,7 +573,7 @@ namespace CFPABot.Utils
                         sb.AppendLine();
                         if (typoResult)
                         {
-                            sb.AppendLine("上方的译名检测仅有参考价值，可能并没有实际错误。");
+                            sb.AppendLine("上方的译名检测仅有参考价值，可能并没有实际错误。**请在修改前仔细斟酌！**");
                         }
                         sb.AppendLine($"更多报告可以在 [这里]({webPath}) 查看。 在 PR 更新时这里的检查也会自动更新。");
                     }
@@ -578,7 +584,7 @@ namespace CFPABot.Utils
                         sb.Append($"</details>\n\n");
                         if (typoResult)
                         {
-                            sb.AppendLine("上方的译名检测仅有参考价值，可能并没有实际错误。");
+                            sb.AppendLine("上方的译名检测仅有参考价值，可能并没有实际错误。**请在修改前仔细斟酌！**");
                         }
                         sb.AppendLine($"报告也可以在 [这里]({webPath}) 查看。在 PR 更新时这里的检查也会自动更新。");
                     }
