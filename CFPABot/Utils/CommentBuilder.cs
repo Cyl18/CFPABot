@@ -148,6 +148,8 @@ namespace CFPABot.Utils
         {
             using var l = await AcquireLock(nameof(UpdateModLinkSegment));
             var sb = new StringBuilder();
+            var sb1 = new StringBuilder();
+
             try
             {
                 var modInfos = PRAnalyzer.Run(diffs);
@@ -170,17 +172,18 @@ namespace CFPABot.Utils
                     sb.AppendLine("模组数量过多, 将不显示模组链接.");
                     return;
                 }
-                
-                sb.AppendLine("|     | 模组 | 🔗 链接 | :art: 相关文件 |");
-                sb.AppendLine("| --- | --- | --- | --- |");
-                
+
+                sb1.AppendLine("|     | 模组 | 🔗 链接 | :art: 相关文件 |");
+                sb1.AppendLine("| --- | --- | --- | --- |");
+                int modCount = 0;
                 foreach (var addon in addons)
                 {
+                    modCount++;
                     try
                     {
                         var infos = modInfos.Where(i => i.CurseForgeID == addon.Slug).ToArray();
                         var versions = infos.Select(i => i.Version).ToArray();
-                        sb.AppendLine($"| " +
+                        sb1.AppendLine($"| " +
                         /* Thumbnail*/ $"{await CurseManager.GetThumbnailText(addon)} |" +
                         /* Mod Name */ $" [**{addon.Name.Trim().Replace("[","\\[").Replace("]", "\\]").Replace("|", "\\|")}**]({addon.Website}) |" +
                         // /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault(), enforcedLang: true)} |" + // 这里应该enforce吗？
@@ -207,8 +210,9 @@ namespace CFPABot.Utils
                                     if (distinctSet.Contains(dep.AddonId)) continue;
                                     var depAddon = await new ForgeClient().Addons.RetriveAddon((int)dep.AddonId);
                                     distinctSet.Add(dep.AddonId);
+                                    modCount++;
 
-                                    sb.AppendLine($"| " +
+                                    sb1.AppendLine($"| " +
                                         /* Thumbnail*/ $" {await CurseManager.GetThumbnailText(depAddon)} |" +
                                         /* Mod Name */ $" 依赖-[*{depAddon.Name.Replace("[", "\\[").Replace("]", "\\]")}*]({depAddon.Website}) |" +
                                         // /* Mod ID   */ $" \\* |" +
@@ -229,15 +233,25 @@ namespace CFPABot.Utils
                     }               
                     catch (Exception e)
                     {
-                        sb.AppendLine($"| | [链接]({addon.Website}) | {e.Message} | |");
+                        sb1.AppendLine($"| | [链接]({addon.Website}) | {e.Message} | |");
                         Log.Error(e, "UpdateModLinkSegment");
                     }
                 }
-                
+
+                if (modCount > 8)
+                {
+                    sb.AppendLine($"<details> <summary>模组列表</summary> \n\n{sb1.ToString()}\n\n</details>");
+                }
+                else
+                {
+                    sb.AppendLine(sb1.ToString());
+                }
+
             }
             catch (Exception e)
             {
                 Log.Error(e, "更新 mod 列表出错");
+                sb.AppendLine(sb1.ToString());
                 sb.AppendLine($"⚠ 更新 mod 列表出错: {e.Message}");
             }
             finally

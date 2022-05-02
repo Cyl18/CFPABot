@@ -158,7 +158,8 @@ namespace CFPABot.Utils
             catch (Exception e)
             {
                 Log.Error(e, "MapModIDToProjectID");
-                throw new CheckException($"⚠ 无法找到 {modid} 的 CurseForge 项目名到 CurseForge ID 的映射。请检查此[链接](https://www.curseforge.com/minecraft/mc-mods/{modid})是否可以正常打开，如果不能，请修改你的文件路径。如果此项目在 CurseForge 上被标记为 abandoned，请联系 [Cyl18](https://github.com/Cyl18) 解决。{(modid.Any(c => char.IsUpper(c)) ? "此外在项目名中检测到了大写字母，请调整为小写。" : "")}");
+                throw new CheckException($"⚠ 无法找到 {modid} 的 CurseForge 项目名到 CurseForge ID 的映射。请检查此[链接](https://www.curseforge.com/minecraft/mc-mods/{modid})是否可以正常打开，如果不能，或者重定向，请修改你的文件路径。" +
+                                         $"如果此项目在 CurseForge 上被标记为 abandoned，请联系 [Cyl18](https://github.com/Cyl18) 解决。{(modid.Any(c => char.IsUpper(c)) ? "此外在项目名中检测到了大写字母，请调整为小写。" : "")}命令`/add-mapping {modid} {{CURSEFORGE_PROJECT_ID}}`。");
             }
         }
 

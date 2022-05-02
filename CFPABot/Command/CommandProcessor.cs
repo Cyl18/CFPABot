@@ -69,6 +69,21 @@ namespace CFPABot.Command
                         r.AddAllFiles();
                         r.Commit($"Update en_us file for {(curseForgeID.Replace("\"", "\\\""))}", user);
                     }
+
+                    if (line.StartsWith("/add-mapping "))
+                    {
+                        var args = line["/add-mapping ".Length..].Split(" ", StringSplitOptions.RemoveEmptyEntries);
+                        if (user.Login != "Cyl18")
+                        {
+                            sb.AppendLine("⚠ 为了防止此命令被错误执行，此命令只有 @Cyl18 才能执行。\n");
+                            continue;
+                        }
+                        var slug = args[0];
+                        var curseForgeProjectID = args[1];
+                        ModIDMappingMetadata.Instance.Mapping[slug] = curseForgeProjectID.ToInt();
+                        ModIDMappingMetadata.Save();
+                        sb.AppendLine($"ℹ 添加重定向 {slug} -> {curseForgeProjectID} 成功。请使用强制刷新来刷新数据。");
+                    }
                 }
 
                 if (repo.IsValueCreated)
@@ -87,7 +102,7 @@ namespace CFPABot.Command
             var result = sb.ToString();
             if (!result.IsNullOrWhiteSpace())
             {
-                await GitHub.Instance.Issue.Comment.Create(Constants.Owner, Constants.RepoName, prid, $"@{user.Login}\n{result}");
+                await GitHub.Instance.Issue.Comment.Create(Constants.Owner, Constants.RepoName, prid, $"@{user.Login} {result}");
             }
 
             async Task AddReaction()
@@ -107,7 +122,7 @@ namespace CFPABot.Command
                     || pr.User.Login == user.Login;
                 if (!hasPermission)
                 {
-                    sb.AppendLine("你没有执行此命令的权限。");
+                    sb.AppendLine("⚠ 你没有执行此命令的权限。");
                 }
                 return hasPermission;
             }
@@ -116,6 +131,10 @@ namespace CFPABot.Command
             {
                 if (!repo.IsValueCreated)
                 {
+                    if (pr.Head.Repository.Owner.Login == Constants.Owner && pr.Head.Repository.Name == Constants.RepoName && pr.Head.Ref == "main")
+                    {
+                        throw new CommandException("⚠ 保护 main 分支，命令拒绝执行。");
+                    }
                     repo.Value.Clone(pr.Head.Repository.Owner.Login, pr.Head.Repository.Name, pr.Head.Ref);
                 }
 
