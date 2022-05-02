@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -171,7 +172,7 @@ namespace CFPABot.Utils
                 }
                 
                 sb.AppendLine("|     | 模组 | 🔗 链接 | :art: 相关文件 |");
-                sb.AppendLine("| --- | --- | :-: | --- |");
+                sb.AppendLine("| --- | --- | --- | --- |");
                 
                 foreach (var addon in addons)
                 {
@@ -181,7 +182,7 @@ namespace CFPABot.Utils
                         var versions = infos.Select(i => i.Version).ToArray();
                         sb.AppendLine($"| " +
                         /* Thumbnail*/ $"{await CurseManager.GetThumbnailText(addon)} |" +
-                        /* Mod Name */ $" [**{addon.Name.Trim().Replace("[","\\[").Replace("]", "\\]")}**]({addon.Website}) |" +
+                        /* Mod Name */ $" [**{addon.Name.Trim().Replace("[","\\[").Replace("]", "\\]").Replace("|", "\\|")}**]({addon.Website}) |" +
                         // /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault(), enforcedLang: true)} |" + // 这里应该enforce吗？
                         /* Source   */ $" {await CurseManager.GetRepoText(addon)} \\|" +
                         /* Mcmod    */ $" [🟩MCMOD](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) \\|" +
@@ -211,10 +212,10 @@ namespace CFPABot.Utils
                                         /* Thumbnail*/ $" {await CurseManager.GetThumbnailText(depAddon)} |" +
                                         /* Mod Name */ $" 依赖-[*{depAddon.Name.Replace("[", "\\[").Replace("]", "\\]")}*]({depAddon.Website}) |" +
                                         // /* Mod ID   */ $" \\* |" +
-                                        /* Source   */ $" {await CurseManager.GetRepoText(depAddon)} |" +
+                                        /* Source   */ $" {await CurseManager.GetRepoText(depAddon)} \\|" +
                                         /* Mcmod    */ $" [🟩MCMOD](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(depAddon.Name)}) \\|" +
                                         /* Compare  */ $" * |" +
-                                        /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} \\|" +
+                                        /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} |" +
                                         ""
                                     );
                                 }
@@ -260,6 +261,20 @@ namespace CFPABot.Utils
                     sb.AppendLine($"⚠ 暂时没有检测到 workflow.");
                     return;
                 }
+
+                if (pr.Base.Ref != "main")
+                {
+                    sb.AppendLine("⚠ 警告：你所提交的目标分支不是 main 分支，这在 99% 的情况下都是你的问题。请 close 此 PR 并重新提交。");
+                    sb.AppendLine();
+                }
+
+                if (pr.MaintainerCanModify == false)
+                {
+                    sb.AppendLine($"⚠ 警告：你没有启用“维护者可修改 PR 文件”（Allow edits from maintainers）。这可能会对维护者造成不便，请重新提交此 PR 并勾选此选项。");
+                    sb.AppendLine($"![1](https://docs.github.com/assets/cb-44583/images/help/pull_requests/allow-maintainers-to-make-edits-sidebar-checkbox.png)");
+                    sb.AppendLine();
+                }
+
                 sb.AppendLine($":floppy_disk: 你可以在 [这里]({Constants.BaseRepo}/pull/{PullRequestID}/checks) 点击 PR Packer\\>Artifacts 下载基于此 PR 所打包的最新资源包。");
                 //                 switch (checkRun.Status.Value)
                 //                 {
@@ -311,15 +326,17 @@ namespace CFPABot.Utils
             using var l = await AcquireLock(nameof(UpdateCheckSegment));
             var sb = new StringBuilder();
             var reportSb = new StringBuilder();
+
+            // 如果能用 就不要动屎山 写这一行的时候下面有299行代码
             try
             {
                 var pr = await GitHub.GetPullRequest(PullRequestID);
-
+                
                 var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}.txt";
                 var filePath = "wwwroot/" + fileName;
                 var webPath = $"https://cfpa.cyan.cafe/static/{fileName}";
                 if (File.Exists(filePath) && Context.CheckSegment != "") {return;}
-
+                
                 if (diffs.Length > 1000)
                 {
                     sb.AppendLine("⚠ 所涉及文件过多, 将不进行检查。");
@@ -328,6 +345,7 @@ namespace CFPABot.Utils
                 // 检查大小写
                 var reportedCap = false;
                 var reportedKey = false;
+                Debugger.Break();
                 foreach (var diff in diffs)
                 {
                     var names = diff.To.Split('/');
@@ -378,7 +396,11 @@ namespace CFPABot.Utils
                         try
                         {
                             var filemodid = await CurseManager.GetModIDForCheck(addon, mcVersion);
-                            if (filemodid == null || filemodid.Length == 0) continue;
+                            if (filemodid == null || filemodid.Length == 0)
+                            {
+                                sb.AppendLine($"ℹ 无法找到 `{modid}` 的 Mod Domain。这很可能是因为 CurseForge API 没有返回这个模组的数据。");
+
+                            }
                             if (filemodid.Any(id => id == modid))
                             {
                                 sb.AppendLine(string.Format("✔ `{0}` Mod Domain 验证通过。", modid));
@@ -386,6 +408,7 @@ namespace CFPABot.Utils
                             else
                             {
                                 sb.AppendLine($"⚠ 警告：Mod Domain 验证不通过。文件 Mod Domain 为 `{filemodid.Connect("/")}`；而 PR 所提供的 Mod Domain 为 `{modid}`。");
+                                sb.AppendLine($"你可以使用命令 `/mv \"projects/{versionString}/assets/{curseID}/{modid}/\" \"projects/{versionString}/assets/{curseID}/{(filemodid.Length != 1 ? "{MOD_DOMAIN}" : filemodid[0])}/\"` 来移动目录。");
                             
                                 //continue;
                             }
@@ -417,7 +440,7 @@ namespace CFPABot.Utils
                         }
                         catch (Exception)
                         {
-                            sb.AppendLine($"ℹ 获取 PR 中 {modid}-{versionString} 的中文语言文件失败。如果你在提交或更新英文语言文件，请忽略此信息。");
+                            sb.AppendLine($"⚠ 获取 PR 中 {modid}-{versionString} 的中文语言文件失败。如果你在提交或更新英文语言文件，请忽略此信息。");
                         }
                     }
 

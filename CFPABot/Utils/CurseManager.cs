@@ -130,7 +130,7 @@ namespace CFPABot.Utils
             try
             {
                 var url = s.RootElement.GetProperty("sourceUrl").GetString();
-                return url == null ? ":mag:无源代码" : $"[:mag:源代码]({url})";
+                return url == null ? ":mag:无源代码" : $"[:mag: 源代码]({url})&nbsp;&nbsp;";
             }
             catch (Exception e)
             {

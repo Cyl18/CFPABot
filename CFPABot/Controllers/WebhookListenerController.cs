@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using CFPABot.Command;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
 using Octokit;
@@ -23,7 +24,7 @@ namespace CFPABot.Controllers
 
             var prid = pr.ToInt();
             var builder = GetOrCreateCommentBuilder(prid);
-            builder.Update(async () =>
+            _ = builder.Update(async () =>
             {
                 await builder.UpdateBuildArtifactsSegment();
                 await builder.UpdateModLinkSegment(await GitHub.Diff(prid));
@@ -82,6 +83,21 @@ namespace CFPABot.Controllers
             if (jsonElement.GetProperty("issue").GetProperty("html_url").GetString().Contains("pull"))
             {
                 var prid = jsonElement.GetProperty("issue").GetProperty("number").GetInt32();
+
+                if (jsonElement.GetProperty("action").GetString() == "created")
+                {
+                    var commandComment = jsonElement.GetProperty("comment");
+                    _ = Task.Run(async () =>
+                    {
+                        await CommandProcessor.Run(prid, commandComment.GetProperty("body").GetString(),
+                                commandComment.GetProperty("id").GetInt32(),
+                            new GitHubUser(
+                                commandComment.GetProperty("user").GetProperty("login").GetString(),
+                                commandComment.GetProperty("user").GetProperty("id").GetInt64()
+                            ));
+                    });
+                }
+
                 var comments = await GitHub.GetPRComments(prid);
                 var botComments = comments.Where(c => (c.User.Login == "Cyl18-Bot" || c.User.Login.Equals("cfpa-bot[bot]", StringComparison.OrdinalIgnoreCase)) && c.Body.StartsWith("<!--CYBOT-->")).ToArray();
                 if (await CheckCommentCount(botComments))
@@ -132,6 +148,10 @@ namespace CFPABot.Controllers
                     _ = builder.Update(async () =>
                       {
                           await builder.UpdateModLinkSegment(await GitHub.Diff(prid));
+                          if (action is "synchronize")
+                          {
+                              await builder.UpdateBuildArtifactsSegment();
+                          }
                       });
                 }
                 catch (Exception e)
@@ -155,7 +175,7 @@ namespace CFPABot.Controllers
                     {
                         var pr = await GitHub.GetPRFromHeadSha(s);
                         var builder = GetOrCreateCommentBuilder(pr.Number);
-                        builder.Update(async () =>
+                        _ = builder.Update(async () =>
                         {
                             await builder.UpdateBuildArtifactsSegment();
                         });

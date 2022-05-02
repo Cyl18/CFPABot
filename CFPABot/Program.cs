@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CFPABot.Controllers;
 using CFPABot.Utils;
+using GammaLibrary.Extensions;
 using Octokit;
 using Serilog;
 using Serilog.Events;
@@ -50,6 +51,7 @@ namespace CFPABot
             Directory.CreateDirectory("logs");
             Directory.CreateDirectory("config/repo_analyze_results");
             Directory.CreateDirectory("caches/");
+            Directory.CreateDirectory("caches/repos/");
 
             
             Log.Logger = new LoggerConfiguration()

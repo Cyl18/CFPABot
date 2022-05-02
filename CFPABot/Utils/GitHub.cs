@@ -17,37 +17,44 @@ namespace CFPABot.Utils
 
         public static GitHubClient GetClient()
         {
+            // NOTE - the token will expire in 1 hour!
+
+            // Create a new GitHubClient using the installation token as authentication
+            var installationClient = new GitHubClient(new ProductHeaderValue("cfpa-bot"))
+            {
+                Credentials = new Credentials(GetToken())
+            };
+           
+            return installationClient;
+        }
+
+        public static string GetToken()
+        {
             var generator = new GitHubJwt.GitHubJwtFactory(
                 new GitHubJwt.FilePrivateKeySource("/app/config/cfpa-bot.pem"),
                 new GitHubJwt.GitHubJwtFactoryOptions
                 {
                     AppIntegrationId = 181747, // The GitHub App Id
-                    ExpirationSeconds = 600 // 10 minutes is the maximum time allowed
+                    ExpirationSeconds = 300 // 10 minutes is the maximum time allowed
                 }
             );
 
             var jwtToken = generator.CreateEncodedJwtToken();
-            var i = new GitHubClient(new ProductHeaderValue("Cyl18-Bot"));
-            if (Constants.GitHubOAuthToken != null)
-                i.Credentials = new Credentials(jwtToken, AuthenticationType.Bearer);
-            var response =  i.GitHubApps.CreateInstallationToken(24218080).Result;
+            var i = new GitHubClient(new ProductHeaderValue("cfpa-bot"));
+            i.Credentials = new Credentials(jwtToken, AuthenticationType.Bearer);
+            var response = i.GitHubApps.CreateInstallationToken(24218080).Result;
 
-            // NOTE - the token will expire in 1 hour!
-
-            // Create a new GitHubClient using the installation token as authentication
-            var installationClient = new GitHubClient(new ProductHeaderValue("Cyl18-Bot"))
-            {
-                Credentials = new Credentials(response.Token)
-            };
-            
-            return installationClient;
+            return response.Token;
         }
 
         public static Task<PullRequest> PRInfo(int id) 
             => Instance.PullRequest.Get(Constants.Owner, Constants.RepoName, id);
 
         public static async Task<FileDiff[]> Diff(int id)
-            => DiffParserHelper.Parse(await Download.String(Constants.BaseRepo + $"/pull/{id}.diff")).ToArray();
+            => DiffParserHelper.Parse((await Download.String(Constants.BaseRepo + $"/pull/{id}.diff"))
+                // workaround https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/1924
+                .Split("\n").Where(line => !line.StartsWith("rename ") && !line.StartsWith("similarity index ")).Connect("\n")
+                ).ToArray();
 
         public static Task<IReadOnlyList<IssueComment>> GetPRComments(int id)
             => Instance.Issue.Comment.GetAllForIssue(Constants.Owner, Constants.RepoName, id);
