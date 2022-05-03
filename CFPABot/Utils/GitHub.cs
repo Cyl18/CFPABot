@@ -46,10 +46,7 @@ namespace CFPABot.Utils
 
             return response.Token;
         }
-
-        public static Task<PullRequest> PRInfo(int id) 
-            => Instance.PullRequest.Get(Constants.Owner, Constants.RepoName, id);
-
+        
         public static async Task<FileDiff[]> Diff(int id)
             => DiffParserHelper.Parse((await Download.String(Constants.BaseRepo + $"/pull/{id}.diff"))
                 // workaround https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/1924
@@ -90,11 +87,6 @@ namespace CFPABot.Utils
 
         public static Task<PullRequest> GetPullRequest(int id)
             => Instance.PullRequest.Get(Constants.Owner, Constants.RepoName, id);
-
-        public static async Task<ArtifactsModel> GetArtifactsFromWorkflowRunID(string workflowRunID)
-        {
-            return (await Download.String(
-                $"https://api.github.com/repos/{Constants.Owner}/{Constants.RepoName}/actions/runs/{workflowRunID}/artifacts")).JsonDeserialize<ArtifactsModel>();
-        }
+        
     }
 }
