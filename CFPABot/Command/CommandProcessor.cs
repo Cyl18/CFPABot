@@ -22,7 +22,7 @@ namespace CFPABot.Command
     {
         public static async Task Run(int prid, string content, int commentID, GitHubUser user)
         {
-            bool addedReaction = false;
+            //bool addedReaction = false;
             var sb = new StringBuilder();
             var pr = await GitHub.GetPullRequest(prid);
             var repo = new Lazy<GitRepoManager>(() => new GitRepoManager());
@@ -183,8 +183,8 @@ namespace CFPABot.Command
                 {
                     var r = GetRepo();
                     r.Push();
-                    await AddReaction();
-                        r.Dispose();
+                    //await AddReaction();
+                    r.Dispose();
                 }
             }
             catch (Exception e)
@@ -199,21 +199,34 @@ namespace CFPABot.Command
                 await GitHub.Instance.Issue.Comment.Create(Constants.Owner, Constants.RepoName, prid, $"@{user.Login} {result}");
             }
 
-            async Task AddReaction()
-            {
-                if (addedReaction) return;
-                addedReaction = true;
-                //await GitHub.Instance.Reaction.CommitComment.Create(Constants.Owner, Constants.RepoName, commentID,
-                //    new NewReaction(ReactionType.Rocket));
-            }
+            // async Task AddReaction()
+            // {
+            //     if (addedReaction) return;
+            //     addedReaction = true;
+            //     await GitHub.Instance.Reaction.CommitComment.Create(Constants.Owner, Constants.RepoName, commentID,
+            //         new NewReaction(ReactionType.Rocket));
+            // }
 
             async Task<bool> CheckPermission()
             {
                 var bypassList = new string[] { };
                 var hasPermission =
                     await GitHub.Instance.Repository.Collaborator.IsCollaborator(Constants.Owner, Constants.RepoName, user.Login) 
-                    || bypassList.Contains(user.Login)
-                    || pr.User.Login == user.Login;
+                    || bypassList.Contains(user.Login);
+
+                if (!hasPermission && (pr.User.Login == user.Login))
+                {
+                    // 没有最高权限 但是发送命令的人是 PR 创建者
+                    if (pr.Head.Repository.Owner.Login == user.Login)
+                    {
+                        hasPermission = true;
+                    }
+                    else
+                    {
+                        sb.AppendLine(Locale.Command_General_OwnerPermissionDenied);
+                        return false;
+                    }
+                }
                 if (!hasPermission)
                 {
                     sb.AppendLine(Locale.Command_general_PermissionDenied);

@@ -105,7 +105,7 @@ namespace CFPABot.Controllers
                 message.EnsureSuccessStatusCode();
                 return true;
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 return false;
             }
@@ -130,8 +130,8 @@ namespace CFPABot.Controllers
 
                     var versionString = names[1];
                     var curseID = names[3];
-                    var check = (versionString, curseID);
-                    var mcVersion = versionString.ToMCVersion();
+                    //var check = (versionString, curseID);
+                    //var mcVersion = versionString.ToMCVersion();
                     if (curseID != modid) continue;
                     AddRadio($"<a href=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/{headSha}/{diff.To}\">PR 所改动的</a> {versionString}/{curseID}/{modDomain}/{names[6]}", $"link`https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/{diff.To}");
                 }
@@ -189,14 +189,14 @@ namespace CFPABot.Controllers
                             var enfiles = enr.Item2.ToArray();
                             foreach (var entry in enfiles)
                             {
-                                AddRadio($"<a href=\"{downloadUrl}\">模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" }}{file.GameVersion}-{file.FileName}</a> 中的英文语言文件 {(enfiles.Length > 1 ? entry.FullName : "")}", $"mod`{downloadUrl}`{entry.FullName}");
+                                AddRadio($"<a href=\"{downloadUrl}\">模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "", _ => throw new ArgumentOutOfRangeException()}}{file.GameVersion}-{file.FileName}</a> 中的英文语言文件 {(enfiles.Length > 1 ? entry.FullName : "")}", $"mod`{downloadUrl}`{entry.FullName}");
                             }
 
                             var cnr = (await CurseManager.GetModLangFiles(downloadUrl, LangType.CN));
                             var cnfiles = cnr.Item2.ToArray();
                             foreach (var entry in cnfiles)
                             {
-                                AddRadio($"<a href=\"{downloadUrl}\">模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" }}{file.GameVersion}-{file.FileName}</a> 中的中文语言文件 {(cnfiles.Length > 1 ? entry.FullName : "")}", $"mod`{downloadUrl}`{entry.FullName}");
+                                AddRadio($"<a href=\"{downloadUrl}\">模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "", _ => throw new ArgumentOutOfRangeException()}}{file.GameVersion}-{file.FileName}</a> 中的中文语言文件 {(cnfiles.Length > 1 ? entry.FullName : "")}", $"mod`{downloadUrl}`{entry.FullName}");
                             }
                             //AddRadio($"模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" }}{file.GameVersion}-{file.FileName} 中的中文语言文件", $"mod:{CurseManager.GetDownloadUrl(file)}:en");
                             enr.Item1.Close();
@@ -227,7 +227,7 @@ namespace CFPABot.Controllers
                         $"https://raw.githubusercontent.com/{analyzeResult.Owner}/{analyzeResult.RepoName}/{commitSha}/{filePath}");
                 }
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 //Log.Information(e, "Mod Repo");
             }
@@ -428,7 +428,7 @@ function download(filename, text) {{
                 System.IO.File.Delete(f2p);
                 System.IO.File.Delete(diffp);
             }
-            catch (Exception e)
+            catch (Exception)
             {
             }
             return Redirect(link);

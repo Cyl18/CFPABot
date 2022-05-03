@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.WebSockets;
 using System.Numerics;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace CFPABot.Utils
 {
@@ -26,15 +28,24 @@ namespace CFPABot.Utils
             {
                 return await hc.GetStringAsync(url);
             }
-            catch (Exception)
+            catch (HttpRequestException e1)
             {
                 try
                 {
+                    if (e1.StatusCode == HttpStatusCode.TooManyRequests)
+                    {
+                        Log.Warning(e1, $"HTTP 429: {url}");
+                        await Task.Delay(TimeSpan.FromSeconds(15));
+                    }
                     await Task.Delay(500);
                     return await hc.GetStringAsync(url);
                 }
-                catch (Exception)
+                catch (HttpRequestException e2)
                 {
+                    if (e2.StatusCode == HttpStatusCode.TooManyRequests)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(30));
+                    }
                     await Task.Delay(500);
                     return await hc.GetStringAsync(url);
                 }

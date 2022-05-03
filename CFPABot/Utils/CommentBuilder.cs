@@ -673,7 +673,7 @@ namespace CFPABot.Utils
         }
     }
 
-    public class CommentBuilderLock : IDisposable
+    public sealed class CommentBuilderLock : IDisposable
     {
         SemaphoreSlim semaphore = new(1);
         public volatile int WaitCount = 0;

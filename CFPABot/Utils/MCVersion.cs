@@ -73,6 +73,7 @@ namespace CFPABot.Utils
             {
                 MCVersion.v116 or MCVersion.v118 or MCVersion.v116fabric or MCVersion.v118fabric => "zh_cn.json",
                 MCVersion.v1122 => "zh_cn.lang",
+                _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
             };
         }
 
@@ -81,7 +82,8 @@ namespace CFPABot.Utils
             return version switch
             {
                 MCVersion.v116 or MCVersion.v118 or MCVersion.v116fabric or MCVersion.v118fabric => "en_us.json",
-                MCVersion.v1122 => "en_us.lang"
+                MCVersion.v1122 => "en_us.lang",
+                _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
             };
         }
     }

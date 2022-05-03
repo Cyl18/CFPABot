@@ -18,7 +18,7 @@ namespace CFPABot.Controllers
     [ApiController]
     public class WebhookListenerController : ControllerBase
     {
-        public async Task<IActionResult> Get([FromQuery] string password, [FromQuery] string pr)
+        public IActionResult Get([FromQuery] string password, [FromQuery] string pr)
         {
             if (password != Constants.GitHubWebhookSecret) return Unauthorized();
 
@@ -69,7 +69,7 @@ namespace CFPABot.Controllers
                 foreach (var comment in comments)
                 {
                     await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id,
-                        "<!--CYBOT-->❌ CRITICAL_FAILURE：找到了多个 Bot Comment. 请删除到只保留一个. 删除后请点击强制刷新.\n- [ ] 🔄 勾选这个复选框来强制刷新");
+                        "<!--CYBOT-->❌ CRITICAL_FAILURE：找到了多个 Bot Comment. 请删除到只保留一个. 删除后请点击强制刷新.\n\n---\n\n- [ ] 🔄 勾选这个复选框来强制刷新");
                 }
                 return true;
             }

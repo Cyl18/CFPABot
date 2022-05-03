@@ -9,7 +9,7 @@ using Serilog;
 
 namespace CFPABot.Command
 {
-    public class GitRepoManager : IDisposable
+    public sealed class GitRepoManager : IDisposable
     {
         public string WorkingDirectory { get; }
 

@@ -22,8 +22,6 @@ namespace Language.Core
     {
         private readonly StreamReader _reader;
         private readonly StreamWriter _writer;
-        private readonly string _modName;
-
         public JsonFormatter(StreamReader reader, StreamWriter writer)
         {
             _reader = reader;

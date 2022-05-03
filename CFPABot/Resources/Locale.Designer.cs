@@ -313,7 +313,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ 警告：PR 中 {0}-{1} 的英文语言文件与最新模组 `{2}` 内的英文语言文件不对应。自动获取的文件只能反映大多数情况，可能并不需要更新文件。如果你认为英文语言文件确实需要更新到上面的版本，可以使用命令 `/update-en {3} {4}` 来更新。.
+        ///   Looks up a localized string similar to ⚠ 警告：PR 中 {0}-{1} 的英文语言文件与最新模组 `{2}` 内的英文语言文件不对应。自动获取的文件只能反映大多数情况，可能并不需要更新文件。如果你认为英文语言文件**确实**需要更新到上面的版本，可以使用命令 `/update-en {3} {4}` 来更新。.
         /// </summary>
         public static string Check_ModKey_NotCorrespond {
             get {
@@ -431,6 +431,15 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to ⚠ 你是此 PR 的创建者，但是你的 PR 所指向的仓库的所有权并不属于你。由于可能会造成不可预知的错误，拒绝执行此命令。.
+        /// </summary>
+        public static string Command_General_OwnerPermissionDenied {
+            get {
+                return ResourceManager.GetString("Command.General.OwnerPermissionDenied", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to ⚠ 你没有执行此命令的权限。.
         /// </summary>
         public static string Command_general_PermissionDenied {
@@ -494,7 +503,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 如果此项目在 CurseForge 上被标记为 abandoned，请联系 [Cyl18](https://github.com/Cyl18) 解决。.
+        ///   Looks up a localized string similar to 如果可以，请联系 [Cyl18](https://github.com/Cyl18) 解决。.
         /// </summary>
         public static string General_MapModIDToProjectID_Error_2 {
             get {
@@ -512,7 +521,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 命令 `/add-mapping {0} [CURSEFORGE_PROJECT_ID]`。.
+        ///   Looks up a localized string similar to 命令 `/add-mapping {0} [CURSEFORGE_PROJECT_ID]` 或 `/mv &quot;projects/[GAME_VERSION]/assets/{1}/&quot; &quot;projects/[GAME_VERSION]/assets/[NEW_DIR]/&quot;`。.
         /// </summary>
         public static string General_MapModIDToProjectID_Error_4 {
             get {

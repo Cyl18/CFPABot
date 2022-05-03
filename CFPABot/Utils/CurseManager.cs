@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -35,7 +36,7 @@ namespace CFPABot.Utils
                 await stream.CopyToAsync(fs);
                 return $"<image src=\"https://cfpa.cyan.cafe/static/{fileName}\" width=\"32\"/>";
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 return "✨";
             }
@@ -63,7 +64,7 @@ namespace CFPABot.Utils
                     p.Add(file.FileId);
                     if (versions.Any(v => file.GameVersion.StartsWith(v.ToStandardVersionString())))
                     {
-                        sb.Append($"[**{file.GameVersion}**/{(file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" })}{file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar", "")}]({GetDownloadUrl(file)})<br />");
+                        sb.Append($"[**{file.GameVersion}**/{(file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "", _ => throw new ArgumentOutOfRangeException()})}{file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar", "")}]({GetDownloadUrl(file)})<br />");
                     }
                 }
                 sb.Append("</details>");
@@ -119,8 +120,10 @@ namespace CFPABot.Utils
                 message.EnsureSuccessStatusCode();
                 return true;
             }
-            catch (Exception e)
+            catch (HttpRequestException e)
             {
+                if (e.StatusCode != HttpStatusCode.NotFound)
+                    Log.Warning($"LinkExists returned unusual status code: {e.StatusCode}");
                 return false;
             }
         }
@@ -133,7 +136,7 @@ namespace CFPABot.Utils
                 var url = s.RootElement.GetProperty("sourceUrl").GetString();
                 return url == null ? ":mag:无源代码" : $"[:mag: 源代码]({url})&nbsp;&nbsp;";
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 return ":mag:无源代码";
             }
@@ -150,7 +153,7 @@ namespace CFPABot.Utils
         {
             try
             {
-                CurseForgeIDMappingManager.UpdateIfRequired();
+                _ = CurseForgeIDMappingManager.UpdateIfRequired();
                 lock (ModIDMappingMetadata.Instance)
                 {
                     return ModIDMappingMetadata.Instance.Mapping[modid];
@@ -162,7 +165,7 @@ namespace CFPABot.Utils
                 throw new CheckException(string.Format(Locale.General_MapModIDToProjectID_Error_1, modid, modid) +
                                          Locale.General_MapModIDToProjectID_Error_2 +
                                          (modid.Any(c => char.IsUpper(c)) ? Locale.General_MapModIDToProjectID_Error_3 : "") +
-                                         string.Format(Locale.General_MapModIDToProjectID_Error_4, modid));
+                                         string.Format(Locale.General_MapModIDToProjectID_Error_4, modid, modid));
             }
         }
 
