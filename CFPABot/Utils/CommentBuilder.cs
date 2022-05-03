@@ -511,7 +511,7 @@ namespace CFPABot.Utils
 
                             if (addon == null) break;
                             
-                            modKeyResult = ModKeyAnalyzer.Analyze(modid, enfile, modENFile[0], mcVersion, sb, reportSb, downloadModName);
+                            modKeyResult = ModKeyAnalyzer.Analyze(modid, enfile, modENFile[0], mcVersion, sb, reportSb, downloadModName, curseID);
                         }
                     } while (false);
                     

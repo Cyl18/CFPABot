@@ -11,17 +11,17 @@ namespace CFPABot.Utils
     public class ModKeyAnalyzer
     {
         public static bool Analyze(string modid, string enfile, string cnfile, MCVersion version,
-            StringBuilder messageStringBuilder, StringBuilder reportStringBuilder, string downloadModName)
+            StringBuilder messageStringBuilder, StringBuilder reportStringBuilder, string downloadModName, string curseForgeSlug)
         {
             return version switch
             {
-                MCVersion.v1122 => LangChecker(modid, enfile, cnfile, messageStringBuilder, reportStringBuilder, version, downloadModName),
-                _ => JsonChecker(modid, enfile, cnfile, messageStringBuilder, reportStringBuilder, version, downloadModName)
+                MCVersion.v1122 => LangChecker(modid, enfile, cnfile, messageStringBuilder, reportStringBuilder, version, downloadModName, curseForgeSlug),
+                _ => JsonChecker(modid, enfile, cnfile, messageStringBuilder, reportStringBuilder, version, downloadModName, curseForgeSlug)
             };
         }
 
         static bool JsonChecker(string modid, string enfile, string cnfile, StringBuilder sb,
-            StringBuilder reportStringBuilder, MCVersion mcVersion, string downloadModName)
+            StringBuilder reportStringBuilder, MCVersion mcVersion, string downloadModName, string curseForgeSlug)
         {
             try
             {
@@ -50,7 +50,7 @@ namespace CFPABot.Utils
 
                 var ens = en.RootElement.EnumerateObject().Select(p => p.Name).Where(k => !k.StartsWith("_")).ToHashSet();
                 var cns = cn.RootElement.EnumerateObject().Select(p => p.Name).Where(k => !k.StartsWith("_")).ToHashSet();
-                return AnalyzeCore(ens, cns, modid, sb, reportStringBuilder, mcVersion, downloadModName, enfile, cnfile);
+                return AnalyzeCore(ens, cns, modid, sb, reportStringBuilder, mcVersion, downloadModName, enfile, cnfile, curseForgeSlug);
             }
             catch (Exception e)
             {
@@ -62,7 +62,7 @@ namespace CFPABot.Utils
 
 
         static bool LangChecker(string modid, string enfile, string cnfile, StringBuilder sb,
-            StringBuilder reportSb, MCVersion version, string downloadModName)
+            StringBuilder reportSb, MCVersion version, string downloadModName, string curseForgeSlug)
         {
             if (enfile.IsNullOrWhiteSpace())
             {
@@ -90,12 +90,12 @@ namespace CFPABot.Utils
                     .Where(line => line.Contains("="))          // 保证有等号
                     .Select(line => line.Split("=").First())    // 提取 Key
                     .ToHashSet(),
-                modid, sb, reportSb, version, downloadModName, enfile, cnfile
+                modid, sb, reportSb, version, downloadModName, enfile, cnfile, curseForgeSlug
                 );
         }
 
         static bool AnalyzeCore(HashSet<string> enKeys, HashSet<string> cnKeys, string modid, StringBuilder sb,
-            StringBuilder reportSb, MCVersion mcVersion, string downloadModName, string enfile, string cnfile)
+            StringBuilder reportSb, MCVersion mcVersion, string downloadModName, string enfile, string cnfile, string curseForgeSlug)
         {
             reportSb.AppendLine($"{modid}-{mcVersion.ToVersionString()} 模组内语言文件共有 {cnKeys.Count} 个 Key；");
             var enExcept = new HashSet<string>(enKeys); // en 比 cn 多的
@@ -108,7 +108,8 @@ namespace CFPABot.Utils
                 return false;
             }
 
-            sb.AppendLine($"⚠ 警告：PR 中 {modid}-{mcVersion.ToVersionString()} 的英文语言文件与最新模组 `{downloadModName}` 内的英文语言文件不对应。这可能是由于机器人自动获取的模组不是最新，语言文件中包含扩展模组，或所提交的语言文件来自模组源代码仓库。可以点击上方的对比按钮来进行更加详细的对比。");
+            // 这可能是由于机器人自动获取的模组不是最新，语言文件中包含扩展模组，或所提交的语言文件来自模组源代码仓库。可以点击上方的对比按钮来进行更加详细的对比。
+            sb.AppendLine($"⚠ 警告：PR 中 {modid}-{mcVersion.ToVersionString()} 的英文语言文件与最新模组 `{downloadModName}` 内的英文语言文件不对应。自动获取的文件只能反映大多数情况，可能并不需要更新文件。如果你认为英文语言文件确实需要更新到上面的版本，可以使用命令 `/update-en {curseForgeSlug} {mcVersion.ToVersionString()}` 来更新。");
 
             if (enExcept.Count > 0)
             {
