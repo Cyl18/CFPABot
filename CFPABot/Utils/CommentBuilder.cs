@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using CFPABot.Models.A;
+using CFPABot.Resources;
 using DiffPatch.Data;
 using ForgedCurse;
 using ForgedCurse.Json;
@@ -169,7 +170,7 @@ namespace CFPABot.Utils
 
                 if (addons.Count > 20)
                 {
-                    sb.AppendLine("模组数量过多, 将不显示模组链接.");
+                    sb.AppendLine(Locale.ModLink_TooManyMods);
                     return;
                 }
 
@@ -252,7 +253,7 @@ namespace CFPABot.Utils
             {
                 Log.Error(e, "更新 mod 列表出错");
                 sb.AppendLine(sb1.ToString());
-                sb.AppendLine($"⚠ 更新 mod 列表出错: {e.Message}");
+                sb.AppendLine(string.Format(Locale.ModLink_Error, e.Message));
             }
             finally
             {
@@ -272,24 +273,24 @@ namespace CFPABot.Utils
                 var checkRun = await GitHub.FindWorkflowFromHeadSha(pr.Head.Sha);
                 if (checkRun == null)
                 {
-                    sb.AppendLine($"⚠ 暂时没有检测到 workflow.");
+                    sb.AppendLine(Locale.Artifacts_NoWorkflowYet);
                     return;
                 }
 
                 if (pr.Base.Ref != "main")
                 {
-                    sb.AppendLine("⚠ 警告：你所提交的目标分支不是 main 分支，这在 99% 的情况下都是你的问题。请 close 此 PR 并重新提交。");
+                    sb.AppendLine(Locale.Artifacts_BranchNotMain);
                     sb.AppendLine();
                 }
 
                 if (pr.MaintainerCanModify == false)
                 {
-                    sb.AppendLine($"⚠ 警告：你没有启用“维护者可修改 PR 文件”（Allow edits from maintainers）。这可能会对维护者造成不便，请重新提交此 PR 并勾选此选项。");
+                    sb.AppendLine(Locale.Artifacts_PREditDisabledWarning);
                     sb.AppendLine($"![1](https://docs.github.com/assets/cb-44583/images/help/pull_requests/allow-maintainers-to-make-edits-sidebar-checkbox.png)");
                     sb.AppendLine();
                 }
 
-                sb.AppendLine($":floppy_disk: 你可以在 [这里]({Constants.BaseRepo}/pull/{PullRequestID}/checks) 点击 PR Packer\\>Artifacts 下载基于此 PR 所打包的最新资源包。");
+                sb.AppendLine(string.Format(Locale.Artifacts_Hint, Constants.BaseRepo, PullRequestID));
                 //                 switch (checkRun.Status.Value)
                 //                 {
                 //                     case CheckStatus.Queued:
@@ -326,7 +327,7 @@ namespace CFPABot.Utils
             catch (Exception e)
             {
                 Log.Error(e, "更新编译 artifacts 出错");
-                sb.AppendLine($"⚠ 更新编译 artifacts 出错: {e.Message}");
+                sb.AppendLine(string.Format(Locale.Artifacts_Error, e.Message));
             }
             finally
             {
@@ -353,7 +354,7 @@ namespace CFPABot.Utils
                 
                 if (diffs.Length > 1000)
                 {
-                    sb.AppendLine("⚠ 所涉及文件过多, 将不进行检查。");
+                    sb.AppendLine(Locale.Check_General_ToManyFiles);
                     return;
                 }
                 // 检查大小写
@@ -372,7 +373,7 @@ namespace CFPABot.Utils
                         reportSb.AppendLine($"检测到大写字母：{diff.To}");
                         if (!reportedCap)
                         {
-                            sb.AppendLine($"⚠ 警告：文件路径中含有大写字母。如 `{diff.To}`。");
+                            sb.AppendLine(string.Format(Locale.Check_UpperCaseWarning, diff.To));
                             reportedCap = true;
                         }
                     }
@@ -404,7 +405,7 @@ namespace CFPABot.Utils
                     }
                     catch (Exception)
                     {
-                        sb.AppendLine($"⚠ 找不到模组: {curseID}-{versionString}。");
+                        sb.AppendLine(string.Format(Locale.Check_ModID_ModNotFound, curseID, versionString));
                     }
                     if (addon != null)
                         try
@@ -412,24 +413,24 @@ namespace CFPABot.Utils
                             var filemodid = await CurseManager.GetModIDForCheck(addon, mcVersion);
                             if (filemodid == null || filemodid.Length == 0)
                             {
-                                sb.AppendLine($"ℹ 无法找到 `{modid}` 的 Mod Domain。这很可能是因为 CurseForge API 没有返回这个模组的数据。");
+                                sb.AppendLine(string.Format(Locale.Check_ModID_ModIDNotFound, modid));
 
                             }
                             if (filemodid.Any(id => id == modid))
                             {
-                                sb.AppendLine(string.Format("✔ `{0}` Mod Domain 验证通过。", modid));
+                                sb.AppendLine(string.Format(Locale.Check_ModID_Success, modid));
                             }
                             else
                             {
-                                sb.AppendLine($"⚠ 警告：Mod Domain 验证不通过。文件 Mod Domain 为 `{filemodid.Connect("/")}`；而 PR 所提供的 Mod Domain 为 `{modid}`。");
-                                sb.AppendLine($"你可以使用命令 `/mv \"projects/{versionString}/assets/{curseID}/{modid}/\" \"projects/{versionString}/assets/{curseID}/{(filemodid.Length != 1 ? "{MOD_DOMAIN}" : filemodid[0])}/\"` 来移动目录。");
+                                sb.AppendLine(string.Format(Locale.Check_ModID_Failed_1, filemodid.Connect("/"), modid));
+                                sb.AppendLine(string.Format(Locale.Check_ModID_Failed_2, versionString, curseID, modid, versionString, curseID, (filemodid.Length != 1 ? "{MOD_DOMAIN}" : filemodid[0])));
                             
                                 //continue;
                             }
                         }
                         catch (Exception e)
                         {
-                            sb.AppendLine($"⚠ Mod Domain 验证失败：{e.Message}");
+                            sb.AppendLine(string.Format(Locale.Check_ModID_Error, e.Message));
                         }
 
                     // 检查文件
@@ -454,7 +455,7 @@ namespace CFPABot.Utils
                         }
                         catch (Exception)
                         {
-                            sb.AppendLine($"⚠ 获取 PR 中 {modid}-{versionString} 的中文语言文件失败。如果你在提交或更新英文语言文件，请忽略此信息。");
+                            sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadCn, modid, versionString));
                         }
                     }
 
@@ -470,7 +471,7 @@ namespace CFPABot.Utils
                         }
                         catch (Exception)
                         {
-                            sb.AppendLine($"❌ 获取 PR 中 {modid}-{versionString} 的英文语言文件失败。你可能没有提交此模组的英文语言文件。");
+                            sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadEn, modid, versionString));
                         }
                     }
 
@@ -483,7 +484,7 @@ namespace CFPABot.Utils
                     }
                     catch (Exception e)
                     {
-                        sb.Append($"ℹ 获取 {modid} 的模组内语言文件失败。");
+                        sb.AppendFormat(Locale.Check_FileKey_FailedToDownloadMod, modid);
                         Console.WriteLine(e);
                     }
 
@@ -499,19 +500,19 @@ namespace CFPABot.Utils
                         {
                             if (modENFile.Length == 0)
                             {
-                                sb.AppendLine($"ℹ 没有找到 {modid}-{versionString} 的模组内语言文件。");
+                                sb.AppendLine(string.Format(Locale.Check_FileKey_ModEnFile_NotFound, modid, versionString));
                                 break;
                             }
                             if (modENFile.Length > 1)
                             {
-                                sb.AppendLine($"ℹ 找到了多个 {modid}-{versionString} 的模组内语言文件。将不进行模组语言文件检查。");
+                                sb.AppendLine(string.Format(Locale.Check_FileKey_ModEnFile_Multiple, modid, versionString));
                                 //Log.Information($"[pr/{PullRequestID}] 找到了多个语言文件 {modid}-{versionString} [{modENFile.Connect()}]");
                                 break;
                             }
 
                             if (addon == null) break;
                             
-                            modKeyResult = ModKeyAnalyzer.Analyze(modid, enfile, modENFile[0], mcVersion, sb, reportSb, downloadModName, curseID);
+                            modKeyResult = ModKeyAnalyzer.Analyze(new ModInfoForCheck(modid, mcVersion, downloadModName, curseID), enfile, modENFile[0], sb, reportSb);
                         }
                     } while (false);
                     
@@ -568,7 +569,7 @@ namespace CFPABot.Utils
                                         diffCheckedSet.Add(checkname);
                                         // {lineDiff.NewIndex}-
                                         sb.AppendLine(
-                                            $"ℹ 注意：检测到可能的争议译名：`{checkname}`，{message}。例如行 `{lineDiff.Content.Replace("`", "\\`")}`。");
+                                            string.Format(Locale.Check_Translate_PossibleControversial, checkname, message, lineDiff.Content.Replace("`", "\\`")));
                                     }
 
                                     reportSb.AppendLine(
@@ -588,7 +589,7 @@ namespace CFPABot.Utils
                                         // todo 显示哪一行
                                         // {lineDiff.NewIndex}-
                                         sb.AppendLine(
-                                            $"❌ 警告：检测到可能的错误译名：`{checkname}`，{message}。例如行 `{lineDiff.Content.Replace("`", "\\`")}`。");
+                                            string.Format(Locale.Check_Translate_PossibleWrong, checkname, message, lineDiff.Content.Replace("`", "\\`")));
                                     }
 
                                     reportSb.AppendLine(
@@ -610,9 +611,9 @@ namespace CFPABot.Utils
                         sb.AppendLine();
                         if (typoResult)
                         {
-                            sb.AppendLine("上方的译名检测仅有参考价值，可能并没有实际错误。**请在修改前仔细斟酌！**");
+                            sb.AppendLine(Locale.Check_Translate_Hint);
                         }
-                        sb.AppendLine($"更多报告可以在 [这里]({webPath}) 查看。 在 PR 更新时这里的检查也会自动更新。");
+                        sb.AppendLine(string.Format(Locale.Check_Result, webPath));
                     }
                     else
                     {
@@ -621,16 +622,16 @@ namespace CFPABot.Utils
                         sb.Append($"</details>\n\n");
                         if (typoResult)
                         {
-                            sb.AppendLine("上方的译名检测仅有参考价值，可能并没有实际错误。**请在修改前仔细斟酌！**");
+                            sb.AppendLine(Locale.Check_Translate_Hint);
                         }
-                        sb.AppendLine($"报告也可以在 [这里]({webPath}) 查看。在 PR 更新时这里的检查也会自动更新。");
+                        sb.AppendLine(string.Format(Locale.Check_Result1, webPath));
                     }
                 }
             }
             catch (Exception e)
             {
                 Log.Error(e, "检查出错");
-                sb.AppendLine($"⚠ 检查出错: {e.Message}");
+                sb.AppendLine(string.Format(Locale.Check_Error, e.Message));
             }
             finally
             {

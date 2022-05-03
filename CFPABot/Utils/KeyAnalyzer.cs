@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using CFPABot.Resources;
 using GammaLibrary.Extensions;
 using Octokit;
 using Serilog;
@@ -35,20 +36,20 @@ namespace CFPABot.Utils
                 }
                 catch (Exception e)
                 {
-                    sb.AppendLine($"❌ {modid}-{mcVersion.ToVersionString()} 的语言文件中有 JSON 语法错误：{e.Message}");
+                    sb.AppendLine(string.Format(Locale.Check_Key_JsonSyntaxError, modid, mcVersion.ToVersionString(), e.Message));
                     reportStringBuilder.AppendLine($"{e}");
                     return true;
                 }
 
                 if (!en.RootElement.EnumerateObject().Any())
                 {
-                    sb.AppendLine($"ℹ {modid}-{mcVersion.ToVersionString()} 的英文文件为空。");
+                    sb.AppendLine(string.Format(Locale.Check_Key_JsonEnFileEmpty, modid, mcVersion.ToVersionString()));
                     return true;
                 }
 
                 if (!cn.RootElement.EnumerateObject().Any())
                 {
-                    sb.AppendLine($"ℹ {modid}-{mcVersion.ToVersionString()} 的中文文件为空。");
+                    sb.AppendLine(string.Format(Locale.Check_Key_JsonCnFileEmpty, modid, mcVersion.ToVersionString()));
                     return true;
                 }
 
@@ -58,7 +59,7 @@ namespace CFPABot.Utils
             }
             catch (Exception e)
             {
-                sb.AppendLine($"ℹ {modid}-{mcVersion.ToVersionString()} 的语言文件检查失败：{e.Message}");
+                sb.AppendLine(string.Format(Locale.Check_Key_Error, modid, mcVersion.ToVersionString(), e.Message));
                 reportStringBuilder.AppendLine($"语言文件检查失败： {e}");
                 return false;
             }
@@ -70,12 +71,12 @@ namespace CFPABot.Utils
         {
             if (enfile.IsNullOrWhiteSpace())
             {
-                sb.AppendLine($"ℹ {modid}-{version.ToVersionString()} 的英文语言文件为空。");
+                sb.AppendLine(string.Format(Locale.Check_Key_LangEnFileEmpty, modid, version.ToVersionString()));
                 return false;
             }
             if (cnfile.IsNullOrWhiteSpace())
             {
-                sb.AppendLine($"ℹ {modid}-{version.ToVersionString()} 的英文语言文件为空。");
+                sb.AppendLine(string.Format(Locale.Check_Key_LangCnFileEmpty, modid, version.ToVersionString()));
                 return false;
             }
             
@@ -110,11 +111,11 @@ namespace CFPABot.Utils
             cnExcept.ExceptWith(enKeys);
             if (enExcept.Count == 0 && cnExcept.Count == 0)
             {
-                sb.AppendLine($"ℹ {modid}-{mcVersion.ToVersionString()} 语言文件验证通过。");
+                sb.AppendLine(string.Format(Locale.Check_Key_Success, modid, mcVersion.ToVersionString()));
                 return false;
             }
 
-            sb.AppendLine($"⚠ 警告：PR 中 {modid}-{mcVersion.ToVersionString()} 的中英文语言文件不对应。");
+            sb.AppendLine(string.Format(Locale.Check_Key_NotCorrespond, modid, mcVersion.ToVersionString()));
 
             if (enExcept.Count > 0)
             {

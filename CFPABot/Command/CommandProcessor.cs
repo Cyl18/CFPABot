@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading.Tasks;
+using CFPABot.Resources;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
 using Language.Core;
@@ -42,7 +43,7 @@ namespace CFPABot.Command
                             var baseDir = Path.GetFullPath(r.WorkingDirectory);
                             if (!Path.GetFullPath(path, baseDir).StartsWith(baseDir))
                             {
-                                throw new CommandException("⚠ 安全检查错误：你所操作的目录不在工作目录下。");
+                                throw new CommandException(Locale.Command_mv_SecurityCheckFailure);
                             }
                         }
                         r.Run($"mv -f {arg}");
@@ -70,11 +71,11 @@ namespace CFPABot.Command
                         var (files, downloadFileName) = await CurseManager.GetModEnFile(addon, version, LangType.EN);
                         if (files.Length != 1)
                         {
-                            sb.AppendLine("更新失败：找到了多个语言文件。");
+                            sb.AppendLine(Locale.Command_update_en_MultipleLangFiles);
                             continue;
                         }
 
-                        sb.AppendLine($"使用 {downloadFileName} 中的语言文件。");
+                        sb.AppendLine(string.Format(Locale.Command_update_en_Success, downloadFileName));
                         var f = files[0];
                         using var sr = new MemoryStream(f.ToUTF8Bytes()).CreateStreamReader(Encoding.UTF8);
                         using var sw = File.Open(
@@ -101,7 +102,7 @@ namespace CFPABot.Command
                         var args = line["/add-mapping ".Length..].Split(" ", StringSplitOptions.RemoveEmptyEntries);
                         if (user.Login != "Cyl18")
                         {
-                            sb.AppendLine("⚠ 为了防止此命令被错误执行，此命令只有 @Cyl18 才能执行。\n");
+                            sb.AppendLine(Locale.Command_add_mapping_Rejected);
                             continue;
                         }
                         var slug = args[0];
@@ -109,14 +110,14 @@ namespace CFPABot.Command
                         var addon = await CurseManager.GetAddon(curseForgeProjectID);
                         if (slug != addon.Slug)
                         {
-                            sb.AppendLine($"⚠ 添加重定向 {slug} -> {curseForgeProjectID} 失败。提供的 slug 为 {slug} 而 API 返回的为 {addon.Slug}。");
+                            sb.AppendLine(string.Format(Locale.Command_add_mapping_SlugMismatch, slug, curseForgeProjectID, slug, addon.Slug));
 
                         }
                         else
                         {
                             ModIDMappingMetadata.Instance.Mapping[slug] = curseForgeProjectID.ToInt();
                             ModIDMappingMetadata.Save();
-                            sb.AppendLine($"ℹ 添加重定向 {slug} -> {curseForgeProjectID} 成功。请使用强制刷新来刷新数据。");
+                            sb.AppendLine(string.Format(Locale.Command_add_mapping_Success, slug, curseForgeProjectID));
                         }
                     }
 
@@ -131,14 +132,14 @@ namespace CFPABot.Command
                         var filePath = Path.Combine(r.WorkingDirectory, file);
                         if (!File.Exists(filePath))
                         {
-                            sb.AppendLine("文件不存在。");
+                            sb.AppendLine(Locale.Command_sort_keys_FileNotExists);
                             continue;
                         }
 
 
                         if (file.EndsWith(".json"))
                         {
-                            var sourceJson = JsonDocument.Parse(File.ReadAllText(filePath), new JsonDocumentOptions() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+                            var sourceJson = JsonDocument.Parse(await File.ReadAllTextAsync(filePath), new JsonDocumentOptions() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
                             var pairs = sourceJson.RootElement.EnumerateObject()
                                 .Select(o => new KeyValuePair<string, string>(o.Name, o.Value.GetString())).OrderBy(pair => pair.Key);
                             var buffer = new MemoryStream();
@@ -154,24 +155,24 @@ namespace CFPABot.Command
                                 writer.WriteStringValue(value);
                             }
                             writer.WriteEndObject();
-                            writer.Dispose();
+                            await writer.DisposeAsync();
                             buffer.Seek(0, SeekOrigin.Begin);
-                            File.WriteAllText(filePath, buffer.ToArray().ToUTF8String());
+                            await File.WriteAllTextAsync(filePath, buffer.ToArray().ToUTF8String());
 
                             r.AddAllFiles();
                             r.Commit($"Reorder file for {(file.Replace("\"", "\\\""))}", user);
                         }
                         else if (file.EndsWith(".lang"))
                         {
-                            var lines = File.ReadAllLines(filePath).Where(line => !(line.StartsWith("#") || line.StartsWith("//") || line.IsNullOrWhiteSpace()));
-                            File.WriteAllLines(filePath, lines.OrderBy(line => line.Split('=').FirstOrDefault() ?? ""));
+                            var lines = (await File.ReadAllLinesAsync(filePath)).Where(l => !(l.StartsWith("#") || l.StartsWith("//") || l.IsNullOrWhiteSpace()));
+                            await File.WriteAllLinesAsync(filePath, lines.OrderBy(l => l.Split('=').FirstOrDefault() ?? ""));
 
                             r.AddAllFiles();
                             r.Commit($"Reorder file for {(file.Replace("\"", "\\\""))}", user);
                         }
                         else
                         {
-                            sb.AppendLine("无法识别的文件。");
+                            sb.AppendLine(Locale.Command_sort_keys_FileNotRecognized);
                         }
 
                         
@@ -188,7 +189,7 @@ namespace CFPABot.Command
             }
             catch (Exception e)
             {
-                sb.AppendLine($"⚠ 在执行命令时遇到了问题：{e.Message}");
+                sb.AppendLine(string.Format(Locale.Command_general_Error, e.Message));
                 Log.Warning(e, $"command processor #{prid}");
             }
 
@@ -215,7 +216,7 @@ namespace CFPABot.Command
                     || pr.User.Login == user.Login;
                 if (!hasPermission)
                 {
-                    sb.AppendLine("⚠ 你没有执行此命令的权限。");
+                    sb.AppendLine(Locale.Command_general_PermissionDenied);
                 }
                 return hasPermission;
             }
@@ -226,7 +227,7 @@ namespace CFPABot.Command
                 {
                     if (pr.Head.Repository.Owner.Login == Constants.Owner && pr.Head.Repository.Name == Constants.RepoName && pr.Head.Ref == "main")
                     {
-                        throw new CommandException("⚠ 保护 main 分支，命令拒绝执行。");
+                        throw new CommandException(Locale.Command_general_MainBranchProtected);
                     }
                     repo.Value.Clone(pr.Head.Repository.Owner.Login, pr.Head.Repository.Name, pr.Head.Ref);
                 }

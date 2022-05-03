@@ -14,4 +14,6 @@ https://github.com/CFPAOrg/Minecraft-Mod-Language-Package 的 PR 管理
 - `/sort-keys [文件路径]` 重排键序。适用于 MCreator。
 - `/add-mapping [slug] [curseForgeProjectID]` 你用不到的。
 
+例如：`/update-en xaeros-world-map 1.12.2`
+
 善用 PR files 内的文件路径复制功能。

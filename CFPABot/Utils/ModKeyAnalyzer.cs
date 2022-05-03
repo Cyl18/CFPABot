@@ -4,24 +4,41 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using CFPABot.Resources;
 using GammaLibrary.Extensions;
 
 namespace CFPABot.Utils
 {
+    public class ModInfoForCheck
+    {
+        public ModInfoForCheck(string modid, MCVersion version, string downloadModName, string curseForgeSlug)
+        {
+            Modid = modid;
+            Version = version;
+            DownloadModName = downloadModName;
+            CurseForgeSlug = curseForgeSlug;
+        }
+
+        public string Modid { get; set; }
+        public MCVersion Version { get; set; }
+        public string DownloadModName { get; set; }
+        public string CurseForgeSlug { get; set; }
+    }
+
     public class ModKeyAnalyzer
     {
-        public static bool Analyze(string modid, string enfile, string cnfile, MCVersion version,
-            StringBuilder messageStringBuilder, StringBuilder reportStringBuilder, string downloadModName, string curseForgeSlug)
+        public static bool Analyze(ModInfoForCheck modInfoForCheck, string enfile, string cnfile,
+            StringBuilder messageStringBuilder, StringBuilder reportStringBuilder)
         {
-            return version switch
+            return modInfoForCheck.Version switch
             {
-                MCVersion.v1122 => LangChecker(modid, enfile, cnfile, messageStringBuilder, reportStringBuilder, version, downloadModName, curseForgeSlug),
-                _ => JsonChecker(modid, enfile, cnfile, messageStringBuilder, reportStringBuilder, version, downloadModName, curseForgeSlug)
+                MCVersion.v1122 => LangChecker(modInfoForCheck, enfile, cnfile, messageStringBuilder, reportStringBuilder),
+                _ => JsonChecker(modInfoForCheck, enfile, cnfile, messageStringBuilder, reportStringBuilder)
             };
         }
 
-        static bool JsonChecker(string modid, string enfile, string cnfile, StringBuilder sb,
-            StringBuilder reportStringBuilder, MCVersion mcVersion, string downloadModName, string curseForgeSlug)
+        static bool JsonChecker(ModInfoForCheck modInfoForCheck, string enfile, string cnfile, StringBuilder sb,
+            StringBuilder reportStringBuilder)
         {
             try
             {
@@ -33,7 +50,7 @@ namespace CFPABot.Utils
                 }
                 catch (Exception e)
                 {
-                    sb.AppendLine($"❌ {modid}-{mcVersion.ToVersionString()} 的语言文件中有 JSON 语法错误：{e.Message}");
+                    sb.AppendLine(string.Format(Locale.Check_ModKey_JsonSyntaxError, modInfoForCheck.Modid, modInfoForCheck.Version.ToVersionString(), e.Message));
                     reportStringBuilder.AppendLine($"{e}");
                     return true;
                 }
@@ -50,19 +67,19 @@ namespace CFPABot.Utils
 
                 var ens = en.RootElement.EnumerateObject().Select(p => p.Name).Where(k => !k.StartsWith("_")).ToHashSet();
                 var cns = cn.RootElement.EnumerateObject().Select(p => p.Name).Where(k => !k.StartsWith("_")).ToHashSet();
-                return AnalyzeCore(ens, cns, modid, sb, reportStringBuilder, mcVersion, downloadModName, enfile, cnfile, curseForgeSlug);
+                return AnalyzeCore(modInfoForCheck, ens, cns, sb, reportStringBuilder, enfile, cnfile);
             }
             catch (Exception e)
             {
-                sb.AppendLine($"ℹ {modid}-{mcVersion.ToVersionString()} 的语言文件检查失败：{e.Message}");
+                sb.AppendLine(string.Format(Locale.Check_ModKey_Error, modInfoForCheck.Modid, modInfoForCheck.Version.ToVersionString(), e.Message));
                 reportStringBuilder.AppendLine($"语言文件检查失败： {e}");
                 return false;
             }
         }
 
 
-        static bool LangChecker(string modid, string enfile, string cnfile, StringBuilder sb,
-            StringBuilder reportSb, MCVersion version, string downloadModName, string curseForgeSlug)
+        static bool LangChecker(ModInfoForCheck modInfoForCheck, string enfile, string cnfile, StringBuilder sb,
+            StringBuilder reportSb)
         {
             if (enfile.IsNullOrWhiteSpace())
             {
@@ -73,7 +90,7 @@ namespace CFPABot.Utils
                 return false;
             }
 
-            return AnalyzeCore(
+            return AnalyzeCore(modInfoForCheck,
                 enfile
                     .Split("\n")
                     .Select(line => line.Trim())                // Trim
@@ -90,26 +107,26 @@ namespace CFPABot.Utils
                     .Where(line => line.Contains("="))          // 保证有等号
                     .Select(line => line.Split("=").First())    // 提取 Key
                     .ToHashSet(),
-                modid, sb, reportSb, version, downloadModName, enfile, cnfile, curseForgeSlug
+                 sb, reportSb, enfile, cnfile
                 );
         }
 
-        static bool AnalyzeCore(HashSet<string> enKeys, HashSet<string> cnKeys, string modid, StringBuilder sb,
-            StringBuilder reportSb, MCVersion mcVersion, string downloadModName, string enfile, string cnfile, string curseForgeSlug)
+        static bool AnalyzeCore(ModInfoForCheck modInfoForCheck, HashSet<string> enKeys, HashSet<string> cnKeys, StringBuilder sb,
+            StringBuilder reportSb, string enfile, string cnfile)
         {
-            reportSb.AppendLine($"{modid}-{mcVersion.ToVersionString()} 模组内语言文件共有 {cnKeys.Count} 个 Key；");
+            reportSb.AppendLine($"{modInfoForCheck.Modid}-{modInfoForCheck.Version.ToVersionString()} 模组内语言文件共有 {cnKeys.Count} 个 Key；");
             var enExcept = new HashSet<string>(enKeys); // en 比 cn 多的
             enExcept.ExceptWith(cnKeys);
             var cnExcept = new HashSet<string>(cnKeys); // cn 比 en 多的
             cnExcept.ExceptWith(enKeys);
             if (enExcept.Count == 0 && cnExcept.Count == 0)
             {
-                sb.AppendLine($"ℹ {modid}-{mcVersion.ToVersionString()} 模组内语言文件验证通过。");
+                sb.AppendLine(string.Format(Locale.Check_ModKey_Success, modInfoForCheck.Modid, modInfoForCheck.Version.ToVersionString()));
                 return false;
             }
 
             // 这可能是由于机器人自动获取的模组不是最新，语言文件中包含扩展模组，或所提交的语言文件来自模组源代码仓库。可以点击上方的对比按钮来进行更加详细的对比。
-            sb.AppendLine($"⚠ 警告：PR 中 {modid}-{mcVersion.ToVersionString()} 的英文语言文件与最新模组 `{downloadModName}` 内的英文语言文件不对应。自动获取的文件只能反映大多数情况，可能并不需要更新文件。如果你认为英文语言文件确实需要更新到上面的版本，可以使用命令 `/update-en {curseForgeSlug} {mcVersion.ToVersionString()}` 来更新。");
+            sb.AppendLine(string.Format(Locale.Check_ModKey_NotCorrespond, modInfoForCheck.Modid, modInfoForCheck.Version.ToVersionString(), modInfoForCheck.DownloadModName, modInfoForCheck.CurseForgeSlug, modInfoForCheck.Version.ToVersionString()));
 
             if (enExcept.Count > 0)
             {
