@@ -97,7 +97,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ 警告：你没有启用“维护者可修改 PR 文件”（Allow edits from maintainers）。这可能会对维护者造成不便，请重新提交此 PR 并勾选此选项。.
+        ///   Looks up a localized string similar to ⚠ 警告：你没有启用“维护者可修改 PR 文件”（Allow edits from maintainers）。这可能会对维护者造成不便，请在此页面右方勾选此选项。.
         /// </summary>
         public static string Artifacts_PREditDisabledWarning {
             get {
@@ -124,7 +124,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ❌ 获取 PR 中 {0}-{1} 的英文语言文件失败。你可能没有提交此模组的英文语言文件。.
+        ///   Looks up a localized string similar to ❌ 获取 PR 中 {0}-{1} 的英文语言文件失败。你可能没有提交此模组的英文语言文件。使用命令 `/update-en {2} {3}` 来获取模组语言文件。.
         /// </summary>
         public static string Check_FileKey_FailedToDownloadEn {
             get {
@@ -313,7 +313,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ 警告：PR 中 {0}-{1} 的英文语言文件与最新模组 `{2}` 内的英文语言文件不对应。自动获取的文件只能反映大多数情况，可能并不需要更新文件。如果你认为英文语言文件**确实**需要更新到上面的版本，可以使用命令 `/update-en {3} {4}` 来更新。.
+        ///   Looks up a localized string similar to ⚠ 警告：PR 中 {0}-{1} 的英文语言文件与最新模组 `{2}` 内的英文语言文件不对应。自动获取的文件只能反映大多数情况，可能并不需要更新文件。如果你认为英文语言文件**确实**需要更新到**上面的版本**，可以使用命令 `/update-en {3} {4}` 来更新。.
         /// </summary>
         public static string Check_ModKey_NotCorrespond {
             get {

@@ -19,6 +19,10 @@ namespace CFPABot.Utils
     {
         CN, EN
     }
+    public enum LangFileType
+    {
+        Lang, Json
+    }
 
     public static class RepoAnalyzer
     {

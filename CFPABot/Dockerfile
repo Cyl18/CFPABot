@@ -2,7 +2,7 @@
 
 FROM mcr.microsoft.com/dotnet/aspnet:5.0 AS base
 RUN printf "deb http://mirrors.tuna.tsinghua.edu.cn/debian/ buster main contrib non-free\ndeb http://mirrors.tuna.tsinghua.edu.cn/debian/ buster-updates main contrib non-free\ndeb http://mirrors.tuna.tsinghua.edu.cn/debian/ buster-backports main contrib non-free\ndeb http://mirrors.tuna.tsinghua.edu.cn/debian-security buster/updates main contrib non-free" > /etc/apt/sources.list
-RUN apt -y update && apt install -y git
+RUN apt -y update && apt install -y git && apt install -y curl
 WORKDIR /app
 EXPOSE 80
 
@@ -21,4 +21,5 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENV LD_LIBRARY_PATH=/app/runtimes/debian.9-x64/native/
+HEALTHCHECK --interval=1s --timeout=10s --retries=15 CMD curl --fail http://127.0.0.1:80/healthcheck || exit 1
 ENTRYPOINT ["dotnet", "CFPABot.dll"]

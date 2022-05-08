@@ -45,6 +45,11 @@ namespace CFPABot.Controllers
                 return Unauthorized();
 
             var data = JsonDocument.Parse(body).RootElement;
+            if (eventName == "created")
+            {
+                await System.IO.File.WriteAllTextAsync($"config/installations/{Guid.NewGuid():N}.json", body);
+                return Ok();
+            }
             if (data.GetProperty("repository").GetProperty("id").GetInt32() != 88008282) return Unauthorized();
             switch (eventName)
             {

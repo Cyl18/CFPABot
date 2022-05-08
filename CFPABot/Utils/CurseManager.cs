@@ -239,7 +239,7 @@ namespace CFPABot.Utils
                 if (addon.Files.OrderByDescending(f => f.FileId).FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToStandardVersionString())) is { } file)
                 {
                     var downloadUrl = GetDownloadUrl(file);
-                    var (fs, files) = await GetModLangFiles(downloadUrl, type);
+                    var (fs, files) = await GetModLangFiles(downloadUrl, type, version == MCVersion.v1122 ? LangFileType.Lang : LangFileType.Json);
 
                     await using (fs)
                     {
@@ -256,15 +256,15 @@ namespace CFPABot.Utils
             return (null, null);
         }
 
-        public static async Task<(Stream, IEnumerable<ZipArchiveEntry>)> GetModLangFiles(string downloadUrl, LangType type)
+        public static async Task<(Stream, IEnumerable<ZipArchiveEntry>)> GetModLangFiles(string downloadUrl, LangType type, LangFileType fileType)
         {
             var fileName = await Download.DownloadFile(downloadUrl);
             var fs = FileUtils.OpenFile(fileName);
 
-            return (fs, GetModLangFilesFromStream(fs, type));
+            return (fs, GetModLangFilesFromStream(fs, type, fileType));
         }
 
-        public static IEnumerable<ZipArchiveEntry> GetModLangFilesFromStream(Stream fs, LangType type)
+        public static IEnumerable<ZipArchiveEntry> GetModLangFilesFromStream(Stream fs, LangType type, LangFileType fileType)
         {
             var files = new ZipArchive(fs).Entries
                 .Where(f => f.FullName.Contains("lang") && f.FullName.Contains("assets") &&
@@ -276,7 +276,11 @@ namespace CFPABot.Utils
                        f.Name.Equals("zh_cn.json", StringComparison.OrdinalIgnoreCase))).ToArray();
             if (files.Length == 2 && files.Any(f => f.Name.EndsWith(".json")) && files.Any(f => f.Name.EndsWith(".lang"))) // storage drawers
             {
-                files = new[] { files.First(f => f.Name.EndsWith(".json")) };
+                files = fileType switch
+                {
+                    LangFileType.Lang => new[] {files.First(f => f.Name.EndsWith(".lang"))},
+                    LangFileType.Json => new[] {files.First(f => f.Name.EndsWith(".json"))}
+                };
             }
             return files;
         }

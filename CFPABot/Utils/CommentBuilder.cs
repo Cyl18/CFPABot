@@ -174,6 +174,7 @@ namespace CFPABot.Utils
                     return;
                 }
 
+                // todo 重构一个 escape markdown
                 sb1.AppendLine("|     | 模组 | 🔗 链接 | :art: 相关文件 |");
                 sb1.AppendLine("| --- | --- | --- | --- |");
                 int modCount = 0;
@@ -189,8 +190,8 @@ namespace CFPABot.Utils
                         /* Mod Name */ $" [**{addon.Name.Trim().Replace("[","\\[").Replace("]", "\\]").Replace("|", "\\|")}**]({addon.Website}) |" +
                         // /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault(), enforcedLang: true)} |" + // 这里应该enforce吗？
                         /* Source   */ $" {await CurseManager.GetRepoText(addon)} \\|" +
-                        /* Mcmod    */ $" [🟩MCMOD](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) \\|" +
-                        /* Compare  */ $" [:file_folder:对比](https://cfpa.cyan.cafe/Compare/PR/{PullRequestID}/{addon.Slug}/{await CurseManager.GetModID(addon, versions.FirstOrDefault(), true, false)}) |" +
+                        /* Mcmod    */ $" [🟩 MCMOD](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) \\|" +
+                        /* Compare  */ $" [:file_folder: 对比](https://cfpa.cyan.cafe/Compare/PR/{PullRequestID}/{addon.Slug}/{await CurseManager.GetModID(addon, versions.FirstOrDefault(), true, false)}) |" +
                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)}{await CurseManager.GetModRepoLinkText(addon, infos)} |" +
                         ""
                         );
@@ -219,7 +220,7 @@ namespace CFPABot.Utils
                                         // /* Mod ID   */ $" \\* |" +
                                         /* Source   */ $" {await CurseManager.GetRepoText(depAddon)} \\|" +
                                         /* Mcmod    */ $" [🟩MCMOD](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(depAddon.Name)}) \\|" +
-                                        /* Compare  */ $" * |" +
+                                        /* Compare  */ $" &nbsp;&nbsp;* |" +
                                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} |" +
                                         ""
                                     );
@@ -283,7 +284,7 @@ namespace CFPABot.Utils
                     sb.AppendLine();
                 }
 
-                if (pr.MaintainerCanModify == false)
+                if (pr.MaintainerCanModify == false && pr.Head.Repository.Owner.Login != Constants.Owner)
                 {
                     sb.AppendLine(Locale.Artifacts_PREditDisabledWarning);
                     sb.AppendLine($"![1](https://docs.github.com/assets/cb-44583/images/help/pull_requests/allow-maintainers-to-make-edits-sidebar-checkbox.png)");
@@ -350,17 +351,107 @@ namespace CFPABot.Utils
                 var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}.txt";
                 var filePath = "wwwroot/" + fileName;
                 var webPath = $"https://cfpa.cyan.cafe/static/{fileName}";
-                if (File.Exists(filePath) && Context.CheckSegment != "") {return;}
+                if (File.Exists(filePath) && Context.CheckSegment != "") { return; }
                 
                 if (diffs.Length > 1000)
                 {
                     sb.AppendLine(Locale.Check_General_ToManyFiles);
                     return;
                 }
+
+                // 检查常见的路径提交错误
+                
+                foreach (var diff in diffs.Where(d => d.To.ToLower().Contains("zh_cn")).Where(d => d.To.Split('/').Length < 7).Take(5))
+                {
+                    var names = diff.To.Split('/');
+                    using var iter = names.AsEnumerable().GetEnumerator();
+                    if (names.Length == 1)
+                    {
+                        sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。请检查你的提交路径：`{diff.To}`");
+                        continue;
+                    }
+
+                    if (names.FirstOrDefault() != "projects") continue;
+
+                    if (names.Length < 5)
+                    {
+                        sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。请检查你的提交路径：`{diff.To}`");
+                        continue;
+                    }
+                    // projects/{version}/assets/{curseSlug}/{modDomain}/lang/zh_cn.{}
+                    try
+                    {
+                        if (names.Length == 5)
+                        {
+                            // projects/{version}/assets/{curseSlug}/{modDomain}/lang/zh_cn.{}
+                            if (names[2] != "assets" || names[3] == "lang") goto fail;
+                            sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。缺少了 {{modDomain}} 和 lang 文件夹。请检查你的提交路径：`{diff.To}`；");
+                            try
+                            {
+                                var addon = await CurseManager.GetAddon(names[3]);
+                                var modDomain =
+                                    await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
+                                var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
+                                sb.AppendLine($"  机器人为你自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。你可以使用命令 `/mv-recursive \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                sb.AppendLine();
+                            }
+                            catch (Exception)
+                            {
+                                sb.AppendLine($"  机器人无法找到该模组的 Mod Domain。");
+                                sb.AppendLine();
+
+                                // mod addon 找不到
+                            }
+                        }
+                        
+                        if (names.Length == 6)
+                        {
+                            if (names[2] != "assets" || names[3] == "lang") goto fail;
+
+                            if (names[4] == "lang")
+                            {
+                                // projects/{version}/assets/{curseSlug}/lang/zh_cn.{}
+                                sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。缺少了 {{ModDomain}} 文件夹。请检查你的提交路径：`{diff.To}`；");
+                                try
+                                {
+                                    var addon = await CurseManager.GetAddon(names[3]);
+                                    var modDomain =
+                                        await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
+                                    var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
+                                    sb.AppendLine($"  机器人为你自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。 你可以使用命令 `/mv-recursive \"{names.Take(5).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                    sb.AppendLine();
+                                }
+                                catch (Exception)
+                                {
+                                    sb.AppendLine($"  机器人无法找到该模组的 Mod Domain。");
+                                    sb.AppendLine();
+
+                                    // mod addon 找不到
+                                }
+                            }
+                            else
+                            {
+                                // projects/{version}/assets/{curseSlug}/{modDomain}/zh_cn.{}
+                                sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。缺少了 lang 文件夹。请检查你的提交路径：`{diff.To}`；");
+                            }
+                        }
+
+                        continue;
+                        fail:
+                        sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。请检查你的提交路径：`{diff.To}`");
+                        continue;
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Warning(e, "Report invalid dir");
+                        sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。请检查你的提交路径：`{diff.To}`");
+                    }
+                }
+
                 // 检查大小写
                 var reportedCap = false;
                 var reportedKey = false;
-                Debugger.Break();
+
                 foreach (var diff in diffs)
                 {
                     var names = diff.To.Split('/');
@@ -377,8 +468,8 @@ namespace CFPABot.Utils
                             reportedCap = true;
                         }
                     }
-
                 }
+
                 // 检查中英文 key 是否对应
                 // 检查 ModID
                 var checkedSet = new HashSet<(string version, string curseID)>();
@@ -471,7 +562,7 @@ namespace CFPABot.Utils
                         }
                         catch (Exception)
                         {
-                            sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadEn, modid, versionString));
+                            sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadEn, modid, versionString, curseID, versionString));
                         }
                     }
 
@@ -535,7 +626,7 @@ namespace CFPABot.Utils
                     ("下届", "可能是`下界`", null),
                     ("合成台", "可能是`工作台`", null),
                     ("岩浆", "可能是`熔岩`，具体请**参考英文原文**（`magma`/`lava`）", t => !t.diff.Content.Contains("岩浆块") && !t.diff.Content.Contains("岩浆怪") && !t.diff.Content.Contains("岩浆膏")),
-                    ("粉色", "原版译名采用`粉红色`", t => !t.diff.Content.Contains("浅粉色") && !t.diff.Content.Contains("艳粉色") && !t.diff.Content.Contains("亮粉色")),
+                    ("粉色", "原版译名采用`粉红色`，**如果上下文中有原版的 16 色才需要更改**", t => !t.diff.Content.Contains("浅粉色") && !t.diff.Content.Contains("艳粉色") && !t.diff.Content.Contains("亮粉色")),
                     ("地狱", "`地狱`在 1.16 后更名为`下界`", tuple => tuple.version != MCVersion.v1122),
                     ("漂浮", "请注意区分`漂浮`和`飘浮`", null),
                 };
@@ -558,9 +649,10 @@ namespace CFPABot.Utils
                         {
                             var content = lineDiff.Content;
 
+                            var mcVersion = names[1].ToMCVersion();
                             foreach (var (checkname, message, customCheck) in warnings)
                             {
-                                if (content.Contains(checkname) && (customCheck == null || customCheck((lineDiff, names[1].ToMCVersion()))))
+                                if (content.Contains(checkname) && (customCheck == null || customCheck((lineDiff, mcVersion))))
                                 {
                                     // 进行一个警告的给
                                     if (!diffCheckedSet.Contains(checkname))
@@ -569,7 +661,7 @@ namespace CFPABot.Utils
                                         diffCheckedSet.Add(checkname);
                                         // {lineDiff.NewIndex}-
                                         sb.AppendLine(
-                                            string.Format(Locale.Check_Translate_PossibleControversial, checkname, message, lineDiff.Content.Replace("`", "\\`")));
+                                            string.Format(Locale.Check_Translate_PossibleControversial, checkname, message, ShortenLine(lineDiff.Content.Replace("`", "\\`"), checkname, mcVersion)));
                                     }
 
                                     reportSb.AppendLine(
@@ -579,7 +671,7 @@ namespace CFPABot.Utils
 
                             foreach (var (checkname, message, customCheck) in errors)
                             {
-                                if (content.Contains(checkname) && (customCheck == null || customCheck((lineDiff, names[1].ToMCVersion()))))
+                                if (content.Contains(checkname) && (customCheck == null || customCheck((lineDiff, mcVersion))))
                                 {
                                     // 进行一个错误的给
                                     if (!diffCheckedSet.Contains(checkname))
@@ -589,7 +681,7 @@ namespace CFPABot.Utils
                                         // todo 显示哪一行
                                         // {lineDiff.NewIndex}-
                                         sb.AppendLine(
-                                            string.Format(Locale.Check_Translate_PossibleWrong, checkname, message, lineDiff.Content.Replace("`", "\\`")));
+                                            string.Format(Locale.Check_Translate_PossibleWrong, checkname, message, ShortenLine(lineDiff.Content.Replace("`", "\\`"), checkname, mcVersion)));
                                     }
 
                                     reportSb.AppendLine(
@@ -641,6 +733,43 @@ namespace CFPABot.Utils
                     Context.CheckSegment = c;
                 }
             }
+        }
+
+        string ShortenLine(string line, string checkname, MCVersion version)
+        {
+            try
+            {
+                int index = version switch
+                {
+                    MCVersion.v1122 => line.IndexOf('='),
+                    _ => line.IndexOf(':')
+                };
+                if (index == -1) return line;
+
+                var key = line[..(index + 1)];
+                var value = line[(index + 1)..];
+                if (value.Length > 28)
+                {
+                    var nameIndex = value.IndexOf(checkname, StringComparison.Ordinal);
+                    var from = Math.Max(0, nameIndex - 12);
+                    var to = Math.Min(value.Length, nameIndex + checkname.Length + 12);
+                    var sb = new StringBuilder();
+                    if (from == 0 && to == value.Length) return line;
+                    
+                    if (from != 0) sb.Append("...");
+                    sb.Append(value[from..to]);
+                    if (from != value.Length) sb.Append("...");
+                    value = sb.ToString();
+                }
+
+                return key + value;
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "shorten line");
+                return line;
+            }
+
         }
 
         Dictionary<string, CommentBuilderLock> locks = new();

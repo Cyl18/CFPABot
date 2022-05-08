@@ -185,14 +185,15 @@ namespace CFPABot.Controllers
                         try
                         {
                             var downloadUrl = CurseManager.GetDownloadUrl(file);
-                            var enr = (await CurseManager.GetModLangFiles(downloadUrl, LangType.EN));
+                            // TODO 临时
+                            var enr = (await CurseManager.GetModLangFiles(downloadUrl, LangType.EN, LangFileType.Json));
                             var enfiles = enr.Item2.ToArray();
                             foreach (var entry in enfiles)
                             {
                                 AddRadio($"<a href=\"{downloadUrl}\">模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "", _ => throw new ArgumentOutOfRangeException()}}{file.GameVersion}-{file.FileName}</a> 中的英文语言文件 {(enfiles.Length > 1 ? entry.FullName : "")}", $"mod`{downloadUrl}`{entry.FullName}");
                             }
 
-                            var cnr = (await CurseManager.GetModLangFiles(downloadUrl, LangType.CN));
+                            var cnr = (await CurseManager.GetModLangFiles(downloadUrl, LangType.CN, LangFileType.Json));
                             var cnfiles = cnr.Item2.ToArray();
                             foreach (var entry in cnfiles)
                             {
@@ -457,7 +458,8 @@ function download(filename, text) {{
                             var fs1 = FileUtils.OpenFile(path);
                             try
                             {
-                                var f = CurseManager.GetModLangFilesFromStream(fs1, cn ? LangType.CN : LangType.EN);
+                                // todo 临时
+                                var f = CurseManager.GetModLangFilesFromStream(fs1, cn ? LangType.CN : LangType.EN, LangFileType.Json);
                                 return await f.First().Open().ReadToEndAsync1();
                             }
                             finally

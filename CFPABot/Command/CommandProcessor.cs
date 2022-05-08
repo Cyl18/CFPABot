@@ -51,6 +51,48 @@ namespace CFPABot.Command
                         r.AddAllFiles();
                         r.Commit($"mv {(arg.Replace("\"", "\\\""))}", user);
                     }
+                    
+                    if (line.StartsWith("/mv-recursive "))
+                    {
+                        if (!await CheckPermission()) continue;
+                        var arg = line["/mv-recursive ".Length..];
+                        var r = GetRepo();
+                        var args = GitRepoManager.SplitArguments(arg);
+                        Directory.CreateDirectory(Path.Combine(r.WorkingDirectory, Path.GetDirectoryName(args[1])));
+                        foreach (var path in args)
+                        {
+                            var baseDir = Path.GetFullPath(r.WorkingDirectory);
+                            if (!Path.GetFullPath(path, baseDir).StartsWith(baseDir))
+                            {
+                                throw new CommandException(Locale.Command_mv_SecurityCheckFailure);
+                            }
+                        }
+
+                        if (args.Length != 2) throw new CommandException("应该有两个参数。");
+
+                        var from = Path.Combine(r.WorkingDirectory, args[0]);
+                        var to = Path.Combine(r.WorkingDirectory, args[1]);
+                        var tmpdir = $"caches/{Guid.NewGuid():N}/";
+                        Directory.CreateDirectory(tmpdir);
+                        // copy [from] to [tmpdir]
+                        
+                        foreach (var file in Directory.GetFiles(from, "*", SearchOption.AllDirectories))
+                        {
+                            var dst = Path.Combine(tmpdir, Path.GetRelativePath(from, file));
+                            Directory.CreateDirectory(Path.GetDirectoryName(dst));
+                            File.Move(file, dst, true);
+                        }
+
+                        foreach (var file in Directory.GetFiles(tmpdir, "*", SearchOption.AllDirectories))
+                        {
+                            var dst = Path.Combine(to, Path.GetRelativePath(tmpdir, file));
+                            Directory.CreateDirectory(Path.GetDirectoryName(dst));
+                            File.Move(file, dst, true);
+                        }
+
+                        r.AddAllFiles();
+                        r.Commit($"mv {(arg.Replace("\"", "\\\""))}", user);
+                    }
 
                     if (line.StartsWith("/update-en "))
                     {
