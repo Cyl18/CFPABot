@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 using CFPABot.Models;
+using CFPABot.Models.Artifact;
+using CFPABot.Models.Workflow;
 using DiffPatch;
 using DiffPatch.Data;
 using GammaLibrary.Extensions;
@@ -56,16 +59,16 @@ namespace CFPABot.Utils
         public static Task<IReadOnlyList<IssueComment>> GetPRComments(int id)
             => Instance.Issue.Comment.GetAllForIssue(Constants.Owner, Constants.RepoName, id);
         
-        public static async Task<PullRequest> GetPRFromHeadSha(string headSha)
+        public static async Task<PullRequest> GetPRFromHeadRef(string @ref)
         {
             try
             {
-                var list = await Instance.PullRequest.GetAllForRepository(Constants.Owner, Constants.RepoName, new PullRequestRequest() { Head = headSha });
+                var list = await Instance.PullRequest.GetAllForRepository(Constants.Owner, Constants.RepoName, new PullRequestRequest() { Head = @ref });
                 return list.First();
             }
             catch (Exception e)
             {
-                Log.Error(e, "GetPRFromHeadSha failed.");
+                Log.Error(e, "GetPRFromHeadRef failed.");
                 throw new CheckException($"从仓库的头安全散列演算法256获取拉取请求失败. {e.Message}");
             }
         }
@@ -87,6 +90,28 @@ namespace CFPABot.Utils
 
         public static Task<PullRequest> GetPullRequest(int id)
             => Instance.PullRequest.Get(Constants.Owner, Constants.RepoName, id);
-        
+
+        public static async Task ApproveWorkflowRun(long runID)
+        {
+            var hc = new HttpClient();
+            hc.DefaultRequestHeaders.Add("User-Agent", "cfpa-bot");
+            hc.DefaultRequestHeaders.Add("Authorization", $"bearer {GetToken()}");
+
+            await hc.PostAsync($"https://api.github.com/repos/{Constants.Owner}/{Constants.RepoName}/actions/runs/{runID}/approve", new StringContent(""));
+        }
+
+        // github run
+        public static async Task<WorkflowRun> GetPackerWorkflowRunFromCheckSuiteID(long checkSuiteID)
+        {
+            var result = await Download.Json<WorkflowRunModel>($"https://api.github.com/repos/CFPAOrg/Minecraft-Mod-Language-Package/actions/workflows/{Constants.PRPackerFileName}/runs?event=pull_request&check_suite_id={checkSuiteID}");
+            
+            return result.TotalCount == 0 ? null : result.WorkflowRuns.OrderByDescending(run => run.CreatedAt).First();
+        }
+
+        public static Task<ArtifactModel> GetArtifactFromWorkflowRun(WorkflowRun workflowRun)
+        {
+            return Download.Json<ArtifactModel>(workflowRun.ArtifactsUrl);
+        }
     }
+    
 }

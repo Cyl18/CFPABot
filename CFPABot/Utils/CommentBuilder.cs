@@ -271,12 +271,6 @@ namespace CFPABot.Utils
             try
             {
                 var pr = await GitHub.GetPullRequest(PullRequestID);
-                var checkRun = await GitHub.FindWorkflowFromHeadSha(pr.Head.Sha);
-                if (checkRun == null)
-                {
-                    sb.AppendLine(Locale.Artifacts_NoWorkflowYet);
-                    return;
-                }
 
                 if (pr.Base.Ref != "main")
                 {
@@ -291,7 +285,58 @@ namespace CFPABot.Utils
                     sb.AppendLine();
                 }
 
-                sb.AppendLine(string.Format(Locale.Artifacts_Hint, Constants.BaseRepo, PullRequestID));
+                var checkSuites = await GitHub.Instance.Check.Suite.GetAllForReference(Constants.Owner, Constants.RepoName,
+                    pr.Head.Sha);
+                var tasks = checkSuites.CheckSuites
+                    .Where(suite => suite.App.Name == "GitHub Actions")
+                    .Select(suite => GitHub.GetPackerWorkflowRunFromCheckSuiteID(suite.Id)).ToArray();
+                await Task.WhenAll(tasks);
+                var workflowRun = tasks.FirstOrDefault(task => task.Result != null)?.Result;
+                if (workflowRun == null)
+                {
+                    sb.AppendLine(Locale.Artifacts_NoWorkflowYet);
+                    return;
+                }
+
+                if (workflowRun.Conclusion == "action_required")
+                {
+                    var diff = await GitHub.Diff(pr.Number);
+                    var blacklist = new[] {".github", "src"};
+                    if (diff.Any(f => blacklist.Any(black => f.To.StartsWith(black) || f.From.StartsWith(black))))
+                    {
+                        sb.AppendLine("ℹ 由于修改了源代码，不能自动批准执行 PR Packer。");
+                        return;
+                    }
+
+                    await GitHub.ApproveWorkflowRun(workflowRun.Id);
+                    sb.AppendLine("ℹ 已经自动批准打包器执行，可能需要等待一段时间。");
+                    return;
+                }
+
+                if (workflowRun.Status is "queued" or "in_progress")
+                {
+                    sb.AppendLine(":milky_way: 打包器正在执行, 请耐心等待。");
+                    return;
+                }
+
+                var artifacts = await GitHub.GetArtifactFromWorkflowRun(workflowRun);
+
+                if (artifacts.TotalCount == 0)
+                {
+                    sb.AppendLine("ℹ 此 PR 没有更改语言文件。");
+                    return;
+                }
+
+                sb.AppendLine(":floppy_disk: 基于此 PR 所打包的资源包：");
+                foreach (var artifact in artifacts.Artifacts)
+                {
+                    sb.AppendLine($"- [{artifact.Name}.zip]({artifact.ArchiveDownloadUrl.Replace("/zip", ".zip").Replace("api.github.com/repos", "nightly.link")})");
+                }
+
+                // v2
+                // sb.AppendLine(string.Format(Locale.Artifacts_Hint, Constants.BaseRepo, PullRequestID));
+
+                // v1
                 //                 switch (checkRun.Status.Value)
                 //                 {
                 //                     case CheckStatus.Queued:
@@ -342,8 +387,9 @@ namespace CFPABot.Utils
             using var l = await AcquireLock(nameof(UpdateCheckSegment));
             var sb = new StringBuilder();
             var reportSb = new StringBuilder();
-
+            
             // 如果能用 就不要动屎山 写这一行的时候下面有299行代码
+            // 现在有391行 哈哈
             try
             {
                 var pr = await GitHub.GetPullRequest(PullRequestID);
@@ -433,18 +479,20 @@ namespace CFPABot.Utils
                             {
                                 // projects/{version}/assets/{curseSlug}/{modDomain}/zh_cn.{}
                                 sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。缺少了 lang 文件夹。请检查你的提交路径：`{diff.To}`；");
+                                sb.AppendLine();
                             }
                         }
 
                         continue;
                         fail:
                         sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。请检查你的提交路径：`{diff.To}`");
-                        continue;
+                        sb.AppendLine();
                     }
                     catch (Exception e)
                     {
                         Log.Warning(e, "Report invalid dir");
                         sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。请检查你的提交路径：`{diff.To}`");
+                        sb.AppendLine();
                     }
                 }
 
@@ -764,7 +812,7 @@ namespace CFPABot.Utils
 
                 return key + value;
             }
-            catch (Exception e)
+            catch (ArgumentOutOfRangeException e)
             {
                 Log.Error(e, "shorten line");
                 return line;

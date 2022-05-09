@@ -28,6 +28,7 @@ namespace CFPABot.Controllers
     [Route("[controller]")]
     public class CompareController : ControllerBase
     {
+        // 第一次写网页 饿 纯 html 就这样了
         [HttpGet("PR/{pr}/{modid}/{modDomain}")]
         public IActionResult PR(string pr, string modid, string modDomain)
         {

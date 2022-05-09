@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Net.WebSockets;
 using System.Numerics;
 using System.Threading.Tasks;
+using GammaLibrary.Extensions;
 using Serilog;
 
 namespace CFPABot.Utils
@@ -19,8 +20,14 @@ namespace CFPABot.Utils
         static Download()
         {
             hc = new();
-            hc.DefaultRequestHeaders.Add("User-Agent", "Cyl18-Bot");
+            hc.DefaultRequestHeaders.Add("User-Agent", "cfpa-bot");
         }
+
+        public static async Task<T> Json<T>(string url)
+        {
+            return (await String(url)).JsonDeserialize<T>();
+        }
+
         public static async Task<string> String(string url)
         {
             // xswl

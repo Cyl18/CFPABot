@@ -22,6 +22,8 @@ namespace CFPABot.Utils
         public const string Owner = "CFPAOrg";
         public const string RepoName = "Minecraft-Mod-Language-Package";
 
+        public const string PRPackerFileName = "pr-packer.yml";
+
         public static string GitHubOAuthToken => Environment.GetEnvironmentVariable("GITHUB_OAUTH_TOKEN");
         public static string GitHubWebhookSecret => Environment.GetEnvironmentVariable("GITHUB_WEBHOOK_SECRET");
 #endif

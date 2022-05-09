@@ -45,7 +45,7 @@ namespace CFPABot.Controllers
                 return Unauthorized();
 
             var data = JsonDocument.Parse(body).RootElement;
-            if (eventName == "created")
+            if (eventName == "installation" && data.GetProperty("action").GetString() == "created")
             {
                 await System.IO.File.WriteAllTextAsync($"config/installations/{Guid.NewGuid():N}.json", body);
                 return Ok();
@@ -74,7 +74,7 @@ namespace CFPABot.Controllers
                 foreach (var comment in comments)
                 {
                     await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id,
-                        "<!--CYBOT-->❌ CRITICAL_FAILURE：找到了多个 Bot Comment. 请删除到只保留一个. 删除后请点击强制刷新.\n\n---\n\n- [ ] 🔄 勾选这个复选框来强制刷新");
+                        "<!--CYBOT-->❌ CRITICAL_FAILURE：找到了多个 Bot Comment。 请删除到只保留一个。删除后请点击强制刷新.\n\n---\n\n- [ ] 🔄 勾选这个复选框来强制刷新");
                 }
                 return true;
             }
@@ -171,14 +171,17 @@ namespace CFPABot.Controllers
             var action = data.GetProperty("workflow").GetProperty("name").GetString();
             if (action is "PR Packer")
             {
-                var s = data.GetProperty("workflow_run").GetProperty("head_sha").GetString();
-                if (data.GetProperty("workflow_run").GetProperty("event").GetString() != "pull_request") return;
+                var run = data.GetProperty("workflow_run");
+
+                var user = run.GetProperty("head_repository").GetProperty("owner").GetProperty("login").GetString();
+                var branch = run.GetProperty("head_branch").GetString();
+                if (run.GetProperty("event").GetString() != "pull_request") return;
                 
                 Task.Run(async () =>
                 {
                     try
                     {
-                        var pr = await GitHub.GetPRFromHeadSha(s);
+                        var pr = await GitHub.GetPRFromHeadRef($"{user}:{branch}");
                         var builder = GetOrCreateCommentBuilder(pr.Number);
                         _ = builder.Update(async () =>
                         {
