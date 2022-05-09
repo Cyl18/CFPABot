@@ -31,8 +31,8 @@ namespace CFPABot.Utils
                 JsonDocument en, cn;
                 try
                 {
-                    en = JsonDocument.Parse(enfile, new JsonDocumentOptions() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
-                    cn = JsonDocument.Parse(cnfile, new JsonDocumentOptions() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+                    en = JsonDocument.Parse(enfile, new JsonDocumentOptions() { CommentHandling = JsonCommentHandling.Skip });
+                    cn = JsonDocument.Parse(cnfile, new JsonDocumentOptions() { CommentHandling = JsonCommentHandling.Skip });
                 }
                 catch (Exception e)
                 {
