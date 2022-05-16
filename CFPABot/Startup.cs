@@ -10,7 +10,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using CFPABot.Controllers;
+using CFPABot.Utils;
 using Microsoft.Extensions.FileProviders;
+using Octokit.Webhooks;
+using Octokit.Webhooks.AspNetCore;
 
 namespace CFPABot
 {
@@ -28,7 +32,8 @@ namespace CFPABot
         {
 
             services.AddControllers();
-            services.AddHealthChecks();
+            services.AddHealthChecks(); 
+            services.AddSingleton<WebhookEventProcessor, MyWebhookEventProcessor>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -50,6 +55,7 @@ namespace CFPABot
 
             app.UseEndpoints(endpoints =>
             {
+                endpoints.MapGitHubWebhooks("api/WebhookListener", Constants.GitHubWebhookSecret);
                 endpoints.MapControllers();
             });
         }

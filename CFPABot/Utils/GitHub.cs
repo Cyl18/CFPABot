@@ -10,25 +10,43 @@ using DiffPatch;
 using DiffPatch.Data;
 using GammaLibrary.Extensions;
 using Octokit;
+using Octokit.Internal;
 using Serilog;
 
 namespace CFPABot.Utils
 {
-    public class GitHub
+    public static class GitHub
     {
         public static GitHubClient Instance => GetClient();
+        static DateTime lastUpdate;
+        static GitHubClient _client;
 
         public static GitHubClient GetClient()
         {
             // NOTE - the token will expire in 1 hour!
 
             // Create a new GitHubClient using the installation token as authentication
+
+            lock (typeof(GitHub))
+            {
+                if (_client == null || DateTime.Now - lastUpdate > TimeSpan.FromMinutes(30))
+                {
+                    UpdateClient();
+                }
+            }
+            
+            return _client;
+        }
+
+        static void UpdateClient()
+        {
             var installationClient = new GitHubClient(new ProductHeaderValue("cfpa-bot"))
             {
                 Credentials = new Credentials(GetToken())
             };
-           
-            return installationClient;
+
+            lastUpdate = DateTime.Now;
+            _client = installationClient;
         }
 
         public static string GetToken()
@@ -64,6 +82,12 @@ namespace CFPABot.Utils
             try
             {
                 var list = await Instance.PullRequest.GetAllForRepository(Constants.Owner, Constants.RepoName, new PullRequestRequest() { Head = @ref });
+                if (list.Count == 0)
+                {
+                    var list2 = await Instance.PullRequest.GetAllForRepository(Constants.Owner, Constants.RepoName, new PullRequestRequest() { Head = @ref, State = ItemStateFilter.Closed});
+                    // 其实理论上不应该这么做，但是考虑到 workflow run 没有什么价值
+                    return list2.OrderByDescending(pr => pr.CreatedAt).First();
+                }
                 return list.First();
             }
             catch (Exception e)
@@ -89,10 +113,14 @@ namespace CFPABot.Utils
         }
 
         public static Task<PullRequest> GetPullRequest(int id)
-            => Instance.PullRequest.Get(Constants.Owner, Constants.RepoName, id);
+        {
+            Log.Debug($"获取 PR: {id}");
+            return Instance.PullRequest.Get(Constants.Owner, Constants.RepoName, id);
+        }
 
         public static async Task ApproveWorkflowRun(long runID)
         {
+            Log.Information($"批准 run: {runID}");
             var hc = new HttpClient();
             hc.DefaultRequestHeaders.Add("User-Agent", "cfpa-bot");
             hc.DefaultRequestHeaders.Add("Authorization", $"bearer {GetToken()}");
@@ -103,14 +131,16 @@ namespace CFPABot.Utils
         // github run
         public static async Task<WorkflowRun> GetPackerWorkflowRunFromCheckSuiteID(long checkSuiteID)
         {
-            var result = await Download.Json<WorkflowRunModel>($"https://api.github.com/repos/CFPAOrg/Minecraft-Mod-Language-Package/actions/workflows/{Constants.PRPackerFileName}/runs?event=pull_request&check_suite_id={checkSuiteID}");
+            Log.Debug($"获取 Workflow Run: {checkSuiteID}");
+            var result = await Download.GitHubAPIJson<WorkflowRunModel>($"https://api.github.com/repos/CFPAOrg/Minecraft-Mod-Language-Package/actions/workflows/{Constants.PRPackerFileName}/runs?event=pull_request&check_suite_id={checkSuiteID}");
             
             return result.TotalCount == 0 ? null : result.WorkflowRuns.OrderByDescending(run => run.CreatedAt).First();
         }
 
         public static Task<ArtifactModel> GetArtifactFromWorkflowRun(WorkflowRun workflowRun)
         {
-            return Download.Json<ArtifactModel>(workflowRun.ArtifactsUrl);
+            Log.Debug($"获取 Artifact: {workflowRun.Id}");
+            return Download.GitHubAPIJson<ArtifactModel>(workflowRun.ArtifactsUrl);
         }
     }
     

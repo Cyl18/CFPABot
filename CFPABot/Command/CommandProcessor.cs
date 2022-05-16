@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using CFPABot.Resources;
 using CFPABot.Utils;
@@ -20,7 +21,22 @@ namespace CFPABot.Command
 
     public static class CommandProcessor
     {
+        static int currentRuns = 0;
+        internal static int CurrentRuns => currentRuns;
         public static async Task Run(int prid, string content, int commentID, GitHubUser user)
+        {
+            try
+            {
+                Interlocked.Increment(ref currentRuns);
+                await RunInternal(prid, content, commentID, user);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref currentRuns);
+            }
+        }
+
+        public static async Task RunInternal(int prid, string content, int commentID, GitHubUser user)
         {
             //bool addedReaction = false;
             var sb = new StringBuilder();

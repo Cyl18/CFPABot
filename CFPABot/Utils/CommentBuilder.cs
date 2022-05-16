@@ -17,6 +17,8 @@ using ForgedCurse.Json;
 using GammaLibrary.Extensions;
 using Octokit;
 using Serilog;
+using Serilog.Core;
+using Serilog.Core.Enrichers;
 
 namespace CFPABot.Utils
 {
@@ -63,27 +65,34 @@ namespace CFPABot.Utils
         {
             try
             {
+                Log.Debug($"开始更新 #{PullRequestID}。");
                 await UpdateInternal(updateCallback);
+                Log.Debug($"结束更新 #{PullRequestID}。");
             }
             catch (Exception e)
             {
                 Log.Error(e, "Update issue comment error");
             }
         }
+
+        ILogger logger => Log.Logger.ForContext(new PropertyEnricher("PR", PullRequestID));
         public async Task UpdateInternal(Func<Task> updateCallback)
         {
             // using var l = AcquireLock(nameof(Update));
+            logger.Debug("获取 Diff...");
             var fileDiff = await GitHub.Diff(PullRequestID);
             if (Context.BuildArtifactsSegment.IsNullOrEmpty() && fileDiff.All(d => !d.To.StartsWith("projects/"))) return;
             
             IssueComment comment;
             using (await AcquireLock("UpdateLock"))
             {
+                logger.Debug("获取 PR Comment...");
                 var comments = await GitHub.GetPRComments(PullRequestID);
                 comment = comments.FirstOrDefault(c => (c.User.Login == "Cyl18-Bot" || c.User.Login.Equals("cfpa-bot[bot]", StringComparison.OrdinalIgnoreCase)) && c.Body.StartsWith("<!--CYBOT-->"))
                           ?? await CreateComment();
             }
 
+            logger.Debug("构建内容...");
             var sb2 = new StringBuilder();
             sb2.AppendLine(Context.ModLinkSegment);
             sb2.AppendLine("---");
@@ -102,6 +111,8 @@ namespace CFPABot.Utils
                 sb2.AppendLine("---");
                 sb2.AppendLine("**:construction: 正在更新内容...**");
             }
+            
+            logger.Debug("第一次更新内容...");
             using (await AcquireLock("UpdateLock"))
             {
                 await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->\n" + sb2.ToString());
@@ -116,6 +127,7 @@ namespace CFPABot.Utils
             {
                 Console.WriteLine(e);
             }
+            logger.Debug("内容构建完成...");
 
             Interlocked.Decrement(ref UpdatingCount);
             var sb = new StringBuilder();
@@ -135,6 +147,7 @@ namespace CFPABot.Utils
             }
             using (await AcquireLock("UpdateLock"))
             {
+                logger.Debug("第二次更新内容...");
                 await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->\n" + sb.ToString());
             }
             SaveContext();
@@ -142,6 +155,7 @@ namespace CFPABot.Utils
 
         Task<IssueComment> CreateComment()
         {
+            logger.Debug("新建 Comment...");
             return GitHub.Instance.Issue.Comment.Create(Constants.Owner, Constants.RepoName, PullRequestID, "<!--CYBOT-->\n" + "正在更新数据...");
         }
 
@@ -154,7 +168,13 @@ namespace CFPABot.Utils
             try
             {
                 var modInfos = PRAnalyzer.Run(diffs);
-                var modids = modInfos.Select(m => m.CurseForgeID).Distinct();
+                var modids = modInfos.Select(m => m.CurseForgeID).Distinct().ToArray();
+                if (modids.Length > 20)
+                {
+                    sb.AppendLine(Locale.ModLink_TooManyMods);
+                    return;
+                }
+
                 var addons = new List<Addon>();
                 foreach (var modid in modids)
                 {
@@ -168,9 +188,9 @@ namespace CFPABot.Utils
                     }
                 }
 
-                if (addons.Count > 20)
+                if (addons.Count == 0)
                 {
-                    sb.AppendLine(Locale.ModLink_TooManyMods);
+                    sb.AppendLine("ℹ 此 PR 没有检测到 CurseForge 模组修改。");
                     return;
                 }
 
@@ -218,7 +238,7 @@ namespace CFPABot.Utils
                                         /* Thumbnail*/ $" {await CurseManager.GetThumbnailText(depAddon)} |" +
                                         /* Mod Name */ $" 依赖-[*{depAddon.Name.Replace("[", "\\[").Replace("]", "\\]")}*]({depAddon.Website}) |" +
                                         // /* Mod ID   */ $" \\* |" +
-                                        /* Source   */ $" {await CurseManager.GetRepoText(depAddon)} \\|" +
+                                        /* Source   */ $" {await CurseManager.GetRepoText(addonModel)} \\|" +
                                         /* Mcmod    */ $" [🟩MCMOD](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(depAddon.Name)}) \\|" +
                                         /* Compare  */ $" &nbsp;&nbsp;* |" +
                                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} |" +
@@ -254,6 +274,7 @@ namespace CFPABot.Utils
             {
                 Log.Error(e, "更新 mod 列表出错");
                 sb.AppendLine(sb1.ToString());
+                sb.AppendLine();
                 sb.AppendLine(string.Format(Locale.ModLink_Error, e.Message));
             }
             finally
@@ -276,12 +297,16 @@ namespace CFPABot.Utils
                 {
                     sb.AppendLine(Locale.Artifacts_BranchNotMain);
                     sb.AppendLine();
+                    sb.AppendLine("---");
+                    sb.AppendLine();
                 }
 
-                if (pr.MaintainerCanModify == false && pr.Head.Repository.Owner.Login != Constants.Owner)
+                if (pr.MaintainerCanModify == false && pr.Head.Repository.Owner.Login != Constants.Owner && pr.State.Value == ItemState.Open)
                 {
                     sb.AppendLine(Locale.Artifacts_PREditDisabledWarning);
                     sb.AppendLine($"![1](https://docs.github.com/assets/cb-44583/images/help/pull_requests/allow-maintainers-to-make-edits-sidebar-checkbox.png)");
+                    sb.AppendLine();
+                    sb.AppendLine("---");
                     sb.AppendLine();
                 }
 
@@ -438,12 +463,12 @@ namespace CFPABot.Utils
                                 var modDomain =
                                     await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
                                 var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
-                                sb.AppendLine($"  机器人为你自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。你可以使用命令 `/mv-recursive \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。你可以使用命令 `/mv-recursive \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
                                 sb.AppendLine();
                             }
                             catch (Exception)
                             {
-                                sb.AppendLine($"  机器人无法找到该模组的 Mod Domain。");
+                                sb.AppendLine($"  无法找到该模组的 Mod Domain。");
                                 sb.AppendLine();
 
                                 // mod addon 找不到
@@ -464,12 +489,12 @@ namespace CFPABot.Utils
                                     var modDomain =
                                         await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
                                     var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
-                                    sb.AppendLine($"  机器人为你自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。 你可以使用命令 `/mv-recursive \"{names.Take(5).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                    sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。 你可以使用命令 `/mv-recursive \"{names.Take(5).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
                                     sb.AppendLine();
                                 }
                                 catch (Exception)
                                 {
-                                    sb.AppendLine($"  机器人无法找到该模组的 Mod Domain。");
+                                    sb.AppendLine($"  无法找到该模组的 Mod Domain。");
                                     sb.AppendLine();
 
                                     // mod addon 找不到
@@ -693,10 +718,10 @@ namespace CFPABot.Utils
                     if (!names[6].Contains("zh")) continue; // 只检查中文文件
                     foreach (var chunk in diff.Chunks)
                     {
-                        foreach (var lineDiff in chunk.Changes)
+                        foreach (var lineDiff in chunk.Changes.Where(line => line.Type != LineChangeType.Delete)) // fix https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/1946
                         {
                             var content = lineDiff.Content;
-
+                            
                             var mcVersion = names[1].ToMCVersion();
                             foreach (var (checkname, message, customCheck) in warnings)
                             {
@@ -823,6 +848,7 @@ namespace CFPABot.Utils
         Dictionary<string, CommentBuilderLock> locks = new();
         async ValueTask<CommentBuilderLock> AcquireLock(string lockName)
         {
+            logger.Debug($"正在获取锁 {lockName}...");
             CommentBuilderLock l;
             lock (this)
             {

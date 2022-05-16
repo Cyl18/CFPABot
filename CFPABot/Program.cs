@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using CFPABot.Command;
 using CFPABot.Controllers;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
@@ -58,7 +59,7 @@ namespace CFPABot
                 .MinimumLevel.Debug()
                 .WriteTo.Console()
                 .WriteTo.File("logs/myapp.txt", rollingInterval: RollingInterval.Day, restrictedToMinimumLevel: LogEventLevel.Information)
-                .WriteTo.File("logs/myapp-debug.txt", rollingInterval: RollingInterval.Day)
+                //.WriteTo.File("logs/myapp-debug.txt", rollingInterval: RollingInterval.Day)
                 .CreateLogger();
             await Init();
             try
@@ -71,9 +72,13 @@ namespace CFPABot
             }
         }
 
+        internal static bool ShuttingDown { get; private set; }
+
         static void Wait()
         {
-            SpinWait.SpinUntil(() => WebhookListenerController.commentBuilders.All(c => !c.Value.IsAnyLockAcquired()));
+            ShuttingDown = true;
+            SpinWait.SpinUntil(() => MyWebhookEventProcessor.commentBuilders.All(c => !c.Value.IsAnyLockAcquired()));
+            SpinWait.SpinUntil(() => CommandProcessor.CurrentRuns == 0);
         }
 
         static async Task Init()

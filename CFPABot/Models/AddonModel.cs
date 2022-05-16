@@ -14,7 +14,7 @@ namespace CFPABot.Models.A
         [J("authors")] public Author[] Authors { get; set; }
         [J("attachments")] public Attachment[] Attachments { get; set; }
         [J("wikiUrl")] public string WikiUrl { get; set; }
-        [J("sourceUrl")] public Uri SourceUrl { get; set; }
+        [J("sourceUrl")] public string SourceUrl { get; set; }
         [J("websiteUrl")] public Uri WebsiteUrl { get; set; }
         [J("gameId")] public long GameId { get; set; }
         [J("summary")] public string Summary { get; set; }

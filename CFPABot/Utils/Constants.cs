@@ -21,6 +21,7 @@ namespace CFPABot.Utils
         public const string BaseRepo = "https://github.com/CFPAOrg/Minecraft-Mod-Language-Package";
         public const string Owner = "CFPAOrg";
         public const string RepoName = "Minecraft-Mod-Language-Package";
+        public const int RepoID = 88008282;
 
         public const string PRPackerFileName = "pr-packer.yml";
 

@@ -97,7 +97,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ 警告：你没有启用“维护者可修改 PR 文件”（Allow edits from maintainers）。这可能会对维护者造成不便，请在此页面右方勾选此选项。.
+        ///   Looks up a localized string similar to ⚠ 警告：你没有启用“维护者可修改 PR 文件”（Allow edits from maintainers）；这可能会对维护者造成不便，请在此页面右方勾选此选项。.
         /// </summary>
         public static string Artifacts_PREditDisabledWarning {
             get {
@@ -160,7 +160,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ 所涉及文件过多, 将不进行检查。.
+        ///   Looks up a localized string similar to ⚠ 所涉及文件过多，将不进行检查。.
         /// </summary>
         public static string Check_General_ToManyFiles {
             get {
@@ -259,7 +259,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 你可以使用命令 `/mv &quot;projects/{0}/assets/{1}/{2}/&quot; &quot;projects/{3}/assets/{4}/{5}/&quot;` 来移动目录。.
+        ///   Looks up a localized string similar to 你可以使用命令 `/mv-recursive &quot;projects/{0}/assets/{1}/{2}/&quot; &quot;projects/{3}/assets/{4}/{5}/&quot;` 来移动目录。.
         /// </summary>
         public static string Check_ModID_Failed_2 {
             get {
@@ -530,7 +530,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ 更新 mod 列表出错: {0}.
+        ///   Looks up a localized string similar to ⚠ 更新模组列表出错: {0}.
         /// </summary>
         public static string ModLink_Error {
             get {
@@ -539,7 +539,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 模组数量过多, 将不显示模组链接..
+        ///   Looks up a localized string similar to 模组数量过多，将不显示模组链接。.
         /// </summary>
         public static string ModLink_TooManyMods {
             get {

@@ -23,9 +23,12 @@ namespace CFPABot.Utils
             hc.DefaultRequestHeaders.Add("User-Agent", "cfpa-bot");
         }
 
-        public static async Task<T> Json<T>(string url)
+        public static async Task<T> GitHubAPIJson<T>(string url)
         {
-            return (await String(url)).JsonDeserialize<T>();
+            var jsonhc = new HttpClient();
+            jsonhc.DefaultRequestHeaders.Add("User-Agent", "cfpa-bot");
+            jsonhc.DefaultRequestHeaders.Add("Authorization", $"bearer {GitHub.GetToken()}");
+            return (await jsonhc.GetStringAsync(url)).JsonDeserialize<T>();
         }
 
         public static async Task<string> String(string url)
@@ -33,6 +36,7 @@ namespace CFPABot.Utils
             // xswl
             try
             {
+                Log.Debug($"网络请求：{url}");
                 return await hc.GetStringAsync(url);
             }
             catch (HttpRequestException e1)
@@ -61,8 +65,10 @@ namespace CFPABot.Utils
 
         public static async Task<string> DownloadFile(string url)
         {
+            Log.Debug($"文件下载：{url}");
             Directory.CreateDirectory("temp");
             var fileName = $"{url.Split("/").Last()}";
+            // bug: lock
             if (File.Exists($"temp/{fileName}"))
             {
                 return $"temp/{fileName}";

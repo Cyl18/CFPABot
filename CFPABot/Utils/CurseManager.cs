@@ -142,6 +142,19 @@ namespace CFPABot.Utils
             }
         }
 
+        public static async Task<string> GetRepoText(AddonModel addon)
+        {
+            try
+            {
+                var url = addon.SourceUrl;
+                return url.IsNullOrEmpty() ? ":mag:无源代码" : $"[:mag: 源代码]({url})&nbsp;&nbsp;";
+            }
+            catch (Exception)
+            {
+                return ":mag:无源代码";
+            }
+        }
+
         public static string GetDownloadUrl(GameVersionLatestRelease release)
         {
             var s = release.FileId.ToString();
@@ -171,6 +184,7 @@ namespace CFPABot.Utils
 
         public static Task<Addon> GetAddon(string modid)
         {
+            Log.Debug($"获取 Addon: {modid}");
             return new ForgeClient().Addons.RetriveAddon(MapModIDToProjectID(modid));
         }
 
@@ -279,7 +293,8 @@ namespace CFPABot.Utils
                 files = fileType switch
                 {
                     LangFileType.Lang => new[] {files.First(f => f.Name.EndsWith(".lang"))},
-                    LangFileType.Json => new[] {files.First(f => f.Name.EndsWith(".json"))}
+                    LangFileType.Json => new[] {files.First(f => f.Name.EndsWith(".json"))},
+                    _ => throw new ArgumentOutOfRangeException(nameof(fileType), fileType, null)
                 };
             }
             return files;
