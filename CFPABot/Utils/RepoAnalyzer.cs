@@ -27,13 +27,13 @@ namespace CFPABot.Utils
     public static class RepoAnalyzer
     {
 
-        static Dictionary<string, CommentBuilderLock> locks = new();
-        static async ValueTask<CommentBuilderLock> AcquireLock(string lockName)
+        static Dictionary<string, SuperUniversalExtremeAwesomeGodlikeSmartLock> locks = new();
+        static async ValueTask<SuperUniversalExtremeAwesomeGodlikeSmartLock> AcquireLock(string lockName)
         {
-            CommentBuilderLock l;
+            SuperUniversalExtremeAwesomeGodlikeSmartLock l;
             lock (typeof(RepoAnalyzer))
             {
-                if (!locks.ContainsKey(lockName)) locks[lockName] = new CommentBuilderLock();
+                if (!locks.ContainsKey(lockName)) locks[lockName] = new SuperUniversalExtremeAwesomeGodlikeSmartLock();
                 l = locks[lockName];
             }
             await l.WaitAsync();

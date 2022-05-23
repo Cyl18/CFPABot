@@ -845,14 +845,14 @@ namespace CFPABot.Utils
 
         }
 
-        Dictionary<string, CommentBuilderLock> locks = new();
-        async ValueTask<CommentBuilderLock> AcquireLock(string lockName)
+        Dictionary<string, SuperUniversalExtremeAwesomeGodlikeSmartLock> locks = new();
+        async ValueTask<SuperUniversalExtremeAwesomeGodlikeSmartLock> AcquireLock(string lockName)
         {
             logger.Debug($"正在获取锁 {lockName}...");
-            CommentBuilderLock l;
-            lock (this)
+            SuperUniversalExtremeAwesomeGodlikeSmartLock l;
+            lock (locks)
             {
-                if (!locks.ContainsKey(lockName)) locks[lockName] = new CommentBuilderLock();
+                if (!locks.ContainsKey(lockName)) locks[lockName] = new SuperUniversalExtremeAwesomeGodlikeSmartLock();
                 l = locks[lockName];
             }
             await l.WaitAsync();
@@ -876,7 +876,7 @@ namespace CFPABot.Utils
         }
     }
 
-    public sealed class CommentBuilderLock : IDisposable
+    public sealed class SuperUniversalExtremeAwesomeGodlikeSmartLock : IDisposable
     {
         SemaphoreSlim semaphore = new(1);
         public volatile int WaitCount = 0;

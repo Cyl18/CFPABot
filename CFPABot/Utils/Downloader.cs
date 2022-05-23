@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.WebSockets;
 using System.Numerics;
+using System.Threading;
 using System.Threading.Tasks;
 using GammaLibrary.Extensions;
 using Serilog;
@@ -16,10 +17,12 @@ namespace CFPABot.Utils
     public class Download
     {
         public static HttpClient hc;
+        public static HttpClient chc;
 
         static Download()
         {
             hc = new();
+            chc = new();
             hc.DefaultRequestHeaders.Add("User-Agent", "cfpa-bot");
         }
 
@@ -63,12 +66,27 @@ namespace CFPABot.Utils
             }
         }
 
+        static Dictionary<string, SuperUniversalExtremeAwesomeGodlikeSmartLock> locks = new();
+        static async ValueTask<SuperUniversalExtremeAwesomeGodlikeSmartLock> AcquireLock(string lockName)
+        {
+            Log.Debug($"正在获取锁 {lockName}...");
+            SuperUniversalExtremeAwesomeGodlikeSmartLock l;
+            lock (locks)
+            {
+                if (!locks.ContainsKey(lockName)) locks[lockName] = new SuperUniversalExtremeAwesomeGodlikeSmartLock();
+                l = locks[lockName];
+            }
+            await l.WaitAsync();
+            return l;
+        }
         public static async Task<string> DownloadFile(string url)
         {
             Log.Debug($"文件下载：{url}");
             Directory.CreateDirectory("temp");
             var fileName = $"{url.Split("/").Last()}";
-            // bug: lock
+
+            using var l = await AcquireLock($"download {fileName}");
+
             if (File.Exists($"temp/{fileName}"))
             {
                 return $"temp/{fileName}";
@@ -77,6 +95,13 @@ namespace CFPABot.Utils
             await using var stream = await new HttpClient().GetStreamAsync(url);
             await stream.CopyToAsync(fs);
             return $"temp/{fileName}";
+        }
+
+        public static async Task<string> CurseForgeString(string url)
+        {
+            // 好像反正 CurseForge API 给了 UserAgent 就要 403
+            Log.Debug($"网络请求：{url}");
+            return await chc.GetStringAsync(url);
         }
     }
 }

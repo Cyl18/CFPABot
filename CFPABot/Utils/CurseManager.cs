@@ -46,7 +46,7 @@ namespace CFPABot.Utils
         // 之后可以重构为全部用这个
         public static async Task<AddonModel> GetAddonModel(Addon addon)
         {
-            var s = await Download.String($"https://addons-ecs.forgesvc.net/api/v2/addon/{addon.Identifier}");
+            var s = await Download.CurseForgeString($"https://addons-ecs.forgesvc.net/api/v2/addon/{addon.Identifier}");
             return s.JsonDeserialize<AddonModel>();
         }
 
@@ -130,7 +130,7 @@ namespace CFPABot.Utils
 
         public static async Task<string> GetRepoText(Addon addon)
         {
-            var s = JsonDocument.Parse(await Download.String($"https://addons-ecs.forgesvc.net/api/v2/addon/{addon.Identifier}/"));
+            var s = JsonDocument.Parse(await Download.CurseForgeString($"https://addons-ecs.forgesvc.net/api/v2/addon/{addon.Identifier}/"));
             try
             {
                 var url = s.RootElement.GetProperty("sourceUrl").GetString();

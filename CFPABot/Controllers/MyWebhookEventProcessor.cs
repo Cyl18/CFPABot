@@ -7,6 +7,7 @@ using CFPABot.Checks;
 using CFPABot.Command;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
+using Microsoft.Extensions.Primitives;
 using Octokit.Webhooks;
 using Octokit.Webhooks.Events;
 using Octokit.Webhooks.Events.Installation;
@@ -22,6 +23,16 @@ namespace CFPABot.Controllers
 {
     public class MyWebhookEventProcessor : WebhookEventProcessor
     {
+        public override Task ProcessWebhookAsync(IDictionary<string, StringValues> headers, string body)
+        {
+            if (headers["X-GitHub-Event"] == "workflow_job")
+            {
+                return Task.CompletedTask;
+            }
+
+            return base.ProcessWebhookAsync(headers, body);
+        }
+
         public override Task ProcessWebhookAsync(WebhookHeaders headers, WebhookEvent webhookEvent)
         {
             // workaround
@@ -29,10 +40,7 @@ namespace CFPABot.Controllers
             // 但是 1.0 得 .NET 6
             // .NET 6 得 vs2022
             // vs2022 + R# 特别卡
-            if (headers.Event == "workflow_job")
-            {
-                return Task.CompletedTask;
-            }
+            
 
             if (!(headers.Event == "installation" && webhookEvent.Action == "created") && webhookEvent.Repository.Id != Constants.RepoID ||
                 Program.ShuttingDown)
