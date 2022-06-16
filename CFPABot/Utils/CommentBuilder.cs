@@ -9,6 +9,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using CFPABot.Exceptions;
 using CFPABot.Models.A;
 using CFPABot.Resources;
 using DiffPatch.Data;
@@ -319,7 +320,12 @@ namespace CFPABot.Utils
                 var workflowRun = tasks.FirstOrDefault(task => task.Result != null)?.Result;
                 if (workflowRun == null)
                 {
-                    sb.AppendLine(Locale.Artifacts_NoWorkflowYet);
+                    sb.AppendLine(pr.State.Value switch
+                    {
+                        ItemState.Open => Locale.Artifacts_NoWorkflowYet,
+                        ItemState.Closed => ":milky_way: PR 已经关闭。",
+                        _ => throw new ArgumentOutOfRangeException()
+                    });
                     return;
                 }
 
@@ -340,7 +346,12 @@ namespace CFPABot.Utils
 
                 if (workflowRun.Status is "queued" or "in_progress")
                 {
-                    sb.AppendLine(":milky_way: 打包器正在执行, 请耐心等待。");
+                    sb.AppendLine(pr.State.Value switch
+                    {
+                        ItemState.Open => ":milky_way: 打包器正在执行, 请耐心等待。",
+                        ItemState.Closed => ":milky_way: PR 已经关闭。",
+                        _ => throw new ArgumentOutOfRangeException()
+                    });
                     return;
                 }
 
@@ -430,8 +441,13 @@ namespace CFPABot.Utils
                     return;
                 }
 
-                // 检查常见的路径提交错误
-                
+                if (diffs.Any(diff => diff.To.Split('/').Any(s => s == "patchouli_book")))
+                {
+                    sb.AppendLine("⚠ 检测到了一个名为 patchouli_book 的文件夹。你可能想说的是 patchouli_books？");
+                }
+
+                #region 检查常见的路径提交错误
+
                 foreach (var diff in diffs.Where(d => d.To.ToLower().Contains("zh_cn")).Where(d => d.To.Split('/').Length < 7).Take(5))
                 {
                     var names = diff.To.Split('/');
@@ -482,7 +498,7 @@ namespace CFPABot.Utils
                             if (names[4] == "lang")
                             {
                                 // projects/{version}/assets/{curseSlug}/lang/zh_cn.{}
-                                sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。缺少了 {{ModDomain}} 文件夹。请检查你的提交路径：`{diff.To}`；");
+                                sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。缺少了 {{ModDomain}} 或 {{CurseForge 项目名}} 文件夹。请检查你的提交路径：`{diff.To}`；");
                                 try
                                 {
                                     var addon = await CurseManager.GetAddon(names[3]);
@@ -520,6 +536,8 @@ namespace CFPABot.Utils
                         sb.AppendLine();
                     }
                 }
+
+                #endregion
 
                 // 检查大小写
                 var reportedCap = false;

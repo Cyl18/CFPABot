@@ -7,6 +7,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using CFPABot.Exceptions;
 using CFPABot.Resources;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
@@ -155,6 +156,51 @@ namespace CFPABot.Command
                         r.Commit($"Update en_us file for {(curseForgeID.Replace("\"", "\\\""))}", user);
                     }
 
+                    if (line.StartsWith("/format "))
+                    {
+                        if (!await CheckPermission()) continue;
+                        var filePath = line["/format ".Length..];
+                        var r = GetRepo();
+                        var repoPath = Path.Combine(r.WorkingDirectory, filePath);
+
+                        var f = File.ReadAllBytes(repoPath);
+                        using var sr = new MemoryStream(f).CreateStreamReader(Encoding.UTF8);
+                        File.Delete(repoPath);
+                        using var sw = File.Open(
+                            repoPath,
+                            FileMode.Create).CreateStreamWriter(new UTF8Encoding(false));
+
+                        switch (filePath.Split("/")[1].ToMCVersion())
+                        {
+                            case MCVersion.v1122:
+                                new LangFormatter(sr, sw).Format();
+                                break;
+                            default:
+                                new JsonFormatter(sr, sw).Format();
+                                break;
+                        }
+
+                        r.AddAllFiles();
+                        r.Commit($"Reformat file", user);
+                    }
+
+                    if (line.StartsWith("/replace "))
+                    {
+                        if (!await CheckPermission()) continue;
+                        var args = GitRepoManager.SplitArguments(line["/replace ".Length..]);
+                        var r = GetRepo();
+                        if (args.Length != 2) throw new CommandException("应该有两个参数。");
+                        var diffs = await GitHub.Diff(prid);
+                        foreach (var diff in diffs)
+                        {
+                            var filePath = Path.Combine(r.WorkingDirectory, diff.To);
+                            File.WriteAllText(filePath, File.ReadAllText(filePath).Replace(args[0], args[1]));
+                        }
+
+                        r.AddAllFiles();
+                        r.Commit($"Replace '{args[0]}' to '{args[1]}'", user);
+                    }
+
                     if (line.StartsWith("/add-mapping "))
                     {
                         var args = line["/add-mapping ".Length..].Split(" ", StringSplitOptions.RemoveEmptyEntries);
@@ -165,18 +211,10 @@ namespace CFPABot.Command
                         }
                         var slug = args[0];
                         var curseForgeProjectID = args[1];
-                        var addon = await CurseManager.GetAddon(curseForgeProjectID);
-                        if (slug != addon.Slug)
-                        {
-                            sb.AppendLine(string.Format(Locale.Command_add_mapping_SlugMismatch, slug, curseForgeProjectID, slug, addon.Slug));
-
-                        }
-                        else
-                        {
-                            ModIDMappingMetadata.Instance.Mapping[slug] = curseForgeProjectID.ToInt();
-                            ModIDMappingMetadata.Save();
-                            sb.AppendLine(string.Format(Locale.Command_add_mapping_Success, slug, curseForgeProjectID));
-                        }
+                        ModIDMappingMetadata.Instance.Mapping[slug] = curseForgeProjectID.ToInt();
+                        ModIDMappingMetadata.Save();
+                        sb.AppendLine(string.Format(Locale.Command_add_mapping_Success, slug, curseForgeProjectID));
+                        
                     }
 
                     if (line.StartsWith("/sort-keys "))

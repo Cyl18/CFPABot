@@ -11,6 +11,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using CFPABot.Exceptions;
 using CFPABot.Models.A;
 using CFPABot.Resources;
 using ForgedCurse;

@@ -2,15 +2,17 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace CFPABot
+namespace CFPABot.Exceptions
 {
     [Serializable]
     public class ProcessException : Exception
     {
         public ProcessException(string message) : base(message)
         {
+
         }
     }
 

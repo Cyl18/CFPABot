@@ -5,6 +5,7 @@ using System.Net;
 using System.Threading.Tasks;
 using CFPABot.Checks;
 using CFPABot.Command;
+using CFPABot.Exceptions;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
 using Microsoft.Extensions.Primitives;

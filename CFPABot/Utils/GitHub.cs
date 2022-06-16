@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using CFPABot.Exceptions;
 using CFPABot.Models;
 using CFPABot.Models.Artifact;
 using CFPABot.Models.Workflow;

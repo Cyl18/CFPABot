@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 
-namespace CFPABot
+namespace CFPABot.Exceptions
 {
     public class WebhookException : Exception
     {

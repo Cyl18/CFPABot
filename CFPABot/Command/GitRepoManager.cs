@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using CFPABot.Exceptions;
 using CFPABot.Utils;
 using Serilog;
 
@@ -79,8 +80,11 @@ namespace CFPABot.Command
             process.WaitForExit();
             if (process.ExitCode != 0)
             {
-                throw new ProcessException($"git.exe with args `{args}` exited with {process.ExitCode}.\n" +
-                                           $"```\n{stdout}{stderr}\n```");
+                // haha
+                // https://github.com/Cyl18/CFPABot/issues/3
+                // maybe Regex.Replace(message, "ghs_[0-9a-zA-Z]{36}", "******")
+                Log.Error($"git.exe {args} exited with {process.ExitCode} - {stdout}{stderr}");
+                throw new ProcessException($"git.exe with args `{args}` exited with {process.ExitCode}.");
             }
 
         }
