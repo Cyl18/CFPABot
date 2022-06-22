@@ -22,6 +22,11 @@ namespace CFPABot
     {
         public static async Task Main(string[] args)
         {
+            await TermManager.Init();
+            TaskScheduler.UnobservedTaskException += (sender, eventArgs) =>
+            {
+                Log.Error(eventArgs.Exception, "UnobservedTaskException");
+            };
             var cts = new CancellationTokenSource();
             Console.CancelKeyPress += (sender, eventArgs) =>
             {

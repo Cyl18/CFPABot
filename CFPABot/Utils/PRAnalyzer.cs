@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using CFPABot.DiffEngine;
 using DiffPatch.Data;
 
 namespace CFPABot.Utils
@@ -33,5 +34,21 @@ namespace CFPABot.Utils
 
             return infos;
         }
+
+        public static List<ModPath> RunBleedingEdge(FileDiff[] diffs)
+        {
+            var paths = new HashSet<ModPath>();
+            foreach (var fileDiff in diffs)
+            {
+                var names = fileDiff.To.Split('/');
+                if (names.Length < 7) continue;
+                if (names[0] != "projects") continue;
+
+                paths.Add(new ModPath(fileDiff.To));
+            }
+            return paths.ToList();
+        }
+
+
     }
 }

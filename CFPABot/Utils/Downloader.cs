@@ -34,13 +34,23 @@ namespace CFPABot.Utils
             return (await jsonhc.GetStringAsync(url)).JsonDeserialize<T>();
         }
 
-        public static async Task<string> String(string url)
+        public static async Task<string> String(string url, bool withToken = false)
         {
             // xswl
             try
             {
                 Log.Debug($"网络请求：{url}");
-                return await hc.GetStringAsync(url);
+                if (!withToken)
+                {
+                    return await hc.GetStringAsync(url);
+                }
+                else
+                {
+                    var hc1 = new HttpClient();
+                    hc1.DefaultRequestHeaders.Add("User-Agent", "cfpa-bot");
+                    hc1.DefaultRequestHeaders.Add("Authorization", $"bearer {GitHub.GetToken()}");
+                    return (await hc1.GetStringAsync(url));
+                }
             }
             catch (HttpRequestException e1)
             {
