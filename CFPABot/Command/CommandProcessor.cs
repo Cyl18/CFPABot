@@ -476,18 +476,18 @@ namespace CFPABot.Command
 
         static bool CheckTerms(string currentEn, string currentCn, out string result)
         {
-            var sb = new Lazy<StringBuilder>(() => new StringBuilder());
+            var sb = new List<string>();
             foreach (var term in TermManager.Terms)
             {
                 if (term.English.Contains(" ") && currentEn.Contains(term.English, StringComparison.Ordinal))
                 {
                     if (term.Chineses.Any(termCn => currentCn.Contains(termCn, StringComparison.Ordinal)))
                     {
-                        sb.Value.AppendLine($"✔ 术语 {term.English} => {term.Chineses.Connect()}");
+                        sb.Add($"✔ 术语 {term.English} => {term.Chineses.Connect()}");
                     }
                     else
                     {
-                        sb.Value.AppendLine($"⚠ 术语异常 {term.English} => {term.Chineses.Connect()}");
+                        sb.Add($"⚠ 术语异常 {term.English} => {term.Chineses.Connect()}");
                     }
                 }
 
@@ -497,19 +497,19 @@ namespace CFPABot.Command
                     {
                         if (term.Chineses.Any(termCn => currentCn.Contains(termCn, StringComparison.Ordinal)))
                         {
-                            sb.Value.AppendLine($"✔ 术语 {term.English} => {term.Chineses.Connect()}");
+                            sb.Add($"✔ 术语 {term.English} => {term.Chineses.Connect()}");
                         }
                         else
                         {
-                            sb.Value.AppendLine($"⚠ 术语异常 {term.English} => {term.Chineses.Connect()}");
+                            sb.Add($"⚠ 术语异常 {term.English} => {term.Chineses.Connect()}");
                         }
                     }
                 }
             }
 
-            if (sb.IsValueCreated)
+            if (sb.Any())
             {
-                result = sb.ToString();
+                result = sb.Distinct().Connect(Environment.NewLine);
                 return true;
             }
             else
