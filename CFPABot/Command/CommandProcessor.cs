@@ -206,17 +206,33 @@ namespace CFPABot.Command
 
                     if (line.StartsWith("/add-mapping "))
                     {
+                        if (!await CheckPermission()) continue;
                         var args = line["/add-mapping ".Length..].Split(" ", StringSplitOptions.RemoveEmptyEntries);
-                        if (user.Login != "Cyl18")
-                        {
-                            sb.AppendLine(Locale.Command_add_mapping_Rejected);
-                            continue;
-                        }
+                        // if (user.Login != "Cyl18")
+                        // {
+                        //     sb.AppendLine(Locale.Command_add_mapping_Rejected);
+                        //     continue;
+                        // }
                         var slug = args[0];
                         var curseForgeProjectID = args[1];
                         ModIDMappingMetadata.Instance.Mapping[slug] = curseForgeProjectID.ToInt();
                         ModIDMappingMetadata.Save();
-                        sb.AppendLine(string.Format(Locale.Command_add_mapping_Success, slug, curseForgeProjectID));
+                        try
+                        {
+                            var addon = await CurseManager.GetAddon(slug);
+                            if (addon.Slug != slug)
+                            {
+                                sb.AppendLine($"你添加的指定的 curseForgeProjectID 不正确，API 返回 Slug 结果为 {addon.Slug}");
+                            }
+                            else
+                            {
+                                sb.AppendLine(string.Format(Locale.Command_add_mapping_Success, slug, curseForgeProjectID));
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            sb.AppendLine($"已经保存映射，但是在获取 Addon 时出现了问题：{e}");
+                        }
                         
                     }
 
@@ -325,7 +341,10 @@ namespace CFPABot.Command
 
                         }
 
-                        sb.AppendLine($"异常：\n{exceptionList.Select(e => e.ToString()).Connect("\n\n")}");
+                        if (exceptionList.Any())
+                        {
+                            sb.AppendLine($"异常：\n{exceptionList.Select(e => e.ToString()).Connect("\n\n")}");
+                        }
                     }
 
                     if (line.StartsWith("/sort-keys "))
