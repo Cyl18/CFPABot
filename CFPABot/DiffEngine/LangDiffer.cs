@@ -25,7 +25,7 @@ namespace CFPABot.DiffEngine
 
         private static string PostProcess(this string str)
         {
-            return str.Replace("|", "\\|").Replace("\n", "<br>");
+            return str.Replace("|", "\\|").Replace("`", "\\`");
         }
     }
 }

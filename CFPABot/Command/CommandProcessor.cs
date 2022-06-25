@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -253,18 +254,18 @@ namespace CFPABot.Command
                                 }
                                 else
                                 {
-                                    stringBuilder.Append($"{currentEn}");
+                                    stringBuilder.Append($"`{currentEn}`");
                                 }
                             }
                             else
                             {
                                 if (sourceEn.Trim() == currentEn.Trim())
                                 {
-                                    stringBuilder.Append($"{currentEn}");
+                                    stringBuilder.Append($"`{currentEn}`");
                                 }
                                 else
                                 {
-                                    stringBuilder.Append($"{sourceEn}<br>🔽<br>{currentEn}");
+                                    stringBuilder.Append($"`{sourceEn}`<br>🔽<br>`{currentEn}`");
                                 }
                             }
 
@@ -278,12 +279,12 @@ namespace CFPABot.Command
                                 }
                                 else
                                 {
-                                    stringBuilder.Append($"{currentCn}");
+                                    stringBuilder.Append($"`{currentCn}`");
                                 }
                             }
                             else
                             {
-                                stringBuilder.Append($"{sourceCn}<br>🔽<br>{currentCn}");
+                                stringBuilder.Append($"`{sourceCn}`<br>🔽<br>`{currentCn}`");
                             }
                         }
 
@@ -296,7 +297,7 @@ namespace CFPABot.Command
                             sb.AppendLine("| --: | :------------- |");
                             foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
                             {
-                                if (sourceCn == currentCn) continue;
+                                if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
                                 sb.Append("| ");
                                 AddLine(sourceEn, currentEn, sb, sourceCn, currentCn);
 
@@ -310,7 +311,7 @@ namespace CFPABot.Command
                             sb.AppendLine("| - | --: | :------------- |");
                             foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
                             {
-                                if (sourceCn == currentCn) continue;
+                                if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
                                 
                                 sb.Append("| ");
                                 sb.Append($" `{key}` |");
@@ -326,9 +327,10 @@ namespace CFPABot.Command
                             sb.AppendLine("| - | --: | :------------- | - |");
                             foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
                             {
-                                if (sourceCn == currentCn) continue;
-                                
-                                var termResult = CheckTerms(currentEn.ToLower(), currentCn.ToLower(), out var termTextResult);
+                                if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
+
+                                string termTextResult = "中文或英文为空";
+                                var termResult = currentEn != null && currentCn != null && CheckTerms(currentEn.ToLower(), currentCn.ToLower(), out termTextResult);
                                 if (!termResult) continue;
                                 
                                 sb.Append("| ");
@@ -419,10 +421,30 @@ namespace CFPABot.Command
             }
 
             var result = sb.ToString();
-            if (!result.IsNullOrWhiteSpace())
+            if (result.Length > 65536 / 2)
             {
-                await GitHub.Instance.Issue.Comment.Create(Constants.Owner, Constants.RepoName, prid, $"@{user.Login} {result}");
+                try
+                {
+                    var gist = await GitHub.InstancePersonal.Gist.Create(new NewGist() { Description = $"pr-{prid}-diff", Files = { { $"pr-{prid}-diff.md", result } }, Public = false });
+                    result = $"回复内容过长，已经上传至<{gist.HtmlUrl}>。";
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e, "Upload Gist");
+                }
             }
+            try
+            {
+                if (!result.IsNullOrWhiteSpace())
+                {
+                    await GitHub.Instance.Issue.Comment.Create(Constants.Owner, Constants.RepoName, prid, $"@{user.Login} {result}");
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "CommandProcessor CreateComment");
+            }
+            
 
             // async Task AddReaction()
             // {

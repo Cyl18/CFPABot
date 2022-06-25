@@ -19,6 +19,16 @@ namespace CFPABot.Utils
     public static class GitHub
     {
         public static GitHubClient Instance => GetClient();
+        public static GitHubClient InstancePersonal { get; } = GetClientPersonal();
+
+        static GitHubClient GetClientPersonal()
+        {
+            return new GitHubClient(new ProductHeaderValue("cfpa-bot"))
+            {
+                Credentials = new Credentials(Constants.GitHubOAuthToken)
+            };
+        }
+
         static DateTime lastUpdate;
         static GitHubClient _client;
 
