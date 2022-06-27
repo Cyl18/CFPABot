@@ -161,18 +161,16 @@ namespace CFPABot.Utils
             }
         }
 
-        public static async Task<Mod> GetAddon(string modSlug)
+        public static Task<Mod> GetAddon(string modSlug)
         {
-            Log.Debug($"获取 Addon: {modSlug}");
-            // 恨不得我的邮箱被塞爆
-            using var cfClient = GetCfClient();
-            return (await cfClient.GetModAsync((uint)MapModIDToProjectID(modSlug))).Data;
+            return GetAddon((uint) MapModIDToProjectID(modSlug));
         }
         public static async Task<Mod> GetAddon(uint modCurseForgeID)
         {
+            // https://github.com/CurseForgeCommunity/.NET-APIClient/issues/1
+            var cfClient = GetCfClient();
             Log.Debug($"获取 Addon: {modCurseForgeID}");
             // 恨不得我的邮箱被塞爆
-            using var cfClient = GetCfClient();
             return (await cfClient.GetModAsync(modCurseForgeID)).Data;
         }
 
