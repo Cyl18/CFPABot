@@ -16,9 +16,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="CurseForge.APIClient" Version="1.3.4" />
     <PackageReference Include="DiffPatch" Version="2.0.0" />
     <PackageReference Include="DiffPlex" Version="1.7.1" />
-    <PackageReference Include="ForgedCurse" Version="2.0.0" />
     <PackageReference Include="GammaLibrary" Version="2.3.0" />
     <PackageReference Include="GitHubJwt" Version="0.0.5" />
     <PackageReference Include="LibGit2Sharp" Version="0.26.2" />

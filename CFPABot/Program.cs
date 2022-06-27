@@ -92,7 +92,7 @@ namespace CFPABot
             if (ModIDMappingMetadata.Instance.Mapping.Count == 0)
             {
                 Log.Information("开始构建 mapping..");
-                await CurseForgeIDMappingManager.Build();
+                //await CurseForgeIDMappingManager.Build();
             }
             Log.Information("mapping 加载完成");
         }

@@ -27,6 +27,7 @@ namespace CFPABot.Utils
 
         public static string GitHubOAuthToken => Environment.GetEnvironmentVariable("GITHUB_OAUTH_TOKEN");
         public static string GitHubWebhookSecret => Environment.GetEnvironmentVariable("GITHUB_WEBHOOK_SECRET");
+        public static string CurseForgeApiKey => Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
 #endif
     }
 }

@@ -8,6 +8,45 @@ using Serilog;
 
 namespace CFPABot.DiffEngine
 {
+    public class ModVersion
+    {
+        public MinecraftVersion MinecraftVersion { get; set; }
+        public ModLoader ModLoader { get; set; }
+
+        public ModVersion(MinecraftVersion minecraftVersion, ModLoader modLoader)
+        {
+            MinecraftVersion = minecraftVersion;
+            ModLoader = modLoader;
+        }
+
+        private ModVersion()
+        {
+
+        }
+
+        public static ModVersion FromGameVersionDirectory(string gameVersionDirectory)
+        {
+            var modVersion = new ModVersion
+            {
+                MinecraftVersion = gameVersionDirectory switch
+                {
+                    "1.12.2" => MinecraftVersion.v1_12,
+                    "1.16" or "1.16-fabric" => MinecraftVersion.v1_16,
+                    "1.18" or "1.18-fabric" => MinecraftVersion.v1_18,
+                    _ => throw new ArgumentOutOfRangeException()
+                },
+                ModLoader = gameVersionDirectory switch
+                {
+                    "1.12.2" or "1.16" or "1.18" => ModLoader.Forge,
+                    "1.16-fabric" or "1.18-fabric" => ModLoader.Fabric,
+                    _ => throw new ArgumentOutOfRangeException()
+                }
+            };
+
+            return modVersion;
+        }
+    }
+
     public class ModPath
     {
         public ModLoader ModLoader { get; set; }
@@ -23,19 +62,9 @@ namespace CFPABot.DiffEngine
             GameVersionDirectoryName = s[1];
             CurseForgeSlug = s[3];
             ModDomain = s[4];
-            MinecraftVersion = GameVersionDirectoryName switch
-            {
-                "1.12.2" => MinecraftVersion.v1_12,
-                "1.16" or "1.16-fabric" => MinecraftVersion.v1_16,
-                "1.18" or "1.18-fabric" => MinecraftVersion.v1_18,
-                _ => throw new ArgumentOutOfRangeException()
-            };
-            ModLoader = GameVersionDirectoryName switch
-            {
-                "1.12.2" or "1.16" or "1.18" => ModLoader.Forge,
-                "1.16-fabric" or "1.18-fabric" => ModLoader.Fabric,
-                _ => throw new ArgumentOutOfRangeException()
-            };
+            var modVersion = ModVersion.FromGameVersionDirectory(GameVersionDirectoryName);
+            MinecraftVersion = modVersion.MinecraftVersion;
+            ModLoader = modVersion.ModLoader;
             LangFileType = MinecraftVersion switch
             {
                 MinecraftVersion.v1_12 => LangFileType.Lang,

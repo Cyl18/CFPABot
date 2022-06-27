@@ -14,8 +14,9 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Web;
 using CFPABot.Utils;
+using CurseForge.APIClient.Models.Files;
+using CurseForge.APIClient.Models.Mods;
 using DiffPlex.DiffBuilder;
-using ForgedCurse.Json;
 using GammaLibrary.Extensions;
 using Language.Core;
 using LibGit2Sharp;
@@ -164,7 +165,7 @@ namespace CFPABot.Controllers
 
             await Task.WhenAll(tasks);
 
-            Addon addon = null;
+            Mod addon = null;
             try
             {
                 addon = await CurseManager.GetAddon(modid);
@@ -178,11 +179,11 @@ namespace CFPABot.Controllers
             {
                 try
                 {
-                    var checkedSet = new HashSet<int>();
-                    foreach (var file in addon.Files)
+                    var checkedSet = new HashSet<uint>();
+                    foreach (var file in addon.LatestFiles)
                     {
-                        if (checkedSet.Contains(file.FileId)) continue;
-                        checkedSet.Add(file.FileId);
+                        if (checkedSet.Contains(file.Id)) continue;
+                        checkedSet.Add(file.Id);
                         try
                         {
                             var downloadUrl = CurseManager.GetDownloadUrl(file);
@@ -191,14 +192,14 @@ namespace CFPABot.Controllers
                             var enfiles = enr.Item2.ToArray();
                             foreach (var entry in enfiles)
                             {
-                                AddRadio($"<a href=\"{downloadUrl}\">模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "", _ => throw new ArgumentOutOfRangeException()}}{file.GameVersion}-{file.FileName}</a> 中的英文语言文件 {(enfiles.Length > 1 ? entry.FullName : "")}", $"mod`{downloadUrl}`{entry.FullName}");
+                                AddRadio($"<a href=\"{downloadUrl}\">模组 {file.ReleaseType switch { FileReleaseType.Beta => "🅱 ", FileReleaseType.Alpha => "🅰 ", FileReleaseType.Release => "", _ => throw new ArgumentOutOfRangeException()}}{file.GetGameVersionString()}-{file.FileName}</a> 中的英文语言文件 {(enfiles.Length > 1 ? entry.FullName : "")}", $"mod`{downloadUrl}`{entry.FullName}");
                             }
 
                             var cnr = (await CurseManager.GetModLangFiles(downloadUrl, LangType.CN, LangFileType.Json));
                             var cnfiles = cnr.Item2.ToArray();
                             foreach (var entry in cnfiles)
                             {
-                                AddRadio($"<a href=\"{downloadUrl}\">模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "", _ => throw new ArgumentOutOfRangeException()}}{file.GameVersion}-{file.FileName}</a> 中的中文语言文件 {(cnfiles.Length > 1 ? entry.FullName : "")}", $"mod`{downloadUrl}`{entry.FullName}");
+                                AddRadio($"<a href=\"{downloadUrl}\">模组 {file.ReleaseType switch { FileReleaseType.Beta => "🅱 ", FileReleaseType.Alpha => "🅰 ", FileReleaseType.Release => "", _ => throw new ArgumentOutOfRangeException()}}{file.GetGameVersionString()}-{file.FileName}</a> 中的中文语言文件 {(cnfiles.Length > 1 ? entry.FullName : "")}", $"mod`{downloadUrl}`{entry.FullName}");
                             }
                             //AddRadio($"模组 {file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "" }}{file.GameVersion}-{file.FileName} 中的中文语言文件", $"mod:{CurseManager.GetDownloadUrl(file)}:en");
                             enr.Item1.Close();
@@ -220,7 +221,7 @@ namespace CFPABot.Controllers
             if (addon != null)
             try
             {
-                var s = JsonDocument.Parse(await Download.String($"https://addons-ecs.forgesvc.net/api/v2/addon/{addon.Identifier}/"));
+                var s = JsonDocument.Parse(await Download.String($"https://addons-ecs.forgesvc.net/api/v2/addon/{addon.Id}/"));
                 var url = s.RootElement.GetProperty("sourceUrl").GetString().TrimEnd('/');
                 var analyzeResult = await RepoAnalyzer.Analyze(url);
                 foreach (var (branch, filePath, fileName, langType, commitSha) in analyzeResult.Results)

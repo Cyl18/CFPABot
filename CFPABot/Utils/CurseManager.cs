@@ -12,23 +12,24 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using CFPABot.Exceptions;
-using CFPABot.Models.A;
 using CFPABot.Resources;
-using ForgedCurse;
-using ForgedCurse.Json;
+using CurseForge.APIClient;
+using CurseForge.APIClient.Models.Files;
+using CurseForge.APIClient.Models.Mods;
 using GammaLibrary;
 using GammaLibrary.Extensions;
 using Serilog;
+using File = System.IO.File;
 
 namespace CFPABot.Utils
 {
     public static class CurseManager
     {
-        public static async Task<string> GetThumbnailText(Addon addon)
+        public static async Task<string> GetThumbnailText(Mod addon)
         {
             try
             {
-                var url = addon.Attachments.FirstOrDefault(a => a.Default)?.ThumbnailUrl;
+                var url = addon.Logo.ThumbnailUrl;
                 if (url == null) return "✨";
 
                 await using var stream = await new HttpClient().GetStreamAsync(url);
@@ -43,29 +44,21 @@ namespace CFPABot.Utils
             }
         }
 
-        // 因为那个ForgeCursed api不全所以还得手动请求一次..
-        // 之后可以重构为全部用这个
-        public static async Task<AddonModel> GetAddonModel(Addon addon)
-        {
-            var s = await Download.CurseForgeString($"https://addons-ecs.forgesvc.net/api/v2/addon/{addon.Identifier}");
-            return s.JsonDeserialize<AddonModel>();
-        }
-
-        public static string GetDownloadsText(Addon addon, MCVersion[] versions)
+        public static string GetDownloadsText(Mod addon, MCVersion[] versions)
         {
             var sb = new StringBuilder();
             try
             {
                 sb.Append("<details> <summary>最新模组文件</summary>");
-                var p = new HashSet<int>();
-                foreach (var file in addon.Files.OrderByDescending(s => new Version(s.GameVersion)))
+                var p = new HashSet<uint>();
+                foreach (var file in addon.LatestFiles.OrderByDescending(s => new Version(s.GameVersions.First(v => v.Contains(".")/*sb curseforge*/))))
                 {
-                    if (p.Contains(file.FileId)) continue;
+                    if (p.Contains(file.Id)) continue;
 
-                    p.Add(file.FileId);
-                    if (versions.Any(v => file.GameVersion.StartsWith(v.ToStandardVersionString())))
+                    p.Add(file.Id);
+                    if (versions.Any(v => file.GetGameVersionString().StartsWith(v.ToStandardVersionString())))
                     {
-                        sb.Append($"[**{file.GameVersion}**/{(file.FileType switch { 2 => "🅱 ", 3 => "🅰 ", 1 => "", _ => throw new ArgumentOutOfRangeException()})}{file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar", "")}]({GetDownloadUrl(file)})<br />");
+                        sb.Append($"[**{file.GetGameVersionString()}**/{(file.ReleaseType switch { FileReleaseType.Beta => "🅱 ", FileReleaseType.Alpha => "🅰 ", FileReleaseType.Release => "", _ => throw new ArgumentOutOfRangeException()})}{file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar", "")}]({GetDownloadUrl(file)})<br />");
                     }
                 }
                 sb.Append("</details>");
@@ -80,7 +73,7 @@ namespace CFPABot.Utils
         }
         
 
-        public static async Task<string> GetModRepoLinkText(Addon addon, ModInfo[] infos)
+        public static async Task<string> GetModRepoLinkText(Mod addon, ModInfo[] infos)
         {
             var sb = new StringBuilder();
             try
@@ -129,25 +122,11 @@ namespace CFPABot.Utils
             }
         }
 
-        public static async Task<string> GetRepoText(Addon addon)
-        {
-            var s = JsonDocument.Parse(await Download.CurseForgeString($"https://addons-ecs.forgesvc.net/api/v2/addon/{addon.Identifier}/"));
-            try
-            {
-                var url = s.RootElement.GetProperty("sourceUrl").GetString();
-                return url == null ? ":mag:无源代码" : $"[:mag: 源代码]({url})&nbsp;&nbsp;";
-            }
-            catch (Exception)
-            {
-                return ":mag:无源代码";
-            }
-        }
-
-        public static async Task<string> GetRepoText(AddonModel addon)
+        public static string GetRepoText(Mod addon)
         {
             try
             {
-                var url = addon.SourceUrl;
+                var url = addon.Links.SourceUrl;
                 return url.IsNullOrEmpty() ? ":mag:无源代码" : $"[:mag: 源代码]({url})&nbsp;&nbsp;";
             }
             catch (Exception)
@@ -155,19 +134,18 @@ namespace CFPABot.Utils
                 return ":mag:无源代码";
             }
         }
+        
 
-        public static string GetDownloadUrl(GameVersionLatestRelease release)
+        public static string GetDownloadUrl(CurseForge.APIClient.Models.Files.File release)
         {
-            var s = release.FileId.ToString();
-            return
-                $"https://edge.forgecdn.net/files/{s.Substring(0, 4)}/{s.Substring(4, 3).ToInt()}/{(release.FileName.Replace(" ", "%20"))}";
+            return release.DownloadUrl;
         }
 
         public static int MapModIDToProjectID(string modid)
         {
             try
             {
-                _ = CurseForgeIDMappingManager.UpdateIfRequired();
+                //_ = CurseForgeIDMappingManager.UpdateIfRequired();
                 lock (ModIDMappingMetadata.Instance)
                 {
                     return ModIDMappingMetadata.Instance.Mapping[modid];
@@ -183,19 +161,34 @@ namespace CFPABot.Utils
             }
         }
 
-        public static Task<Addon> GetAddon(string modid)
+        public static async Task<Mod> GetAddon(string modSlug)
         {
-            Log.Debug($"获取 Addon: {modid}");
-            return new ForgeClient().Addons.RetriveAddon(MapModIDToProjectID(modid));
+            Log.Debug($"获取 Addon: {modSlug}");
+            // 恨不得我的邮箱被塞爆
+            using var cfClient = GetCfClient();
+            return (await cfClient.GetModAsync((uint)MapModIDToProjectID(modSlug))).Data;
+        }
+        public static async Task<Mod> GetAddon(uint modCurseForgeID)
+        {
+            Log.Debug($"获取 Addon: {modCurseForgeID}");
+            // 恨不得我的邮箱被塞爆
+            using var cfClient = GetCfClient();
+            return (await cfClient.GetModAsync(modCurseForgeID)).Data;
         }
 
-        public static async Task<string> GetModID(Addon addon, MCVersion? version, bool enforcedLang = false,
+        static ApiClient GetCfClient()
+        {
+            return new ApiClient(Constants.CurseForgeApiKey,
+                ("Y3lsMThhQGdt" + "YWlsLmNvbQ==").ToBase64SourceBytes().ToUTF8String());
+        }
+
+        public static async Task<string> GetModID(Mod addon, MCVersion? version, bool enforcedLang = false,
             bool connect = true)
         {
             if (version == null) return "未知";
             try
             {
-                if (addon.Files.FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToStandardVersionString())) is { } file)
+                if (addon.LatestFiles.FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file)
                 {
                     var fileName = await Download.DownloadFile(GetDownloadUrl(file));
                     await using var fs = FileUtils.OpenFile(fileName);
@@ -219,12 +212,12 @@ namespace CFPABot.Utils
         }
 
 
-        public static async Task<string[]> GetModIDForCheck(Addon addon, MCVersion? version)
+        public static async Task<string[]> GetModIDForCheck(Mod addon, MCVersion? version)
         {
             if (version == null) return null;
             try
             {
-                if (addon.Files.FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToStandardVersionString())) is { } file)
+                if (addon.LatestFiles.FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file)
                 {
                     var fileName = await Download.DownloadFile(GetDownloadUrl(file));
                     await using var fs = FileUtils.OpenFile(fileName);
@@ -246,12 +239,12 @@ namespace CFPABot.Utils
             return null;
         }
 
-        public static async Task<(string[] files, string downloadFileName)> GetModEnFile(Addon addon, MCVersion? version, LangType type)
+        public static async Task<(string[] files, string downloadFileName)> GetModEnFile(Mod addon, MCVersion? version, LangType type)
         {
             if (version == null) return (null, null);
             try
             {
-                if (addon.Files.OrderByDescending(f => f.FileId).FirstOrDefault(f => f.GameVersion.StartsWith(version.Value.ToStandardVersionString())) is { } file)
+                if (addon.LatestFiles.OrderByDescending(f => f.Id).FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file)
                 {
                     var downloadUrl = GetDownloadUrl(file);
                     var (fs, files) = await GetModLangFiles(downloadUrl, type, version == MCVersion.v1122 ? LangFileType.Lang : LangFileType.Json);
@@ -311,60 +304,68 @@ namespace CFPABot.Utils
         [JsonIgnore] public int LastID => Mapping.Values.Max();
     }
 
+    static class CurseForgeClientExtensions
+    {
+        public static string GetGameVersionString(this CurseForge.APIClient.Models.Files.File f)
+        {
+            // bug 实际上有的模组文件会有多个版本
+            return f.GameVersions.FirstOrDefault(v => v.Contains(".")); 
+        }
+    }
     class CurseForgeIDMappingManager
     {
-        public static async Task Build()
-        {
-            var client = new ForgeClient();
-            var config = ModIDMappingMetadata.Instance;
-            for (int i = 0; i < 40; i++)
-            {
-                var addons = await client.Addons.RetriveAddons(Enumerable.Range(i * 20000 + 1, 20000).ToArray());
-                AddMapping(addons);
-                Console.WriteLine($"初始化 Mapping: {i + 1}/40");
-            }
-            config.LastUpdate = DateTime.Now;
-            ModIDMappingMetadata.Save();
-        }
-
-        static SemaphoreSlim semaphore = new SemaphoreSlim(1);
-        public static async Task UpdateIfRequired()
-        {
-            var client = new ForgeClient();
-            var config = ModIDMappingMetadata.Instance;
-            var last = config.LastID;
-
-            if ((DateTime.Now - config.LastUpdate).TotalDays < 2) return;
-
-            try
-            {
-                await semaphore.WaitAsync();
-                if ((DateTime.Now - config.LastUpdate).TotalDays < 2) return;
-                var addons = await client.Addons.RetriveAddons(Enumerable.Range(last, 1000).ToArray());
-                AddMapping(addons);
-                config.LastUpdate = DateTime.Now;
-                ModIDMappingMetadata.Save();
-            }
-            catch (Exception e)
-            {
-
-                // 不管
-                // 还是管一下吧
-                Log.Error(e, "Update Mapping");
-            }
-            finally
-            {
-                semaphore.Release();
-            }
-        }
-
-        static void AddMapping(Addon[] addons)
-        {
-            foreach (var addon in addons.Where(s => s.GameSlug == "minecraft" && s.Website.StartsWith("https://www.curseforge.com/minecraft/mc-mods/")))
-                lock (ModIDMappingMetadata.Instance)
-                {
-                    ModIDMappingMetadata.Instance.Mapping[addon.Slug] = addon.Identifier;
-                }
-        }
+        // public static async Task Build()
+        // {
+        //     var client = new ForgeClient();
+        //     var config = ModIDMappingMetadata.Instance;
+        //     for (int i = 0; i < 40; i++)
+        //     {
+        //         var addons = await client.Addons.RetriveAddons(Enumerable.Range(i * 20000 + 1, 20000).ToArray());
+        //         AddMapping(addons);
+        //         Console.WriteLine($"初始化 Mapping: {i + 1}/40");
+        //     }
+        //     config.LastUpdate = DateTime.Now;
+        //     ModIDMappingMetadata.Save();
+        // }
+        //
+        // static SemaphoreSlim semaphore = new SemaphoreSlim(1);
+        // public static async Task UpdateIfRequired()
+        // {
+        //     var client = new ForgeClient();
+        //     var config = ModIDMappingMetadata.Instance;
+        //     var last = config.LastID;
+        //
+        //     if ((DateTime.Now - config.LastUpdate).TotalDays < 2) return;
+        //
+        //     try
+        //     {
+        //         await semaphore.WaitAsync();
+        //         if ((DateTime.Now - config.LastUpdate).TotalDays < 2) return;
+        //         var addons = await client.Addons.RetriveAddons(Enumerable.Range(last, 1000).ToArray());
+        //         AddMapping(addons);
+        //         config.LastUpdate = DateTime.Now;
+        //         ModIDMappingMetadata.Save();
+        //     }
+        //     catch (Exception e)
+        //     {
+        //
+        //         // 不管
+        //         // 还是管一下吧
+        //         Log.Error(e, "Update Mapping");
+        //     }
+        //     finally
+        //     {
+        //         semaphore.Release();
+        //     }
+        // }
+        //
+        // static void AddMapping(Addon[] addons)
+        // {
+        //     foreach (var addon in addons.Where(s => s.GameSlug == "minecraft" && s.Website.StartsWith("https://www.curseforge.com/minecraft/mc-mods/")))
+        //         lock (ModIDMappingMetadata.Instance)
+        //         {
+        //             ModIDMappingMetadata.Instance.Mapping[addon.Slug] = addon.Identifier;
+        //         }
+        // }
     }
 }

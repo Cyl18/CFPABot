@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -10,16 +9,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using CFPABot.Exceptions;
-using CFPABot.Models.A;
 using CFPABot.Resources;
+using CurseForge.APIClient.Models.Files;
+using CurseForge.APIClient.Models.Mods;
 using DiffPatch.Data;
-using ForgedCurse;
-using ForgedCurse.Json;
 using GammaLibrary.Extensions;
 using Octokit;
 using Serilog;
 using Serilog.Core;
 using Serilog.Core.Enrichers;
+using File = System.IO.File;
 
 namespace CFPABot.Utils
 {
@@ -176,7 +175,7 @@ namespace CFPABot.Utils
                     return;
                 }
 
-                var addons = new List<Addon>();
+                var addons = new List<Mod>();
                 foreach (var modid in modids)
                 {
                     try
@@ -208,9 +207,9 @@ namespace CFPABot.Utils
                         var versions = infos.Select(i => i.Version).ToArray();
                         sb1.AppendLine($"| " +
                         /* Thumbnail*/ $"{await CurseManager.GetThumbnailText(addon)} |" +
-                        /* Mod Name */ $" [**{addon.Name.Trim().Replace("[","\\[").Replace("]", "\\]").Replace("|", "\\|")}**]({addon.Website}) |" +
+                        /* Mod Name */ $" [**{addon.Name.Trim().Replace("[","\\[").Replace("]", "\\]").Replace("|", "\\|")}**]({addon.Links.WebsiteUrl}) |" +
                         // /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault(), enforcedLang: true)} |" + // 这里应该enforce吗？
-                        /* Source   */ $" {await CurseManager.GetRepoText(addon)} \\|" +
+                        /* Source   */ $" {CurseManager.GetRepoText(addon)} \\|" +
                         /* Mcmod    */ $" [🟩 MCMOD](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) \\|" +
                         /* Compare  */ $" [:file_folder: 对比](https://cfpa.cyan.cafe/Compare/PR/{PullRequestID}/{addon.Slug}/{await CurseManager.GetModID(addon, versions.FirstOrDefault(), true, false)}) |" +
                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)}{await CurseManager.GetModRepoLinkText(addon, infos)} |" +
@@ -219,27 +218,27 @@ namespace CFPABot.Utils
 
                         try
                         {
-                            var addonModel = await CurseManager.GetAddonModel(addon);
+                            var addonModel = await CurseManager.GetAddon(addon.Id);
                             var deps = addonModel.LatestFiles.OrderByDescending(a => a.FileDate).FirstOrDefault(a => a.Dependencies.Any())?.Dependencies;
-                            var distinctSet = new HashSet<int>();
+                            var distinctSet = new HashSet<uint>();
                             if (deps != null)
                             {
                                 foreach (var dep in deps)
                                 {
-                                    if (dep.Type == 2) continue;
+                                    if (dep.RelationType == FileRelationType.RequiredDependency) continue;
                                     // 2 都是附属
                                     // 3 是需要的
                                     // 还没遇到 1
-                                    if (distinctSet.Contains(dep.AddonId)) continue;
-                                    var depAddon = await new ForgeClient().Addons.RetriveAddon((int)dep.AddonId);
-                                    distinctSet.Add(dep.AddonId);
+                                    if (distinctSet.Contains(dep.ModId)) continue;
+                                    var depAddon = await CurseManager.GetAddon(dep.ModId);
+                                    distinctSet.Add(dep.ModId);
                                     modCount++;
 
                                     sb1.AppendLine($"| " +
                                         /* Thumbnail*/ $" {await CurseManager.GetThumbnailText(depAddon)} |" +
-                                        /* Mod Name */ $" 依赖-[*{depAddon.Name.Replace("[", "\\[").Replace("]", "\\]")}*]({depAddon.Website}) |" +
+                                        /* Mod Name */ $" 依赖-[*{depAddon.Name.Replace("[", "\\[").Replace("]", "\\]")}*]({depAddon.Links.WebsiteUrl}) |" +
                                         // /* Mod ID   */ $" \\* |" +
-                                        /* Source   */ $" {await CurseManager.GetRepoText(addonModel)} \\|" +
+                                        /* Source   */ $" {CurseManager.GetRepoText(addonModel)} \\|" +
                                         /* Mcmod    */ $" [🟩MCMOD](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(depAddon.Name)}) \\|" +
                                         /* Compare  */ $" &nbsp;&nbsp;* |" +
                                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} |" +
@@ -256,7 +255,7 @@ namespace CFPABot.Utils
                     }               
                     catch (Exception e)
                     {
-                        sb1.AppendLine($"| | [链接]({addon.Website}) | {e.Message} | |");
+                        sb1.AppendLine($"| | [链接]({addon.Links.WebsiteUrl}) | {e.Message} | |");
                         Log.Error(e, "UpdateModLinkSegment");
                     }
                 }
@@ -579,7 +578,7 @@ namespace CFPABot.Utils
                     
                     if (checkedSet.Contains(check)) continue;
                     checkedSet.Add(check);
-                    Addon addon = null;
+                    Mod addon = null;
                     try
                     {
                         if (curseID != "1UNKNOWN")
