@@ -199,21 +199,25 @@ namespace CFPABot.DiffEngine
             {
                 LangType.CN => "zh_cn",
                 LangType.EN => "en_us",
+                _ => throw new ArgumentOutOfRangeException()
             };
             var lang2 = LangType switch
             {
                 LangType.CN => "zh_CN",
                 LangType.EN => "en_US",
+                _ => throw new ArgumentOutOfRangeException()
             };
             var langFileName1 = LangFileType switch
             {
                 LangFileType.Json => $"{lang1}.json",
                 LangFileType.Lang => $"{lang1}.lang",
+                _ => throw new ArgumentOutOfRangeException()
             };
             var langFileName2 = LangFileType switch
             {
                 LangFileType.Json => $"{lang2}.json",
                 LangFileType.Lang => $"{lang2}.lang",
+                _ => throw new ArgumentOutOfRangeException()
             };
             var url1 = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{commitHash}/{path}lang/{langFileName1}";
             var url2 = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{commitHash}/{path}lang/{langFileName2}";

@@ -252,7 +252,8 @@ namespace CFPABot.Controllers
         {
             var sb = new StringBuilder();
             sb.AppendLine("User-agent: *")
-                .AppendLine("Disallow:");
+                .AppendLine("Disallow: /");
+
 
             return this.Content(sb.ToString(), "text/plain", Encoding.UTF8);
         }

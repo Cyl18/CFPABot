@@ -254,18 +254,18 @@ namespace CFPABot.Command
                                 }
                                 else
                                 {
-                                    stringBuilder.Append($"`{currentEn}`");
+                                    stringBuilder.Append($"{currentEn}");
                                 }
                             }
                             else
                             {
                                 if (sourceEn.Trim() == currentEn.Trim())
                                 {
-                                    stringBuilder.Append($"`{currentEn}`");
+                                    stringBuilder.Append($"{currentEn}");
                                 }
                                 else
                                 {
-                                    stringBuilder.Append($"`{sourceEn}`<br>🔽<br>`{currentEn}`");
+                                    stringBuilder.Append($"{sourceEn}<br>🔽<br>{currentEn}");
                                 }
                             }
 
@@ -279,12 +279,12 @@ namespace CFPABot.Command
                                 }
                                 else
                                 {
-                                    stringBuilder.Append($"`{currentCn}`");
+                                    stringBuilder.Append($"{currentCn}");
                                 }
                             }
                             else
                             {
-                                stringBuilder.Append($"`{sourceCn}`<br>🔽<br>`{currentCn}`");
+                                stringBuilder.Append($"{sourceCn}<br>🔽<br>{currentCn}");
                             }
                         }
 
@@ -345,7 +345,7 @@ namespace CFPABot.Command
 
                         if (exceptionList.Any())
                         {
-                            sb.AppendLine($"异常：\n{exceptionList.Select(e => e.ToString()).Connect("\n\n")}");
+                            sb.AppendLine($"异常：\n```\n{exceptionList.Select(e => e.ToString()).Connect("\n\n")}\n```");
                         }
                     }
 

@@ -54,7 +54,9 @@ namespace CFPABot.DiffEngine
                 {
                     var s = line.Split("=", 2);
                     return new KeyValuePair<string, string>(s[0], s[1]);
-                }).ToDictionary(o => o.Key, o => o.Value); // 提取 Key
+                })
+                .DistinctBy(o => o.Key)  // workaround https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/2198
+                .ToDictionary(o => o.Key, o => o.Value); // 提取 Key
         }
     }
 }

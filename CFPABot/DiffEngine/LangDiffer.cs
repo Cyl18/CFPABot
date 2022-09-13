@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 
 namespace CFPABot.DiffEngine
 {
@@ -20,12 +21,22 @@ namespace CFPABot.DiffEngine
                     currentCnValue?.PostProcess()));
             }
 
-            return list;
+            var g = list.ToArray();
+            var g1 = g.Where(l => l.CurrentEn != l.CurrentCn);
+            var g2 = g.Where(l => l.CurrentEn == l.CurrentCn);
+            return g1.Concat(g2).ToList();
         }
 
         private static string PostProcess(this string str)
         {
-            return str.Replace("|", "\\|").Replace("`", "\\`");
+            if (str.Contains("$"))
+            {
+                return $"`{str.Replace("\n", "[换行符]")}`";
+            }
+            else
+            {
+                return str.Replace("\n", "<br>").Replace("*", "\\*").Replace("|", "\\|");
+            }
         }
     }
 }
