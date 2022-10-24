@@ -197,7 +197,7 @@
     <value>此外在项目名中检测到了大写字母，请调整为小写。</value>
   </data>
   <data name="General.MapModIDToProjectID.Error.4" xml:space="preserve">
-    <value>命令 `/add-mapping {0} [CURSEFORGE_PROJECT_ID]` 或 `/mv "projects/[GAME_VERSION]/assets/{1}/" "projects/[GAME_VERSION]/assets/[NEW_DIR]/"`。</value>
+    <value>可以在上面的链接中右方找到 About Project -> Project ID 然后使用命令 `/add-mapping {0} [CURSEFORGE_PROJECT_ID]`. 如果路径有误则使用 `/mv "projects/[GAME_VERSION]/assets/{1}/" "projects/[GAME_VERSION]/assets/[NEW_DIR]/"`。</value>
   </data>
   <data name="ModLink.TooManyMods" xml:space="preserve">
     <value>模组数量过多，将不显示模组链接。</value>

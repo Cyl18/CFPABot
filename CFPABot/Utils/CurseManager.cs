@@ -200,6 +200,25 @@ namespace CFPABot.Utils
                     return connect ? modids
                         .Connect(" \\| ", "*", "*") : modids.First();
                 }
+                else
+                {
+                    var allModFiles = await GetAllModFiles(addon);
+                    if (allModFiles.FirstOrDefault(f =>
+                            f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file1)
+                    {
+                        var fileName = await Download.DownloadFile(GetDownloadUrl(file1));
+                        await using var fs = FileUtils.OpenFile(fileName);
+
+                        var modids = new ZipArchive(fs).Entries
+                            .Where(a => a.FullName.StartsWith("assets"))
+                            .Where(a => !enforcedLang || a.FullName.Contains("lang"))
+                            .Select(a => a.FullName.Split("/")[1]).Distinct().Where(n => !n.IsNullOrWhiteSpace())
+                            .Where(id => id != "minecraft" && id != "icon.png");
+
+                        return connect ? modids
+                            .Connect(" \\| ", "*", "*") : modids.First();
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -209,6 +228,25 @@ namespace CFPABot.Utils
             return "未知";
         }
 
+        private static async Task<List<CurseForge.APIClient.Models.Files.File>> GetAllModFiles(Mod mod)
+        {
+            var modId = mod.Id;
+            var cfClient = GetCfClient();
+            uint page = 0;
+            var result = new List<CurseForge.APIClient.Models.Files.File>();
+            do
+            {
+                var files = await cfClient.GetModFilesAsync(modId, index: (page++));
+
+                if (files.Data.Count == 0)
+                {
+                    break;
+                }
+                result.AddRange(files.Data);
+            } while (true);
+
+            return result;
+        }
 
         public static async Task<string[]> GetModIDForCheck(Mod addon, MCVersion? version)
         {
@@ -226,6 +264,22 @@ namespace CFPABot.Utils
                         .Where(id => id != "minecraft")
                         .ToArray();
                     return modids;
+                }
+                else
+                {
+                    var allModFiles = await GetAllModFiles(addon);
+                    if (allModFiles.FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file1)
+                    {
+                        var fileName = await Download.DownloadFile(GetDownloadUrl(file1));
+                        await using var fs = FileUtils.OpenFile(fileName);
+
+                        var modids = new ZipArchive(fs).Entries
+                            .Where(a => a.FullName.StartsWith("assets"))
+                            .Select(a => a.FullName.Split("/")[1]).Distinct().Where(n => !n.IsNullOrWhiteSpace())
+                            .Where(id => id != "minecraft")
+                            .ToArray();
+                        return modids;
+                    }
                 }
             }
             catch (Exception e)
@@ -250,6 +304,21 @@ namespace CFPABot.Utils
                     await using (fs)
                     {
                         return (files.Select(f => f.Open().ReadToEnd()).ToArray(), file.FileName);
+                    }
+                }
+                else
+                {
+                    var allModFiles = await GetAllModFiles(addon);
+                    if (allModFiles.OrderByDescending(f => f.Id).FirstOrDefault(f =>
+                            f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file1)
+                    {
+                        var downloadUrl = GetDownloadUrl(file1);
+                        var (fs, files) = await GetModLangFiles(downloadUrl, type, version == MCVersion.v1122 ? LangFileType.Lang : LangFileType.Json);
+
+                        await using (fs)
+                        {
+                            return (files.Select(f => f.Open().ReadToEnd()).ToArray(), file1.FileName);
+                        }
                     }
                 }
             }

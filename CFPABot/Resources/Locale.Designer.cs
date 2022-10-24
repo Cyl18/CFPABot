@@ -19,7 +19,7 @@ namespace CFPABot.Resources {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "16.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "17.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     public class Locale {
@@ -521,7 +521,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 命令 `/add-mapping {0} [CURSEFORGE_PROJECT_ID]` 或 `/mv &quot;projects/[GAME_VERSION]/assets/{1}/&quot; &quot;projects/[GAME_VERSION]/assets/[NEW_DIR]/&quot;`。.
+        ///   Looks up a localized string similar to 可以在上面的链接中右方找到 About Project -&gt; Project ID 然后使用命令 `/add-mapping {0} [CURSEFORGE_PROJECT_ID]`. 如果路径有误则使用 `/mv &quot;projects/[GAME_VERSION]/assets/{1}/&quot; &quot;projects/[GAME_VERSION]/assets/[NEW_DIR]/&quot;`。.
         /// </summary>
         public static string General_MapModIDToProjectID_Error_4 {
             get {

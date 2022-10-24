@@ -496,7 +496,7 @@ namespace CFPABot.Command
             }
         }
 
-        static bool CheckTerms(string currentEn, string currentCn, out string result)
+        public static bool CheckTerms(string currentEn, string currentCn, out string result)
         {
             var sb = new List<string>();
             foreach (var term in TermManager.Terms)

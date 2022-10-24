@@ -8,6 +8,8 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using CFPABot.Command;
+using CFPABot.DiffEngine;
 using CFPABot.Exceptions;
 using CFPABot.Resources;
 using CurseForge.APIClient.Models.Files;
@@ -29,6 +31,7 @@ namespace CFPABot.Utils
         public string BuildArtifactsSegment { get; set; } = "";
         public string CheckSegment { get; set; } = "";
         public string UpdateSegment { get; set; } = "";
+        public string DiffSegment { get; set; } = "";
         public string ReloadSegment { get; set; } = "- [ ] 🔄 勾选这个复选框来强制刷新";
     }
     public sealed class CommentBuilder
@@ -103,6 +106,8 @@ namespace CFPABot.Utils
                 sb2.AppendLine(Context.CheckSegment);
             }
             sb2.AppendLine("---");
+            sb2.AppendLine(Context.DiffSegment);
+            sb2.AppendLine("---");
             sb2.AppendLine(Context.ReloadSegment);
 
             Interlocked.Increment(ref UpdatingCount);
@@ -122,6 +127,7 @@ namespace CFPABot.Utils
             {
                 await updateCallback();
                 await UpdateCheckSegment(fileDiff);
+                await UpdateDiffSegment();
             }
             catch (Exception e)
             {
@@ -136,7 +142,10 @@ namespace CFPABot.Utils
             sb.AppendLine(Context.BuildArtifactsSegment);
             sb.AppendLine("---");
             sb.AppendLine(Context.CheckSegment);
-            
+
+            sb.AppendLine("---");
+            sb.AppendLine(Context.DiffSegment);
+
             sb.AppendLine("---");
             sb.AppendLine(Context.ReloadSegment);
 
@@ -413,6 +422,146 @@ namespace CFPABot.Utils
             finally
             {
                 Context.BuildArtifactsSegment = sb.ToString();
+            }
+        }
+
+        public async Task UpdateDiffSegment()
+        {
+            if (IsMoreThanTwoWaiting(nameof(UpdateDiffSegment))) return;
+            using var l = await AcquireLock(nameof(UpdateDiffSegment));
+            string result = null;
+            try
+            {
+
+                var sb = new StringBuilder();
+                var exceptionList = new List<Exception>();
+                var list = await LangFileFetcher.FromPR(PullRequestID, exceptionList);
+                sb.AppendLine();
+                sb.AppendLine("🔛 Diff： ");
+                sb.AppendLine();
+
+                void AddLine(string sourceEn, string currentEn, StringBuilder stringBuilder, string sourceCn, string currentCn)
+                {
+                    if (sourceEn.IsNullOrWhiteSpace())
+                    {
+                        if (currentEn.IsNullOrWhiteSpace())
+                        {
+                            stringBuilder.Append("⛔");
+                        }
+                        else
+                        {
+                            stringBuilder.Append($"{currentEn}");
+                        }
+                    }
+                    else
+                    {
+                        if (sourceEn.Trim() == currentEn.Trim())
+                        {
+                            stringBuilder.Append($"{currentEn}");
+                        }
+                        else
+                        {
+                            stringBuilder.Append($"{sourceEn}<br>🔽<br>{currentEn}");
+                        }
+                    }
+
+                    stringBuilder.Append(" | ");
+
+                    if (sourceCn.IsNullOrWhiteSpace())
+                    {
+                        if (currentCn.IsNullOrWhiteSpace())
+                        {
+                            stringBuilder.Append("⛔");
+                        }
+                        else
+                        {
+                            stringBuilder.Append($"{currentCn}");
+                        }
+                    }
+                    else
+                    {
+                        stringBuilder.Append($"{sourceCn}<br>🔽<br>{currentCn}");
+                    }
+                }
+
+                foreach (var o in list)
+                {
+                    var diffLines = LangDiffer.Run(o);
+
+                    sb.AppendLine($"<details><summary>{o.ModPath}</summary>\n");
+                    sb.AppendLine("| 英文 | 中文 |");
+                    sb.AppendLine("| --: | :------------- |");
+                    foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
+                    {
+                        if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
+                        sb.Append("| ");
+                        AddLine(sourceEn, currentEn, sb, sourceCn, currentCn);
+
+                        sb.AppendLine(" |");
+                    }
+                    sb.AppendLine("\n</details>\n\n");
+
+
+                    sb.AppendLine($"<details><summary>{o.ModPath}-keys</summary>\n");
+                    sb.AppendLine("| Key | 英文 | 中文 |");
+                    sb.AppendLine("| - | --: | :------------- |");
+                    foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
+                    {
+                        if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
+
+                        sb.Append("| ");
+                        sb.Append($" `{key}` |");
+                        AddLine(sourceEn, currentEn, sb, sourceCn, currentCn);
+
+                        sb.AppendLine(" |");
+                    }
+                    sb.AppendLine("\n</details>\n");
+
+
+                    sb.AppendLine($"<details><summary>{o.ModPath}-术语检查</summary>\n");
+                    sb.AppendLine("| Key | 英文 | 中文 | 检查结果 |");
+                    sb.AppendLine("| - | --: | :------------- | - |");
+                    foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
+                    {
+                        if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
+
+                        string termTextResult = "中文或英文为空";
+                        var termResult = currentEn != null && currentCn != null && CommandProcessor.CheckTerms(currentEn.ToLower(), currentCn.ToLower(), out termTextResult);
+                        if (!termResult) continue;
+
+                        sb.Append("| ");
+                        sb.Append($" `{key}` |");
+                        AddLine(sourceEn, currentEn, sb, sourceCn, currentCn);
+                        sb.Append($" | {termTextResult.Replace("\n", "<br>")} | ");
+                        sb.AppendLine(" |");
+                    }
+                    sb.AppendLine("\n</details>\n");
+
+                }
+
+                if (exceptionList.Any())
+                {
+                    sb.AppendLine($"异常：\n```\n{exceptionList.Select(e => e.ToString()).Connect("\n\n")}\n```");
+                }
+
+                result = sb.ToString()+"\n";
+                if (result.Length > 20000)
+                {
+                    try
+                    {
+                        var gist = await GitHub.InstancePersonal.Gist.Create(new NewGist() { Description = $"pr-{PullRequestID}-diff", Files = { { $"pr-{PullRequestID}-diff.md", result } }, Public = false });
+                        result = $"🔛 Diff 内容过长，已经上传至<{gist.HtmlUrl}>。\n";
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error(e, "Upload Gist");
+                    }
+                }
+
+            }
+            finally
+            {
+                Context.DiffSegment = result;
             }
         }
 

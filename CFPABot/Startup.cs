@@ -11,6 +11,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using CFPABot.Controllers;
+using CFPABot.ProjectHex;
 using CFPABot.Utils;
 using Microsoft.Extensions.FileProviders;
 using Octokit.Webhooks;
@@ -50,8 +51,25 @@ namespace CFPABot
 
             app.UseAuthorization();
             
-            app.UseStaticFiles(new StaticFileOptions { RequestPath = "/static", FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwroot")) });
-
+            app.UseStaticFiles(new StaticFileOptions { RequestPath = "/static", FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwroot")), OnPrepareResponse =
+                context =>
+                {
+                }});
+            app.UseStaticFiles(new StaticFileOptions()
+                {RequestPath = "/project-hex", FileProvider = new PhysicalFileProvider("/app/project-hex"), ServeUnknownFileTypes = true, OnPrepareResponse =
+                    context =>
+                    {
+                        lock (ProjectHexConfig.Instance)
+                        {
+                            ProjectHexConfig.Instance.DownloadsSinceLastPack++;
+                            ProjectHexConfig.Instance.TotalDownloads++;
+                            ProjectHexConfig.Instance.TotalDownloadGBs += context.File.Length / 1024.0 / 1024.0 / 1024.0;
+                            ProjectHexConfig.Save();
+                        }
+                        Console.WriteLine($"Downloading {context.File.Name}");
+                    }
+            });
+            app.UseDirectoryBrowser(new DirectoryBrowserOptions() { RequestPath = "/project-hex", FileProvider = new PhysicalFileProvider("/app/project-hex")});
 
             app.UseEndpoints(endpoints =>
             {

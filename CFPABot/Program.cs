@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CFPABot.Command;
 using CFPABot.Controllers;
+using CFPABot.ProjectHex;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
 using Octokit;
@@ -58,7 +59,30 @@ namespace CFPABot
             Directory.CreateDirectory("config/repo_analyze_results");
             Directory.CreateDirectory("caches/");
             Directory.CreateDirectory("caches/repos/");
+            Directory.CreateDirectory("project-hex");
 
+            _ = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    if (!Directory.GetFiles("project-hex").Any() || (DateTime.Now - ProjectHexConfig.Instance.LastTime).TotalDays > 0.25)
+                    {
+                        try
+                        {
+                            await new ProjectHexRunner().Run();
+                            ProjectHexConfig.Instance.LastTime = DateTime.Now;
+                            ProjectHexConfig.Instance.DownloadsSinceLastPack = 0;
+                            ProjectHexConfig.Save();
+                        }
+                        catch (Exception e)
+                        {
+                            Log.Error(e, "project-hex");
+                        }
+                    }
+
+                    await Task.Delay(TimeSpan.FromMinutes(5));
+                }
+            });
             
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
