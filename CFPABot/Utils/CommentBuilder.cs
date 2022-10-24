@@ -440,7 +440,8 @@ namespace CFPABot.Utils
                 sb.AppendLine("🔛 Diff： ");
                 sb.AppendLine();
 
-                void AddLine(string sourceEn, string currentEn, StringBuilder stringBuilder, string sourceCn, string currentCn)
+                void AddLine(string sourceEn, string currentEn, StringBuilder stringBuilder, string sourceCn,
+                    string currentCn)
                 {
                     if (sourceEn.IsNullOrWhiteSpace())
                     {
@@ -493,12 +494,14 @@ namespace CFPABot.Utils
                     sb.AppendLine("| --: | :------------- |");
                     foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
                     {
-                        if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
+                        if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace())
+                            continue;
                         sb.Append("| ");
                         AddLine(sourceEn, currentEn, sb, sourceCn, currentCn);
 
                         sb.AppendLine(" |");
                     }
+
                     sb.AppendLine("\n</details>\n\n");
 
 
@@ -507,7 +510,8 @@ namespace CFPABot.Utils
                     sb.AppendLine("| - | --: | :------------- |");
                     foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
                     {
-                        if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
+                        if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace())
+                            continue;
 
                         sb.Append("| ");
                         sb.Append($" `{key}` |");
@@ -515,6 +519,7 @@ namespace CFPABot.Utils
 
                         sb.AppendLine(" |");
                     }
+
                     sb.AppendLine("\n</details>\n");
 
 
@@ -523,10 +528,13 @@ namespace CFPABot.Utils
                     sb.AppendLine("| - | --: | :------------- | - |");
                     foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
                     {
-                        if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
+                        if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace())
+                            continue;
 
                         string termTextResult = "中文或英文为空";
-                        var termResult = currentEn != null && currentCn != null && CommandProcessor.CheckTerms(currentEn.ToLower(), currentCn.ToLower(), out termTextResult);
+                        var termResult = currentEn != null && currentCn != null &&
+                                         CommandProcessor.CheckTerms(currentEn.ToLower(), currentCn.ToLower(),
+                                             out termTextResult);
                         if (!termResult) continue;
 
                         sb.Append("| ");
@@ -535,6 +543,7 @@ namespace CFPABot.Utils
                         sb.Append($" | {termTextResult.Replace("\n", "<br>")} | ");
                         sb.AppendLine(" |");
                     }
+
                     sb.AppendLine("\n</details>\n");
 
                 }
@@ -544,12 +553,16 @@ namespace CFPABot.Utils
                     sb.AppendLine($"异常：\n```\n{exceptionList.Select(e => e.ToString()).Connect("\n\n")}\n```");
                 }
 
-                result = sb.ToString()+"\n";
+                result = sb.ToString() + "\n";
                 if (result.Length > 20000)
                 {
                     try
                     {
-                        var gist = await GitHub.InstancePersonal.Gist.Create(new NewGist() { Description = $"pr-{PullRequestID}-diff", Files = { { $"pr-{PullRequestID}-diff.md", result } }, Public = false });
+                        var gist = await GitHub.InstancePersonal.Gist.Create(new NewGist()
+                        {
+                            Description = $"pr-{PullRequestID}-diff", Files = {{$"pr-{PullRequestID}-diff.md", result}},
+                            Public = false
+                        });
                         result = $"🔛 Diff 内容过长，已经上传至<{gist.HtmlUrl}>。\n";
                     }
                     catch (Exception e)
@@ -558,6 +571,10 @@ namespace CFPABot.Utils
                     }
                 }
 
+            }
+            catch (Exception e)
+            {
+                Context.DiffSegment = $"{e}\n";
             }
             finally
             {
