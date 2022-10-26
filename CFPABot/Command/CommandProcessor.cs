@@ -14,6 +14,7 @@ using CFPABot.Resources;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
 using Language.Core;
+using Newtonsoft.Json.Linq;
 using Octokit;
 using Serilog;
 using FileMode = System.IO.FileMode;
@@ -198,11 +199,25 @@ namespace CFPABot.Command
                         foreach (var diff in diffs)
                         {
                             var filePath = Path.Combine(r.WorkingDirectory, diff.To);
-                            File.WriteAllText(filePath, File.ReadAllText(filePath).Replace(args[0], args[1]));
+                            if (filePath.EndsWith("json"))
+                            {
+                                var json = JsonDocument.Parse(File.ReadAllText(filePath));
+                                var jo = new JObject();
+
+                                foreach (var property in json.RootElement.EnumerateObject())
+                                {
+                                    jo.Add(property.Name, property.Value.GetString().Replace(args[0], args[1]));
+                                }
+                                File.WriteAllText(filePath, jo.ToString());
+                            }
+                            else
+                            {
+                                File.WriteAllText(filePath, File.ReadAllText(filePath).Replace(args[0], args[1]));
+                            }
                         }
 
                         r.AddAllFiles();
-                        r.Commit($"Replace '{args[0]}' to '{args[1]}'", user);
+                        r.Commit($"Replace '{args[0]}' with '{args[1]}'", user);
                     }
 
                     if (line.StartsWith("/add-mapping "))

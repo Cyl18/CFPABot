@@ -52,7 +52,7 @@ namespace CFPABot.Utils
                 sb.Append("<details> <summary>最新模组文件</summary>");
                 var p = new HashSet<uint>();
                 // https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/2538
-                foreach (var file in addon.LatestFiles.OrderByDescending(s => new Version(s.GameVersions.Where(x => !x.Contains('-')).First(v => v.Contains(".")/*sb curseforge*/))))
+                foreach (var file in GetAllModFiles(addon).Result.OrderByDescending(s => new Version(s.GameVersions.Where(x => !x.Contains('-')).First(v => v.Contains(".")/*sb curseforge*/))))
                 {
                     if (p.Contains(file.Id)) continue;
 
