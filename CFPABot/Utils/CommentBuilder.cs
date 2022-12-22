@@ -558,6 +558,7 @@ namespace CFPABot.Utils
                 {
                     try
                     {
+                        result = $"PR: <https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/{PullRequestID}>\n\n" + result; // 来自 mamaruo 的请求
                         var gist = await GitHub.InstancePersonal.Gist.Create(new NewGist()
                         {
                             Description = $"pr-{PullRequestID}-diff", Files = {{$"pr-{PullRequestID}-diff.md", result}},
