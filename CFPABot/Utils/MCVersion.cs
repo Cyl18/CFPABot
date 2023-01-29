@@ -12,7 +12,9 @@ namespace CFPABot.Utils
         v116,
         v118,
         v116fabric,
-        v118fabric
+        v118fabric,
+        v119// ,
+        // v119fabric
     }
 
     public static class MCVersionExtensions
@@ -26,6 +28,8 @@ namespace CFPABot.Utils
                 MCVersion.v118 => "1.18",
                 MCVersion.v116fabric => "1.16-fabric",
                 MCVersion.v118fabric => "1.18-fabric",
+                MCVersion.v119 => "1.19",
+                // MCVersion.v119fabric => "1.19-fabric",
                 _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
             };
         }
@@ -39,6 +43,8 @@ namespace CFPABot.Utils
                 MCVersion.v118 => "1.18",
                 MCVersion.v116fabric => "1.16",
                 MCVersion.v118fabric => "1.18",
+                MCVersion.v119 => "1.19",
+                // MCVersion.v119fabric => "1.19",
                 _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
             };
         }
@@ -52,6 +58,8 @@ namespace CFPABot.Utils
                 "1.18" => MCVersion.v118,
                 "1.16-fabric" => MCVersion.v116fabric,
                 "1.18-fabric" => MCVersion.v118fabric,
+                "1.19" => MCVersion.v119,
+                // "1.19-fabric" => MCVersion.v119fabric,
                 _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
             };
         }
@@ -64,6 +72,8 @@ namespace CFPABot.Utils
                 "1.18" => MCVersion.v118,
                 "1.16-fabric" => MCVersion.v116,
                 "1.18-fabric" => MCVersion.v118,
+                "1.19" => MCVersion.v119,
+                // "1.19-fabric" => MCVersion.v119,
                 _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
             };
         }
@@ -72,7 +82,7 @@ namespace CFPABot.Utils
         {
             return version switch
             {
-                MCVersion.v116 or MCVersion.v118 or MCVersion.v116fabric or MCVersion.v118fabric => "zh_cn.json",
+                MCVersion.v116 or MCVersion.v118 or MCVersion.v116fabric or MCVersion.v118fabric or MCVersion.v119 => "zh_cn.json",
                 MCVersion.v1122 => "zh_cn.lang",
                 _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
             };
@@ -82,7 +92,7 @@ namespace CFPABot.Utils
         {
             return version switch
             {
-                MCVersion.v116 or MCVersion.v118 or MCVersion.v116fabric or MCVersion.v118fabric => "en_us.json",
+                MCVersion.v116 or MCVersion.v118 or MCVersion.v116fabric or MCVersion.v118fabric or MCVersion.v119 => "en_us.json",
                 MCVersion.v1122 => "en_us.lang",
                 _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
             };
