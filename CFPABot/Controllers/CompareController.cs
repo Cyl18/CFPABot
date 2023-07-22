@@ -179,7 +179,7 @@ namespace CFPABot.Controllers
             {
                 try
                 {
-                    var checkedSet = new HashSet<uint>();
+                    var checkedSet = new HashSet<int>();
                     foreach (var file in addon.LatestFiles)
                     {
                         if (checkedSet.Contains(file.Id)) continue;

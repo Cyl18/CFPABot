@@ -52,7 +52,7 @@ namespace CFPABot.Utils
             try
             {
                 sb.Append("<details> <summary>最新模组文件</summary>");
-                var p = new HashSet<uint>();
+                var p = new HashSet<int>();
                 // https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/2538
                 foreach (var file in GetAllModFiles(addon).Result.OrderByDescending(s => new Version(s.GameVersions.Where(x => !x.Contains('-')).First(v => v.Contains(".")/*sb curseforge*/))))
                 {
@@ -165,13 +165,13 @@ namespace CFPABot.Utils
         }
 
         
-        static Dictionary<uint, WeakReference<Mod>> ModCache = new ();
-        static Dictionary<uint, DateTime> ModCacheWriteTime = new ();
+        static Dictionary<int, WeakReference<Mod>> ModCache = new ();
+        static Dictionary<int, DateTime> ModCacheWriteTime = new ();
         public static  Task<Mod> GetAddon(string modSlug)
         {
-            return GetAddon((uint) MapModIDToProjectID(modSlug));
+            return GetAddon((int) MapModIDToProjectID(modSlug));
         }
-        public static async Task<Mod> GetAddon(uint modCurseForgeID)
+        public static async Task<Mod> GetAddon(int modCurseForgeID)
         {
             // https://github.com/CurseForgeCommunity/.NET-APIClient/issues/1
             var cfClient = GetCfClient();
@@ -249,7 +249,7 @@ namespace CFPABot.Utils
             return "未知";
         }
 
-        static Dictionary<uint, WeakReference<List<CurseForge.APIClient.Models.Files.File>>> ModFilesCache = new();
+        static Dictionary<int, WeakReference<List<CurseForge.APIClient.Models.Files.File>>> ModFilesCache = new();
 
 
         private static async Task<List<CurseForge.APIClient.Models.Files.File>> GetAllModFiles(Mod mod)
@@ -265,7 +265,7 @@ namespace CFPABot.Utils
             }
 
             var cfClient = GetCfClient();
-            uint page = 0;
+            int page = 0;
             var result = new List<CurseForge.APIClient.Models.Files.File>();
             do
             {
@@ -420,7 +420,7 @@ namespace CFPABot.Utils
     {
         public static async Task Update()
         {
-            var addons = await CurseManager.GetCfClient().GetModsByIdListAsync(new GetModsByIdsListRequestBody() { ModIds = Enumerable.Range(ModIDMappingMetadata.Instance.LastID, 20000).Select(x => (uint)x).ToList() });
+            var addons = await CurseManager.GetCfClient().GetModsByIdListAsync(new GetModsByIdsListRequestBody() { ModIds = Enumerable.Range(ModIDMappingMetadata.Instance.LastID, 20000).Select(x => x).ToList() });
             List<Mod> addonsData = addons.Data;
             AddMapping(addonsData);
             ModIDMappingMetadata.Save();

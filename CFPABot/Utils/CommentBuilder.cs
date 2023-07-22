@@ -229,7 +229,7 @@ namespace CFPABot.Utils
                         {
                             var addonModel = await CurseManager.GetAddon(addon.Id);
                             var deps = addonModel.LatestFiles.OrderByDescending(a => a.FileDate).FirstOrDefault(a => a.Dependencies.Any())?.Dependencies;
-                            var distinctSet = new HashSet<uint>();
+                            var distinctSet = new HashSet<int>();
                             if (deps != null)
                             {
                                 foreach (var dep in deps)

@@ -220,7 +220,7 @@ else
                         {
                             try
                             {
-                                var i = curseProjectID.ToUInt();
+                                var i = curseProjectID.ToInt();
                                 var s = await CurseManager.GetAddon(i);
                                 if (s.Slug == trimmedSlug)
                                 {
