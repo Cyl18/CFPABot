@@ -8,17 +8,16 @@ RUN apt -y update && apt install -y git && apt install -y curl && rm -rf /var/li
 WORKDIR /app
 EXPOSE 80
 
-FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:7.0 AS publish
 WORKDIR /src
 COPY ["CFPABot/CFPABot.csproj", "CFPABot/"]
 RUN dotnet restore "CFPABot/CFPABot.csproj" 
 COPY . .
+RUN dotnet clean CFPABot.sln --configuration "Debug"
 WORKDIR "/src/CFPABot"
 RUN rm -rf bin && rm -rf obj
+RUN  dotnet publish "CFPABot.csproj" -r debian.9-x64 --no-self-contained -c Debug -o /app/publish 
 
-
-FROM build AS publish
-RUN dotnet publish "CFPABot.csproj" -r debian.9-x64 --no-self-contained -c Debug -o /app/publish 
 
 FROM base AS final
 WORKDIR /app
