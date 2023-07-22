@@ -249,9 +249,21 @@ namespace CFPABot.Utils
             return "未知";
         }
 
+        static Dictionary<uint, WeakReference<List<CurseForge.APIClient.Models.Files.File>>> ModFilesCache = new();
+
+
         private static async Task<List<CurseForge.APIClient.Models.Files.File>> GetAllModFiles(Mod mod)
         {
             var modId = mod.Id;
+
+            lock (ModFilesCache)
+            {
+                if (ModFilesCache.TryGetValue(modId, out var r) && r.TryGetTarget(out var m))
+                {
+                    return m;
+                }
+            }
+
             var cfClient = GetCfClient();
             uint page = 0;
             var result = new List<CurseForge.APIClient.Models.Files.File>();
@@ -266,6 +278,10 @@ namespace CFPABot.Utils
                 result.AddRange(files.Data);
             } while (true);
 
+            lock (ModFilesCache)
+            {
+                ModFilesCache[modId] = new WeakReference<List<CurseForge.APIClient.Models.Files.File>>(result);
+            }
             return result;
         }
 
