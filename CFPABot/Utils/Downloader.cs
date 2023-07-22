@@ -23,7 +23,7 @@ namespace CFPABot.Utils
         {
             hc = new();
             chc = new();
-            hc.DefaultRequestHeaders.Add("User-Agent", "cfpa-bot");
+            hc.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36");
         }
 
         public static async Task<T> GitHubAPIJson<T>(string url)
@@ -102,7 +102,7 @@ namespace CFPABot.Utils
                 return $"temp/{fileName}";
             }
             await using var fs = File.OpenWrite($"temp/{fileName}");
-            await using var stream = await new HttpClient().GetStreamAsync(url);
+            await using var stream = await hc.GetStreamAsync(url);
             await stream.CopyToAsync(fs);
             return $"temp/{fileName}";
         }
