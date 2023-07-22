@@ -17,7 +17,7 @@ RUN dotnet clean CFPABot.sln --configuration "Debug"
 WORKDIR "/src/CFPABot"
 RUN rm -rf bin && rm -rf obj
 RUN  dotnet publish "CFPABot.csproj" -r debian.9-x64 --no-self-contained -c Debug -o /app/publish && mkdir -p /app/publish/wwwrootx/css
-COPY ["/src/CFPABot/CFPABot/obj/Debug/net7.0/debian.9-x64/scopedcss/bundle/CFPABot.styles.css", "/app/publish/wwwrootx/css/"]
+COPY ["/src/CFPABot/obj/Debug/net7.0/debian.9-x64/scopedcss/bundle/CFPABot.styles.css", "/app/publish/wwwrootx/css/"]
 
 FROM base AS final
 WORKDIR /app
