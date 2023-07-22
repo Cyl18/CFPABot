@@ -343,6 +343,10 @@ else
                             finalLogger += s;
                             InvokeAsync(StateHasChanged);
                         }, token, modDomain).Run();
+                        finalLogger += "提交完成";
+
+                        InvokeAsync(StateHasChanged);
+
                     }
                     catch (Exception e)
                     {
