@@ -17,7 +17,7 @@ WORKDIR "/src/CFPABot"
 RUN dotnet build "CFPABot.csproj" -c Release -o /app/build
 
 FROM build AS publish
-RUN dotnet publish "CFPABot.csproj" -r debian.9-x64 --no-self-contained -c Debug -o /app/publish
+RUN dotnet publish "CFPABot.csproj" -r debian.9-x64 --no-self-contained -c Debug -o /app/publish && rm -rf CFPABot/wwwroot2 && mkdir CFPABot/wwwroot2 && touch CFPABot/wwwroot2/test
 
 FROM base AS final
 WORKDIR /app

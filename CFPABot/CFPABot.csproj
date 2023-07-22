@@ -57,6 +57,10 @@
 	  <EmbeddedResource Include="Azusa\wwwroot2\**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Remove="Azusa\wwwroot2\CFPABot.styles.css" />
+  </ItemGroup>
+
 
   <ItemGroup>
     <None Include="Azusa\Pages\Counter.razor" />
