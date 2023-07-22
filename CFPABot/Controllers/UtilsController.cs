@@ -3,9 +3,12 @@ using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using CFPABot.Utils;
+using GammaLibrary.Extensions;
 using Octokit;
+using Octokit.Webhooks.Models.PullRequestEvent;
 
 namespace CFPABot.Controllers
 {
@@ -13,6 +16,20 @@ namespace CFPABot.Controllers
     [ApiController]
     public class UtilsController : ControllerBase
     {
+        [HttpGet("PathValidation")]
+        public async Task<string> PathValidation([FromQuery] string pr)
+        {
+            var fileDiff = await GitHub.Diff(pr.ToInt());
+            var sb = new StringBuilder();
+            foreach (var diff1 in fileDiff.Where(diff => !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || x is '_' or '-' or '.' or '/')))
+            {
+                sb.AppendLine($"{diff1.To}");
+            }
+
+            return sb.ToString();
+        }
+
+
         [HttpGet("GitHubToken")]
         public IActionResult GitHubToken()
         {

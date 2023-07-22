@@ -612,6 +612,21 @@ namespace CFPABot.Utils
                     sb.AppendLine("⚠ 检测到了一个名为 patchouli_book 的文件夹。你可能想说的是 patchouli_books？");
                 }
 
+                if (diffs.Any(diff => diff.To.Split('/').Any(s => s.Contains(" "))))
+                {
+                    sb.AppendLine($"⚠ 检测到了含有空格的路径。例如： `{(diffs.Any(diff => diff.To.Split('/').Any(s => s.Contains(" "))))}`");
+                }
+
+                if (diffs.Any(diff => !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || x is '_' or '-' or '.' or '/')))
+                {
+                    sb.AppendLine($"⚠⚠⚠ **检测到了可能不合规的路径。**");
+                    sb.AppendLine($"⚠⚠⚠ **检测到了可能不合规的路径。**");
+                    sb.AppendLine($"⚠⚠⚠ **检测到了可能不合规的路径。**");
+                    sb.AppendLine($"⚠⚠⚠ 例如： `{diffs.First(diff => !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || x is '_' or '-' or '.' or '/')).To}`");
+                    sb.AppendLine($"⚠⚠⚠ 转到 <a href=\"https://cfpa.cyan.cafe/api/Utils/PathValidation?pr={PullRequestID}\" rel=\"nofollow\">这里</a> 来查看所有不合规的路径。");
+                    sb.AppendLine();
+                }
+
                 #region 检查常见的路径提交错误
 
                 foreach (var diff in diffs.Where(d => d.To.ToLower().Contains("zh_cn")).Where(d => d.To.Split('/').Length < 7).Take(5))
