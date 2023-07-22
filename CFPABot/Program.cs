@@ -65,20 +65,7 @@ namespace CFPABot
             {
                 while (true)
                 {
-                    if (!Directory.GetFiles("project-hex").Any() || (DateTime.Now - ProjectHexConfig.Instance.LastTime).TotalDays > 0.25)
-                    {
-                        try
-                        {
-                            await new ProjectHexRunner().Run();
-                            ProjectHexConfig.Instance.LastTime = DateTime.Now;
-                            ProjectHexConfig.Instance.DownloadsSinceLastPack = 0;
-                            ProjectHexConfig.Save();
-                        }
-                        catch (Exception e)
-                        {
-                            Log.Error(e, "project-hex");
-                        }
-                    }
+                    await RunProjectHex();
 
                     await Task.Delay(TimeSpan.FromMinutes(5));
                 }
@@ -98,6 +85,38 @@ namespace CFPABot
             catch (Exception e)
             {
                 Console.WriteLine(e);
+            }
+        }
+
+        static SemaphoreSlim projectHexLocker = new(1);
+        static async Task RunProjectHex(bool force = false)
+        {
+            if (!await projectHexLocker.WaitAsync(1000))
+            {
+                return;
+            }
+
+            try
+            {
+                if (!Directory.GetFiles("project-hex").Any() ||
+                    (DateTime.Now - ProjectHexConfig.Instance.LastTime).TotalDays > 0.25 || force)
+                {
+                    try
+                    {
+                        await new ProjectHexRunner().Run();
+                        ProjectHexConfig.Instance.LastTime = DateTime.Now;
+                        ProjectHexConfig.Instance.DownloadsSinceLastPack = 0;
+                        ProjectHexConfig.Save();
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error(e, "project-hex");
+                    }
+                }
+            }
+            finally
+            {
+                projectHexLocker.Release();
             }
         }
 

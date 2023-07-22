@@ -41,6 +41,19 @@ namespace CFPABot.Controllers
 
             return Ok();
         }
+
+        [HttpGet("ProjectHex")]
+        public IActionResult Get([FromQuery] string password)
+        {
+            if (password != Constants.GitHubWebhookSecret) return Unauthorized();
+
+            Task.Run(() =>
+            {
+                Program.RunProjectHex(true);
+            });
+
+            return Ok();
+        }
         //
         // [HttpPost]
         // public async Task<IActionResult> Post()
