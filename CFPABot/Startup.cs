@@ -91,8 +91,14 @@ namespace CFPABot
                         Console.WriteLine($"Downloading {context.File.Name}");
                     }
             });
-            //app.UseStaticFiles();
+            app.UseStaticFiles();
 
+            app.UseFileServer(new FileServerOptions
+            {
+                FileProvider = new ManifestEmbeddedFileProvider(
+                    typeof(Program).Assembly, "Azusa/wwwroot"
+                )
+            });
             app.UseFileServer(new FileServerOptions
             {
                 FileProvider = new ManifestEmbeddedFileProvider(

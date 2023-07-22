@@ -60,6 +60,11 @@
   <ItemGroup>
     <None Remove="Azusa\wwwroot2\_content\BlazorStrap\blazorstrap.js" />
     <None Remove="Azusa\wwwroot2\_content\BlazorStrap\popper.min.js" />
+    <None Remove="Azusa\wwwroot\css\BlazorStrap.bundle.scp.css" />
+    <None Remove="Azusa\wwwroot\css\BlazorStrap.V5.bundle.scp.css" />
+    <None Remove="Azusa\wwwroot\css\_content\BlazorStrap.V5\BlazorStrap.V5.bundle.scp.css" />
+    <None Remove="Azusa\wwwroot\css\_content\BlazorStrap\BlazorStrap.bundle.scp.css" />
+    <None Remove="Azusa\wwwroot\_framework\blazor.server.js" />
   </ItemGroup>
 
 
