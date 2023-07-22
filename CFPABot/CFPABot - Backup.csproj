@@ -70,6 +70,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Azusa\wwwroot2\" />
     <Folder Include="Azusa\wwwroot\img\" />
   </ItemGroup>
 
