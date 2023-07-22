@@ -58,6 +58,8 @@
   <ItemGroup>
     <None Remove="Azusa\wwwroot\blazorstrap.js" />
     <None Remove="Azusa\wwwroot\css\CFPABot.styles.css" />
+    <None Remove="Azusa\wwwroot\css\_content\BlazorStrap\BlazorStrap.bundle.scp.css" />
+    <None Remove="Azusa\wwwroot\css\_content\BlazorStrap\BlazorStrap.V5.bundle.scp.css" />
     <None Remove="Azusa\wwwroot\popper.min.js" />
   </ItemGroup>
 
