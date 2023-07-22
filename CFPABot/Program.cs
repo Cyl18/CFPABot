@@ -89,7 +89,7 @@ namespace CFPABot
         }
 
         static SemaphoreSlim projectHexLocker = new(1);
-        static async Task RunProjectHex(bool force = false)
+        public static async Task RunProjectHex(bool force = false)
         {
             if (!await projectHexLocker.WaitAsync(1000))
             {
