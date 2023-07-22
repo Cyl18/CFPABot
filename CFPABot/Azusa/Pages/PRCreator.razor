@@ -138,7 +138,7 @@ else
 
             <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
                 <span class="@BS.Input_Group_Text">CurseForge 项目名或链接</span>
-                <BSInput TValue="string" InputType="InputType.Text" bind-Value="@curseForgeSlug" />
+                <BSInput TValue="string" InputType="InputType.Text" OnValueChange="(x) => curseForgeSlug = x" />
             </BSInputGroup>
             <BSAlert Color="BSColor.Info" HasIcon="true" MarginBottom="Margins.Medium">
                 例如： <code>https://www.curseforge.com/minecraft/mc-mods/applied-energistics-2</code> 或 <code>applied-energistics-2</code>
