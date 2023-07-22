@@ -105,7 +105,7 @@ namespace CFPABot
                 FileProvider = new ManifestEmbeddedFileProvider(
                     typeof(Program).Assembly, "Azusa/wwwroot2"
                 ),
-                RequestPath = new PathString("/")
+                RequestPath = new PathString("/Azusa")
             });
 
             app.UseRouting();
