@@ -56,6 +56,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove="Azusa\wwwroot\blazorstrap.js" />
+    <None Remove="Azusa\wwwroot\css\CFPABot.styles.css" />
+    <None Remove="Azusa\wwwroot\popper.min.js" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="Azusa\Pages\Counter.razor" />
     <None Include="Azusa\Pages\Error.cshtml" />
     <None Include="Azusa\Pages\Index.razor" />
