@@ -49,6 +49,10 @@ namespace CFPABot.ProjectHex
 
                 foreach (var pr in prs)
                 {
+                    if (pr.Labels.Any(l => l.Name == "excluded-from-project-hex"))
+                    {
+                        Console.WriteLine($"Excluded PR: {pr.Number}");
+                    }
                     RunGitCommand($"fetch -f origin pull/{pr.Number}/head:{pr.Head.Ref}");
                     try
                     {
