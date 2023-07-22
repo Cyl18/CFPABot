@@ -20,7 +20,7 @@
 
         string GetName()
         {
-            if (userName == null) userName = (LoginManager.GetGitHubClient(_http).User.Current().Result).Name;
+            if (userName == null) userName = (LoginManager.GetGitHubClient(_http).User.Current().Result).Login;
             
             return userName;
         }
