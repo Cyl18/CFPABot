@@ -209,7 +209,7 @@ else
 
                     <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
                         <span class="@BS.Input_Group_Text">CurseForge 项目 ID</span>
-                        <BSInput InputType="InputType.Text" bind-Value="@curseProjectID" />
+                        <BSInput InputType="InputType.Text" bind-Value="curseProjectID" />
                     </BSInputGroup>
 
                     <BSButton Color="BSColor.Success" OnClick="checkProjectID">确认项目 ID</BSButton>
@@ -259,7 +259,7 @@ else
     {
         <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
             <span class="@BS.Input_Group_Text">Mod Domain</span>
-            <BSInput  InputType="InputType.Text" bind-Value="@modDomain"/> 
+            <BSInput  InputType="InputType.Text" bind-Value="modDomain"/> 
         </BSInputGroup>
         @if (netModDomainError)
         {
@@ -303,7 +303,7 @@ else
     <BSCard CardType="CardType.Body">
         <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
             <span class="@BS.Input_Group_Text">PR 标题</span>
-            <BSInput TValue="string" InputType="InputType.Text" bind-Value="@prTitle" />
+            <BSInput TValue="string" InputType="InputType.Text" bind-Value="prTitle" />
         </BSInputGroup>
         
         <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
