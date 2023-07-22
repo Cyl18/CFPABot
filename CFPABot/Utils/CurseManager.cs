@@ -164,7 +164,10 @@ namespace CFPABot.Utils
             }
         }
 
-        public static Task<Mod> GetAddon(string modSlug)
+        
+        static Dictionary<uint, WeakReference<Mod>> ModCache = new ();
+        static Dictionary<uint, DateTime> ModCacheWriteTime = new ();
+        public static  Task<Mod> GetAddon(string modSlug)
         {
             return GetAddon((uint) MapModIDToProjectID(modSlug));
         }
@@ -174,7 +177,22 @@ namespace CFPABot.Utils
             var cfClient = GetCfClient();
             Log.Debug($"获取 Addon: {modCurseForgeID}");
             // 恨不得我的邮箱被塞爆
-            return (await cfClient.GetModAsync(modCurseForgeID)).Data;
+            lock (ModCache)
+            {
+                if (ModCache.TryGetValue(modCurseForgeID, out var r) && r.TryGetTarget(out var m) && (DateTime.Now - ModCacheWriteTime[modCurseForgeID]) < TimeSpan.FromMinutes(5))
+                {
+                    return m;
+                }
+            }
+
+            var res = (await cfClient.GetModAsync(modCurseForgeID)).Data;
+
+            lock (ModCache)
+            {
+                ModCache[modCurseForgeID] = new WeakReference<Mod>(res);
+                ModCacheWriteTime[modCurseForgeID] = DateTime.Now;
+            }
+            return res;
         }
 
         public static CurseForge.APIClient.ApiClient GetCfClient()
