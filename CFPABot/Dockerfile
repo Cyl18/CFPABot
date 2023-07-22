@@ -1,6 +1,6 @@
 #See https://aka.ms/containerfastmode to understand how Visual Studio uses this Dockerfile to build your images for faster debugging.
 
-FROM mcr.microsoft.com/dotnet/aspnet:6.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS base
 ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN printf "deb https://mirrors.tuna.tsinghua.edu.cn/debian/ bullseye main contrib non-free\ndeb https://mirrors.tuna.tsinghua.edu.cn/debian/ bullseye-updates main contrib non-free\ndeb https://mirrors.tuna.tsinghua.edu.cn/debian/ bullseye-backports main contrib non-free\ndeb https://mirrors.tuna.tsinghua.edu.cn/debian-security bullseye-security main contrib non-free" > /etc/apt/sources.list
@@ -8,13 +8,13 @@ RUN apt -y update && apt install -y git && apt install -y curl && rm -rf /var/li
 WORKDIR /app
 EXPOSE 80
 
-FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
 WORKDIR /src
 COPY ["CFPABot/CFPABot.csproj", "CFPABot/"]
-RUN dotnet restore "CFPABot/CFPABot.csproj" && rm -rf CFPABot/wwwroot2 && mkdir CFPABot/wwwroot2 && touch CFPABot/wwwroot2/test
+RUN dotnet restore "CFPABot/CFPABot.csproj" 
 COPY . .
 WORKDIR "/src/CFPABot"
-RUN dotnet build "CFPABot.csproj" -c Release -o /app/build
+RUN dotnet build "CFPABot.csproj" -c Debug -o /app/build
 
 FROM build AS publish
 RUN dotnet publish "CFPABot.csproj" -r debian.9-x64 --no-self-contained -c Debug -o /app/publish 
