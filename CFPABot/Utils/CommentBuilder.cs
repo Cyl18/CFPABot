@@ -612,10 +612,10 @@ namespace CFPABot.Utils
                     sb.AppendLine("⚠ 检测到了一个名为 patchouli_book 的文件夹。你可能想说的是 patchouli_books？");
                 }
 
-                if (diffs.Any(diff => diff.To.Split('/').Any(s => s.Contains(" "))))
-                {
-                    sb.AppendLine($"⚠ 检测到了含有空格的路径。例如： `{(diffs.Any(diff => diff.To.Split('/').Any(s => s.Contains(" "))))}`");
-                }
+                // if (diffs.Any(diff => diff.To.Split('/').Any(s => s.Contains(" "))))
+                // {
+                //     sb.AppendLine($"⚠ 检测到了含有空格的路径。例如： `{(diffs.Any(diff => diff.To.Split('/').Any(s => s.Contains(" "))))}`");
+                // }
 
                 if (diffs.Any(diff => !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || x is '_' or '-' or '.' or '/')))
                 {
