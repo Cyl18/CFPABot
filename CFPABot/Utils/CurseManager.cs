@@ -175,7 +175,7 @@ namespace CFPABot.Utils
             return (await cfClient.GetModAsync(modCurseForgeID)).Data;
         }
 
-        static ApiClient GetCfClient()
+        public static ApiClient GetCfClient()
         {
             return new ApiClient(Constants.CurseForgeApiKey,
                 ("Y3lsMThhQGdt" + "YWlsLmNvbQ==").ToBase64SourceBytes().ToUTF8String());
@@ -382,6 +382,11 @@ namespace CFPABot.Utils
     }
     class CurseForgeIDMappingManager
     {
+        public static async Task Update()
+        {
+            //CurseManager.GetCfClient().GetModsByIdListAsync
+        }
+
         // public static async Task Build()
         // {
         //     var client = new ForgeClient();

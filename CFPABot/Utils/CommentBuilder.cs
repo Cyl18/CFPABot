@@ -234,7 +234,7 @@ namespace CFPABot.Utils
                             {
                                 foreach (var dep in deps)
                                 {
-                                    if (dep.RelationType == FileRelationType.RequiredDependency) continue;
+                                    if (dep.RelationType != FileRelationType.RequiredDependency) continue;
                                     // 2 都是附属
                                     // 3 是需要的
                                     // 还没遇到 1
