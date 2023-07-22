@@ -181,7 +181,7 @@ else
                             {
                                 modDomain = modID;
                             }
-                            StateHasChanged();
+                            InvokeAsync(StateHasChanged);
                         });
                     }
                     catch (CheckException e)
@@ -341,14 +341,14 @@ else
                         {
                             finalLogger += "\n";
                             finalLogger += s;
-                            StateHasChanged();
+                            InvokeAsync(StateHasChanged);
                         }, token, modDomain).Run();
                     }
                     catch (Exception e)
                     {
                         finalLogger += "发生错误: \n";
                         finalLogger += e.Message;
-                        StateHasChanged();
+                        InvokeAsync(StateHasChanged);
                     }
                 });
             }
