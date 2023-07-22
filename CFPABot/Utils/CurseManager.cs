@@ -18,6 +18,7 @@ using CurseForge.APIClient.Models.Files;
 using CurseForge.APIClient.Models.Mods;
 using GammaLibrary;
 using GammaLibrary.Extensions;
+using Octokit;
 using Serilog;
 using File = System.IO.File;
 
@@ -382,11 +383,22 @@ namespace CFPABot.Utils
     }
     class CurseForgeIDMappingManager
     {
-        public static async Task Update()
+        public async Task Update()
         {
-            //CurseManager.GetCfClient().GetModsByIdListAsync
+            var addons = await CurseManager.GetCfClient().GetModsByIdListAsync(new GetModsByIdsListRequestBody() { ModIds = Enumerable.Range(ModIDMappingMetadata.Instance.LastID, 20000).Select(x => (uint)x).ToList() });
+            List<Mod> addonsData = addons.Data;
+            AddMapping(addonsData);
+            ModIDMappingMetadata.Save();
         }
 
+        static void AddMapping(List<Mod> addons)
+        {
+            foreach (var addon in addons.Where(s => s.GameId == 432 && s.Links.WebsiteUrl.StartsWith("https://www.curseforge.com/minecraft/mc-mods/")))
+                lock (ModIDMappingMetadata.Instance)
+                {
+                    ModIDMappingMetadata.Instance.Mapping[addon.Slug] = (int)addon.Id;
+                }
+        }
         // public static async Task Build()
         // {
         //     var client = new ForgeClient();

@@ -69,6 +69,23 @@ namespace CFPABot
 
                     await Task.Delay(TimeSpan.FromMinutes(5));
                 }
+            }); 
+            
+            _ = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        await CurseForgeIDMappingManager.Update();
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"Mapping Error: {e}");
+                    }
+
+                    await Task.Delay(TimeSpan.FromMinutes(60));
+                }
             });
             
             Log.Logger = new LoggerConfiguration()
@@ -113,6 +130,8 @@ namespace CFPABot
                         Log.Error(e, "project-hex");
                     }
                 }
+
+                
             }
             finally
             {
