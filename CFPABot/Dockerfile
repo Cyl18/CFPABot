@@ -14,7 +14,8 @@ COPY ["CFPABot/CFPABot.csproj", "CFPABot/"]
 RUN dotnet restore "CFPABot/CFPABot.csproj" 
 COPY . .
 WORKDIR "/src/CFPABot"
-RUN dotnet build "CFPABot.csproj" -c Debug -o /app/build
+RUN rm -rf bin && rm -rf obj
+
 
 FROM build AS publish
 RUN dotnet publish "CFPABot.csproj" -r debian.9-x64 --no-self-contained -c Debug -o /app/publish 
