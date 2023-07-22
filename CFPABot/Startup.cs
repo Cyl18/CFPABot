@@ -67,7 +67,7 @@ namespace CFPABot
             app.UseStaticFiles(new StaticFileOptions
             {
                 RequestPath = "/css",
-                FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwrootx")),
+                FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwrootx/css")),
                 OnPrepareResponse =
                     context =>
                     {
