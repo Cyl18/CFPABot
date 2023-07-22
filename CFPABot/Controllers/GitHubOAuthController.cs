@@ -24,6 +24,8 @@ namespace CFPABot.Controllers
         static GitHubOAuthController()
         {
             hc = new();
+            hc.DefaultRequestHeaders.Accept.Clear();
+            hc.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         }
         [HttpGet]
         public async Task<IActionResult> OAuth([FromQuery] string code)

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using CFPABot.Azusa.Pages;
 using CFPABot.Utils;
@@ -67,8 +68,8 @@ namespace CFPABot.Azusa
             var baseLocation = $"projects/{_versionString}/{_slug}/{_domain}/assets/lang";
             _updateAction("Placing files...");
             Directory.CreateDirectory(baseLocation);
-            File.WriteAllText(baseLocation+$"/{_enCache.FileName}", File.ReadAllText(_enCache.FilePath));
-            File.WriteAllText(baseLocation+$"/{_cnCache.FileName}", File.ReadAllText(_cnCache.FilePath));
+            File.WriteAllText(baseLocation+$"/{_enCache.FileName}", File.ReadAllText(_enCache.FilePath), new UTF8Encoding(false));
+            File.WriteAllText(baseLocation+$"/{_cnCache.FileName}", File.ReadAllText(_cnCache.FilePath), new UTF8Encoding(false));
             localRepo.Run($"add -A");
             localRepo.Commit(_prTitle);
             _updateAction("Pushing to origin...");
