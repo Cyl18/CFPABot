@@ -20,6 +20,7 @@ using GammaLibrary;
 using GammaLibrary.Extensions;
 using Octokit;
 using Serilog;
+using ApiClient = CurseForge.APIClient.ApiClient;
 using File = System.IO.File;
 
 namespace CFPABot.Utils
@@ -176,9 +177,9 @@ namespace CFPABot.Utils
             return (await cfClient.GetModAsync(modCurseForgeID)).Data;
         }
 
-        public static ApiClient GetCfClient()
+        public static CurseForge.APIClient.ApiClient GetCfClient()
         {
-            return new ApiClient(Constants.CurseForgeApiKey,
+            return new CurseForge.APIClient.ApiClient(Constants.CurseForgeApiKey,
                 ("Y3lsMThhQGdt" + "YWlsLmNvbQ==").ToBase64SourceBytes().ToUTF8String());
         }
 
@@ -383,7 +384,7 @@ namespace CFPABot.Utils
     }
     class CurseForgeIDMappingManager
     {
-        public async Task Update()
+        public static async Task Update()
         {
             var addons = await CurseManager.GetCfClient().GetModsByIdListAsync(new GetModsByIdsListRequestBody() { ModIds = Enumerable.Range(ModIDMappingMetadata.Instance.LastID, 20000).Select(x => (uint)x).ToList() });
             List<Mod> addonsData = addons.Data;
