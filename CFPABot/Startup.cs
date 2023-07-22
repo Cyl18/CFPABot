@@ -10,9 +10,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using BlazorStrap;
 using CFPABot.Controllers;
 using CFPABot.ProjectHex;
 using CFPABot.Utils;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.FileProviders;
 using Octokit.Webhooks;
 using Octokit.Webhooks.AspNetCore;
@@ -32,8 +34,16 @@ namespace CFPABot
         public void ConfigureServices(IServiceCollection services)
         {
 
+            services.AddRazorPages(options => options.RootDirectory = "/Azusa/Pages");
+            services.AddServerSideBlazor();
             services.AddControllers();
-            services.AddHealthChecks(); 
+            services.AddDirectoryBrowser();
+            services.AddHealthChecks();
+            services.AddBlazorStrap();
+            services.AddSignalR(e => {
+                e.MaximumReceiveMessageSize = 102400000;
+            });
+            services.AddHttpContextAccessor();
             services.AddSingleton<WebhookEventProcessor, MyWebhookEventProcessor>();
         }
 
@@ -46,17 +56,22 @@ namespace CFPABot
             }
 
             app.UseHealthChecks("/healthcheck");
-
-            app.UseRouting();
-
-            app.UseAuthorization();
-            
-            app.UseStaticFiles(new StaticFileOptions { RequestPath = "/static", FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwroot")), OnPrepareResponse =
-                context =>
-                {
-                }});
+            app.UseDirectoryBrowser(new DirectoryBrowserOptions() { RequestPath = "/project-hex", FileProvider = new PhysicalFileProvider("/app/project-hex") });
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                RequestPath = "/static",
+                FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwroot")),
+                OnPrepareResponse =
+                    context =>
+                    {
+                    }
+            });
             app.UseStaticFiles(new StaticFileOptions()
-                {RequestPath = "/project-hex", FileProvider = new PhysicalFileProvider("/app/project-hex"), ServeUnknownFileTypes = true, OnPrepareResponse =
+            {
+                RequestPath = "/project-hex",
+                FileProvider = new PhysicalFileProvider("/app/project-hex"),
+                ServeUnknownFileTypes = true,
+                OnPrepareResponse =
                     context =>
                     {
                         lock (ProjectHexConfig.Instance)
@@ -69,13 +84,33 @@ namespace CFPABot
                         Console.WriteLine($"Downloading {context.File.Name}");
                     }
             });
-            app.UseDirectoryBrowser(new DirectoryBrowserOptions() { RequestPath = "/project-hex", FileProvider = new PhysicalFileProvider("/app/project-hex")});
+            app.UseStaticFiles();
+
+            app.UseFileServer(new FileServerOptions
+            {
+                FileProvider = new ManifestEmbeddedFileProvider(
+                    typeof(Program).Assembly, "Azusa/wwwroot"
+                ),
+                RequestPath = new PathString("/Azusa")
+            });
+
+            app.UseRouting();
+
+            app.UseAuthorization();
+            
+           
 
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapGitHubWebhooks("api/WebhookListener", Constants.GitHubWebhookSecret);
-                endpoints.MapControllers();
+                endpoints.MapControllers(); 
+                endpoints.MapBlazorHub("/Azusa/_blazor");
+                endpoints.MapFallbackToPage("/_Host");
             });
+
+
+
+
         }
     }
 }

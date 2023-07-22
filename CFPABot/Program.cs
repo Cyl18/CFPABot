@@ -164,6 +164,6 @@ namespace CFPABot
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
                     webBuilder.UseStartup<Startup>();
-                });
+                }).ConfigureWebHost(x => x.UseStaticWebAssets());
     }
 }
