@@ -107,7 +107,7 @@ namespace CFPABot.ProjectHex
             foreach (var file in Directory.GetFiles($"{RunDir}/", "*.zip", SearchOption.TopDirectoryOnly))
             {
                 Console.WriteLine($"Moving file {file}");
-                File.Move(file, $"project-hex/{Path.GetFileNameWithoutExtension(file)}-{File.ReadAllBytes(file).SHA256().ToHexString().Substring(0,6)}.zip");
+                File.Move(file, $"project-hex/{Path.GetFileNameWithoutExtension(file).TrimStart('.').TrimStart('/').TrimStart('\\')}-{File.ReadAllBytes(file).SHA256().ToHexString().Substring(0,6)}.zip");
             }
             Directory.Delete(RunDir, true);
         }
