@@ -57,6 +57,11 @@
 	  <EmbeddedResource Include="Azusa\wwwroot2\**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Remove="Azusa\wwwroot2\_content\BlazorStrap\blazorstrap.js" />
+    <None Remove="Azusa\wwwroot2\_content\BlazorStrap\popper.min.js" />
+  </ItemGroup>
+
 
   <ItemGroup>
     <None Include="Azusa\Pages\Counter.razor" />

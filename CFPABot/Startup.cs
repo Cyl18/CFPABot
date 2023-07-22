@@ -33,7 +33,6 @@ namespace CFPABot
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-
             services.AddRazorPages(options => options.RootDirectory = "/Azusa/Pages");
             services.AddServerSideBlazor();
             services.AddControllers();
@@ -54,13 +53,21 @@ namespace CFPABot
             {
                 app.UseDeveloperExceptionPage();
             }
-
             app.UseHealthChecks("/healthcheck");
             app.UseDirectoryBrowser(new DirectoryBrowserOptions() { RequestPath = "/project-hex", FileProvider = new PhysicalFileProvider("/app/project-hex") });
             app.UseStaticFiles(new StaticFileOptions
             {
                 RequestPath = "/static",
                 FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwroot")),
+                OnPrepareResponse =
+                    context =>
+                    {
+                    }
+            });  
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                RequestPath = "/css",
+                FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwrootx")),
                 OnPrepareResponse =
                     context =>
                     {
@@ -84,7 +91,7 @@ namespace CFPABot
                         Console.WriteLine($"Downloading {context.File.Name}");
                     }
             });
-            app.UseStaticFiles();
+            //app.UseStaticFiles();
 
             app.UseFileServer(new FileServerOptions
             {
@@ -98,7 +105,7 @@ namespace CFPABot
                 FileProvider = new ManifestEmbeddedFileProvider(
                     typeof(Program).Assembly, "Azusa/wwwroot2"
                 ),
-                RequestPath = new PathString("/Azusa")
+                RequestPath = new PathString("/")
             });
 
             app.UseRouting();
