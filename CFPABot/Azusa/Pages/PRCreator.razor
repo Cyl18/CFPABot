@@ -195,7 +195,7 @@ else
                     }
                 }
 
-                string curseProjectID = "";
+                string curseProjectID { get; set; }  = "";
                 string trimmedSlug => curseForgeSlug.Trim().Split('/').Last().ToLower();
             }
 
@@ -209,7 +209,7 @@ else
 
                     <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
                         <span class="@BS.Input_Group_Text">CurseForge 项目 ID</span>
-                        <BSInput TValue="string" InputType="InputType.Text" bind-Value="@curseProjectID" />
+                        <BSInput InputType="InputType.Text" bind-Value="@curseProjectID" />
                     </BSInputGroup>
 
                     <BSButton Color="BSColor.Success" OnClick="checkProjectID">确认项目 ID</BSButton>
@@ -259,7 +259,7 @@ else
     {
         <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
             <span class="@BS.Input_Group_Text">Mod Domain</span>
-            <BSInput TValue="string" InputType="InputType.Text" bind-Value="@modDomain"/> 
+            <BSInput  InputType="InputType.Text" bind-Value="@modDomain"/> 
         </BSInputGroup>
         @if (netModDomainError)
         {
@@ -377,12 +377,12 @@ else
 
 @code
 {
-    string modName = "未知";
-    string modDomain = "未知";
+    string modName { get; set; } = "未知";
+    string modDomain { get; set; } = "未知";
     bool netModDomainAcquired = false;
     bool netModDomainError = false;
-    string prTitle = "未知";
-    string finalLogger = "开始提交进程...";
+    string prTitle { get; set; } = "未知";
+    string finalLogger { get; set; } = "开始提交进程...";
 
     FileCache cnCache;
     async Task OnFileChangeCn(InputFileChangeEventArgs arg)

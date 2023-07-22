@@ -74,6 +74,9 @@ namespace CFPABot.Azusa
             localRepo.Commit(_prTitle);
             _updateAction("Pushing to origin...");
             localRepo.Run($"push origin {branchName}");
+
+            await _gitHubClient.PullRequest.Create(Constants.RepoID,
+                new NewPullRequest(_prTitle, $"{user.Login}:{branchName}", "main") { Body = "由 CFPA-Helper 提交."});
         }
 
     }
