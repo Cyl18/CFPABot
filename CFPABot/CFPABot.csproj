@@ -53,15 +53,10 @@
 
   <ItemGroup>
 	  <EmbeddedResource Include="Azusa\wwwroot\**" />
+
+	  <EmbeddedResource Include="Azusa\wwwroot2\**" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Remove="Azusa\wwwroot\blazorstrap.js" />
-    <None Remove="Azusa\wwwroot\css\CFPABot.styles.css" />
-    <None Remove="Azusa\wwwroot\css\_content\BlazorStrap\BlazorStrap.bundle.scp.css" />
-    <None Remove="Azusa\wwwroot\css\_content\BlazorStrap\BlazorStrap.V5.bundle.scp.css" />
-    <None Remove="Azusa\wwwroot\popper.min.js" />
-  </ItemGroup>
 
   <ItemGroup>
     <None Include="Azusa\Pages\Counter.razor" />

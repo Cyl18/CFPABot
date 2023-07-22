@@ -93,6 +93,13 @@ namespace CFPABot
                 ),
                 RequestPath = new PathString("/Azusa")
             });
+            app.UseFileServer(new FileServerOptions
+            {
+                FileProvider = new ManifestEmbeddedFileProvider(
+                    typeof(Program).Assembly, "Azusa/wwwroot2"
+                ),
+                RequestPath = new PathString("/Azusa")
+            });
 
             app.UseRouting();
 
