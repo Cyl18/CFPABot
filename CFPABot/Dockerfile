@@ -11,13 +11,13 @@ EXPOSE 80
 FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
 WORKDIR /src
 COPY ["CFPABot/CFPABot.csproj", "CFPABot/"]
-RUN dotnet restore "CFPABot/CFPABot.csproj"
+RUN dotnet restore "CFPABot/CFPABot.csproj" && rm -rf CFPABot/wwwroot2 && mkdir CFPABot/wwwroot2 && touch CFPABot/wwwroot2/test
 COPY . .
 WORKDIR "/src/CFPABot"
 RUN dotnet build "CFPABot.csproj" -c Release -o /app/build
 
 FROM build AS publish
-RUN dotnet publish "CFPABot.csproj" -r debian.9-x64 --no-self-contained -c Debug -o /app/publish && rm -rf CFPABot/wwwroot2 && mkdir CFPABot/wwwroot2 && touch CFPABot/wwwroot2/test
+RUN dotnet publish "CFPABot.csproj" -r debian.9-x64 --no-self-contained -c Debug -o /app/publish 
 
 FROM base AS final
 WORKDIR /app
