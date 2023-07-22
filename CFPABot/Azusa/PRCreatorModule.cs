@@ -65,7 +65,7 @@ namespace CFPABot.Azusa
             localRepo.Run("fetch upstream main");
             _updateAction("Creating branch...");
             localRepo.Run($"switch -c {branchName} upstream/main");
-            var baseLocation = $"projects/{_versionString}/{_slug}/{_domain}/assets/lang";
+            var baseLocation = $"{localRepo.WorkingDirectory}/projects/{_versionString}/{_slug}/{_domain}/assets/lang";
             _updateAction("Placing files...");
             Directory.CreateDirectory(baseLocation);
             File.WriteAllText(baseLocation+$"/{_enCache.FileName}", File.ReadAllText(_enCache.FilePath), new UTF8Encoding(false));
