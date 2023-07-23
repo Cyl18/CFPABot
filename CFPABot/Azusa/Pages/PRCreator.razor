@@ -270,6 +270,7 @@ else
                             }
                             InvokeAsync(StateHasChanged);
                         });
+                        InvokeAsync(StateHasChanged);
 
                         await Task.WhenAny(expire, at);
                         lock (expire)
@@ -413,6 +414,22 @@ else
         <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
             <span class="@BS.Input_Group_Text">PR 标题</span>
             <BSInput TValue="string" InputType="InputType.Text" @bind-Value="prTitle" />
+
+            <BSDropdown Placement="Placement.BottomEnd">
+                <Toggler><BSToggle IsButton="true" IsOutlined="true" Color="BSColor.Secondary">建议的标题</BSToggle></Toggler>
+                <Content>
+                    @code
+                    {
+                        string[] ns = new[] {" 提交", " 更新", " 修正"};
+                        void ChangePRTitle(string x) => prTitle = x;
+                    }
+                    @foreach (var x in ns.Select(y => mod.Name + y))
+                    {
+                        <BSDropdownItem OnClick="() => ChangePRTitle(x)">@x</BSDropdownItem>
+                    }
+                </Content>
+            </BSDropdown>
+
         </BSInputGroup>
         
         <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
