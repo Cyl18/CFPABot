@@ -617,12 +617,12 @@ namespace CFPABot.Utils
                 //     sb.AppendLine($"⚠ 检测到了含有空格的路径。例如： `{(diffs.Any(diff => diff.To.Split('/').Any(s => s.Contains(" "))))}`");
                 // }
 
-                if (diffs.Any(diff => !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || x is '_' or '-' or '.' or '/')))
+                if (diffs.Any(diff => !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || x is '_' or '-' or '.' or '/') && diff.To.Contains("lang")))
                 {
                     sb.AppendLine($"⚠⚠⚠ **检测到了可能不合规的路径。**");
                     sb.AppendLine($"⚠⚠⚠ **检测到了可能不合规的路径。**");
                     sb.AppendLine($"⚠⚠⚠ **检测到了可能不合规的路径。**");
-                    sb.AppendLine($"⚠⚠⚠ 例如： `{diffs.First(diff => !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || x is '_' or '-' or '.' or '/')).To}`");
+                    sb.AppendLine($"⚠⚠⚠ 例如： `{diffs.First(diff => !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || x is '_' or '-' or '.' or '/') && diff.To.Contains("lang")).To}`");
                     sb.AppendLine($"⚠⚠⚠ 转到 <a href=\"https://cfpa.cyan.cafe/api/Utils/PathValidation?pr={PullRequestID}\" rel=\"nofollow\">这里</a> 来查看所有不合规的路径。");
                     sb.AppendLine();
                 }

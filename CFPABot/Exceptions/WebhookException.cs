@@ -8,7 +8,7 @@ namespace CFPABot.Exceptions
 {
     public class WebhookException : Exception
     {
-        public WebhookException([CanBeNull] string message) : base(message)
+        public WebhookException(string message) : base(message)
         {
         }
     }

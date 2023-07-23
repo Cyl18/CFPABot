@@ -21,7 +21,7 @@ namespace CFPABot.Controllers
         {
             var fileDiff = await GitHub.Diff(pr.ToInt());
             var sb = new StringBuilder();
-            foreach (var diff1 in fileDiff.Where(diff => !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || x is '_' or '-' or '.' or '/')))
+            foreach (var diff1 in fileDiff.Where(diff => !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || x is '_' or '-' or '.' or '/') && diff.To.Contains("lang")))
             {
                 sb.AppendLine($"{diff1.To}");
             }

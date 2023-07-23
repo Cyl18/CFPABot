@@ -27,6 +27,15 @@ namespace CFPABot.Controllers
             _ = new LabelCheck(pr.ToInt()).Run();
             return Ok();
         }
+
+        [HttpGet("TagLabel")]
+        public IActionResult TagLabel([FromQuery] string password, [FromQuery] string pr)
+        {
+            if (password != Constants.GitHubWebhookSecret) return Unauthorized();
+
+            _ = new Labeler(pr.ToInt()).Run();
+            return Ok();
+        }
         public IActionResult Get([FromQuery] string password, [FromQuery] string pr)
         {
             if (password != Constants.GitHubWebhookSecret) return Unauthorized();
