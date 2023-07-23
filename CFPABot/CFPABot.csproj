@@ -64,6 +64,7 @@
     <None Remove="Azusa\wwwroot\css\BlazorStrap.V5.bundle.scp.css" />
     <None Remove="Azusa\wwwroot\css\_content\BlazorStrap.V5\BlazorStrap.V5.bundle.scp.css" />
     <None Remove="Azusa\wwwroot\css\_content\BlazorStrap\BlazorStrap.bundle.scp.css" />
+    <None Remove="Azusa\wwwroot\img\tip1.png" />
     <None Remove="Azusa\wwwroot\_framework\blazor.server.js" />
   </ItemGroup>
 
@@ -75,10 +76,6 @@
     <None Include="Azusa\Pages\_Layout.cshtml" />
     <None Include="Azusa\Shared\MainLayout.razor" />
     <None Include="Azusa\Shared\NavMenu.razor" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Azusa\wwwroot\img\" />
   </ItemGroup>
 
 </Project>

@@ -524,6 +524,8 @@ else
             </BSAlert>
         }
         
+        
+
         @code{
             string prlink = null;
             async Task SendPR()
@@ -540,6 +542,11 @@ else
     }
 </BSCard>
 </BSCard>
+
+@if (step == 5)
+{
+    <BSImage style="width: 800px;" Source="/Azusa/img/tip1.png"></BSImage>
+}
 
 @code
 {
