@@ -79,7 +79,7 @@ namespace CFPABot.Controllers
             if (action == PullRequestAction.Opened || action == PullRequestAction.Synchronize || action == PullRequestAction.Edited || action == PullRequestAction.Labeled || action == PullRequestAction.Unlabeled)
             {
                 _ = new LabelCheck(prid).Run();
-                _ = new LabelLineNumber(prid).Run();
+                _ = new Labeler(prid).Run();
             }
         }
 
