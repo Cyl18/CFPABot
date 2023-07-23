@@ -420,7 +420,7 @@ else
                 <Content>
                     @code
                     {
-                        string[] ns = new[] {" 提交", " 更新", " 修正"};
+                        string[] ns = new[] {" 翻译提交", " 翻译更新", " 翻译修正"};
                         void ChangePRTitle(string x) => prTitle = x;
                     }
                     @foreach (var x in ns.Select(y => mod.Name + y))
