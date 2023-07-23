@@ -1,5 +1,6 @@
 ﻿@page "/prcreator"
 @using System.IO
+@using System.Threading
 @using CFPABot.Exceptions
 @using CFPABot.Utils
 @using CurseForge.APIClient.Models.Mods
@@ -78,15 +79,24 @@ else
         <BSCard CardType="CardType.Body">
             <BSLabel Size="Size.Large" MarginBottom="Margins.Medium">检查</BSLabel>
             <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
-                <BSInputCheckbox CheckedValue="true" @bind-Value="readContributing" />
-                <BSLabel IsCheckLabel="true">你已仔细阅读 <BSLink Url="https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/CONTRIBUTING.md">贡献指南</BSLink></BSLabel>
+                <BSInputCheckbox CheckedValue="true" id="c1" @bind-Value="readContributing" />
+                <BSLabel for="c1" IsCheckLabel="true">你已仔细阅读 <BSLink Url="https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/CONTRIBUTING.md">贡献指南</BSLink></BSLabel>
             </div>
 
             <div Class="@BS.Form_Check" MarginBottom="Margins.Medium">
-                <BSInputCheckbox CheckedValue="true" @bind-Value="ccbyncsa" />
-                <BSLabel IsCheckLabel="true">你已阅读并同意按 <BSLink Url="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh">CC BY-NC-SA 4.0</BSLink> 协议发布我的作品</BSLabel>
+                <BSInputCheckbox id="c2" CheckedValue="true" @bind-Value="ccbyncsa" />
+                <BSLabel for="c2" IsCheckLabel="true">你已阅读并同意按 <BSLink Url="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh">CC BY-NC-SA 4.0</BSLink> 协议发布我的作品</BSLabel>
             </div>
             
+            <div Class="@BS.Form_Check" MarginBottom="Margins.Medium">
+                <BSInputCheckbox id="c3" CheckedValue="true" @bind-Value="机翻" />
+                <BSLabel for="c3" IsCheckLabel="true">如果是机器翻译，请确保不会有过于生硬的语言；机翻加润色是可以接受的，但是如果生硬翻译大概率会被拒收</BSLabel>
+            </div>
+
+            <div Class="@BS.Form_Check" MarginBottom="Margins.Medium">
+                <BSInputCheckbox id="c4" CheckedValue="true" @bind-Value="自己制作" />
+                <BSLabel for="c4" IsCheckLabel="true">你确认是你自己制作的文件而不是搬运其他人的文件，也不是代提交</BSLabel>
+            </div>
             <BSButton Color="BSColor.Success" OnClick="CheckRequirements" MarginTop="Margins.Medium">继续</BSButton>
 
             
@@ -94,12 +104,15 @@ else
             {
                 bool readContributing = false;
                 bool ccbyncsa = false;
+                bool 机翻 = false;
+                bool 自己制作 = false;
+
 
                 void CheckRequirements()
                 {
-                    if (!(readContributing && ccbyncsa))
+            if (!(readContributing && ccbyncsa && 机翻 && 自己制作))
                     {
-                        ShowToast("请把那俩复选框勾上（");
+                        ShowToast("请把那几个复选框勾上（");
                         return;
                     }
                     step++;
@@ -229,9 +242,16 @@ else
                         mod = addon;
                         modName = mod.Name;
                         step++;
-                        Task.Run(async () =>
+                        var expire = Task.Delay(10000);
+
+                        var at = Task.Run(async () =>
                         {
                             var modID = await CurseManager.GetModID(addon, _mcVersion, true, false);
+                            lock (expire)
+                            {
+                                if (expire.IsCompleted) return;
+                            }
+                            
                             netModDomainAcquired = true;
                             if (modID == "未知")
                             {
@@ -243,6 +263,17 @@ else
                             }
                             InvokeAsync(StateHasChanged);
                         });
+
+                        await Task.WhenAny(expire, at);
+                        lock (expire)
+                        {
+                            if (expire.IsCompleted)
+                            {
+                                netModDomainAcquired = true;
+                                netModDomainError = true;
+
+                            }
+                        }
                     }
                     catch (CheckException e)
                     {
