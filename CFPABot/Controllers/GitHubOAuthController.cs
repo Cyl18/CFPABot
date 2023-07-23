@@ -47,7 +47,14 @@ namespace CFPABot.Controllers
             {
                 return Content($"验证错误： {e.Message}");
             }
-            HttpContext.Response.Cookies.Append("oauth-token", clientAccessToken, new CookieOptions() {HttpOnly = true});
+            HttpContext.Response.Cookies.Append("oauth-token", clientAccessToken, new CookieOptions() {HttpOnly = true, MaxAge = TimeSpan.FromHours(4)});
+            return Redirect("/Azusa");
+        }
+
+        [HttpGet("Signout")]
+        public IActionResult Signout()
+        {
+            HttpContext.Response.Cookies.Delete("oauth-token");
             return Redirect("/Azusa");
         }
     }

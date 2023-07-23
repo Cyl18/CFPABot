@@ -12,25 +12,26 @@
 <PageTitle>模组翻译快捷上传</PageTitle>
 <BSToaster />
 <h1>模组翻译快捷上传</h1>
-
+<BSLabel MarginBottom="Margins.Medium" Class="@BS.Text_Info">如果你遇到了什么问题，可以在 CFPA 群中 @@Cyl18 反馈，或者前往 <BSLink Url="https://github.com/Cyl18/CFPABot/issues">这里</BSLink> 提交 Issue。</BSLabel>
 @if (LoginManager.GetLoginStatus(_http))
 {
     @code{
         string userName = null;
-
+        string userAvatar = null;
         string GetName()
         {
             if (userName == null) userName = (LoginManager.GetGitHubClient(_http).User.Current().Result).Login;
-            
             return userName;
         }
     }
-    <BSLabel MarginBottom="Margins.Medium">登录账号: @(GetName())</BSLabel>
+    <BSImage ></BSImage>
+    <BSLabel MarginBottom="Margins.Medium">登录账号: @(GetName()) <BSLink Url="/api/GitHubOAuth/Signout">登出</BSLink></BSLabel>
 }
 else
 {
     <BSAlert Color="BSColor.Danger" HasIcon="true" MarginBottom="Margins.Medium">你还没有登录. 下面的操作都是无效的.</BSAlert>
-    <BSButton MarginBottom="Margins.Medium" Color="BSColor.Primary" OnClick="() => _navigationManager.NavigateTo(LoginManager.LoginUrl)">登录</BSButton>
+    <BSButton MarginBottom="Margins.ExtraLarge" Color="BSColor.Primary" OnClick="() => _navigationManager.NavigateTo(LoginManager.LoginUrl)">登录</BSButton>
+
 }
 @code
 {
@@ -43,7 +44,6 @@ else
             o.Toast = Toast.TopRight;
         });
     }
-
 }
 
 @code {
@@ -86,7 +86,7 @@ else
                 <BSContainer>
                     <BSRow MarginBottom="Margins.Small">
                         <BSCol Column="3" Class="border">
-                            <BSLabel Margin="Margins.Auto">中文语言文件 (zh_cn.json/zh_cn.lang)</BSLabel>
+                            <BSLabel Margin="Margins.Auto">中文语言文件 <code>(zh_cn.json/lang)</code></BSLabel>
                         </BSCol>
                         <BSCol Column="6" Class="border">
                             <BSInputFile Margin="Margins.Auto" ValidWhen="() => true" OnChange="OnFileChangeCn" />
@@ -94,7 +94,7 @@ else
                     </BSRow>
                     <BSRow>
                         <BSCol Column="3" Class="border">
-                            <BSLabel Margin="Margins.Auto">英文语言文件 (en_us.json/en_us.lang)</BSLabel>
+                            <BSLabel Margin="Margins.Auto">英文语言文件 <code>(en_us.json/lang)</code></BSLabel>
                         </BSCol>
                         <BSCol Column="6" Class="border">
                             <BSInputFile Margin="Margins.Auto" ValidWhen="() => true" OnChange="OnFileChangeEn" />
@@ -108,8 +108,8 @@ else
         {
             if (cnCache == null || enCache == null)
             {
-            ShowToast("文件没有上传完成");
-            return;
+                ShowToast("文件没有上传完成");
+                return;
             }
             step++;
         }
@@ -128,7 +128,7 @@ else
             <BSLabel Size="Size.Large" MarginBottom="Margins.Small">Yum</BSLabel>
             <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
                 <span class="@BS.Input_Group_Text">Minecraft 版本</span>
-                <BSInput InputType="InputType.Select" InputSize="Size.Large" MarginBottom="Margins.Medium" @bind-Value="imcVersion">
+                <BSInput InputType="InputType.Select" InputSize="Size.Large" MarginBottom="Margins.Medium"  @bind-Value="imcVersion">
                     @foreach (var x in mcVersions)
                     {
                         <option value="@x">@x</option>
@@ -151,9 +151,9 @@ else
             {
                 MCVersion _mcVersion
                 {
-                    get => imcVersion.FirstOrDefault()?.ToMCVersion() ?? MCVersion.v118;
+                    get => imcVersion?.ToMCVersion() ?? MCVersion.v118;
                 }
-                string[] imcVersion = new string[0];
+                string imcVersion;
 
                 string[] mcVersions = Enum.GetValues<MCVersion>().Select(x => x.ToVersionString()).ToArray();
 
@@ -203,7 +203,7 @@ else
                 {
                     <BSAlert Color="BSColor.Warning" HasIcon="true" MarginBottom="Margins.Medium">
                         无法找到 CurseForge 项目名到项目 ID 的映射。<br/>
-                        请检查此链接能否打开 <BSAlertLink href="@($"https://www.curseforge.com/minecraft/mc-mods/{(trimmedSlug)}")">这里</BSAlertLink>，<br/>
+                        请检查此链接能否打开 <BSAlertLink Url="@($"https://www.curseforge.com/minecraft/mc-mods/{(trimmedSlug)}")">这里</BSAlertLink>，<br/>
                         并在右侧找到项目 ID 并填写到下面的文本框。如果不能打开，请检查你上方的输入是否正确。
                     </BSAlert>
 
@@ -264,18 +264,27 @@ else
         @if (netModDomainError)
         {
             <BSAlert Color="BSColor.Warning" HasIcon="true" MarginBottom="Margins.Medium">
-                无法自动获取 Mod Domain。请手动填写并保证其正确性。
-                Mod Domain 的获取方法：使用解压软件打开模组，打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，例如 <code>assets/jei/lang/</code> ,<code>jei</code>便是此模组的 Momain。
+                        无法自动获取 Mod Domain。请手动填写并保证其正确性。<br />
+                        Mod Domain 的获取方法：使用解压软件打开模组，打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，<br />
+                        例如 <code>assets/jei/lang/</code> ,<code>jei</code>便是此模组的 Momain。
             </BSAlert>
         }
         else
         {
             <BSAlert Color="BSColor.Info" HasIcon="true" MarginBottom="Margins.Medium">
-                自动找到了模组的 Domain，请检查是否正确。
-                Mod Domain 的获取方法：使用解压软件打开模组，打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，例如 <code>assets/jei/lang/</code> ,<code>jei</code>便是此模组的 Momain。
+                自动找到了模组的 Domain，请检查是否正确。 <br/>
+                        Mod Domain 的获取方法：使用解压软件打开模组，打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，<br />
+                例如 <code>assets/jei/lang/</code> ,<code>jei</code>便是此模组的 Momain。
             </BSAlert>
         }
-        <BSButton Color="BSColor.Success" OnClick="FinishModDomain">下一步</BSButton>
+        <BSContainer>
+            <BSRow>
+                <BSButton Color="BSColor.Success" OnClick="FinishModDomain">下一步</BSButton>
+                <BSButton MarginLeftAndRight="Margins.Large" Color="BSColor.Secondary" OnClick="() => step--">上一步</BSButton>
+
+            </BSRow>
+        </BSContainer>
+        
         @code{
 
             async Task FinishModDomain()
@@ -317,12 +326,13 @@ else
         </BSInputGroup>
         
 
-        <BSButton Color="BSColor.Success" OnClick="Submit">提交</BSButton>
+        <BSButton Color="BSColor.Success" OnClick="Submit">开始提交（不发送PR）</BSButton>
 
         @code{
 
             string[] emails = new string[0];
             string[] iemail = new string[0];
+            PRCreatorModule prCreatorModule;
             string email => iemail.First();
             void Submit()
             {
@@ -337,14 +347,15 @@ else
                     try
                     {
                         _http.HttpContext.Request.Cookies.TryGetValue("oauth-token", out var token);
-                        await new PRCreatorModule(LoginManager.GetGitHubClient(_http), enCache, cnCache, email, trimmedSlug, _mcVersion.ToVersionString(), prTitle, s =>
+                        prCreatorModule = new PRCreatorModule(LoginManager.GetGitHubClient(_http), enCache, cnCache, email, trimmedSlug, _mcVersion.ToVersionString(), prTitle, s =>
                         {
                             finalLogger += "\n";
                             finalLogger += s;
                             InvokeAsync(StateHasChanged);
-                        }, token, modDomain).Run();
+                        }, token, modDomain);
+                        await prCreatorModule.Run();
                         finalLogger += "提交完成";
-
+                        step ++;
                         InvokeAsync(StateHasChanged);
 
                     }
@@ -370,11 +381,40 @@ else
         模组 Domain: @modDomain <br/>
         PR Title: @prTitle <br/>
     </BSCol>
-    @if (step == 4)
+    @if (step >= 4)
     {
-        <code>
+        <code style="white-space: pre-line">
             @finalLogger
         </code>
+    }
+    @if (step == 5)
+    {
+        <BSContainer MarginBottom="Margins.Medium">
+            <BSRow>
+                <BSButton Color="BSColor.Success" OnClick="SendPR">自动提交 PR</BSButton>
+                <BSButton Color="BSColor.Info" OnClick="SendPRManually">手动提交 PR（前往 GitHub）</BSButton>
+            </BSRow>
+        </BSContainer>
+
+
+        @if (prlink != null)
+        {
+            <BSAlert Color="BSColor.Info" HasIcon="true">PR 提交完成，前往这里查看你的PR： <BSAlertLink Url="@prlink">@prlink</BSAlertLink></BSAlert>
+        }
+        
+        @code{
+            string prlink = null;
+            async Task SendPR()
+            {
+                var pr = await prCreatorModule.CreatePR();
+                prlink = pr.HtmlUrl;
+            }
+
+            void SendPRManually()
+            {
+                _navigationManager.NavigateTo($"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/compare/main...{prCreatorModule.repo.Owner.Login}:{prCreatorModule.repo.Name}:{prCreatorModule.branchName}?expand=1");
+            }
+        }
     }
 </BSCard>
 </BSCard>

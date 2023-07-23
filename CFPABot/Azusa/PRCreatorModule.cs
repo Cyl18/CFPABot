@@ -37,11 +37,14 @@ namespace CFPABot.Azusa
             _domain = modDomain;
         }
 
+        public Repository repo { get; private set; }
+        public User user { get; private set; }
+        public string branchName { get; private set; }
+
         public async Task Run()
         {
-            var user = await _gitHubClient.User.Current();
+            user = await _gitHubClient.User.Current();
             var forks = await _gitHubClient.Repository.Forks.GetAll(Constants.RepoID, new RepositoryForksListRequest());
-            Repository repo;
             if (forks.FirstOrDefault(x => x.Owner.Login == user.Login) is {} fork)
             {
                 repo = fork;
@@ -59,7 +62,7 @@ namespace CFPABot.Azusa
 
             localRepo.Clone(user.Login, repo.Name, user.Login, _email);
             localRepo.Run("remote add upstream https://github.com/CFPAOrg/Minecraft-Mod-Language-Package.git");
-            var branchName = "CFPA-Helper-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            branchName = "CFPA-Helper-" + Guid.NewGuid().ToString("N").Substring(0, 8);
             _updateAction("Fetching upstream...");
 
             localRepo.Run("fetch upstream main");
@@ -75,8 +78,12 @@ namespace CFPABot.Azusa
             _updateAction("Pushing to origin...");
             localRepo.Run($"push origin {branchName}");
 
-            await _gitHubClient.PullRequest.Create(Constants.RepoID,
-                new NewPullRequest(_prTitle, $"{user.Login}:{branchName}", "main") { Body = "由 CFPA-Helper 提交."});
+        }
+
+        public async Task<PullRequest> CreatePR()
+        {
+            return await _gitHubClient.PullRequest.Create(Constants.RepoID,
+                new NewPullRequest(_prTitle, $"{user.Login}:{branchName}", "main") { Body = "由 CFPA-Helper 提交." });
         }
 
     }

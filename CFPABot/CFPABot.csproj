@@ -69,14 +69,12 @@
 
 
   <ItemGroup>
-    <None Include="Azusa\Pages\Counter.razor" />
     <None Include="Azusa\Pages\Error.cshtml" />
     <None Include="Azusa\Pages\Index.razor" />
     <None Include="Azusa\Pages\_Host.cshtml" />
     <None Include="Azusa\Pages\_Layout.cshtml" />
     <None Include="Azusa\Shared\MainLayout.razor" />
     <None Include="Azusa\Shared\NavMenu.razor" />
-    <None Include="Azusa\Shared\SurveyPrompt.razor" />
   </ItemGroup>
 
   <ItemGroup>
