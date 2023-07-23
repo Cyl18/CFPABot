@@ -96,7 +96,7 @@ namespace CFPABot.Azusa
         public async Task<PullRequest> CreatePR()
         {
             return await _gitHubClient.PullRequest.Create(Constants.RepoID,
-                new NewPullRequest(_prTitle, $"{user.Login}:{branchName}", "main") { Body = "由 CFPA-Helper 提交." });
+                new NewPullRequest(_prTitle, $"{user.Login}:{branchName}", "main") { Body = "由 CFPA-Helper 提交。\n作者已阅读贡献指南并同意 CC 协议。" });
         }
 
     }

@@ -87,7 +87,7 @@ else
                 <BSLabel IsCheckLabel="true">你已阅读并同意按 <BSLink Url="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh">CC BY-NC-SA 4.0</BSLink> 协议发布我的作品</BSLabel>
             </div>
             
-            <BSButton Color="BSColor.Success" OnClick="CheckRequirements">继续</BSButton>
+            <BSButton Color="BSColor.Success" OnClick="CheckRequirements" MarginTop="Margins.Medium">继续</BSButton>
 
             
             @code
@@ -262,9 +262,12 @@ else
                 @if (inputProjectID)
                 {
                     <BSAlert Color="BSColor.Warning" HasIcon="true" MarginBottom="Margins.Medium">
-                    <p>无法找到 CurseForge 项目名到项目 ID 的映射。</p>
-                    <p>请检查此链接能否打开  <BSAlertLink Url="@($"https://www.curseforge.com/minecraft/mc-mods/{(trimmedSlug)}")">这里</BSAlertLink>，</p>
-                    <p>并在右侧找到项目 ID 并填写到下面的文本框。<br />如果不能打开，请检查你上方的输入是否正确。</p>
+                        <BSContainer>
+                            
+                            <p>无法找到 CurseForge 项目名到项目 ID 的映射。</p>
+                            <p>请检查此链接能否打开  <BSAlertLink Url="@($"https://www.curseforge.com/minecraft/mc-mods/{(trimmedSlug)}")">这里</BSAlertLink>，</p>
+                            <p>并在右侧找到项目 ID 并填写到下面的文本框。<br />如果不能打开，请检查你上方的输入是否正确。</p>
+                        </BSContainer>
                     </BSAlert>
 
                     <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
@@ -324,17 +327,21 @@ else
         @if (netModDomainError)
         {
             <BSAlert Color="BSColor.Warning" HasIcon="true" MarginBottom="Margins.Medium">
-                        <p>无法自动获取 Mod Domain。请手动填写并保证其正确性。</p>
-                        <p>Mod Domain 的获取方法：使用解压软件打开模组，<br />打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，</p>
-                        <p>例如 <code>assets/jei/lang/en_us.json</code>, <code>jei</code> 便是此模组的 Domain。</p>
+                <BSContainer>
+                    <p>无法自动获取 Mod Domain。请手动填写并保证其正确性。</p>
+                    <p>Mod Domain 的获取方法：使用解压软件打开模组，<br />打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，</p>
+                    <p>例如 <code>assets/jei/lang/en_us.json</code>, <code>jei</code> 便是此模组的 Domain。</p>
+                </BSContainer>
             </BSAlert>
         }
         else
         {
             <BSAlert Color="BSColor.Info" HasIcon="true" MarginBottom="Margins.Medium">
-                        <p>自动找到了模组的 Domain，请检查是否正确。 </p>
-                <p>Mod Domain 的获取方法：使用解压软件打开模组，<br />打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，</p >
-                        <p>例如 <code>assets/jei/lang/en_us.json</code>, <code>jei</code> 便是此模组的 Domain。</p >
+                <BSContainer>
+                    <p>自动找到了模组的 Domain，请检查是否正确。 </p>
+                    <p>Mod Domain 的获取方法：使用解压软件打开模组，<br/>打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，</p >
+                    <p>例如 <code>assets/jei/lang/en_us.json</code>, <code>jei</code> 便是此模组的 Domain。</p >
+                </BSContainer>
             </BSAlert>
         }
                 <BSButton Color="BSColor.Success" OnClick="FinishModDomain" >下一步</BSButton>
