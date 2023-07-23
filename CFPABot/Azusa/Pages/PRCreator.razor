@@ -20,26 +20,24 @@
     @code{
     string userName = "[加载中]";
     string userAvatar = "";
-    string GetName()
+    void GetName()
     {
-        if (userName == null) userName = (LoginManager.GetGitHubClient(_http).User.Current().Result).Login;
-        return userName;
+        userName = (LoginManager.GetGitHubClient(_http).User.Current().Result).Login;
     }
-    string GetAvatar()
+    void GetAvatar()
     {
-        if (userAvatar == null) userAvatar = (LoginManager.GetGitHubClient(_http).User.Current().Result).AvatarUrl;
-        return userAvatar;
+        userAvatar = (LoginManager.GetGitHubClient(_http).User.Current().Result).AvatarUrl;
     }
 
     protected override async Task OnInitializedAsync()
     {
-        await Task.Run(() =>
+        Task.Run(() =>
         {
-            userName = GetName();
-            userAvatar = GetAvatar();
+            GetName();
+            GetAvatar();
+            InvokeAsync(StateHasChanged);
         });
 
-        InvokeAsync(StateHasChanged);
     }
 
     }
@@ -102,7 +100,7 @@ else
 
         @if (_uploadMode == UploadMode.Lang)
             {
-                <BSContainer>
+                <BSContainer MarginBottom="Margins.Medium">
                     <BSRow MarginBottom="Margins.Small">
                         <BSCol Column="3" Class="border">
                             <BSLabel Margin="Margins.Auto">中文语言文件 <code>(zh_cn.json/lang)</code></BSLabel>
