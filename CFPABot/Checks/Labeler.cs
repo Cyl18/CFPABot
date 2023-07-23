@@ -64,7 +64,7 @@ namespace CFPABot.Checks
                 }
             }
 
-            currentLabels.ExceptWith(resultLabels);
+            currentLabels.SymmetricExceptWith(resultLabels);
             if (currentLabels.Count != 0)
             {
                 await labelManager.ReplaceAllForIssue(Constants.RepoID, prid, resultLabels.ToArray());
