@@ -447,7 +447,7 @@ else
                     try
                     {
                         _http.HttpContext.Request.Cookies.TryGetValue("oauth-token", out var token);
-                        prCreatorModule = new PRCreatorModule(LoginManager.GetGitHubClient(_http), enCache, cnCache, email, trimmedSlug, _mcVersion.ToVersionString(), prTitle, s =>
+                        prCreatorModule = new PRCreatorModule(LoginManager.GetGitHubClient(_http), enCache, cnCache, email, trimmedSlug, _mcVersion.Value.ToVersionString(), prTitle, s =>
                         {
                             finalLogger += "\n";
                             finalLogger += s;
@@ -476,7 +476,7 @@ else
 <BSCard CardType="CardType.Body">
     <BSCol>
         模组名: @modName <br/>
-        游戏版本: @_mcVersion.ToVersionString() <br/>
+        游戏版本: @(_mcVersion?.ToVersionString() ?? "未选择") <br/>
         模组 Slug: @trimmedSlug <br/>
         模组 Domain: @modDomain <br/>
         PR Title: @prTitle <br/>
