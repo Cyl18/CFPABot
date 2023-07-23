@@ -15,6 +15,7 @@
 <BSLabel MarginBottom="Margins.Medium" Class="@BS.Text_Info">如果你遇到了什么问题，可以在 CFPA 群中 @@Cyl18 反馈，或者前往 <BSLink Url="https://github.com/Cyl18/CFPABot/issues">这里</BSLink> 提交 Issue。</BSLabel>
 <br/>
 
+
 @if (LoginManager.GetLoginStatus(_http))
 {
     @code{
@@ -65,7 +66,48 @@ else
 }
 
 @code {
-    int step = 0;
+    int step = -1;
+
+}
+
+<BSAlert Color="BSColor.Info" HasIcon="true">在提交翻译以前，请仔细阅读<BSAlertLink Url="https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/CONTRIBUTING.md">贡献指南</BSAlertLink>。</BSAlert>
+
+@if (step == -1 && LoginManager.GetLoginStatus(_http))
+{
+    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.ExtraLarge" style="width: 60rem;">
+        <BSCard CardType="CardType.Body">
+            <BSLabel Size="Size.Large" MarginBottom="Margins.Medium">检查</BSLabel>
+            <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
+                <BSInputCheckbox CheckedValue="true" @bind-Value="readContributing" />
+                <BSLabel IsCheckLabel="true">你已仔细阅读 <BSLink Url="https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/CONTRIBUTING.md">贡献指南</BSLink></BSLabel>
+            </div>
+
+            <div Class="@BS.Form_Check" MarginBottom="Margins.Medium">
+                <BSInputCheckbox CheckedValue="true" @bind-Value="ccbyncsa" />
+                <BSLabel IsCheckLabel="true">你已阅读并同意按 <BSLink Url="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh">CC BY-NC-SA 4.0</BSLink> 协议发布我的作品</BSLabel>
+            </div>
+            
+            <BSButton Color="BSColor.Success" OnClick="CheckRequirements">继续</BSButton>
+
+            
+            @code
+            {
+                bool readContributing = false;
+                bool ccbyncsa = false;
+
+                void CheckRequirements()
+                {
+                    if (!(readContributing && ccbyncsa))
+                    {
+                        ShowToast("请把那俩复选框勾上（");
+                        return;
+                    }
+                    step++;
+                }
+
+            }
+        </BSCard>
+    </BSCard>
 
 }
 
