@@ -70,7 +70,7 @@ else
 
 @if (step == 0)
 {
-    <BSCard CardType="CardType.Card" style="width: 60rem;">
+    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Medium" style="width: 60rem;">
         <BSCard CardType="CardType.Body">
             <BSLabel Size="Size.Large" MarginBottom="Margins.Medium">上传文件</BSLabel>
 
@@ -283,7 +283,7 @@ else
             <BSAlert Color="BSColor.Warning" HasIcon="true" MarginBottom="Margins.Medium">
                         无法自动获取 Mod Domain。请手动填写并保证其正确性。<br />
                         Mod Domain 的获取方法：使用解压软件打开模组，打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，<br />
-                        例如 <code>assets/jei/lang/</code> ,<code>jei</code>便是此模组的 Momain。
+                        例如 <code>assets/jei/lang/en_us.json</code> ,<code>jei</code>便是此模组的 Domain。
             </BSAlert>
         }
         else
@@ -291,16 +291,11 @@ else
             <BSAlert Color="BSColor.Info" HasIcon="true" MarginBottom="Margins.Medium">
                 自动找到了模组的 Domain，请检查是否正确。 <br/>
                         Mod Domain 的获取方法：使用解压软件打开模组，打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，<br />
-                例如 <code>assets/jei/lang/</code> ,<code>jei</code>便是此模组的 Momain。
+                        例如 <code>assets/jei/lang/en_us.json</code> ,<code>jei</code>便是此模组的 Domain。
             </BSAlert>
         }
-        <BSContainer>
-            <BSRow>
-                <BSButton Color="BSColor.Success" OnClick="FinishModDomain">下一步</BSButton>
-                <BSButton MarginLeftAndRight="Margins.Large" Color="BSColor.Secondary" OnClick="() => step--">上一步</BSButton>
-
-            </BSRow>
-        </BSContainer>
+                <BSButton Color="BSColor.Success" OnClick="FinishModDomain" MarginBottom="Margins.Medium">下一步</BSButton>
+                <BSButton  Color="BSColor.Secondary" OnClick="() => step--">上一步</BSButton>
         
         @code{
 
@@ -348,12 +343,12 @@ else
         @code{
 
             string[] emails = new string[0];
-            string[] iemail = new string[0];
+            string iemail = null;
             PRCreatorModule prCreatorModule;
-            string email => iemail.First();
+            string email => iemail;
             void Submit()
             {
-                if (iemail.Length == 0)
+                if (iemail.IsNullOrEmpty())
                 {
                     ShowToast("没有选择邮箱");
                     return;
@@ -389,7 +384,7 @@ else
     </BSCard>
 }
 
-<BSCard CardType="CardType.Card" style="width: 32rem;">
+<BSCard CardType="CardType.Card" style="width: 32rem;" MarginTop="Margins.Medium">
 <BSCard CardType="CardType.Body">
     <BSCol>
         模组名: @modName <br/>
@@ -408,7 +403,7 @@ else
     {
         <BSContainer MarginBottom="Margins.Medium">
             <BSRow>
-                <BSButton Color="BSColor.Success" OnClick="SendPR">自动提交 PR</BSButton>
+                <BSButton Color="BSColor.Success" OnClick="SendPR" MarginBottom="Margins.Medium">自动提交 PR</BSButton>
                 <BSButton Color="BSColor.Info" OnClick="SendPRManually">手动提交 PR（前往 GitHub）</BSButton>
             </BSRow>
         </BSContainer>

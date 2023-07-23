@@ -44,18 +44,31 @@ namespace CFPABot.Azusa
         public async Task Run()
         {
             user = await _gitHubClient.User.Current();
-            var forks = await _gitHubClient.Repository.Forks.GetAll(Constants.RepoID, new RepositoryForksListRequest());
+
+            try
+            {
+                _updateAction("尝试直接获取 fork 库..");
+                repo = await _gitHubClient.Repository.Get(user.Login, "Minecraft-Mod-Language-Package");
+                goto start;
+            }
+            catch (NotFoundException e)
+            {
+                _updateAction("获取失败，正在查找所有 fork 库..可能较慢..");
+            }
+
+            var forks = await _gitHubClient.Repository.Forks.GetAll(Constants.RepoID);
             if (forks.FirstOrDefault(x => x.Owner.Login == user.Login) is {} fork)
             {
                 repo = fork;
             }
             else
             {
-                _updateAction("当前没有 Fork, 正在创建一个新的 Fork");
+                _updateAction("当前你没有 Fork, 正在创建一个新的 Fork");
                 repo = await _gitHubClient.Repository.Forks.Create(Constants.RepoID, new NewRepositoryFork());
-                _updateAction("提交创建 Fork 请求，等待可用...");
-                await Task.Delay(10000);
+                _updateAction("已经提交创建 Fork 请求，等待可用...");
+                await Task.Delay(8000);
             }
+            start:
 
             var localRepo = new ForkRepoManager(_token);
             _updateAction("Cloning Repo...");
@@ -74,7 +87,7 @@ namespace CFPABot.Azusa
             File.WriteAllText(baseLocation+$"/{_enCache.FileName}", File.ReadAllText(_enCache.FilePath), new UTF8Encoding(false));
             File.WriteAllText(baseLocation+$"/{_cnCache.FileName}", File.ReadAllText(_cnCache.FilePath), new UTF8Encoding(false));
             localRepo.Run($"add -A");
-            localRepo.Commit(_prTitle);
+            localRepo.Commit(_prTitle + "\n\n提交自 CFPA-Helper");
             _updateAction("Pushing to origin...");
             localRepo.Run($"push origin {branchName}");
 
