@@ -201,7 +201,8 @@ else
             <BSLabel Size="Size.Large" MarginBottom="Margins.Small">Yum</BSLabel>
             <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
                 <span class="@BS.Input_Group_Text">Minecraft 版本</span>
-                <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium"  @bind-Value="imcVersion">
+                <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium" @bind-Value="imcVersion">
+                    <option value=" " disabled>选择版本</option>
                     @foreach (var x in mcVersions)
                     {
                         <option value="@x">@x</option>
@@ -222,11 +223,11 @@ else
 
             @code
             {
-                MCVersion _mcVersion
+                MCVersion? _mcVersion
                 {
-                    get => imcVersion?.ToMCVersion() ?? MCVersion.v118;
+                    get => imcVersion.IsNullOrWhiteSpace() ? null : imcVersion.ToMCVersion();
                 }
-                string imcVersion;
+                string imcVersion = " ";
 
                 string[] mcVersions = Enum.GetValues<MCVersion>().Select(x => x.ToVersionString()).ToArray();
 
@@ -235,6 +236,12 @@ else
                 Mod mod;
                 async Task verifySlug()
                 {
+                    if (_mcVersion == null)
+                    {
+                        ShowToast("请先选择 Minecraft 的版本喵~");
+                        return;
+                    }
+
                     var formattedSlug = trimmedSlug;
                     try
                     {
