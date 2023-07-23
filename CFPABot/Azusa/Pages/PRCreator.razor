@@ -107,7 +107,7 @@ else
                             <BSLabel Margin="Margins.Auto">中文语言文件 <code>(zh_cn.json/lang)</code></BSLabel>
                         </BSCol>
                         <BSCol Column="6" Class="border">
-                            <BSInputFile Margin="Margins.Auto" ValidWhen="() => true" OnChange="OnFileChangeCn" />
+                            <BSInputFile Margin="Margins.Small" MarginTop="Margins.Small" ValidWhen="() => true" OnChange="OnFileChangeCn" />
                         </BSCol>
                     </BSRow>
                     <BSRow>
@@ -115,7 +115,7 @@ else
                             <BSLabel Margin="Margins.Auto">英文语言文件 <code>(en_us.json/lang)</code></BSLabel>
                         </BSCol>
                         <BSCol Column="6" Class="border">
-                            <BSInputFile Margin="Margins.Auto" ValidWhen="() => true" OnChange="OnFileChangeEn" />
+                            <BSInputFile Margin="Margins.Small" MarginTop="Margins.Small" ValidWhen="() => true" OnChange="OnFileChangeEn" />
                         </BSCol>
                     </BSRow>
                 </BSContainer>
@@ -146,7 +146,7 @@ else
             <BSLabel Size="Size.Large" MarginBottom="Margins.Small">Yum</BSLabel>
             <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
                 <span class="@BS.Input_Group_Text">Minecraft 版本</span>
-                <BSInput InputType="InputType.Select" InputSize="Size.Large" MarginBottom="Margins.Medium"  @bind-Value="imcVersion">
+                <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium"  @bind-Value="imcVersion">
                     @foreach (var x in mcVersions)
                     {
                         <option value="@x">@x</option>
@@ -330,7 +330,7 @@ else
         
         <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
             <span class="@BS.Input_Group_Text">你的邮箱</span>
-            <BSInput InputType="InputType.Select" InputSize="Size.Large" MarginBottom="Margins.Medium" @bind-Value="iemail">
+                <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium" @bind-Value="iemail">
                 @foreach (var x in emails)
                 {
                     <option value="@x">@x</option>
