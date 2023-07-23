@@ -270,7 +270,7 @@ else
                             }
                             InvokeAsync(StateHasChanged);
                         });
-                        InvokeAsync(StateHasChanged);
+                        StateHasChanged();
 
                         await Task.WhenAny(expire, at);
                         lock (expire)
