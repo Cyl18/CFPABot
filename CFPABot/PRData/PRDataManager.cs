@@ -33,7 +33,7 @@ public class PRDataManager
         
         foreach (var localPR in localPRs)
         {
-            if (prs.All(x => x.Id != localPR))
+            if (prs.All(x => x.Number != localPR))
             {
                 PRFilesData.Remove(localPR);
             }
