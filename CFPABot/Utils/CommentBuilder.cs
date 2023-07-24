@@ -11,6 +11,7 @@ using System.Web;
 using CFPABot.Command;
 using CFPABot.DiffEngine;
 using CFPABot.Exceptions;
+using CFPABot.PRData;
 using CFPABot.Resources;
 using CurseForge.APIClient.Models.Files;
 using CurseForge.APIClient.Models.Mods;
@@ -319,6 +320,9 @@ namespace CFPABot.Utils
                     sb.AppendLine();
                 }
 
+
+
+
                 var checkSuites = await GitHub.Instance.Check.Suite.GetAllForReference(Constants.Owner, Constants.RepoName,
                     pr.Head.Sha);
                 var tasks = checkSuites.CheckSuites
@@ -607,6 +611,45 @@ namespace CFPABot.Utils
                     return;
                 }
 
+
+                var modSlugs = new HashSet<string>();
+
+                // pr 关系检查
+                foreach (var diff in diffs.Where(x => x.To.StartsWith("projects") && x.To.Count(c => c == '/') > 5))
+                {
+                    try
+                    {
+                        var modPath = new ModPath(diff.To);
+                        modSlugs.Add(modPath.CurseForgeSlug);
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Information(e.ToString());
+                    }
+                }
+
+                var relFlag = false;
+                foreach (var modSlug in modSlugs)
+                {
+                    if (PRDataManager.Relation.TryGetValue(modSlug, out var x) && x.Any(y => y.prid != PullRequestID))
+                    {
+                        relFlag = true;
+                        sb.AppendLine($"ℹ {modSlug} 在其它 PR 中有提交：");
+                        foreach (var relPrid in x.Where(y => y.prid != PullRequestID).Select(y => y.prid).Distinct())
+                        {
+                            sb.AppendLine($"  - #{relPrid} 中包含此模组的 {x.Where(y => y.prid == relPrid).Select(y => ModPath.GetVersionDirectory(y.modVersion.MinecraftVersion, y.modVersion.ModLoader)).Connect()} 版本");
+                        }
+                    }
+                }
+
+                if (relFlag)
+                {
+                    sb.AppendLine("");
+                    sb.AppendLine("---");
+                    sb.AppendLine("");
+                }
+
+
                 if (diffs.Any(diff => diff.To.Split('/').Any(s => s == "patchouli_book")))
                 {
                     sb.AppendLine("⚠ 检测到了一个名为 patchouli_book 的文件夹。你可能想说的是 patchouli_books？");
@@ -626,6 +669,8 @@ namespace CFPABot.Utils
                     sb.AppendLine($"⚠⚠⚠ 转到 <a href=\"https://cfpa.cyan.cafe/api/Utils/PathValidation?pr={PullRequestID}\" rel=\"nofollow\">这里</a> 来查看所有不合规的路径。");
                     sb.AppendLine();
                 }
+
+                
 
                 #region 检查常见的路径提交错误
 
