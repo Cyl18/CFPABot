@@ -46,10 +46,10 @@ public class PRDataManager
     public static async Task Refresh(int prid)
     {
         var pr = await GitHub.GetPullRequest(prid);
-        await RefreshCore(pr);
+        await RefreshCore(pr, true);
     }
 
-    static async Task RefreshCore(PullRequest pr)
+    static async Task RefreshCore(PullRequest pr, bool rebuild = false)
     {
         var prid = pr.Number;
         if (pr.State.Value == ItemState.Closed)
@@ -64,7 +64,10 @@ public class PRDataManager
             Log.Information($"Updating PR Files Cache: {prid}");
             var pullRequestFiles = await GitHub.GetPullRequestFiles(prid);
             new PRFilesData(prid, pr.Head.Ref, pullRequestFiles.ToArray()).Save();
-            RebuildRelation();
+            if (rebuild)
+            {
+                RebuildRelation();
+            }
         }
     }
 
