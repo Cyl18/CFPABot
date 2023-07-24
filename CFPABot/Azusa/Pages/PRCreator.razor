@@ -359,32 +359,34 @@ else
     }
     else
     {
-        <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
-            <span class="@BS.Input_Group_Text">Mod Domain</span>
-            <BSInput  InputType="InputType.Text" @bind-Value="modDomain"/> 
-        </BSInputGroup>
-        @if (netModDomainError)
-        {
-            <BSAlert Color="BSColor.Warning" HasIcon="true" MarginBottom="Margins.Medium">
-                <BSContainer>
-                    <p>无法自动获取 Mod Domain。请手动填写并保证其正确性。</p>
-                    <p>Mod Domain 的获取方法：使用解压软件打开模组，<br />打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，</p>
-                    <p>例如 <code>assets/jei/lang/en_us.json</code>, <code>jei</code> 便是此模组的 Domain。</p>
-                </BSContainer>
-            </BSAlert>
-        }
-        else
-        {
-            <BSAlert Color="BSColor.Info" HasIcon="true" MarginBottom="Margins.Medium">
-                <BSContainer>
-                    <p>自动找到了模组的 Domain，请检查是否正确。 </p>
-                    <p>Mod Domain 的获取方法：使用解压软件打开模组，<br/>打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，</p >
-                    <p>例如 <code>assets/jei/lang/en_us.json</code>, <code>jei</code> 便是此模组的 Domain。</p >
-                </BSContainer>
-            </BSAlert>
-        }
-                <BSButton Color="BSColor.Success" OnClick="FinishModDomain" >下一步</BSButton>
-                <BSButton  Color="BSColor.Secondary" OnClick="() => step--">上一步</BSButton>
+        <BSContainer Class="fade-in">
+            <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
+                <span class="@BS.Input_Group_Text">Mod Domain</span>
+                <BSInput  InputType="InputType.Text" @bind-Value="modDomain"/> 
+            </BSInputGroup>
+            @if (netModDomainError)
+            {
+                <BSAlert Color="BSColor.Warning" HasIcon="true" MarginBottom="Margins.Medium">
+                    <BSContainer>
+                        <p>无法自动获取 Mod Domain。请手动填写并保证其正确性。</p>
+                        <p>Mod Domain 的获取方法：使用解压软件打开模组，<br />打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，</p>
+                        <p>例如 <code>assets/jei/lang/en_us.json</code>, <code>jei</code> 便是此模组的 Domain。</p>
+                    </BSContainer>
+                </BSAlert>
+            }
+            else
+            {
+                <BSAlert Color="BSColor.Info" HasIcon="true" MarginBottom="Margins.Medium">
+                    <BSContainer>
+                        <p>自动找到了模组的 Domain，请检查是否正确。 </p>
+                        <p>Mod Domain 的获取方法：使用解压软件打开模组，<br/>打开 assets 文件夹，找到内部有你正在翻译文件的 lang 文件夹，</p >
+                        <p>例如 <code>assets/jei/lang/en_us.json</code>, <code>jei</code> 便是此模组的 Domain。</p >
+                    </BSContainer>
+                </BSAlert>
+            }
+            <BSButton Color="BSColor.Success" OnClick="FinishModDomain" >下一步</BSButton>
+            <BSButton  Color="BSColor.Secondary" OnClick="() => step--">上一步</BSButton>
+        </BSContainer>
         
         @code{
 

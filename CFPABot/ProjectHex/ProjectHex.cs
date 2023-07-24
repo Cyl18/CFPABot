@@ -40,7 +40,7 @@ namespace CFPABot.ProjectHex
             try
             {
                 RunGitCommand("clone https://github.com/CFPAOrg/Minecraft-Mod-Language-Package.git .");
-                RunGitCommand("config user.email cyl18a@gmail.com");
+                RunGitCommand("config user.email cyl18a@gmail.com"); // 这里其实写谁的都无所谓 打包出来不会带 只是因为要 git commit 必须要写（
                 RunGitCommand("config user.name Cyl18");
 
                 RunGitCommand("checkout -b some-rannnnnndom-name");
