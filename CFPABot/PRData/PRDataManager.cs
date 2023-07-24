@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -9,6 +10,7 @@ using System.Threading.Tasks;
 using CFPABot.DiffEngine;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Octokit;
 using Serilog;
 
@@ -64,7 +66,20 @@ public class PRDataManager
         {
             Log.Information($"Updating PR Files Cache: {prid}");
             var pullRequestFiles = await GitHub.GetPullRequestFiles(prid);
-            new PRFilesData(prid, pr.Head.Sha, pullRequestFiles.ToArray()).Save();
+            new PRFilesData(prid, pr.Head.Sha, pullRequestFiles.Select(x => new PullRequestFileEx()
+            {
+                FileName = x.FileName,
+                Changes = x.Changes,
+                Additions = x.Additions,
+                BlobUrl = x.BlobUrl,
+                ContentsUrl = x.ContentsUrl,
+                Deletions = x.Deletions,
+                Patch = x.Patch,
+                PreviousFileName = x.PreviousFileName,
+                RawUrl = x.RawUrl,
+                Sha = x.Sha,
+                Status = x.Status
+            }).ToArray()).Save();
             if (rebuild)
             {
                 RebuildRelation();
@@ -105,7 +120,22 @@ public class PRDataManager
     }
 }
 
-public record PRFilesData(int PRId, string HeadHash, PullRequestFile[] Files)
+public class PullRequestFileEx
+{
+    public string Sha { get; set; }
+    public string FileName { get; set; }
+    public string Status { get; set; }
+    public int Additions { get; set; }
+    public int Deletions { get; set; }
+    public int Changes { get; set; }
+    public string BlobUrl { get; set; }
+    public string RawUrl { get; set; }
+    public string ContentsUrl { get; set; }
+    public string Patch { get; set; }
+    public string PreviousFileName { get; set; }
+}
+
+public record PRFilesData(int PRId, string HeadHash, PullRequestFileEx[] Files)
 {
     const string CacheDir = "config/pr_cache";
     static readonly object locker = new();
