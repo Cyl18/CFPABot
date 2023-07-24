@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CFPABot.Command;
 using CFPABot.Controllers;
+using CFPABot.PRData;
 using CFPABot.ProjectHex;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
@@ -57,6 +58,8 @@ namespace CFPABot
             Directory.CreateDirectory("config/pr_context");
             Directory.CreateDirectory("logs");
             Directory.CreateDirectory("config/repo_analyze_results");
+            Directory.CreateDirectory("config/curse_files_cache");
+            Directory.CreateDirectory("config/pr_cache");
             Directory.CreateDirectory("caches/");
             Directory.CreateDirectory("caches/repos/");
             Directory.CreateDirectory("project-hex");
@@ -150,13 +153,7 @@ namespace CFPABot
 
         static async Task Init()
         {
-            Log.Information("正在加载 mapping..");
-            if (ModIDMappingMetadata.Instance.Mapping.Count == 0)
-            {
-                Log.Information("开始构建 mapping..");
-                //await CurseForgeIDMappingManager.Build();
-            }
-            Log.Information("mapping 加载完成");
+            await PRDataManager.Init();
         }
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>

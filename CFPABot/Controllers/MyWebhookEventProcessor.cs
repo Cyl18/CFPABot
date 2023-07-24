@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using CFPABot.Checks;
 using CFPABot.Command;
 using CFPABot.Exceptions;
+using CFPABot.PRData;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
 using Microsoft.Extensions.Primitives;
@@ -74,13 +75,27 @@ namespace CFPABot.Controllers
                 {
                     Console.WriteLine(e);
                 }
+
             }
+            
+            
 
             if (action == PullRequestAction.Opened || action == PullRequestAction.Synchronize || action == PullRequestAction.Edited || action == PullRequestAction.Labeled || action == PullRequestAction.Unlabeled)
             {
                 _ = new LabelCheck(prid).Run();
+            }
+
+            if (action == PullRequestAction.Opened || action == PullRequestAction.Synchronize || action == PullRequestAction.Edited)
+            {
                 _ = new Labeler(prid).Run();
             }
+
+            if (action == PullRequestAction.Opened || action == PullRequestAction.Synchronize ||
+                action == PullRequestAction.Closed)
+            {
+                _ = Task.Run(() => PRDataManager.Refresh(prid));
+            }            
+
         }
 
         protected override async Task ProcessInstallationWebhookAsync(WebhookHeaders headers, InstallationEvent installationEvent,

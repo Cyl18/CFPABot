@@ -57,6 +57,7 @@ namespace CFPABot.DiffEngine
         public string CurseForgeSlug { get; set; }
         public string ModDomain { get; set; }
         public LangFileType LangFileType { get; set; }
+        public ModVersion ModVersion { get; set; }
 
         public ModPath(string path)
         {
@@ -65,6 +66,7 @@ namespace CFPABot.DiffEngine
             CurseForgeSlug = s[3];
             ModDomain = s[4];
             var modVersion = ModVersion.FromGameVersionDirectory(GameVersionDirectoryName);
+            ModVersion = modVersion;
             MinecraftVersion = modVersion.MinecraftVersion;
             ModLoader = modVersion.ModLoader;
             LangFileType = MinecraftVersion switch
@@ -90,6 +92,8 @@ namespace CFPABot.DiffEngine
                         MinecraftVersion.v1_12 => "1.12",
                         MinecraftVersion.v1_16 => "1.16",
                         MinecraftVersion.v1_18 => "1.18",
+                        MinecraftVersion.v1_19 => "1.19",
+                        MinecraftVersion.v1_20 => "1.20",
                         _ => throw new ArgumentOutOfRangeException(nameof(minecraftVersion), minecraftVersion, null)
                     };
                 case ModLoader.Fabric:
@@ -97,6 +101,7 @@ namespace CFPABot.DiffEngine
                     {
                         MinecraftVersion.v1_16 => "1.16-fabric",
                         MinecraftVersion.v1_18 => "1.18-fabric",
+                        MinecraftVersion.v1_20 => "1.20-fabric",
                         _ => throw new ArgumentOutOfRangeException(nameof(minecraftVersion), minecraftVersion, null)
                     };
             }

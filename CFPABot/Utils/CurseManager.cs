@@ -21,6 +21,7 @@ using GammaLibrary.Extensions;
 using Octokit;
 using Serilog;
 using ApiClient = CurseForge.APIClient.ApiClient;
+using Exception = System.Exception;
 using File = System.IO.File;
 
 namespace CFPABot.Utils
@@ -252,6 +253,60 @@ namespace CFPABot.Utils
         static Dictionary<int, WeakReference<List<CurseForge.APIClient.Models.Files.File>>> ModFilesCache = new();
 
 
+        
+        
+        public class CurseModFilesMetadata
+        {
+            public List<CurseForge.APIClient.Models.Files.File> Files { get; set; }
+            public DateTime UpdateTime { get; set; }
+            public int ModID { get; set; }
+            const string CachePath = "config/curse_files_cache";
+
+            [JsonIgnore]
+            public bool Invalid => (DateTime.UtcNow - UpdateTime) > TimeSpan.FromDays(2);
+            static readonly object locker = new();
+
+            public static CurseModFilesMetadata TryGet(int modid)
+            {
+                var filePath = Path.Combine(CachePath, $"{modid}.json");
+                lock (locker) 
+                    if (File.Exists(filePath))
+                    {
+                        try
+                        {
+                            using var fs = File.OpenRead(filePath);
+                            var d = JsonSerializer.Deserialize<CurseModFilesMetadata>(fs);
+                            if (!d.Invalid) return d;
+                            
+                        }
+                        catch (Exception)
+                        {
+                            try
+                            {
+                                    File.Delete(filePath);
+                            }
+                            catch (Exception)
+                            {
+                            }
+                        }
+                    }
+
+                return null;
+            }
+
+            public static void Save(int modid, List<CurseForge.APIClient.Models.Files.File> files)
+            {
+                var filePath = Path.Combine(CachePath, $"{modid}.json");
+
+                lock (locker)
+                {
+                    if (File.Exists(filePath)) File.Delete(filePath);
+                    var d = new CurseModFilesMetadata() {ModID = modid, Files = files, UpdateTime = DateTime.UtcNow};
+                    File.WriteAllText(filePath, JsonSerializer.Serialize(d));
+                }
+            }
+        }
+        
         private static async Task<List<CurseForge.APIClient.Models.Files.File>> GetAllModFiles(Mod mod)
         {
             var modId = mod.Id;
@@ -262,6 +317,11 @@ namespace CFPABot.Utils
                 {
                     return m;
                 }
+            }
+            
+            if (CurseModFilesMetadata.TryGet(modId) is {} d)
+            {
+                return d.Files;
             }
 
             var cfClient = GetCfClient();
@@ -281,6 +341,7 @@ namespace CFPABot.Utils
             lock (ModFilesCache)
             {
                 ModFilesCache[modId] = new WeakReference<List<CurseForge.APIClient.Models.Files.File>>(result);
+                CurseModFilesMetadata.Save(modId, result);
             }
             return result;
         }
@@ -400,6 +461,8 @@ namespace CFPABot.Utils
 
     }
 
+
+    
     [ConfigurationPath("config/mappings.json")]
     public class ModIDMappingMetadata : Configuration<ModIDMappingMetadata>
     {

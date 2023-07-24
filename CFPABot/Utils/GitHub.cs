@@ -88,6 +88,8 @@ namespace CFPABot.Utils
         public static Task<IReadOnlyList<IssueComment>> GetPRComments(int id)
             => Instance.Issue.Comment.GetAllForIssue(Constants.Owner, Constants.RepoName, id);
         
+        
+        
         public static async Task<PullRequest> GetPRFromHeadRef(string @ref)
         {
             try
@@ -123,10 +125,36 @@ namespace CFPABot.Utils
             }
         }
 
-        public static Task<PullRequest> GetPullRequest(int id)
+        // static void Invalidator()
+        // {
+        //     Task.Run(async () =>
+        //     {
+        //         while (true)
+        //         {
+        //             await Task.Delay(10000);
+        //             lock (prCache)
+        //             {
+        //                 
+        //             }
+        //         }
+        //     });
+        // }
+        //
+        // static Dictionary<int, (PullRequest pr, DateTime time)> prCache = new();
+
+        public static async Task<PullRequest> GetPullRequest(int id, bool force = false)
         {
             Log.Debug($"获取 PR: {id}");
-            return Instance.PullRequest.Get(Constants.Owner, Constants.RepoName, id);
+            var livePr = await Instance.PullRequest.Get(Constants.Owner, Constants.RepoName, id);
+            return livePr;
+        }
+        
+        
+        public static async Task<IReadOnlyList<PullRequestFile>> GetPullRequestFiles(int id)
+        {
+            Log.Debug($"获取 PR Files: {id}");
+            var livePr = await Instance.PullRequest.Files(Constants.Owner, Constants.RepoName, id);
+            return livePr;
         }
 
         public static async Task ApproveWorkflowRun(long runID)
