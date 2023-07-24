@@ -22,8 +22,8 @@
                 <BSTD>
                     @foreach (var y in x.Value.GroupBy(z => z.prid))
                     {
-                        <BSLink Url=@y.Key.ToString().Do(a => $"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/{a}")>#@y.Key</BSLink>@:
-                        @(y.Select(a => ModPath.GetVersionDirectory(a.modVersion.MinecraftVersion, a.modVersion.ModLoader).Distinct().Connect()))
+                        <BSLink Url=@y.Key.ToString().Do(a => $"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/{a}")>#@y.Key</BSLink>@: &nbsp;
+                        @(y.Select(a => ModPath.GetVersionDirectory(a.modVersion.MinecraftVersion, a.modVersion.ModLoader)).Distinct().Connect())
                         <br/>
                     }
                 </BSTD>
