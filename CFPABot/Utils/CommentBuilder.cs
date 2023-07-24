@@ -637,7 +637,7 @@ namespace CFPABot.Utils
                         sb.AppendLine($"ℹ {modSlug} 在其它 PR 中有提交：");
                         foreach (var relPrid in x.Where(y => y.prid != PullRequestID).Select(y => y.prid).Distinct())
                         {
-                            sb.AppendLine($"  - #{relPrid} 中包含此模组的 {x.Where(y => y.prid == relPrid).Select(y => ModPath.GetVersionDirectory(y.modVersion.MinecraftVersion, y.modVersion.ModLoader)).Connect()} 版本");
+                            sb.AppendLine($"  - #{relPrid} 中包含此模组的 {x.Where(y => y.prid == relPrid).Select(y => ModPath.GetVersionDirectory(y.modVersion.MinecraftVersion, y.modVersion.ModLoader)).Distinct().Connect()} 版本");
                         }
                     }
                 }

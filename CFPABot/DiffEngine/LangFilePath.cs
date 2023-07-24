@@ -47,6 +47,37 @@ namespace CFPABot.DiffEngine
 
             return modVersion;
         }
+
+        protected bool Equals(ModVersion other)
+        {
+            return MinecraftVersion == other.MinecraftVersion && ModLoader == other.ModLoader;
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((ModVersion) obj);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return ((int) MinecraftVersion * 397) ^ (int) ModLoader;
+            }
+        }
+
+        public static bool operator ==(ModVersion left, ModVersion right)
+        {
+            return Equals(left, right);
+        }
+
+        public static bool operator !=(ModVersion left, ModVersion right)
+        {
+            return !Equals(left, right);
+        }
     }
 
     public class ModPath

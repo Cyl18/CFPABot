@@ -1,0 +1,35 @@
+﻿@page "/PRList"
+@using CFPABot.PRData
+@using System.Text.RegularExpressions
+@using System.Web
+@using CFPABot.DiffEngine
+@using GammaLibrary.Extensions
+
+<h1>PR 列表</h1>
+<BSTable IsResponsive="true" IsStriped="true">
+    <BSTHead>
+        <BSTR>
+            <BSTD>Mod Slug</BSTD>
+            <BSTD>PR</BSTD>
+        </BSTR>
+    </BSTHead>
+
+    <BSTBody>
+        @foreach (var x in PRDataManager.Relation.OrderBy(y => y.Key))
+        {
+            <BSTR>
+                <BSTD>@x.Key</BSTD>
+                <BSTD>
+                    @foreach (var y in x.Value.GroupBy(z => z.prid))
+                    {
+                        <BSLink Url=@y.Key.ToString().Do(a => $"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/{a}")>#@y.Key</BSLink>@:
+                        @(y.Select(a => ModPath.GetVersionDirectory(a.modVersion.MinecraftVersion, a.modVersion.ModLoader).Distinct().Connect()))
+                        <br/>
+                    }
+                </BSTD>
+            </BSTR>
+        }
+        
+
+    </BSTBody>
+</BSTable>
