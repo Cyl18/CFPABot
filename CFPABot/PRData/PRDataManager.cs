@@ -59,11 +59,11 @@ public class PRDataManager
         }
 
         var prFilesData = PRFilesData.TryGet(prid);
-        if (prFilesData == null || pr.Head.Ref != prFilesData.HeadRef)
+        if (prFilesData == null || pr.Head.Sha != prFilesData.HeadHash)
         {
             Log.Information($"Updating PR Files Cache: {prid}");
             var pullRequestFiles = await GitHub.GetPullRequestFiles(prid);
-            new PRFilesData(prid, pr.Head.Ref, pullRequestFiles.ToArray()).Save();
+            new PRFilesData(prid, pr.Head.Sha, pullRequestFiles.ToArray()).Save();
             if (rebuild)
             {
                 RebuildRelation();
@@ -87,8 +87,9 @@ public class PRDataManager
                     var set = d.GetOrCreate(modPath.CurseForgeSlug, () => new HashSet<(int prid, ModVersion modVersion)>());
                     set.Add((localPR.PRId, modPath.ModVersion));
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
+                    Log.Information(e.ToString());
                 }
             }
         }
@@ -102,7 +103,7 @@ public class PRDataManager
     }
 }
 
-public record PRFilesData(int PRId, string HeadRef, PullRequestFile[] Files)
+public record PRFilesData(int PRId, string HeadHash, PullRequestFile[] Files)
 {
     const string CacheDir = "config/pr_cache";
     static readonly object locker = new();
