@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CFPABot.DiffEngine;
 using CFPABot.Utils;
@@ -71,10 +72,11 @@ public class PRDataManager
         }
     }
 
-    static void RebuildRelation()
+    public static void RebuildRelation()
     {
         var sw = Stopwatch.StartNew();
         var d = new Dictionary<string, HashSet<(int prid, ModVersion modVersion)>>();
+        
         
         var localPRs = Directory.GetFiles(CacheDir).Select(Path.GetFileNameWithoutExtension).Select(x => x.ToInt());
         foreach (var localPR in localPRs.Select(x => PRFilesData.TryGet(x)).Where(x => x is not null))

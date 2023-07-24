@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using CFPABot.Checks;
 using CFPABot.Command;
+using CFPABot.PRData;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
 using Octokit;
@@ -25,6 +26,15 @@ namespace CFPABot.Controllers
             if (password != Constants.GitHubWebhookSecret) return Unauthorized();
 
             _ = new LabelCheck(pr.ToInt()).Run();
+            return Ok();
+        }
+        
+        [HttpGet("UpdateRel")]
+        public IActionResult UpdateRel([FromQuery] string password)
+        {
+            if (password != Constants.GitHubWebhookSecret) return Unauthorized();
+
+            PRDataManager.RebuildRelation();
             return Ok();
         }
 
