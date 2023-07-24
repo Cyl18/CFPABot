@@ -79,7 +79,7 @@ public class PRDataManager
         var localPRs = Directory.GetFiles(CacheDir).Select(Path.GetFileNameWithoutExtension).Select(x => x.ToInt());
         foreach (var localPR in localPRs.Select(x => PRFilesData.TryGet(x)).Where(x => x is not null))
         {
-            foreach (var file in localPR.Files.Where(x => x.FileName.StartsWith("projects") && x.FileName.Count(c => c == '/') > 5))
+            foreach (var file in localPR.Files.Where(x => x.FileName != null && x.FileName.StartsWith("projects") && x.FileName.Count(c => c == '/') > 5))
             {
                 try
                 {
