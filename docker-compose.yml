@@ -1,0 +1,19 @@
+version: '2.1'
+
+services:
+  cfpabot:
+    restart: unless-stopped
+    image: YOUR_DOCKER_IMAGE
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./wwwroot:/app/wwwroot
+      - ./Packer:/app/Packer
+      - ./project-hex:/app/project-hex
+    ports:
+      - 19003:80
+    environment:
+      - GITHUB_WEBHOOK_SECRET=  # webhook 密钥 GitHub App 配置
+      - GITHUB_OAUTH_TOKEN=ghp_ # 用于 gist 上传的个人账号 token
+      - CURSEFORGE_API_KEY=     # https://console.curseforge.com/?#/login 申请， $需要换成$$
+      - CFPA_HELPER_GITHUB_OAUTH_CLIENT_SECRET=  # CFPA Azuka 网页的 GitHub OAuth Client Secret，如果需要自己部署需要同时改 Constant.cs 中的 ClientId

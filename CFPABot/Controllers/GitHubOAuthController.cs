@@ -32,7 +32,7 @@ namespace CFPABot.Controllers
         {
             var p = await hc.PostAsync("https://github.com/login/oauth/access_token", new FormUrlEncodedContent(new []
             {
-                new KeyValuePair<string, string>("client_id", "20f9e79dfa770f38e95d"),
+                new KeyValuePair<string, string>("client_id", Constants.GitHubOAuthClientId),
                 new KeyValuePair<string, string>("code", code),
                 new KeyValuePair<string, string>("client_secret", Environment.GetEnvironmentVariable("CFPA_HELPER_GITHUB_OAUTH_CLIENT_SECRET")),
 
