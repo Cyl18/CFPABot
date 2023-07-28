@@ -49,8 +49,8 @@
 }
 else
 {
-    <BSAlert Color="BSColor.Danger" HasIcon="true" MarginBottom="Margins.Medium">你还没有登录. 下面的操作都是无效的.</BSAlert>
-    <BSButton MarginBottom="Margins.ExtraLarge" Color="BSColor.Primary" OnClick="() => _navigationManager.NavigateTo(LoginManager.LoginUrl)">登录</BSButton>
+    <BSAlert Color="BSColor.Danger" HasIcon="true" MarginBottom="Margins.Medium">你还没有登录.</BSAlert>
+    <BSButton MarginBottom="Margins.ExtraLarge" Color="BSColor.Primary" OnClick="() => _navigationManager.NavigateTo(LoginManager.LoginUrl)">GitHub 登录</BSButton>
 
 }
 @code
@@ -71,16 +71,16 @@ else
 
 }
 
-<BSAlert Color="BSColor.Info" HasIcon="true">在提交翻译以前，请仔细阅读<BSAlertLink Url="https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/CONTRIBUTING.md">贡献指南</BSAlertLink>。</BSAlert>
+<BSAlert Color="BSColor.Info" HasIcon="true">在提交翻译以前，请看看<BSAlertLink Url="https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/CONTRIBUTING.md">贡献指南</BSAlertLink>。</BSAlert>
 
 @if (step == -1 && LoginManager.GetLoginStatus(_http))
 {
-    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.ExtraLarge" style="width: 60rem;">
+    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Large" style="width: 60rem;">
         <BSCard CardType="CardType.Body">
             <BSLabel Size="Size.Large" MarginBottom="Margins.Medium">检查</BSLabel>
             <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
                 <BSInputCheckbox CheckedValue="true" id="c1" @bind-Value="readContributing" />
-                <BSLabel for="c1" IsCheckLabel="true">你已仔细阅读 <BSLink Url="https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/CONTRIBUTING.md">贡献指南</BSLink></BSLabel>
+                <BSLabel for="c1" IsCheckLabel="true">你最好读一读 <BSLink Url="https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/CONTRIBUTING.md">贡献指南</BSLink></BSLabel>
             </div>
 
             <div Class="@BS.Form_Check" MarginBottom="Margins.Medium">
@@ -126,7 +126,7 @@ else
 
 @if (step == 0)
 {
-    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.ExtraLarge" style="width: 60rem;">
+    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Large" style="width: 60rem;">
         <BSCard CardType="CardType.Body">
             <BSLabel Size="Size.Large" MarginBottom="Margins.Medium">上传文件</BSLabel>
 
@@ -513,6 +513,7 @@ else
                 <BSButton Color="BSColor.Success" OnClick="SendPR" MarginBottom="Margins.Medium">自动提交 PR</BSButton>
                 <BSButton Color="BSColor.Info" OnClick="SendPRManually">手动提交 PR（前往 GitHub）</BSButton>
             </BSRow>
+            <BSLabel MarginTop="Margins.Medium">如果你想在 PR 正文补充内容，可以点击上方的手动提交 PR。</BSLabel>
         </BSContainer>
 
 
@@ -521,6 +522,7 @@ else
             <BSAlert Color="BSColor.Info" HasIcon="true">
                 PR 提交完成，前往这里查看你的 PR： <BSAlertLink Url="@prlink">@prlink</BSAlertLink>
                 <br/>
+                如果你是第一次提交 PR，你需要在 PR 界面签署 CLA 协议。<br/>
                 你可以根据 CFPABot 的提示来看看有没有什么可以修改的地方。<br/>
                 根据贡献者方针，你最好随时查看 PR 的更新（邮件会发送），以免被拒收。
             </BSAlert>

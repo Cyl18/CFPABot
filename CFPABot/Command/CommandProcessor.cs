@@ -56,6 +56,7 @@ namespace CFPABot.Command
                     if (line.StartsWith("/mv "))
                     {
                         if (!await CheckPermission()) continue;
+                        throw new CommandException($"/mv 已经被弃用，请使用 `{line.Replace("/mv ", "/mv-recursive")}`");
                         var arg = line["/mv ".Length..];
                         var r = GetRepo();
                         var args = GitRepoManager.SplitArguments(arg);

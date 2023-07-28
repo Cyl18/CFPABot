@@ -63,16 +63,20 @@ namespace CFPABot
                     context =>
                     {
                     }
-            });  
-            app.UseStaticFiles(new StaticFileOptions
-            {
-                RequestPath = "/css",
-                FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwrootx/css")),
-                OnPrepareResponse =
-                    context =>
-                    {
-                    }
             });
+            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
+            {
+                app.UseStaticFiles(new StaticFileOptions
+                {
+                    RequestPath = "/css",
+                    FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwrootx/css")),
+                    OnPrepareResponse =
+                        context =>
+                        {
+                        }
+                });
+            }
+            
             app.UseStaticFiles(new StaticFileOptions()
             {
                 RequestPath = "/project-hex",

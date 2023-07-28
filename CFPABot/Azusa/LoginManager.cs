@@ -14,13 +14,14 @@ namespace CFPABot.Azusa
 
         public static string LoginUrl =>
             $"https://github.com/login/oauth/authorize?client_id={Constants.GitHubOAuthClientId}&scope=user:email%20public_repo%20workflow";
+       
         public static bool GetLoginStatus(IHttpContextAccessor http)
         {
-            return http.HttpContext.Request.Cookies.TryGetValue("oauth-token", out _);
+            return http.HttpContext!.Request.Cookies.TryGetValue("oauth-token", out _);
         }
         public static GitHubClient GetGitHubClient(IHttpContextAccessor http)
         {
-            http.HttpContext.Request.Cookies.TryGetValue("oauth-token", out var token);
+            http.HttpContext!.Request.Cookies.TryGetValue("oauth-token", out var token);
             return GetGitHubClient(token);
         }
 
@@ -38,13 +39,13 @@ namespace CFPABot.Azusa
                 }
                 catch (Exception e)
                 {
-                    Log.Error("email", e);
+                    Log.Error(e, "email");
                     return new[] {aEmail};
                 }
             }
             catch (Exception e)
             { 
-                Log.Error("email", e);
+                Log.Error(e, "email");
                 return new []{ "cyl18a+error@gmail.com" };
             }
         }
