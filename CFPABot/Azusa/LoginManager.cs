@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
+using CFPABot.Utils;
 using Microsoft.AspNetCore.Http;
 using Octokit;
 using Octokit.Internal;
@@ -11,8 +12,8 @@ namespace CFPABot.Azusa
     public class LoginManager
     {
 
-        public const string LoginUrl =
-            "https://github.com/login/oauth/authorize?client_id=20f9e79dfa770f38e95d&scope=user:email%20public_repo";
+        public static string LoginUrl =>
+            $"https://github.com/login/oauth/authorize?client_id={Constants.GitHubOAuthClientId}&scope=user:email%20public_repo%20workflow";
         public static bool GetLoginStatus(IHttpContextAccessor http)
         {
             return http.HttpContext.Request.Cookies.TryGetValue("oauth-token", out _);

@@ -629,19 +629,51 @@ namespace CFPABot.Utils
                 }
 
                 var relFlag = false;
-                foreach (var modSlug in modSlugs)
+                if (modSlugs.Count > 10)
                 {
-                    if (PRDataManager.Relation.TryGetValue(modSlug, out var x) && x.Any(y => y.prid != PullRequestID))
+                    if (modSlugs.Any(x => PRDataManager.Relation.TryGetValue(x, out _)))
                     {
                         relFlag = true;
-                        sb.AppendLine($"ℹ {modSlug} 在其它 PR 中有提交：");
-                        foreach (var relPrid in x.Where(y => y.prid != PullRequestID).Select(y => y.prid).Distinct())
+                        sb.Append($"ℹ 有很多模组在 ");
+                        var hs = new HashSet<int>();
+                        foreach (var modSlug in modSlugs)
                         {
-                            sb.AppendLine($"  - #{relPrid} 中包含此模组的 {x.Where(y => y.prid == relPrid).Select(y => ModPath.GetVersionDirectory(y.modVersion.MinecraftVersion, y.modVersion.ModLoader)).Distinct().Connect()} 版本");
+                            if (PRDataManager.Relation.TryGetValue(modSlug, out var x) && x.Any(y => y.prid != PullRequestID))
+                            {
+                                var relPrids = x.Where(y => y.prid != PullRequestID).Select(y => y.prid).Distinct();
+                                foreach (var relPrid in relPrids)
+                                {
+                                    if (!hs.Add(relPrid))
+                                    {
+                                        sb.Append($"#{relPrid} ");
+                                    }
+                                }
+                            }
+                        }
+
+                        sb.Append("中有提交");
+
+                    }
+                }
+                else
+                {
+                    foreach (var modSlug in modSlugs)
+                    {
+                        if (PRDataManager.Relation.TryGetValue(modSlug, out var x) && x.Any(y => y.prid != PullRequestID))
+                        {
+                            relFlag = true;
+                            sb.AppendLine($"ℹ {modSlug} 在其它 PR 中有提交：");
+                            var relPrids = x.Where(y => y.prid != PullRequestID).Select(y => y.prid).Distinct();
+                            foreach (var relPrid in relPrids)
+                            {
+                                sb.AppendLine($"  - #{relPrid} 中包含此模组的 {x.Where(y => y.prid == relPrid).Select(y => ModPath.GetVersionDirectory(y.modVersion.MinecraftVersion, y.modVersion.ModLoader)).Distinct().Connect()} 版本");
+                            }
+
+                            sb.AppendLine();
                         }
                     }
                 }
-
+                
                 if (relFlag)
                 {
                     sb.AppendLine("");
