@@ -510,10 +510,13 @@ else
     {
         <BSContainer MarginBottom="Margins.Medium">
             <BSRow>
+                        <BSInputGroup MarginTop="Margins.Medium" MarginBottom="Margins.Medium">
+                            <span class="@BS.Input_Group_Text">PR 正文</span>
+                            <BSInput InputType="InputType.TextArea"  @bind-Value="prBody"></BSInput>
+                        </BSInputGroup>
                 <BSButton Color="BSColor.Success" OnClick="SendPR" MarginBottom="Margins.Medium">自动提交 PR</BSButton>
-                <BSButton Color="BSColor.Info" OnClick="SendPRManually">手动提交 PR（前往 GitHub）</BSButton>
+                <BSButton Color="BSColor.Info" OnClick="SendPRManually">转到 GitHub 提交 PR</BSButton>
             </BSRow>
-            <BSLabel MarginTop="Margins.Medium">如果你想在 PR 正文补充内容，可以点击上方的手动提交 PR。</BSLabel>
         </BSContainer>
 
 
@@ -522,7 +525,7 @@ else
             <BSAlert Color="BSColor.Info" HasIcon="true">
                 PR 提交完成，前往这里查看你的 PR： <BSAlertLink Url="@prlink">@prlink</BSAlertLink>
                 <br/>
-                如果你是第一次提交 PR，你需要在 PR 界面签署 CLA 协议。<br/>
+                如果你是第一次提交 PR，你需要在 PR 页面签署 CLA 协议。<br/>
                 你可以根据 CFPABot 的提示来看看有没有什么可以修改的地方。<br/>
                 根据贡献者方针，你最好随时查看 PR 的更新（邮件会发送），以免被拒收。
             </BSAlert>
@@ -532,9 +535,10 @@ else
 
         @code{
             string prlink = null;
+            string prBody = "作者已阅读贡献指南并同意 CC 协议。\n\n由 CFPA-Helper 提交。";
             async Task SendPR()
             {
-                var pr = await prCreatorModule.CreatePR();
+                var pr = await prCreatorModule.CreatePR(prBody);
                 prlink = pr.HtmlUrl;
             }
 
