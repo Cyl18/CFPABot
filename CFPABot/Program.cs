@@ -52,6 +52,11 @@ namespace CFPABot
             {
                 Console.WriteLine(e);
             }
+
+            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
+            {
+                Environment.CurrentDirectory = "C:\\app";
+            }
             //GitHub.Init();
             Directory.CreateDirectory("config");
             Directory.CreateDirectory("wwwroot");
@@ -64,7 +69,8 @@ namespace CFPABot
             Directory.CreateDirectory("caches/repos/");
             Directory.CreateDirectory("project-hex");
 
-            _ = Task.Run(async () =>
+            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
+                _ = Task.Run(async () =>
             {
                 while (true)
                 {
@@ -73,8 +79,8 @@ namespace CFPABot
                     await Task.Delay(TimeSpan.FromMinutes(5));
                 }
             }); 
-            
-            _ = Task.Run(async () =>
+            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
+                _ = Task.Run(async () =>
             {
                 while (true)
                 {
@@ -153,7 +159,8 @@ namespace CFPABot
 
         static async Task Init()
         {
-            await PRDataManager.Init();
+            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
+                await PRDataManager.Init();
         }
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>

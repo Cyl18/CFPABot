@@ -2,6 +2,7 @@
 @using System.IO
 @using System.Threading
 @using CFPABot.Exceptions
+@using CFPABot.PRData
 @using CFPABot.Utils
 @using CurseForge.APIClient.Models.Mods
 @using GammaLibrary.Extensions
@@ -40,6 +41,15 @@
             GetAvatar();
             InvokeAsync(StateHasChanged);
         });
+        Task.Run(async () =>
+        {
+            while (PRDataManager.RefreshCount != 0)
+            {
+                await Task.Delay(100);
+            }
+            ready = true;
+            InvokeAsync(StateHasChanged);
+        });
 
     }
 
@@ -68,12 +78,19 @@ else
 
 @code {
     int step = -1;
+    bool ready = false;
 
 }
 
-<BSAlert Color="BSColor.Info" HasIcon="true">在提交翻译以前，请看看<BSAlertLink Url="https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/CONTRIBUTING.md">贡献指南</BSAlertLink>。</BSAlert>
+<BSAlert Class="fade-in" Color="BSColor.Info" HasIcon="true">在提交翻译以前，请看看<BSAlertLink Url="https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/CONTRIBUTING.md">贡献指南</BSAlertLink>。</BSAlert>
 
-@if (step == -1 && LoginManager.GetLoginStatus(_http))
+@if (!ready)
+{
+    <BSAlert Class="fade-in" Color="BSColor.Warning" HasIcon="true" MarginTop="Margins.Medium">正在刷新 PR 间关系..这不需要很久</BSAlert>
+
+}
+
+@if (step == -1 && LoginManager.GetLoginStatus(_http) && ready)
 {
     <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Large" style="width: 60rem;">
         <BSCard CardType="CardType.Body">

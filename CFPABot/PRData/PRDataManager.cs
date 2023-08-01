@@ -20,7 +20,11 @@ public class PRDataManager
 {
     // string is mod slug
     public static Dictionary<string, HashSet<(int prid, ModVersion modVersion)>> Relation { get; private set; }
-
+    public static int RefreshCount
+    {
+        get => Thread.VolatileRead(ref _refreshCount);
+    }
+    private static int _refreshCount = 0;
     const string CacheDir = "config/pr_cache";
 
     public static async Task Init()
@@ -48,8 +52,21 @@ public class PRDataManager
     
     public static async Task Refresh(int prid)
     {
-        var pr = await GitHub.GetPullRequest(prid);
-        await RefreshCore(pr, true);
+        Interlocked.Increment(ref _refreshCount);
+        try
+        {
+            var pr = await GitHub.GetPullRequest(prid);
+            await RefreshCore(pr, true);
+
+        }
+        catch (Exception e)
+        {
+            Log.Error(e, "Refresh PR");
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _refreshCount);
+        }
     }
 
     static async Task RefreshCore(PullRequest pr, bool rebuild = false)

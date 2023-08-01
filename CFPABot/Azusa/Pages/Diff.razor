@@ -1,16 +1,32 @@
-﻿@page "/Diff"
+﻿@page "/Diff/{pprid?}/{pcfslug?}"
+@using Markdig
+@using System.IO
 <PageTitle>Diff</PageTitle>
 <h3>Diff</h3>
 
+@code {
+
+    [Parameter]
+    public string? PPrID { get; set; }
+
+    [Parameter]
+    public string? PCfSlug { get; set; }
+
+}
 
 
+@((MarkupString)Markdown.ToHtml(File.ReadAllText(@"C:\Users\cyl18\Downloads\gist.githubusercontent.com_Cyl18-Bot_ca1d1558f76692962f78fb908bd5a3ab_raw_91a16741af59a87011513181c0bb06db8ceff752_pr-3593-diff.md.txt"), new MarkdownPipelineBuilder().UsePipeTables().UseBootstrap().UseGridTables().Build()))
 
 
 
 @code {
+
+    protected override async Task OnInitializedAsync()
+    {
+        
+    }
     
-    
-    
+
 }
 
 

@@ -31,11 +31,11 @@ namespace CFPABot.DiffEngine
         {
             if (str.Contains("$"))
             {
-                return $"`{str.Replace("\n", "[换行符]")}`";
+                return $"`{str.Replace("<", "\\<").Replace("`", "\\`").Replace("\n", "[换行符]")}`";
             }
             else
             {
-                return str.Replace("\n", "<br>").Replace("*", "\\*").Replace("|", "\\|");
+                return str.Replace("<", "\\<").Replace("`", "\\`").Replace("\n", "<br>").Replace("*", "\\*").Replace("|", "\\|");
             }
         }
     }
