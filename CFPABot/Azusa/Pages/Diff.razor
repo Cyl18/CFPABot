@@ -11,7 +11,7 @@
 <PageTitle>Diff</PageTitle>
 <h3>Diff</h3>
 <BSToaster />
-
+<BSAlert Color="BSColor.Info" HasIcon="true" MarginBottom="Margins.Medium">Two-Way 对比只需要填写 Diff1-当前 和 Diff2-当前 即可</BSAlert>
 @code {
 
     [Parameter]
@@ -297,12 +297,13 @@
                             var diffLines = LangDiffer.Run(o);
 
                             sb.AppendLine($"<details><summary>{o.ModPath}</summary>\n");
-                            sb.AppendLine("| 英文 | 中文 |");
-                            sb.AppendLine("| --: | :------------- |");
+                            sb.AppendLine("| 行号 | 英文 | 中文 |");
+                            sb.AppendLine("| :-: | ----: | :-------------- |");
                             foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
                             {
                                 if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
                                 sb.Append("| ");
+                                sb.Append($"{o.ToCNFile.OriginalFile.Split('\n').ToList().FindIndex(x => x.Contains(currentCn))} | ");
                                 AddLine(sourceEn, currentEn, sb, sourceCn, currentCn);
 
                                 sb.AppendLine(" |");

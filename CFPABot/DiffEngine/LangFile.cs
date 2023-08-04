@@ -34,7 +34,8 @@ namespace CFPABot.DiffEngine
         private static LangFileType GuessType(string content)
         {
             // 我觉得不会有作者写成一行的 /**/ { 吧????
-            if (content.Split('\n').Any(x => x.TrimStart().StartsWith('{'))) return LangFileType.Json;
+            if (content.Split('\n').Any(x => x.TrimStart().StartsWith('{')))
+                return LangFileType.Json;
             return LangFileType.Lang;
         }
 

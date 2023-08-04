@@ -29,6 +29,7 @@
     <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="2.0.306" />
     <PackageReference Include="Markdig" Version="0.31.0" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.11.1" />
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="7.0.8" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
     <PackageReference Include="Octokit" Version="0.51.0" />
     <PackageReference Include="Octokit.Webhooks.AspNetCore" Version="2.0.1" />
