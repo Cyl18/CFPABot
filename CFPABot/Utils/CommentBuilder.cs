@@ -220,8 +220,8 @@ namespace CFPABot.Utils
                         /* Mod Name */ $" [**{addon.Name.Trim().Replace("[","\\[").Replace("]", "\\]").Replace("|", "\\|")}**]({addon.Links.WebsiteUrl}) |" +
                         // /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault(), enforcedLang: true)} |" + // 这里应该enforce吗？
                         /* Source   */ $" {CurseManager.GetRepoText(addon)} \\|" +
-                        /* Mcmod    */ $" [🟩 MCMOD](https://www.baidu.com/s?wd=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) \\|" +
-                        /* Compare  */ $" [:file_folder: 对比](https://cfpa.cyan.cafe/Compare/PR/{PullRequestID}/{addon.Slug}/{await CurseManager.GetModID(addon, versions.FirstOrDefault(), true, false)}) |" +
+                        /* Mcmod    */ $" [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) \\|" +
+                        /* Compare  */ $" [:file_folder: 对比](https://cfpa.cyan.cafe/Azusa/Diff/{PullRequestID}/{addon.Slug} |" +
                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)}{await CurseManager.GetModRepoLinkText(addon, infos)} |" +
                         ""
                         );
