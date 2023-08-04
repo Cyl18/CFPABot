@@ -79,4 +79,9 @@
     <None Include="Azusa\Shared\NavMenu.razor" />
   </ItemGroup>
 
+
+  <ItemGroup>
+    <Folder Include="DiffEngineMK2\" />
+  </ItemGroup>
+
 </Project>

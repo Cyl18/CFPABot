@@ -371,7 +371,7 @@ namespace CFPABot.Utils
 
                 if (artifacts.TotalCount == 0)
                 {
-                    sb.AppendLine("ℹ 此 PR 没有更改语言文件。");
+                    sb.AppendLine("ℹ 此 PR 没有更改语言文件或者 PR-Packer 出现了问题。");
                     return;
                 }
 

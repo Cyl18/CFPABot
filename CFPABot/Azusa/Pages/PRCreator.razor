@@ -1,12 +1,14 @@
 ﻿@page "/SubmitAssistant"
 @using System.IO
 @using System.Threading
+@using CFPABot.DiffEngine
 @using CFPABot.Exceptions
 @using CFPABot.PRData
 @using CFPABot.Utils
 @using CurseForge.APIClient.Models.Mods
 @using GammaLibrary.Extensions
 @using Microsoft.AspNetCore.Http
+@using System.Collections.Immutable
 @implements IDisposable
 @inject IBlazorStrap _blazorStrap
 @inject IHttpContextAccessor _http
@@ -419,6 +421,46 @@ else
                     step++;
                     prTitle = $"{modName} 翻译提交";
                 }
+                Task.Run((async () =>
+                {
+                    var f = PRDataManager.Relation.Where(x => x.Value.Any(y => y.modVersion == ModVersion.FromGameVersionDirectory(_mcVersion.Value.ToVersionString()))).ToImmutableArray();
+                    if (!f.Any())
+                    {
+                        ready2 = true;
+                    }
+                    else
+                    {
+                        var flag = false;
+                        var hs = new HashSet<int>();
+                        var user = await LoginManager.GetGitHubClient(_http).User.Current();
+                        foreach (var pair in f.Select(x=>x.Value))
+                        {
+                            foreach (var (prid, _) in pair)
+                            {
+                                if (!hs.Add(prid))
+                                {
+                                    var pr = await GitHub.GetPullRequest(prid);
+                                    if (pr.User.Login == user.Login)
+                                    {
+                                        flag = true;
+                                        conflictPRID = prid;
+                                        goto end;
+                                    }
+                                }
+                            }
+                        }
+                        end:
+                        if (flag)
+                        {
+                            prConflict = true;
+                        }
+                        else
+                        {
+                            ready2 = true;
+                        }
+                    }
+                    InvokeAsync(StateHasChanged);
+                }));
             }
 
         }
@@ -426,7 +468,45 @@ else
     </BSCard>
     </BSCard>
 }
-@if (step == 3)
+@code{
+
+    bool ready2 = false;
+    bool prConflict = false;
+    int conflictPRID = -1;
+
+}
+@if (step == 3 && !ready2)
+{
+    <BSCard Class="fade-in" CardType="CardType.Card" style="width: 60rem;">
+        <BSCard CardType="CardType.Body">
+            @if (!prConflict)
+            {
+                <BSLabel>请稍等...</BSLabel>
+            }
+            else
+            {
+                <BSContainer Class="fade-in">
+                    <BSAlert HasIcon="true" Color="BSColor.Warning" MarginBottom="Margins.Medium">
+                        <BSContainer>
+                            警告：检测到你已经提交过相同模组的 PR #@conflictPRID，<br/>
+                            如果你需要修改 PR 的文件，可以通过下面的方法或者使用修改 PR 功能（正在鸽）<br/>
+                            重复提交会对审核者造成不便，我们承认修改 PR 文件确实有一些技术门槛（），<br/>
+                            如果你实在不想修改的话...也行吧，记得关闭原来的 PR（小声嘀咕）
+                        </BSContainer>
+                    </BSAlert>
+                    <BSImage MarginBottom="Margins.Medium" style="width: 800px;" Source="/Azusa/img/tip1.png"></BSImage>
+                    <BSButton Color="BSColor.Danger" OnClick="() => ready2 = true">仍要继续</BSButton>
+
+                </BSContainer>
+                
+            }
+        </BSCard>
+    </BSCard>
+
+    
+}
+
+@if (step == 3 && ready2)
 {
     <BSCard Class="fade-in" CardType="CardType.Card" style="width: 60rem;">
     <BSCard CardType="CardType.Body">
@@ -544,7 +624,8 @@ else
                 <br/>
                 如果你是第一次提交 PR，你需要在 PR 页面签署 CLA 协议。<br/>
                 你可以根据 CFPABot 的提示来看看有没有什么可以修改的地方。<br/>
-                根据贡献者方针，你最好随时查看 PR 的更新（邮件会发送），以免被拒收。
+                <strong>请在几天内查看 PR 的更新（邮件会发送），及时修改审核者要求修改的内容，以免被拒收。</strong>
+                <BSAlert HasIcon="true" Color="BSColor.Warning">请不要提交后就不管你提交的 PR，很可能会被拒收！</BSAlert>
             </BSAlert>
         }
         
