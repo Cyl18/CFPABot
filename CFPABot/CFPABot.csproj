@@ -19,6 +19,7 @@
   <ItemGroup>
     <PackageReference Include="BlazorStrap" Version="5.1.102.51923" />
     <PackageReference Include="BlazorStrap.V5" Version="5.1.102.51723" />
+    <PackageReference Include="CsvHelper" Version="30.0.1" />
     <PackageReference Include="CurseForge.APIClient" Version="2.1.0" />
     <PackageReference Include="DiffPatch" Version="2.0.0" />
     <PackageReference Include="DiffPlex" Version="1.7.1" />

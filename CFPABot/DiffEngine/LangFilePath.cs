@@ -78,6 +78,11 @@ namespace CFPABot.DiffEngine
         {
             return !Equals(left, right);
         }
+
+        public override string ToString()
+        {
+            return ModPath.GetVersionDirectory(MinecraftVersion, ModLoader);
+        }
     }
 
     public class ModPath

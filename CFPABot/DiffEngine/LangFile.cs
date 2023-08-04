@@ -2,16 +2,63 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
 
 namespace CFPABot.DiffEngine
 {
+    public class LangFileWrapper
+    {
+        private string url { get; set; }
+        private string content { get; set; }
+        private bool isWeb { get; set; } = false;
+        private bool isLangFile { get; set; } = false;
+        private LangFileType type { get; set; }
+        private LangFile langFile { get; set; }
+
+        public static LangFileWrapper FromWebUrl(string url)
+        {
+            return new LangFileWrapper() { url = url, isWeb = true };
+        }
+        public static LangFileWrapper FromContent(string content)
+        {
+            return new LangFileWrapper() { content = content, isWeb = false };
+        }
+        
+        public static LangFileWrapper FromLangFile(LangFile content)
+        {
+            return new LangFileWrapper() { langFile = content, isLangFile = true };
+        }
+
+        private static LangFileType GuessType(string content)
+        {
+            // 我觉得不会有作者写成一行的 /**/ { 吧????
+            if (content.Split('\n').Any(x => x.TrimStart().StartsWith('{'))) return LangFileType.Json;
+            return LangFileType.Lang;
+        }
+
+        public async ValueTask<LangFile> Get()
+        {
+            if (isWeb)
+            {
+                var s = await Download.String(url);
+                return LangFile.FromString(s, GuessType(s));
+            }
+            if (isLangFile)
+            {
+                return langFile;
+            }
+            return LangFile.FromString(content, GuessType(content));
+
+        }
+    }
 
     public class LangFile
     {
-        public Dictionary<string, string> Content = new Dictionary<string, string>();
-
+        public Dictionary<string, string> Content { get; private set; }= new Dictionary<string, string>();
+        public static LangFile Empty { get; } = new LangFile() { Content = new Dictionary<string, string>() };
+        public string OriginalFile { get; private set; }
         private LangFile()
         {
         }
@@ -19,6 +66,7 @@ namespace CFPABot.DiffEngine
         public static LangFile FromString(string content, LangFileType langFileType)
         {
             var result = new LangFile();
+            result.OriginalFile = content;
             switch (langFileType)
             {
                 case LangFileType.Lang:
