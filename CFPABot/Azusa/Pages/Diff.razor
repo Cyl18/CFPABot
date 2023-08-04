@@ -192,26 +192,43 @@
             {
                 if (fromEnFile != null)
                 {
-                    textsV.Add($"#{pr} {pCfSlug} {modPath.ModVersion} 主库的 en 文件");
-                    langV.Add(LangFileWrapper.FromLangFile(fromEnFile));
+                    var s = $"#{pr} {pCfSlug} {modPath.ModVersion} 主库的 en 文件";
+                    if (!texts.Contains(s))
+                    {
+                        textsV.Add(s);
+                        langV.Add(LangFileWrapper.FromLangFile(fromEnFile));
+
+                    }
                 }
 
                 if (fromCnFile != null)
                 {
-                    textsV.Add($"#{pr} {pCfSlug} {modPath.ModVersion} 主库的 cn 文件");
-                    langV.Add(LangFileWrapper.FromLangFile(fromCnFile));
+                    var s = $"#{pr} {pCfSlug} {modPath.ModVersion} 主库的 cn 文件";
+                    if (!texts.Contains(s))
+                    {
+                        textsV.Add(s);
+                        langV.Add(LangFileWrapper.FromLangFile(fromCnFile));
+                    }
                 }
 
                 if (toEnFile != null)
                 {
-                    textsV.Add($"#{pr} {pCfSlug} {modPath.ModVersion} PR 的 en 文件");
-                    langV.Add(LangFileWrapper.FromLangFile(toEnFile));
+                    var s = $"#{pr} {pCfSlug} {modPath.ModVersion} PR 的 en 文件";
+                    if (!texts.Contains(s))
+                    {
+                        textsV.Add(s);
+                        langV.Add(LangFileWrapper.FromLangFile(toEnFile));
+                    }
                 }
 
                 if (toCnFile != null)
                 {
-                    textsV.Add($"#{pr} {pCfSlug} {modPath.ModVersion} PR 的 cn 文件");
-                    langV.Add(LangFileWrapper.FromLangFile(toCnFile));
+                    var s = $"#{pr} {pCfSlug} {modPath.ModVersion} PR 的 cn 文件";
+                    if (!texts.Contains(s))
+                    {
+                        textsV.Add(s);
+                        langV.Add(LangFileWrapper.FromLangFile(toCnFile));
+                    }
                 }
 
                 path = modPath;

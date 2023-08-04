@@ -818,6 +818,7 @@ namespace CFPABot.Utils
                         }
                     }
                 }
+                var flagMCreator = true;
 
                 // 检查中英文 key 是否对应
                 // 检查 ModID
@@ -872,6 +873,19 @@ namespace CFPABot.Utils
                         {
                             sb.AppendLine(string.Format(Locale.Check_ModID_Error, e.Message));
                         }
+
+                    if (addon?.Categories.Any(x => x.Id == 4906/*MCreator*/) == true && flagMCreator)
+                    {
+                        try
+                        {
+                            flagMCreator = false;
+                            GitHub.Instance.Issue.Labels.AddToIssue(Constants.RepoID, PullRequestID, new []{"MCreator"});
+                        }
+                        catch (Exception e)
+                        {
+                            logger.Error(e, "add mcreator label");
+                        }
+                    }
 
                     // 检查文件
                     reportSb.AppendLine($"开始检查 {modid} {versionString}");
@@ -1066,6 +1080,7 @@ namespace CFPABot.Utils
                             sb.AppendLine(Locale.Check_Translate_Hint);
                         }
                         sb.AppendLine(string.Format(Locale.Check_Result1, webPath));
+                        
                     }
                 }
             }
