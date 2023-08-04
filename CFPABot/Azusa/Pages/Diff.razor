@@ -303,7 +303,7 @@
                             {
                                 if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
                                 sb.Append("| ");
-                                sb.Append($"{o.ToCNFile.OriginalFile.Split('\n').ToList().FindIndex(x => x.Contains(key))} | ");
+                                sb.Append($"{o.ToCNFile.OriginalFile.Split('\n').ToList().FindIndex(x => x.Contains(key) && x.Contains(currentCn))} | ");
                                 AddLine(sourceEn, currentEn, sb, sourceCn, currentCn);
 
                                 sb.AppendLine(" |");
