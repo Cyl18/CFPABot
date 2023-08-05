@@ -23,14 +23,23 @@ namespace CFPABot.DiffEngine
             {
                 try
                 {
-                    var fromEn = await new LangFilePath(mod, LangType.EN).FetchFromCommit(fromCommit);
+                    var fromEn1 = new LangFilePath(mod, LangType.EN).FetchFromCommit(fromCommit);
+                    var fromCn1 = new LangFilePath(mod, LangType.CN).FetchFromCommit(fromCommit);
+                    var prEn1 = new LangFilePath(mod, LangType.EN).FetchFromCommit(prCommit);
+                    var prCn1 = new LangFilePath(mod, LangType.CN).FetchFromCommit(prCommit);
+
+                    await Task.WhenAll(fromEn1, fromCn1, prEn1, prCn1);
+                    var fromEn = await fromEn1;
+                    var fromCn = await fromCn1;
+                    var prEn = await prEn1;
+                    var prCn = await prCn1;
+
                     var fromEnLang = fromEn == null ? null : LangFile.FromString(fromEn, mod.LangFileType);
-                    var fromCn = await new LangFilePath(mod, LangType.CN).FetchFromCommit(fromCommit);
                     var fromCnLang = fromCn == null ? null : LangFile.FromString(fromCn, mod.LangFileType);
-                    var prEn = await new LangFilePath(mod, LangType.EN).FetchFromCommit(prCommit);
                     var prEnLang = prEn == null ? null : LangFile.FromString(prEn, mod.LangFileType);
-                    var prCn = await new LangFilePath(mod, LangType.CN).FetchFromCommit(prCommit);
                     var prCnLang = prCn == null ? null : LangFile.FromString(prCn, mod.LangFileType);
+
+
                     list.Add(new LangFilePair(fromEnLang, prEnLang, fromCnLang, prCnLang, mod));
                 }
                 catch (Exception e)

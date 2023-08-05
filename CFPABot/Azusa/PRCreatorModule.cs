@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using CFPABot.Azusa.Pages;
 using CFPABot.Utils;
+using GammaLibrary.Extensions;
 using Octokit;
 
 namespace CFPABot.Azusa
@@ -23,7 +24,7 @@ namespace CFPABot.Azusa
         string _token;
         string _domain;
 
-        public PRCreatorModule(GitHubClient gitHubClient, PRCreator.FileCache enCache, PRCreator.FileCache cnCache, string email, string slug, string versionString, string prTitle, Action<string> updateAction, string githubOauthToken, string modDomain)
+        public PRCreatorModule(GitHubClient gitHubClient, PRCreator.FileCache enCache, PRCreator.FileCache cnCache, string email, string slug, string versionString, string prTitle, Action<string> updateAction, string githubOauthToken, string modDomain, string branchName = null)
         {
             _gitHubClient = gitHubClient;
             _enCache = enCache;
@@ -35,11 +36,14 @@ namespace CFPABot.Azusa
             _updateAction = updateAction;
             _token = githubOauthToken;
             _domain = modDomain;
+            BranchName = branchName.IsNullOrWhiteSpace()
+                ? "CFPA-Helper-" + Guid.NewGuid().ToString("N").Substring(0, 8)
+                : branchName;
         }
 
         public Repository repo { get; private set; }
         public User user { get; private set; }
-        public string branchName { get; private set; }
+        public string BranchName { get; private set; }
 
         public async Task Run()
         {
@@ -75,12 +79,11 @@ namespace CFPABot.Azusa
 
             localRepo.Clone(user.Login, repo.Name, user.Login, _email);
             localRepo.Run("remote add upstream https://github.com/CFPAOrg/Minecraft-Mod-Language-Package.git");
-            branchName = "CFPA-Helper-" + Guid.NewGuid().ToString("N").Substring(0, 8);
             _updateAction("Fetching upstream...");
 
             localRepo.Run("fetch upstream main");
             _updateAction("Creating branch...");
-            localRepo.Run($"switch -c {branchName} upstream/main");
+            localRepo.Run($"switch -c {BranchName} upstream/main");
             var baseLocation = $"{localRepo.WorkingDirectory}/projects/{_versionString}/assets/{_slug}/{_domain}/lang";
             _updateAction("Placing files...");
             Directory.CreateDirectory(baseLocation);
@@ -89,14 +92,14 @@ namespace CFPABot.Azusa
             localRepo.Run($"add -A");
             localRepo.Commit(_prTitle + "\n\n提交自 CFPA-Helper");
             _updateAction("Pushing to origin...");
-            localRepo.Run($"push origin {branchName}");
+            localRepo.Run($"push origin {BranchName}");
 
         }
 
         public async Task<PullRequest> CreatePR(string body)
         {
             return await _gitHubClient.PullRequest.Create(Constants.RepoID,
-                new NewPullRequest(_prTitle, $"{user.Login}:{branchName}", "main") { Body = body });
+                new NewPullRequest(_prTitle, $"{user.Login}:{BranchName}", "main") { Body = body });
         }
 
     }
