@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using CFPABot.Azusa;
 using CFPABot.Utils;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using NETCore.Encrypt;
 using Octokit;
 using Octokit.Internal;
 using ProductHeaderValue = Octokit.ProductHeaderValue;
@@ -47,14 +49,19 @@ namespace CFPABot.Controllers
             {
                 return Content($"验证错误： {e.Message}");
             }
-            HttpContext.Response.Cookies.Append("oauth-token", clientAccessToken, new CookieOptions() {HttpOnly = true, MaxAge = TimeSpan.FromHours(4)});
+
+            if (!System.IO.File.Exists("config/encrypt_key.txt"))
+            {
+                System.IO.File.WriteAllText("config/encrypt_key.txt", Guid.NewGuid().ToString("N"), new UTF8Encoding(false));
+            }
+            HttpContext.Response.Cookies.Append(Constants.GitHubOAuthTokenCookieName, EncryptProvider.AESEncrypt(clientAccessToken, System.IO.File.ReadAllText("config/encrypt_key.txt"), "CACTUS&MAMARUO!"), new CookieOptions() {HttpOnly = true, MaxAge = TimeSpan.FromHours(4)});
             return Redirect("/Azusa");
         }
 
         [HttpGet("Signout")]
         public IActionResult Signout()
         {
-            HttpContext.Response.Cookies.Delete("oauth-token");
+            HttpContext.Response.Cookies.Delete(Constants.GitHubOAuthTokenCookieName);
             return Redirect("/Azusa");
         }
     }

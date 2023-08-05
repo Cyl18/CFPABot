@@ -565,7 +565,7 @@ else
                 {
                     try
                     {
-                        _http.HttpContext.Request.Cookies.TryGetValue("oauth-token", out var token);
+                        var token = LoginManager.GetToken(_http);
                         prCreatorModule = new PRCreatorModule(LoginManager.GetGitHubClient(_http), enCache, cnCache, email, trimmedSlug, _mcVersion.Value.ToVersionString(), prTitle, s =>
                         {
                             finalLogger += "\n";

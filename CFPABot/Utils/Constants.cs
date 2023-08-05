@@ -26,6 +26,7 @@ namespace CFPABot.Utils
         public const string PRPackerFileName = "pr-packer.yml";
 
         public const string GitHubOAuthClientId = "20f9e79dfa770f38e95d";
+        public const string GitHubOAuthTokenCookieName = "oauth-token-enc";
         public static string GitHubOAuthToken => Environment.GetEnvironmentVariable("GITHUB_OAUTH_TOKEN");
         public static string GitHubWebhookSecret => Environment.GetEnvironmentVariable("GITHUB_WEBHOOK_SECRET");
         public static string CurseForgeApiKey => Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
