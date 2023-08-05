@@ -27,13 +27,13 @@
         @foreach (var x in ModListConfig.Instance.ModLists.Skip((Page - 1) * perPage).Take(perPage))
         {
             <BSTR>
-                <BSTD>@x.modSlug #@x.modDomain</BSTD>
+                <BSTD><BSLink target="_blank" Url="@x.curseForgeLink">@x.modSlug</BSLink> #@x.modDomain</BSTD>
                 <BSTD>@(x.modName ?? "[无法获取]")</BSTD>
                 <BSTD>
                         <BSCol>
                     @foreach (var y in x.versions)
                     {
-                        <BSRow>@y.version: <BSLink Url="@y.repoLink">🔗主库链接</BSLink></BSRow>
+                        <BSRow>@y.version: <BSLink target="_blank" Url="@y.repoLink">🔗主库链接</BSLink></BSRow>
                     }
                         </BSCol>
                 </BSTD>
@@ -105,14 +105,14 @@
                     foreach (var path in list.Where(x => x.ModPath.CurseForgeSlug == modPath.ModPath.CurseForgeSlug)
                         .OrderBy(x => x.ModPath.ModVersion))
                     {
-                        versions.Add((path.ModPath.ModVersion, $"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/tree/main/projects/{path.ModPath.GameVersionDirectoryName}/assets/{path.ModPath}/lang/"));
+                        versions.Add((path.ModPath.ModVersion, $"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/tree/main/{path.ModPath.ToPathString()}lang/"));
                     }
                     
                     
                     models.Add(new ModListModel(
                         modPath.ModPath.CurseForgeSlug,
-                        modPath.ModPath.ModDomain,
                         dic.GetValueOrDefault(modPath.ModPath.CurseForgeSlug)?.Name,
+                        modPath.ModPath.ModDomain,
                         dic.GetValueOrDefault(modPath.ModPath.CurseForgeSlug)?.Links.WebsiteUrl,
                         versions
                         ));
