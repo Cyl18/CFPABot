@@ -11,7 +11,8 @@
     <BSTHead>
         <BSTR>
             <BSTD>Mod Slug</BSTD>
-            <BSTD>PR</BSTD>
+            <BSTD>Mod Name</BSTD>
+            <BSTD>Versions</BSTD>
         </BSTR>
     </BSTHead>
 
@@ -91,7 +92,7 @@
                 var models = new List<ModListModel>();
                 foreach (var modPath in hs.DistinctBy(x => x.CurseForgeSlug)
                     .OrderBy(x => x.CurseForgeSlug)
-                    .Where(x => !x.CurseForgeSlug.StartsWith("0-")))
+                    .Where(x => !x.CurseForgeSlug.StartsWith("0-") && x.CurseForgeSlug != "1UNKNOWN"))
                 {
                     var versions = new List<(ModVersion version, string repoLink)>();
                     foreach (var path in hs.Where(x => x.CurseForgeSlug == modPath.CurseForgeSlug)
