@@ -5,7 +5,9 @@
 @using CFPABot.Utils
 @using CurseForge.APIClient.Models.Mods
 @using Serilog
-<h3>ModList</h3>
+@inject IJSRuntime JsRuntime
+
+<h3 @ref="AddSectionRef">ModList</h3>
 <BSAlert HasIcon="true" Color="BSColor.Info" MarginBottom="Margins.Medium">请使用 Ctrl+F 搜索（</BSAlert>
 <BSLabel MarginBottom="Margins.Medium">共有 @ModListConfig.Instance.ModLists.Count 个模组</BSLabel>
 <BSPagination Pages="@(ModListConfig.Instance.ModLists.Count / perPage + 1)" @bind-Value="Page" MarginBottom="Margins.Medium"/>
@@ -47,7 +49,17 @@
 
 
 @code {
+    ElementReference AddSectionRef { get; set; }
+    int lastPage = 1;
 
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (lastPage != Page)
+        {
+            await JsRuntime.InvokeVoidAsync("ScrollElementIntoView", AddSectionRef);
+            lastPage = Page;
+        }
+    }
     public class ModListCache
     {
         public static async Task Refresh(bool force = false)

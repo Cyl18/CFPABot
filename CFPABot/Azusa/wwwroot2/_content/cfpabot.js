@@ -1,0 +1,1 @@
+﻿ScrollElementIntoView = element => element.scrollIntoView();
