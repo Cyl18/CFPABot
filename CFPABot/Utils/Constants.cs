@@ -18,7 +18,7 @@ namespace CFPABot.Utils
         public static string GitHubOAuthToken => Environment.GetEnvironmentVariable("GITHUB_OAUTH_TOKEN");
         public static string GitHubWebhookSecret => Environment.GetEnvironmentVariable("GITHUB_WEBHOOK_SECRET");
 #else
-        public const string BaseRepo = "https://github.com/CFPAOrg/Minecraft-Mod-Language-Package";
+        public const string BaseRepoUrl = "https://github.com/CFPAOrg/Minecraft-Mod-Language-Package";
         public const string Owner = "CFPAOrg";
         public const string RepoName = "Minecraft-Mod-Language-Package";
         public const int RepoID = 88008282;

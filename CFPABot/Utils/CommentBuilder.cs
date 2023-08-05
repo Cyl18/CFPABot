@@ -221,7 +221,7 @@ namespace CFPABot.Utils
                         // /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault(), enforcedLang: true)} |" + // 这里应该enforce吗？
                         /* Source   */ $" {CurseManager.GetRepoText(addon)} \\|" +
                         /* Mcmod    */ $" [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) \\|" +
-                        /* Compare  */ $" [:file_folder: 对比](https://cfpa.cyan.cafe/Azusa/Diff/{PullRequestID}/{addon.Slug}) |" +
+                        /* Compare  */ $" [:file_folder: 对比(新！)](https://cfpa.cyan.cafe/Azusa/Diff/{PullRequestID}/{addon.Slug}) |" +
                         /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)}{await CurseManager.GetModRepoLinkText(addon, infos)} |" +
                         ""
                         );

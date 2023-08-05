@@ -23,6 +23,38 @@ namespace CFPABot.Azusa
             return EncryptProvider.AESDecrypt(token, File.ReadAllText("config/encrypt_key.txt"), "CACTUS&MAMARUO!!");
         }
         
+        public async Task<bool> IsAdmin(IHttpContextAccessor http)
+        {
+            var user = await GetGitHubClient(http).User.Current();
+            var hasPermission =
+                await GitHub.Instance.Repository.Collaborator.IsCollaborator(Constants.Owner, Constants.RepoName, user.Login);
+                
+            return hasPermission;
+        }
+
+        public async Task<bool> HasPrPermission(IHttpContextAccessor http, int prid)
+        {
+            var user = await GetGitHubClient(http).User.Current();
+            var pr = await GitHub.GetPullRequest(prid);
+            var hasPermission =
+                await GitHub.Instance.Repository.Collaborator.IsCollaborator(Constants.Owner, Constants.RepoName, user.Login);
+
+            if (!hasPermission && (pr.User.Login == user.Login))
+            {
+                // 没有最高权限 但是发送命令的人是 PR 创建者
+                if (pr.Head.Repository.Owner.Login == user.Login)
+                {
+                    hasPermission = true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            return hasPermission;
+        }
+        
         public static bool GetLoginStatus(IHttpContextAccessor http)
         {
             return http.HttpContext!.Request.Cookies.TryGetValue(Constants.GitHubOAuthTokenCookieName, out _);

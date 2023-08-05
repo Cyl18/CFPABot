@@ -80,7 +80,7 @@ namespace CFPABot.Utils
         }
         
         public static async Task<FileDiff[]> Diff(int id)
-            => DiffParserHelper.Parse((await Download.String(Constants.BaseRepo + $"/pull/{id}.diff", true))
+            => DiffParserHelper.Parse((await Download.String(Constants.BaseRepoUrl + $"/pull/{id}.diff", true))
                 // workaround https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/1924
                 .Split("\n").Where(line => !line.StartsWith("rename ") && !line.StartsWith("similarity index ")).Connect("\n")
                 ).ToArray();

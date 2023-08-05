@@ -8,12 +8,15 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using CFPABot.Azusa;
+using CFPABot.Azusa.Pages;
 using CFPABot.Command;
 using CFPABot.Controllers;
 using CFPABot.PRData;
 using CFPABot.ProjectHex;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Octokit;
 using Serilog;
 using Serilog.Events;
@@ -74,6 +77,7 @@ namespace CFPABot
             {
                 while (true)
                 {
+                    await ModList.ModListCache.Refresh();
                     await RunProjectHex();
 
                     await Task.Delay(TimeSpan.FromMinutes(5));
@@ -151,7 +155,7 @@ namespace CFPABot
         internal static bool ShuttingDown { get; private set; }
 
         static void Wait()
-        {
+        { 
             ShuttingDown = true;
             SpinWait.SpinUntil(() => MyWebhookEventProcessor.commentBuilders.All(c => !c.Value.IsAnyLockAcquired()));
             SpinWait.SpinUntil(() => CommandProcessor.CurrentRuns == 0);
@@ -167,7 +171,12 @@ namespace CFPABot
             Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
+                    // webBuilder.ConfigureKestrel(x =>
+                    //     x.ConfigureEndpointDefaults(lo => lo.Protocols = HttpProtocols.Http2));
                     webBuilder.UseStartup<Startup>();
-                }).ConfigureWebHost(x => x.UseStaticWebAssets());
+                }).ConfigureWebHost(x =>
+                {
+                    x.UseStaticWebAssets();
+                });
     }
 }

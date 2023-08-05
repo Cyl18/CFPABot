@@ -8,8 +8,17 @@ using Serilog;
 
 namespace CFPABot.DiffEngine
 {
-    public class ModVersion
+    public class ModVersion : IComparable<ModVersion>
     {
+        public int CompareTo(ModVersion other)
+        {
+            if (ReferenceEquals(this, other)) return 0;
+            if (ReferenceEquals(null, other)) return 1;
+            var minecraftVersionComparison = MinecraftVersion.CompareTo(other.MinecraftVersion);
+            if (minecraftVersionComparison != 0) return minecraftVersionComparison;
+            return ModLoader.CompareTo(other.ModLoader);
+        }
+
         public MinecraftVersion MinecraftVersion { get; set; }
         public ModLoader ModLoader { get; set; }
 

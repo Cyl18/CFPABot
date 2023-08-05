@@ -1,0 +1,139 @@
+﻿@page "/ModList"
+@using GammaLibrary
+@using System.IO
+@using CFPABot.DiffEngine
+@using CFPABot.Utils
+@using CurseForge.APIClient.Models.Mods
+@using Serilog
+<h3>ModList</h3>
+<BSTable IsResponsive="true" IsStriped="true">
+    <BSTHead>
+        <BSTR>
+            <BSTD>Mod Slug</BSTD>
+            <BSTD>PR</BSTD>
+        </BSTR>
+    </BSTHead>
+
+    <BSTBody>
+        @foreach (var x in ModListConfig.Instance.ModLists)
+        {
+            <BSTR>
+                <BSTD>@x.modSlug</BSTD>
+                <BSTD>@(x.modName ?? "[无法获取]")</BSTD>
+                <BSTD>
+                        <BSCol>
+                    @foreach (var y in x.versions)
+                    {
+                        <BSRow>@y.version: <BSLink Url="@y.repoLink">🔗主库链接</BSLink></BSRow>
+                    }
+                        </BSCol>
+                </BSTD>
+            </BSTR>
+        }
+        
+
+    </BSTBody>
+</BSTable>
+
+
+@code {
+
+    public class ModListCache
+    {
+        public static async Task Refresh(bool force = false)
+        {
+            if (!File.Exists("config/mod-list-in-repo.json") ||
+                (DateTime.Now - ModListConfig.Instance.LastTime).TotalDays > 1.999 || force)
+            {
+                using var repo = new ForkRepoManager(GitHub.GetToken());
+                repo.Clone(Constants.Owner, Constants.RepoName, "Cyl18", "whatever@gmail.com");
+                var hs = new HashSet<ModPath>();
+                var list = new List<LangFilePath>();
+                var dic = new Dictionary<string, Mod>();
+                foreach (var file in Directory.EnumerateFiles(Path.Combine(repo.WorkingDirectory, "projects"), "*.*", SearchOption.AllDirectories).Where(isValidName))
+                {
+                    var relativePath = Path.GetRelativePath(repo.WorkingDirectory, file);
+                    LangFilePath langFilePath;
+                    try
+                    {
+                        langFilePath = new LangFilePath(relativePath);
+                    }
+                    catch (Exception)
+                    {
+                        continue;
+                    }
+                    if (hs.Add(langFilePath.ModPath))
+                    {
+                        list.Add(langFilePath);
+                    }
+                }
+                
+                
+                var cfIds = new HashSet<int>();
+                foreach (var langFilePath in list)
+                {
+                    try
+                    {
+                        cfIds.Add(CurseManager.MapModIDToProjectID(langFilePath.ModPath.CurseForgeSlug));
+                    }
+                    catch (Exception e)
+                    {
+                    }
+                }
+
+                var cfMods = await CurseManager.GetCfClient().GetModsByIdListAsync(
+                    new GetModsByIdsListRequestBody(){ModIds = cfIds.ToList()});
+                foreach (var mod in cfMods.Data)
+                {
+                    dic[mod.Slug] = mod;
+                }
+                var models = new List<ModListModel>();
+                foreach (var modPath in hs.DistinctBy(x => x.CurseForgeSlug)
+                    .OrderBy(x => x.CurseForgeSlug))
+                {
+                    var versions = new List<(ModVersion version, string repoLink)>();
+                    foreach (var path in hs.Where(x => x.CurseForgeSlug == modPath.CurseForgeSlug)
+                        .OrderBy(x => x.ModVersion))
+                    {
+                        if (dic.ContainsKey(path.CurseForgeSlug))
+                        {
+                            versions.Add((path.ModVersion, $"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/tree/main/projects/{path.GameVersionDirectoryName}/assets/{dic[path.CurseForgeSlug]}/"));
+                        }
+                        else
+                        {
+                            versions.Add((path.ModVersion, $"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/tree/main/projects/{path.GameVersionDirectoryName}/assets/"));
+                        }
+                    }
+                    
+                    
+                    models.Add(new ModListModel(
+                        modPath.CurseForgeSlug,
+                        dic.GetValueOrDefault(modPath.CurseForgeSlug)?.Slug,
+                        versions
+                        ));
+                }
+                ModListConfig.Instance.ModLists = models;
+                ModListConfig.Instance.LastTime = DateTime.Now;
+                ModListConfig.Save();
+                Log.Information("Mod list refresh complete.");
+            }
+        }
+
+        public record ModListModel(string modSlug, string modName, List<(ModVersion version, string repoLink)> versions);
+        static bool isValidName(string s)
+        {
+            var p = Path.GetFileName(s);
+            return p.Equals("zh_cn.json", StringComparison.OrdinalIgnoreCase) || 
+                   p.Equals("en_us.json", StringComparison.OrdinalIgnoreCase) ||
+                   p.Equals("zh_cn.lang", StringComparison.OrdinalIgnoreCase) ||
+                   p.Equals("en_us.lang", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+    
+    [ConfigurationPath("config/mod-list-in-repo.json")]
+    public class ModListConfig : Configuration<ModListConfig>
+    {
+        public DateTime LastTime { get; set; } = DateTime.Now - TimeSpan.FromDays(2);
+        public List<ModListCache.ModListModel> ModLists { get; set; }
+    }
+}
