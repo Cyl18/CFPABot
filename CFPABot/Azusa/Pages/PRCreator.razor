@@ -104,12 +104,12 @@ else
 
             <div Class="@BS.Form_Check" MarginBottom="Margins.Medium">
                 <BSInputCheckbox id="c2" CheckedValue="true" @bind-Value="ccbyncsa" />
-                <BSLabel for="c2" IsCheckLabel="true">你已阅读并同意按 <BSLink Url="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh">CC BY-NC-SA 4.0</BSLink> 协议发布我的作品</BSLabel>
+                <BSLabel for="c2" IsCheckLabel="true">你已阅读并同意按 <BSLink Url="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh">CC BY-NC-SA 4.0</BSLink> 协议发布你的作品</BSLabel>
             </div>
             
             <div Class="@BS.Form_Check" MarginBottom="Margins.Medium">
                 <BSInputCheckbox id="c3" CheckedValue="true" @bind-Value="机翻" />
-                <BSLabel for="c3" IsCheckLabel="true">如果是机器翻译，请确保不会有过于生硬的语言；机翻加润色是可以接受的，但是如果生硬翻译大概率会被拒收</BSLabel>
+                <BSLabel for="c3" IsCheckLabel="true">我们不接收生硬翻译，机器翻译。如果你是机器翻译，请放弃此次提交，生硬翻译和机器翻译不会被接收；机翻加润色是可以接受的</BSLabel>
             </div>
 
             <div Class="@BS.Form_Check" MarginBottom="Margins.Medium">
@@ -178,20 +178,23 @@ else
                 <BSContainer MarginBottom="Margins.Medium">
                     <BSRow MarginBottom="Margins.Small">
                         <BSCol Column="3" Class="border">
+                            <BSLabel Margin="Margins.Auto">英文语言文件
+                                <code>(en_us.json/lang)</code>
+                            </BSLabel>
+                        </BSCol>
+                        <BSCol Column="6" Class="border">
+                            <BSInputFile accept="en_us.json,en_us.lang" Margin="Margins.Small" MarginTop="Margins.Small" ValidWhen="() => true" OnChange="OnFileChangeEn" />
+                        </BSCol>
+                    </BSRow>
+                    <BSRow MarginBottom="Margins.Small">
+                        <BSCol Column="3" Class="border">
                             <BSLabel Margin="Margins.Auto">中文语言文件 <code>(zh_cn.json/lang)</code></BSLabel>
                         </BSCol>
                         <BSCol Column="6" Class="border">
-                            <BSInputFile Margin="Margins.Small" MarginTop="Margins.Small" ValidWhen="() => true" OnChange="OnFileChangeCn" />
+                            <BSInputFile accept="zh_cn.json,zh_cn.json" Margin="Margins.Small" MarginTop="Margins.Small" ValidWhen="() => true" OnChange="OnFileChangeCn" />
                         </BSCol>
                     </BSRow>
-                    <BSRow>
-                        <BSCol Column="3" Class="border">
-                            <BSLabel Margin="Margins.Auto">英文语言文件 <code>(en_us.json/lang)</code></BSLabel>
-                        </BSCol>
-                        <BSCol Column="6" Class="border">
-                            <BSInputFile Margin="Margins.Small" MarginTop="Margins.Small" ValidWhen="() => true" OnChange="OnFileChangeEn" />
-                        </BSCol>
-                    </BSRow>
+                    <BSLabel>提示：你可以通过拖拽上传~</BSLabel>
                 </BSContainer>
                 <BSButton Color="BSColor.Success" OnClick="ContinueWithLang">继续</BSButton>
                 @code {

@@ -68,7 +68,61 @@ public class PRDataManager
             Interlocked.Decrement(ref _refreshCount);
         }
     }
+    public static string GetHeadSha(int prid)
+    {
+        var (prId, headHash, pullRequestFileExes) = PRFilesData.TryGet(prid);
+        return headHash;
 
+    }
+    
+    public static (string cn, string en) GetPath(int prid, ModVersion version, string slug)
+    {
+        var (prId, headHash, pullRequestFileExes) = PRFilesData.TryGet(prid);
+        foreach (var pullRequestFileEx in pullRequestFileExes)
+        {
+            try
+            {
+                if (new LangFilePath(pullRequestFileEx.FileName).ModPath.ModVersion == version &&
+                    new LangFilePath(pullRequestFileEx.FileName).ModPath.CurseForgeSlug == slug)
+                {
+                    var p = pullRequestFileExes.Where(x =>
+                        new LangFilePath(x.FileName).ModPath.ModVersion == version &&
+                        new LangFilePath(x.FileName).ModPath.CurseForgeSlug == slug);
+                    return (p.Where(x => x.FileName.Contains("zh_cn")).First().RawUrl,
+                        p.Where(x => x.FileName.Contains("en_us")).First().RawUrl);
+                }
+                
+
+            }
+            catch (Exception e)
+            {
+            }
+            
+        }
+
+        return (null, null);
+    }
+    public static string GetModID(int prid, ModVersion version, string slug)
+    {
+        var (prId, headHash, pullRequestFileExes) = PRFilesData.TryGet(prid);
+        foreach (var pullRequestFileEx in pullRequestFileExes)
+        {
+            try
+            {
+                var langFilePath = new LangFilePath(pullRequestFileEx.FileName);
+                if (langFilePath.ModPath.ModVersion == version && langFilePath.ModPath.CurseForgeSlug == slug)
+                {
+                    return langFilePath.ModPath.ModDomain;
+                }
+            }
+            catch (Exception e)
+            {
+            }
+            
+        }
+
+        return null;
+    }
     static async Task RefreshCore(PullRequest pr, bool rebuild = false)
     {
         var prid = pr.Number;
@@ -132,7 +186,6 @@ public class PRDataManager
 
 
         Log.Information($"Rebuild pr relation took {sw.Elapsed.TotalSeconds:F2}s");
-        File.WriteAllText("config/teoitjiojo.json", d.ToJsonString());
 
     }
 }

@@ -307,7 +307,7 @@ namespace CFPABot.Utils
             }
         }
         
-        private static async Task<List<CurseForge.APIClient.Models.Files.File>> GetAllModFiles(Mod mod)
+        public static async Task<List<CurseForge.APIClient.Models.Files.File>> GetAllModFiles(Mod mod)
         {
             var modId = mod.Id;
 

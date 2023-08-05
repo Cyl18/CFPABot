@@ -14,6 +14,7 @@ using BlazorStrap;
 using CFPABot.Controllers;
 using CFPABot.ProjectHex;
 using CFPABot.Utils;
+using MessagePack;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.FileProviders;
 using Octokit.Webhooks;
@@ -41,7 +42,9 @@ namespace CFPABot
             services.AddBlazorStrap();
             services.AddSignalR(e => {
                 e.MaximumReceiveMessageSize = 102400000;
-            });
+                
+            })
+                .AddMessagePackProtocol(options => options.SerializerOptions = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4BlockArray).WithSecurity(MessagePackSecurity.UntrustedData));;
             services.AddHttpContextAccessor();
             services.AddSingleton<WebhookEventProcessor, MyWebhookEventProcessor>();
         }

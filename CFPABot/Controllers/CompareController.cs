@@ -165,7 +165,7 @@ namespace CFPABot.Controllers
 
             await Task.WhenAll(tasks);
 
-            Mod addon = null;
+            CurseForge.APIClient.Models.Mods.Mod addon = null;
             try
             {
                 addon = await CurseManager.GetAddon(modid);

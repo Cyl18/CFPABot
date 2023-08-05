@@ -4,6 +4,7 @@
 @using System.Text
 @using CFPABot.Command
 @using CFPABot.DiffEngine
+@using CFPABot.Utils
 @using GammaLibrary.Extensions
 @using Serilog
 @inject IBlazorStrap _blazorStrap
@@ -40,6 +41,7 @@
 <span class="@BS.Input_Group_Text">Slug</span>
             <BSInput TValue="string" InputType="InputType.Text" @bind-Value="slug" />
     <BSButton Color="BSColor.Info" OnClick="() => RefreshTexts(false)">获取 PR 数据</BSButton>
+    <BSButton Color="BSColor.Info" OnClick="() => GetModFiles()">获取模组文件</BSButton>
 </BSInputGroup>
 @if (!refreshing)
 {
@@ -295,6 +297,7 @@
                         foreach (var o in list)
                         {
                             var diffLines = LangDiffer.Run(o);
+                            var lines = o.ToCNFile.OriginalFile.Split('\n');
 
                             sb.AppendLine($"<details><summary>{o.ModPath}</summary>\n");
                             sb.AppendLine("| 行号 | 英文 | 中文 |");
@@ -303,7 +306,7 @@
                             {
                                 if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
                                 sb.Append("| ");
-                                sb.Append($"{o.ToCNFile.OriginalFile.Split('\n').ToList().FindIndex(x => x.Contains(key) && x.Contains(currentCn))} | ");
+                                sb.Append($"{1 + lines.ToList().FindIndex(x => x.Contains(key) && x.Contains(currentCn))} | ");
                                 AddLine(sourceEn, currentEn, sb, sourceCn, currentCn);
 
                                 sb.AppendLine(" |");
@@ -356,6 +359,27 @@
             ShowToast(e.Message);
             Log.Error(e, "Differ");
         }
+    }
+
+    private async Task GetModFiles()
+    {
+        refreshing = true;
+        try
+        {
+            var allModFiles = await CurseManager.GetAllModFiles(await CurseManager.GetAddon(slug));
+            
+        }
+        catch (Exception e)
+        {
+            ShowToast(e.Message);
+            Log.Error(e, "UI get all mod files");
+        }
+        finally
+        {
+            refreshing = false;
+            InvokeAsync(StateHasChanged);
+        }
+        
     }
 
 }
