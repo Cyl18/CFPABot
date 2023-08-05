@@ -27,13 +27,13 @@
         @foreach (var x in ModListConfig.Instance.ModLists.Skip((Page - 1) * perPage).Take(perPage))
         {
             <BSTR>
-                <BSTD><BSLink Url="@x.curseForgeLink">@x.modSlug</BSLink> #@x.modDomain</BSTD>
+                <BSTD><BSLink Url="@x.curseForgeLink" target="_blank">@x.modSlug</BSLink> #@x.modDomain</BSTD>
                 <BSTD>@(x.modName ?? "[无法获取]")</BSTD>
                 <BSTD>
                         <BSCol>
                     @foreach (var y in x.versions)
                     {
-                        <BSRow>@y.version: <BSLink Url="@y.repoLink">🔗主库链接</BSLink></BSRow>
+                        <BSRow>@y.version: <BSLink Url="@y.repoLink" target="_blank">🔗主库链接</BSLink></BSRow>
                     }
                         </BSCol>
                 </BSTD>
@@ -43,6 +43,7 @@
 
     </BSTBody>
 </BSTable>
+<BSPagination  Pages="@(ModListConfig.Instance.ModLists.Count / perPage + 1)" @bind-Value="Page" MarginTop="Margins.Medium"/>
 
 
 @code {
