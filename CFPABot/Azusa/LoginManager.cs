@@ -20,7 +20,7 @@ namespace CFPABot.Azusa
         public static string GetToken(IHttpContextAccessor http)
         {
             http.HttpContext!.Request.Cookies.TryGetValue(Constants.GitHubOAuthTokenCookieName, out var token);
-            return EncryptProvider.AESDecrypt(token, File.ReadAllText("config/encrypt_key.txt"), "CACTUS&MAMARUO!");
+            return EncryptProvider.AESDecrypt(token, File.ReadAllText("config/encrypt_key.txt"), "CACTUS&MAMARUO!!");
         }
         
         public static bool GetLoginStatus(IHttpContextAccessor http)
