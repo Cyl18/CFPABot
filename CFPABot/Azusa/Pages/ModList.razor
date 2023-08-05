@@ -7,20 +7,27 @@
 @using Serilog
 <h3>ModList</h3>
 <BSAlert HasIcon="true" Color="BSColor.Info" MarginBottom="Margins.Medium">请使用 Ctrl+F 搜索（</BSAlert>
+<BSLabel MarginBottom="Margins.Medium">共有 @ModListConfig.Instance.ModLists.Count 个模组</BSLabel>
+<BSPagination Pages="@(ModListConfig.Instance.ModLists.Count / perPage + 1)" @bind-Value="Page" MarginBottom="Margins.Medium"/>
+@code
+{
+    int Page = 1;
+    int perPage = 500;
+}
 <BSTable IsResponsive="true" IsStriped="true">
     <BSTHead>
         <BSTR>
-            <BSTD>Mod Slug</BSTD>
+            <BSTD>Mod Slug + Domain</BSTD>
             <BSTD>Mod Name</BSTD>
             <BSTD>Versions</BSTD>
         </BSTR>
     </BSTHead>
 
     <BSTBody>
-        @foreach (var x in ModListConfig.Instance.ModLists)
+        @foreach (var x in ModListConfig.Instance.ModLists.Skip((Page - 1) * perPage).Take(perPage))
         {
             <BSTR>
-                <BSTD>@x.modSlug</BSTD>
+                <BSTD>@x.modSlug #@x.modDomain</BSTD>
                 <BSTD>@(x.modName ?? "[无法获取]")</BSTD>
                 <BSTD>
                         <BSCol>
@@ -64,7 +71,7 @@
                     {
                         continue;
                     }
-                    if (hs.Add(langFilePath.ModPath))
+                    if (langFilePath.LangType == LangType.CN && File.ReadAllText(Path.Combine(repo.WorkingDirectory, langFilePath.RawPath)).Trim() != "{}" && hs.Add(langFilePath.ModPath))
                     {
                         list.Add(langFilePath);
                     }
@@ -90,28 +97,23 @@
                     dic[mod.Slug] = mod;
                 }
                 var models = new List<ModListModel>();
-                foreach (var modPath in hs.DistinctBy(x => x.CurseForgeSlug)
-                    .OrderBy(x => x.CurseForgeSlug)
-                    .Where(x => !x.CurseForgeSlug.StartsWith("0-") && x.CurseForgeSlug != "1UNKNOWN"))
+                foreach (var modPath in list.DistinctBy(x => x.ModPath.CurseForgeSlug)
+                    .OrderBy(x => x.ModPath.CurseForgeSlug)
+                    .Where(x => !x.ModPath.CurseForgeSlug.StartsWith("0-") && x.ModPath.CurseForgeSlug != "1UNKNOWN"))
                 {
                     var versions = new List<(ModVersion version, string repoLink)>();
-                    foreach (var path in hs.Where(x => x.CurseForgeSlug == modPath.CurseForgeSlug)
-                        .OrderBy(x => x.ModVersion))
+                    foreach (var path in list.Where(x => x.ModPath.CurseForgeSlug == modPath.ModPath.CurseForgeSlug)
+                        .OrderBy(x => x.ModPath.ModVersion))
                     {
-                        if (dic.ContainsKey(path.CurseForgeSlug))
-                        {
-                            versions.Add((path.ModVersion, $"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/tree/main/projects/{path.GameVersionDirectoryName}/assets/{dic[path.CurseForgeSlug]}/"));
-                        }
-                        else
-                        {
-                            versions.Add((path.ModVersion, $"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/tree/main/projects/{path.GameVersionDirectoryName}/assets/"));
-                        }
+                        versions.Add((path.ModPath.ModVersion, $"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/tree/main/projects/{path.ModPath.GameVersionDirectoryName}/assets/{path.ModPath}/lang/"));
                     }
                     
                     
                     models.Add(new ModListModel(
-                        modPath.CurseForgeSlug,
-                        dic.GetValueOrDefault(modPath.CurseForgeSlug)?.Name,
+                        modPath.ModPath.CurseForgeSlug,
+                        modPath.ModPath.ModDomain,
+                        dic.GetValueOrDefault(modPath.ModPath.CurseForgeSlug)?.Name,
+                        dic.GetValueOrDefault(modPath.ModPath.CurseForgeSlug)?.Links.WebsiteUrl,
                         versions
                         ));
                 }
@@ -122,7 +124,7 @@
             }
         }
 
-        public record ModListModel(string modSlug, string modName, List<(ModVersion version, string repoLink)> versions);
+        public record ModListModel(string modSlug, string modName, string modDomain,string curseForgeLink, List<(ModVersion version, string repoLink)> versions);
         static bool isValidName(string s)
         {
             var p = Path.GetFileName(s);
