@@ -58,6 +58,8 @@
     }
     private static string Normalize(string s)
     {
+        if (s == null) return s;
+        
         var l = s.ToLowerInvariant().ToCharArray().ToList();
         l.RemoveAll(x => x == ' ' || !char.IsLetterOrDigit(x));
         return new string(l.ToArray());
