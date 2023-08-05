@@ -6,6 +6,7 @@
 @using CurseForge.APIClient.Models.Mods
 @using Serilog
 <h3>ModList</h3>
+<BSAlert HasIcon="true" Color="BSColor.Info" MarginBottom="Margins.Medium">请使用 Ctrl+F 搜索（</BSAlert>
 <BSTable IsResponsive="true" IsStriped="true">
     <BSTHead>
         <BSTR>
@@ -89,7 +90,8 @@
                 }
                 var models = new List<ModListModel>();
                 foreach (var modPath in hs.DistinctBy(x => x.CurseForgeSlug)
-                    .OrderBy(x => x.CurseForgeSlug))
+                    .OrderBy(x => x.CurseForgeSlug)
+                    .Where(x => !x.CurseForgeSlug.StartsWith("0-")))
                 {
                     var versions = new List<(ModVersion version, string repoLink)>();
                     foreach (var path in hs.Where(x => x.CurseForgeSlug == modPath.CurseForgeSlug)
@@ -108,7 +110,7 @@
                     
                     models.Add(new ModListModel(
                         modPath.CurseForgeSlug,
-                        dic.GetValueOrDefault(modPath.CurseForgeSlug)?.Slug,
+                        dic.GetValueOrDefault(modPath.CurseForgeSlug)?.Name,
                         versions
                         ));
                 }
