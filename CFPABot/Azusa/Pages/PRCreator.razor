@@ -440,7 +440,7 @@ else
                         {
                             foreach (var (prid, _) in pair)
                             {
-                                if (!hs.Add(prid))
+                                if (hs.Add(prid))
                                 {
                                     var pr = await GitHub.GetPullRequest(prid);
                                     if (pr.User.Login == user.Login)
