@@ -421,6 +421,7 @@ else
                 else
                 {
                     emails = await LoginManager.GetEmails(_http);
+                    iemail = emails.FirstOrDefault();
                     step++;
                     prTitle = $"{modName} 翻译提交";
                 }
