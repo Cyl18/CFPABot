@@ -297,7 +297,7 @@ namespace CFPABot.DiffEngine
         {
             try
             {
-                var message = await hc.GetAsync(link);
+                var message = await hc.SendAsync(new HttpRequestMessage(HttpMethod.Head, link));
                 message.EnsureSuccessStatusCode();
                 return true;
             }
