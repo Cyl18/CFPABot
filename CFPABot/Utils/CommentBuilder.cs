@@ -854,7 +854,14 @@ namespace CFPABot.Utils
                             var filemodid = await CurseManager.GetModIDForCheck(addon, mcVersion);
                             if (filemodid == null || filemodid.Length == 0)
                             {
-                                sb.AppendLine(string.Format(Locale.Check_ModID_ModIDNotFound, modid));
+                                if (addon.AllowModDistribution == false)
+                                {
+                                    sb.AppendLine($"ℹ {modid} 的作者不允许此模组自动下载，Bot 无法获取数据。");
+                                }
+                                else
+                                {
+                                    sb.AppendLine(string.Format(Locale.Check_ModID_ModIDNotFound, modid));
+                                }
 
                             }
                             if (filemodid.Any(id => id == modid))

@@ -5,6 +5,8 @@ https://github.com/CFPAOrg/Minecraft-Mod-Language-Package 的 *PR 管理*及一�
 
 > 其实代码是一堆 sh\*t 山 我自己都看不懂（
 
+> 除了 token 以外的内容均开源，直接使用下面的部署指南就可以部署
+
 ## 命令列表
 
 每一行会当作单独的命令执行，也就是说你可以在同一个 Comment 内执行多条命令。  
