@@ -278,13 +278,13 @@ namespace CFPABot.DiffEngine
             };
             var url1 = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{commitHash}/{path}lang/{langFileName1}";
             var url2 = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{commitHash}/{path}lang/{langFileName2}";
-            if (await LinkExists(url1))
+            if (await LinkExists(url1).ConfigureAwait(false))
             {
-                return await Download.String(url1, true);
+                return await Download.String(url1, true).ConfigureAwait(false);
             }
-            else if (await LinkExists(url2))
+            else if (await LinkExists(url2).ConfigureAwait(false))
             {
-                return await Download.String(url2, true);
+                return await Download.String(url2, true).ConfigureAwait(false);
             }
             else
             {
