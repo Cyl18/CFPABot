@@ -856,7 +856,7 @@ namespace CFPABot.Utils
                             {
                                 if (addon.AllowModDistribution == false)
                                 {
-                                    sb.AppendLine($"ℹ {modid} 的作者不允许此模组自动下载，Bot 无法获取数据。");
+                                    sb.AppendLine($"ℹ {modid} 的作者不允许此模组自动下载，Bot 无法自动获取 Mod Domain。");
                                 }
                                 else
                                 {

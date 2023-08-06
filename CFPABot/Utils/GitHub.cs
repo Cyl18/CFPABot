@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using CFPABot.Controllers;
 using CFPABot.Exceptions;
 using CFPABot.Models;
 using CFPABot.Models.Artifact;
 using CFPABot.Models.Workflow;
 using DiffPatch;
 using DiffPatch.Data;
+using GammaLibrary;
 using GammaLibrary.Extensions;
 using Octokit;
 using Octokit.Internal;
@@ -145,7 +147,7 @@ namespace CFPABot.Utils
         public static async Task<PullRequest> GetPullRequest(int id, bool force = false)
         {
             Log.Debug($"获取 PR: {id}");
-            var livePr = await Instance.PullRequest.Get(Constants.Owner, Constants.RepoName, id);
+            var livePr = await Instance.PullRequest.Get(Constants.Owner, Constants.RepoName, id).ConfigureAwait(false);
             return livePr;
         }
         
@@ -167,6 +169,37 @@ namespace CFPABot.Utils
             await hc.PostAsync($"https://api.github.com/repos/{Constants.Owner}/{Constants.RepoName}/actions/runs/{runID}/approve", new StringContent(""));
         }
 
+        public static async Task ForceUpdatePrBotComment(int prid)
+        {
+            var pr = await GitHub.GetPullRequest(prid);
+            var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}.txt";
+            var filePath = "wwwroot/" + fileName;
+            if (System.IO.File.Exists(filePath)) System.IO.File.Delete(filePath);
+
+            var builder = MyWebhookEventProcessor.GetOrCreateCommentBuilder(prid);
+            _ = builder.Update(async () =>
+            {
+                await builder.UpdateBuildArtifactsSegment();
+                await builder.UpdateModLinkSegment(await GitHub.Diff(prid));
+            });
+        }
+
+        public static async Task<RateLimitModel> GetTokenLimit()
+        {
+            var limits = await GetClient().Miscellaneous.GetRateLimits();
+            return new RateLimitModel(DateTime.Now , limits.Rate.Remaining, limits.Rate.Limit,
+                limits.Resources.Core.Remaining, limits.Resources.Core.Limit,
+                limits.Resources.Search.Remaining, limits.Resources.Search.Limit);
+        }
+
+        public record RateLimitModel(DateTime RecordTime, int MainRemaining, int MainMax, int CoreRemaining, int CoreMax, int SearchRemaining, int SearchMax);
+                
+        [ConfigurationPath("config/ratelimit.json")]
+        public class RateLimitConfig : Configuration<RateLimitConfig>
+        {
+            public List<RateLimitModel> RateLimit { get; set; } = new List<RateLimitModel>();
+        }
+
         // github run
         public static async Task<WorkflowRun> GetPackerWorkflowRunFromCheckSuiteID(long checkSuiteID)
         {
@@ -182,5 +215,5 @@ namespace CFPABot.Utils
             return Download.GitHubAPIJson<ArtifactModel>(workflowRun.ArtifactsUrl);
         }
     }
-    
+
 }

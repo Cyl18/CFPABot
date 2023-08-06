@@ -23,7 +23,7 @@ namespace CFPABot.Azusa
             return EncryptProvider.AESDecrypt(token, File.ReadAllText("config/encrypt_key.txt"), "CACTUS&MAMARUO!!");
         }
         
-        public async Task<bool> IsAdmin(IHttpContextAccessor http)
+        public static async Task<bool> IsAdmin(IHttpContextAccessor http)
         {
             var user = await GetGitHubClient(http).User.Current();
             var hasPermission =
@@ -32,7 +32,7 @@ namespace CFPABot.Azusa
             return hasPermission;
         }
 
-        public async Task<bool> HasPrPermission(IHttpContextAccessor http, int prid)
+        public static async Task<bool> HasPrPermission(IHttpContextAccessor http, int prid)
         {
             var user = await GetGitHubClient(http).User.Current();
             var pr = await GitHub.GetPullRequest(prid);

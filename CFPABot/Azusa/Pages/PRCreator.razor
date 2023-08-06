@@ -9,6 +9,7 @@
 @using GammaLibrary.Extensions
 @using Microsoft.AspNetCore.Http
 @using System.Collections.Immutable
+@using Octokit
 @implements IDisposable
 @inject IBlazorStrap _blazorStrap
 @inject IHttpContextAccessor _http
@@ -437,22 +438,28 @@ else
                         var flag = false;
                         var hs = new HashSet<int>();
                         var user = await LoginManager.GetGitHubClient(_http).User.Current();
-                        foreach (var pair in f.Select(x=>x.Value))
+                        await Parallel.ForEachAsync(f.Select(x=>x.Value)
+                            .SelectMany(x => x).Select(x => x.prid), new ParallelOptions() { MaxDegreeOfParallelism = 6},async (prid1, _) =>
                         {
-                            foreach (var (prid, _) in pair)
+                            lock (hs)
                             {
-                                if (hs.Add(prid))
+                                if (!hs.Add(prid1)) return;
+                                if (flag) return;
+                                
+                            }
+                            PullRequest pr;
+                            pr = await GitHub.GetPullRequest(prid1).ConfigureAwait(false);
+                            lock (hs)
+                            {
+                                if (flag) return;
+                                if (pr.User.Login == user.Login)
                                 {
-                                    var pr = await GitHub.GetPullRequest(prid);
-                                    if (pr.User.Login == user.Login)
-                                    {
-                                        flag = true;
-                                        conflictPRID = prid;
-                                        goto end;
-                                    }
+                                    flag = true;
+                                    conflictPRID = prid1;
                                 }
                             }
-                        }
+                        })
+                        ;
                         end:
                         if (flag)
                         {

@@ -1,0 +1,197 @@
+﻿@page "/PREditor"
+@inject IJSRuntime js
+@inject IBlazorStrap _blazorStrap
+@inject IHttpContextAccessor _http
+@inject NavigationManager _navigationManager
+@using CFPABot.PRData
+@using CFPABot.Utils
+@using GammaLibrary.Extensions
+@using Microsoft.AspNetCore.Http
+@using Octokit
+@using Serilog
+@implements IDisposable
+<h1>PREditor</h1>
+<BSToaster />
+<BSLabel MarginBottom="Margins.Medium" Class="@BS.Text_Info">如果你遇到了什么问题，可以在 CFPA 群中 @@Cyl18 反馈，或者前往 <BSLink Url="https://github.com/Cyl18/CFPABot/issues">这里</BSLink> 提交 Issue。</BSLabel>
+<br/>
+
+
+@if (LoginManager.GetLoginStatus(_http))
+{
+    @code{
+    string userName = "[加载中]";
+    string userAvatar = "";
+    void GetName()
+    {
+        userName = (LoginManager.GetGitHubClient(_http).User.Current().Result).Login;
+    }
+    void GetAvatar()
+    {
+        userAvatar = (LoginManager.GetGitHubClient(_http).User.Current().Result).AvatarUrl;
+    }
+
+        GitHubClient gitHubClient;
+    protected override async Task OnInitializedAsync()
+    {
+        if (LoginManager.GetLoginStatus(_http))
+        Task.Run(() =>
+        {
+            GetName();
+            GetAvatar();
+            InvokeAsync(StateHasChanged);
+        });
+        Task.Run(async () =>
+        {
+            gitHubClient = LoginManager.GetGitHubClient(_http);
+            var user = await gitHubClient.User.Current();
+            var prs = await gitHubClient.PullRequest.GetAllForRepository(Constants.RepoID);
+            if (prs.Count == 0)
+            {
+                InvokeAsync(() => ShowToast("你没有提交任何 PR"));
+                return;
+            }
+            var prsFiltered = prs.Where(x => x.User.Login == user.Login).ToArray();
+            ns = prsFiltered.Select(x => x.Number).ToArray();
+            prTitles.Clear();
+            foreach (var pullRequest in prsFiltered)
+            {
+                prTitles.Add(pullRequest.Number, $"#{pullRequest.Number} | {pullRequest.Title}");
+            }
+            await js.InvokeAsync<object>("load_editor");
+            ready = true;
+            InvokeAsync(StateHasChanged);
+        });
+
+    }
+
+    }
+    <BSImage style="width: 50px;" Source="@userAvatar" MarginBottom="Margins.Small"></BSImage>
+    <BSLabel MarginBottom="Margins.Medium">登录账号: @(userName) <BSLink Url="/api/GitHubOAuth/Signout">登出</BSLink></BSLabel>
+    
+    @if (ready)
+    {
+        @code{
+            
+            bool prDisabled = false;
+            bool prWarning = false;
+        }
+
+        <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium" disabled="@prDisabled">
+            <span class="@BS.Input_Group_Text">PR 号</span>
+            <BSInput TValue="int" InputType="InputType.Number" @bind-Value="prNumber"/>
+
+            <BSDropdown Placement="Placement.BottomEnd">
+                <Toggler>
+                    <BSToggle IsButton="true" IsOutlined="true" Color="BSColor.Secondary">你自己提交的 PR</BSToggle>
+                </Toggler>
+                <Content>
+
+                    @code
+                    {
+                        int[] ns = new[] { -1 };
+
+                        Dictionary<int, string> prTitles = new Dictionary<int, string>()
+                        {
+                            { -1, "#-1 | 未加载" }
+                        };
+
+                        void ChangePrNumber(int x) => prNumber = x;
+                    }
+
+                    @foreach (var x in ns)
+                    {
+                        <BSDropdownItem OnClick="() => ChangePrNumber(x)">@(prTitles[x])</BSDropdownItem>
+                    }
+                </Content>
+            </BSDropdown>
+            <BSButton OnClick="() => GetPr()" Color="BSColor.Info">开始编辑此 PR</BSButton>
+
+        </BSInputGroup>
+        
+        @if (prWarning)
+        {
+            <BSAlert HasIcon="true" Color="BSColor.Warning">检测到你可能没有编辑此 PR 的权限，请前往 GitHub 页面提交修改建议。</BSAlert>
+        }
+        
+        @code{
+            PullRequest pr;
+            IReadOnlyList<PullRequestFile> prFiles;
+            ForkRepoManager repo;
+            string originalFile;
+            string currentFile;
+            
+            async Task GetPr()
+            {
+                prDisabled = true;
+                try
+                {
+                    pr = await gitHubClient.PullRequest.Get(Constants.RepoID, prNumber);
+                    prFiles = await gitHubClient.PullRequest.Files(Constants.RepoID, prNumber);
+                    prWarning = await LoginManager.HasPrPermission(_http, prNumber);
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e, "PREditor");
+                    prDisabled = false;
+                }
+            }
+            
+            
+            
+            
+
+        }
+        
+        <BSCard Class="fade-in" CardType="CardType.Card" style="width: 32rem;" MarginTop="Margins.Medium">
+            <BSCard CardType="CardType.Body">
+                <code style="white-space: pre-line">
+                    @logger
+                </code>
+            </BSCard>
+        </BSCard>
+       
+}
+
+        
+    
+}
+else
+{
+    <BSAlert Color="BSColor.Danger" HasIcon="true" MarginBottom="Margins.Medium">你还没有登录.</BSAlert>
+    <BSButton MarginBottom="Margins.ExtraLarge" Color="BSColor.Primary" OnClick="() => _navigationManager.NavigateTo(LoginManager.LoginUrl)">GitHub 登录</BSButton>
+
+}
+
+            <div id="container" style="width:100%;height:700px;border:1px solid grey"></div>
+
+@code
+{
+    void ShowToast(string text)
+    {
+        _blazorStrap.Toaster.Add("警告", text, o =>
+        {
+            o.Color = BSColor.Warning;
+            o.HasIcon = true;
+            o.Toast = Toast.TopRight;
+        });
+    }
+}
+
+
+
+
+@code {
+    string logger = "";
+    bool ready = true;
+    
+    public string[] texts = new string[0];
+    public int[] indexs = new int[0];
+    int prNumber = 0;
+    
+    public void Dispose()
+    {
+        
+        
+    }
+
+}
