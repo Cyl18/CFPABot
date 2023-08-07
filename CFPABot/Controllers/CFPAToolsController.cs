@@ -13,8 +13,8 @@ namespace CFPABot.Controllers
     [ApiController]
     public class CFPAToolsController : ControllerBase
     {
-        [HttpGet("PRRelation")]
-        public JsonResult PRRelation([FromQuery] int prid)
+        [HttpGet("PRRelation/{prid}")]
+        public JsonResult PRRelation(int prid)
         {
             var mods = new List<Mod>();
             var emods = PRDataManager.Relation
