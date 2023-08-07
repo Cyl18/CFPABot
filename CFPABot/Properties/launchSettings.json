@@ -10,8 +10,8 @@
     },
     "CFPABot": {
       "commandName": "Project",
-      "launchBrowser": true,
-      "launchUrl": "Azusa/prcreator",
+      "launchBrowser": false,
+      "launchUrl": "Azusa/",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },

@@ -1,14 +1,29 @@
-﻿@inherits LayoutComponentBase
-
+﻿@using Microsoft.AspNetCore.Http
+@inherits LayoutComponentBase
+@inject IHttpContextAccessor http;
 <PageTitle>BlazorServerBase</PageTitle>
 
 <div class="page">
     <div class="sidebar">
-        <NavMenu />
+        <NavMenu admin="@admin" />
     </div>
 
     <main>
         <div class="top-row px-4">
+            @code
+            {
+                bool admin = false;
+                protected override async Task OnInitializedAsync()
+                {
+                    admin = await LoginManager.IsAdmin(http);
+                    InvokeAsync(StateHasChanged);
+                }
+            }
+            @if (admin)
+            {
+                <BSLabel>你是管理员哦</BSLabel>
+                
+            }
             <a href="https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/" target="_blank">About</a>
         </div>
 

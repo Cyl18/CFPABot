@@ -16,29 +16,31 @@
         </div>
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="SubmitAssistant">
-                <span class="oi oi-plus" aria-hidden="true"></span> 快速翻译文件上传
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="PRList">
-                <span class="oi oi-plus" aria-hidden="true"></span> PR 列表
+                <span class="oi oi-cloud-upload" aria-hidden="true"></span> 快速翻译文件上传
             </NavLink>
         </div>
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="Diff">
-                <span class="oi oi-plus" aria-hidden="true"></span> Diff
+                <span class="oi oi-loop" aria-hidden="true"></span> Diff
             </NavLink>
         </div>
-                        <div class="nav-item px-3">
-                            <NavLink class="nav-link" href="ModList">
-                                <span class="oi oi-plus" aria-hidden="true"></span> 主库模组列表
-                            </NavLink>
-                        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="PRList">
+                <span class="oi oi-fork" aria-hidden="true"></span> PR 列表
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="ModList">
+                <span class="oi oi-folder" aria-hidden="true"></span> 主库模组列表
+            </NavLink>
+        </div>
     </nav>
 </div>
 
 @code {
     private bool collapseNavMenu = true;
+    [Parameter]
+    public bool admin { get; set; }
 
     private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
 
