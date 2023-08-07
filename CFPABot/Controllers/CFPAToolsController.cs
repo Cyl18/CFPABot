@@ -25,7 +25,7 @@ namespace CFPABot.Controllers
                 foreach (var tuple in value)
                 {
                     var modId = PRDataManager.GetModID(prid, tuple.modVersion, key);
-                    if (modId == null) continue;
+                    if (modId == null) continue; // 排除主PR没有此版本的情况
                     
                     var gameVersion = tuple.modVersion.ToVersionDirectory();
                     var link = PRDataManager.GetPath(prid, tuple.modVersion, key);
@@ -36,7 +36,7 @@ namespace CFPABot.Controllers
                     {
                         foreach (var (subPrid, modVersion) in hashSet)
                         {
-                            if (subPrid == prid) continue;
+                            if (subPrid == prid) continue; // 排除当前pr
                             
                             var subLink = PRDataManager.GetPath(subPrid, modVersion, key);
                             otherPrs.Add(new OtherPrs(subPrid, subLink.en, subLink.cn, modVersion.ToVersionDirectory()));
