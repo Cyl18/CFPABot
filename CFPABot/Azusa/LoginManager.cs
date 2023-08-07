@@ -19,13 +19,20 @@ namespace CFPABot.Azusa
 
         public static string GetToken(IHttpContextAccessor http)
         {
-            http.HttpContext!.Request.Cookies.TryGetValue(Constants.GitHubOAuthTokenCookieName, out var token);
+            if (!http.HttpContext!.Request.Cookies.TryGetValue(Constants.GitHubOAuthTokenCookieName, out var token))
+            {
+                return null;
+            }
+
             return EncryptProvider.AESDecrypt(token, File.ReadAllText("config/encrypt_key.txt"), "CACTUS&MAMARUO!!");
         }
         
         public static async Task<bool> IsAdmin(IHttpContextAccessor http)
         {
-            var user = await GetGitHubClient(http).User.Current();
+            var client = GetGitHubClient(http);
+            if (client == null) return false;
+            
+            var user = await client.User.Current();
             var hasPermission =
                 await GitHub.Instance.Repository.Collaborator.IsCollaborator(Constants.Owner, Constants.RepoName, user.Login);
                 
@@ -34,7 +41,10 @@ namespace CFPABot.Azusa
 
         public static async Task<bool> HasPrPermission(IHttpContextAccessor http, int prid)
         {
-            var user = await GetGitHubClient(http).User.Current();
+            var client = GetGitHubClient(http);
+            if (client == null) return false;
+            
+            var user = await client.User.Current();
             var pr = await GitHub.GetPullRequest(prid);
             var hasPermission =
                 await GitHub.Instance.Repository.Collaborator.IsCollaborator(Constants.Owner, Constants.RepoName, user.Login);
@@ -61,8 +71,10 @@ namespace CFPABot.Azusa
         }
         public static GitHubClient GetGitHubClient(IHttpContextAccessor http)
         {
+            var token = GetToken(http);
+            if (token == null) return null;
             
-            return GetGitHubClient(GetToken(http));
+            return GetGitHubClient(token);
         }
 
         public static async Task<string[]> GetEmails(IHttpContextAccessor http)
