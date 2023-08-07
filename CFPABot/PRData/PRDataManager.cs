@@ -86,8 +86,8 @@ public class PRDataManager
                     new LangFilePath(pullRequestFileEx.FileName).ModPath.CurseForgeSlug == slug)
                 {
                     var p = pullRequestFileExes.Where(x =>
-                        new LangFilePath(x.FileName).ModPath.ModVersion == version &&
-                        new LangFilePath(x.FileName).ModPath.CurseForgeSlug == slug);
+                        x.FileName.Contains("/"+version.ToVersionDirectory()+"/") &&
+                        x.FileName.Contains("/"+slug+"/"));
                     return (p.Where(x => x.FileName.Contains("zh_cn")).First().RawUrl,
                         p.Where(x => x.FileName.Contains("en_us")).First().RawUrl);
                 }
