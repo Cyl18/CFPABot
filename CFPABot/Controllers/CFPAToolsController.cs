@@ -32,10 +32,12 @@ namespace CFPABot.Controllers
                     var otherPrs = new List<OtherPrs>();
                     foreach (var (s, hashSet) in PRDataManager.Relation
                                  .Where(x => 
-                                     x.Value.Any(y => y.prid != prid) && x.Key == key))
+                                      x.Key == key))
                     {
                         foreach (var (subPrid, modVersion) in hashSet)
                         {
+                            if (subPrid == prid) continue;
+                            
                             var subLink = PRDataManager.GetPath(subPrid, modVersion, key);
                             otherPrs.Add(new OtherPrs(subPrid, subLink.en, subLink.cn, modVersion.ToVersionDirectory()));
                             
