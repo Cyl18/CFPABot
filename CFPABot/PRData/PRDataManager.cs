@@ -88,8 +88,8 @@ public class PRDataManager
                     var p = pullRequestFileExes.Where(x =>
                         x.FileName.Contains("/"+version.ToVersionDirectory()+"/") &&
                         x.FileName.Contains("/"+slug+"/"));
-                    return (p.Where(x => x.FileName.Contains("zh_cn")).First().RawUrl,
-                        p.Where(x => x.FileName.Contains("en_us")).First().RawUrl);
+                    return (p.First(x => x.FileName.Contains("zh_cn")).RawUrl,
+                        p.First(x => x.FileName.Contains("en_us")).RawUrl);
                 }
                 
 

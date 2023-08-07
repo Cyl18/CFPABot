@@ -14,7 +14,7 @@ namespace CFPABot.Controllers
     public class CFPAToolsController : ControllerBase
     {
         [HttpGet("PRRelation/{prid}")]
-        public JsonResult PRRelation(int prid)
+        public IActionResult PRRelation(int prid)
         {
             var mods = new List<Mod>();
             var emods = PRDataManager.Relation
@@ -47,6 +47,11 @@ namespace CFPABot.Controllers
                     mods.Add(new Mod("curseforge", key, modId, link.en, link.cn, 
                         gameVersion, otherPrs));
                 }
+            }
+
+            if (mods.Count == 0)
+            {
+                return StatusCode(418);
             }
             //var res = new PRRelationResult(prid,);
             return new JsonResult(new PRRelationResult(prid, mods));
