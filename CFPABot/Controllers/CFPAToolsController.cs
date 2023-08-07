@@ -22,7 +22,7 @@ namespace CFPABot.Controllers
                     x.Value.Any(y => y.prid == prid)).ToArray();
             foreach (var (key, value) in emods)
             {
-                foreach (var tuple in value.Where(x => emods.Any(y => y.Value.Any(z => z.modVersion == x.modVersion))))
+                foreach (var tuple in value.Where(x => emods.Any(y => y.Value.Any(z => z.modVersion == x.modVersion && x.prid == z.prid))))
                 {
                     var modId = PRDataManager.GetModID(prid, tuple.modVersion, key);
                     var gameVersion = tuple.modVersion.ToVersionDirectory();
