@@ -32,9 +32,10 @@ namespace CFPABot.Azusa
             var client = GetGitHubClient(http);
             if (client == null) return false;
             
-            var user = await client.User.Current();
+            var user = await client.User.Current().ConfigureAwait(false);
             var hasPermission =
-                await GitHub.Instance.Repository.Collaborator.IsCollaborator(Constants.Owner, Constants.RepoName, user.Login);
+                await GitHub.Instance.Repository.Collaborator
+                    .IsCollaborator(Constants.Owner, Constants.RepoName, user.Login).ConfigureAwait(false);
                 
             return hasPermission;
         }
@@ -44,10 +45,11 @@ namespace CFPABot.Azusa
             var client = GetGitHubClient(http);
             if (client == null) return false;
             
-            var user = await client.User.Current();
-            var pr = await GitHub.GetPullRequest(prid);
+            var user = await client.User.Current().ConfigureAwait(false);
+            var pr = await GitHub.GetPullRequest(prid).ConfigureAwait(false);
             var hasPermission =
-                await GitHub.Instance.Repository.Collaborator.IsCollaborator(Constants.Owner, Constants.RepoName, user.Login);
+                await GitHub.Instance.Repository.Collaborator
+                    .IsCollaborator(Constants.Owner, Constants.RepoName, user.Login).ConfigureAwait(false);
 
             if (!hasPermission && (pr.User.Login == user.Login))
             {
@@ -82,7 +84,7 @@ namespace CFPABot.Azusa
             var client = GetGitHubClient(http);
             try
             {
-                var user = await client.User.Current();
+                var user = await client.User.Current().ConfigureAwait(false);
                 var aEmail = $"{user.Id}+{user.Login}@users.noreply.github.com";
                 try
                 {

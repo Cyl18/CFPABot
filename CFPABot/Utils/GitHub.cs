@@ -155,7 +155,7 @@ namespace CFPABot.Utils
         public static async Task<IReadOnlyList<PullRequestFile>> GetPullRequestFiles(int id)
         {
             Log.Debug($"获取 PR Files: {id}");
-            var livePr = await Instance.PullRequest.Files(Constants.Owner, Constants.RepoName, id);
+            var livePr = await Instance.PullRequest.Files(Constants.Owner, Constants.RepoName, id).ConfigureAwait(false);
             return livePr;
         }
 
