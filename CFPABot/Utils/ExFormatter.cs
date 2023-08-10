@@ -115,6 +115,7 @@ namespace CFPABot.Utils
                         if (!quoted)
                             sb.Append(" ");
                         break;
+                    case '\r': case '\n': continue;
                     default:
                         sb.Append(ch);
                         break;
