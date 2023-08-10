@@ -31,7 +31,7 @@ namespace CFPABot.DiffEngine
             return new LangFileWrapper() { langFile = content, isLangFile = true };
         }
 
-        private static LangFileType GuessType(string content)
+        public static LangFileType GuessType(string content)
         {
             // 我觉得不会有作者写成一行的 /**/ { 吧????
             if (content.Split('\n').Any(x => x.TrimStart().StartsWith('{')))

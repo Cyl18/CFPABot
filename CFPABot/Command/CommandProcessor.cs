@@ -165,25 +165,62 @@ namespace CFPABot.Command
                     if (line.StartsWith("/format "))
                     {
                         if (!await CheckPermission()) continue;
-                        var filePath = line["/format ".Length..];
+                        var filePath = line["/format ".Length..].Trim('"');
                         var r = GetRepo();
                         var repoPath = Path.Combine(r.WorkingDirectory, filePath);
-
-                        var f = File.ReadAllBytes(repoPath);
-                        using var sr = new MemoryStream(f).CreateStreamReader(Encoding.UTF8);
-                        File.Delete(repoPath);
-                        using var sw = File.Open(
-                            repoPath,
-                            FileMode.Create).CreateStreamWriter(new UTF8Encoding(false));
-
-                        switch (filePath.Split("/")[1].ToMCVersion())
+                        if (filePath == "*")
                         {
-                            case MCVersion.v1122:
-                                new LangFormatter(sr, sw).Format();
-                                break;
-                            default:
-                                new JsonFormatter(sr, sw).Format();
-                                break;
+                            var diff = await GitHub.Diff(prid);
+                            foreach (var fileDiff in diff.Where(x => x.To.EndsWith(".json") || x.To.EndsWith(".lang")))
+                            {
+                                LangFilePath langFilePath = null;
+                                try
+                                {
+                                    langFilePath = new LangFilePath(fileDiff.To);
+                                }
+                                catch (Exception e)
+                                {
+                                    continue;
+                                }
+
+                                repoPath = Path.Combine(r.WorkingDirectory, fileDiff.To);
+                                Format(langFilePath.LangFileType);
+                            }
+
+                        }
+                        else
+                        {
+                            Format();
+                        }
+
+                        void Format(LangFileType? type = null)
+                        {
+                            if (type != null)
+                            {
+                                switch (type)
+                                {
+                                    case LangFileType.Lang:
+                                        File.WriteAllText(repoPath, ExFormatter.Format(File.ReadAllText(repoPath), LangFileType.Lang));
+                                        break;
+                                    case LangFileType.Json:
+                                        File.WriteAllText(repoPath, ExFormatter.Format(File.ReadAllText(repoPath), LangFileType.Json));
+                                        break;
+                                }
+                            }
+                            else
+                            {
+                                switch (filePath.Split("/")[1].ToMCVersion())
+                                {
+                                    case MCVersion.v1122:
+                                        File.WriteAllText(repoPath, ExFormatter.Format(File.ReadAllText(repoPath), LangFileType.Lang));
+                                        break;
+                                    default:
+                                        File.WriteAllText(repoPath, ExFormatter.Format(File.ReadAllText(repoPath), LangFileType.Json));
+                                        break;
+                                }
+                            }
+                            
+
                         }
 
                         r.AddAllFiles();
