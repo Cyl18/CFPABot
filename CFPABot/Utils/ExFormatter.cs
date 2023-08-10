@@ -20,7 +20,7 @@ namespace CFPABot.Utils
                     return RemoveEmptyLines(content.Split('\n').Select(x => x.TrimStart(' ')).Connect("\n"));
                     break;
                 case LangFileType.Json:
-                    return RemoveEmptyLines(JsonHelper.FormatJson(content));
+                    return JsonHelper.FormatJson(content);
                     break;
             }
 
@@ -84,6 +84,14 @@ namespace CFPABot.Utils
                             Enumerable.Range(0, ++indent).ForEach(item => sb.Append(INDENT_STRING));
                         }
                         break;
+                    case '\r': continue;
+                    case '\n':
+                        if (sb.ToString().Last() == ',')
+                        {
+                            sb.AppendLine();
+                        }
+
+                        break;
                     case '}':
                     case ']':
                         if (!quoted)
@@ -115,7 +123,6 @@ namespace CFPABot.Utils
                         if (!quoted)
                             sb.Append(" ");
                         break;
-                    case '\r': case '\n': continue;
                     default:
                         sb.Append(ch);
                         break;
