@@ -70,5 +70,5 @@ https://github.com/CFPAOrg/Minecraft-Mod-Language-Package 的 *PR 管理*及一�
   }
   ```
 - 把代码所有的 `cfpa.cyan.cafe` 换成你的域名 (有 4 个地方要改)
-- 如果需要 Azuka, nginx 配置反代时需要配置 WebSocket
+- 如果需要 Azusa, nginx 配置反代时需要配置 WebSocket
 - 最后 `docker-compose up -d` 即可
