@@ -165,6 +165,7 @@ namespace CFPABot.Command
                     if (line.StartsWith("/format "))
                     {
                         if (!await CheckPermission()) continue;
+                        throw new CommandException("/format 临时关闭。");
                         var filePath = line["/format ".Length..].Trim('"');
                         var r = GetRepo();
                         var repoPath = Path.Combine(r.WorkingDirectory, filePath);
