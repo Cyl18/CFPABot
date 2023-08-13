@@ -20,7 +20,7 @@ namespace CFPABot.Checks
         public async Task Run()
         {
             var labels = await GitHub.Instance.Issue.Labels.GetAllForIssue(Constants.Owner, Constants.RepoName, prid);
-            var deniedLabels = new string[] {"NO-MERGE", "needs author action", "changes required", "ready to reject", "即将被搁置" };
+            var deniedLabels = new string[] {"NO-MERGE", "needs author action", "changes required", "ready to reject", "即将被搁置", "即将拒收" };
             var result = labels.Any(label => deniedLabels.Contains(label.Name));
             var pr = await GitHub.GetPullRequest(this.prid);
 
