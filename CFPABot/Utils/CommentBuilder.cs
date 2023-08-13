@@ -568,7 +568,7 @@ namespace CFPABot.Utils
                             Description = $"pr-{PullRequestID}-diff", Files = {{$"pr-{PullRequestID}-diff.md", result}},
                             Public = false
                         });
-                        result = $"🔛 Diff 内容过长，已经上传至<{gist.HtmlUrl}>。\n";
+                        result = $"🔛 Diff 内容过长，已经上传至 <{gist.HtmlUrl}>。\n";
                     }
                     catch (Exception e)
                     {

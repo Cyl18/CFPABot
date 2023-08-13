@@ -480,7 +480,7 @@ namespace CFPABot.Command
                 try
                 {
                     var gist = await GitHub.InstancePersonal.Gist.Create(new NewGist() { Description = $"pr-{prid}-diff", Files = { { $"pr-{prid}-diff.md", result } }, Public = false });
-                    result = $"回复内容过长，已经上传至<{gist.HtmlUrl}>。";
+                    result = $"回复内容过长，已经上传至 <{gist.HtmlUrl}>。";
                 }
                 catch (Exception e)
                 {
