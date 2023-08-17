@@ -644,7 +644,7 @@ else
 
         @code{
             string prlink = null;
-            string prBody = "作者已阅读贡献指南并同意 CC 协议。\n\n由 CFPA-Helper 提交。";
+            string prBody = "\n\n由 CFPA-Helper 提交。";
             async Task SendPR()
             {
                 var pr = await prCreatorModule.CreatePR(prBody);

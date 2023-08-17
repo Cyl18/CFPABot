@@ -162,6 +162,40 @@ namespace CFPABot.Command
                         r.Commit($"Update en_us file for {(curseForgeID.Replace("\"", "\\\""))}", user);
                     }
 
+                    if (line.StartsWith("/add-co-author "))
+                    {
+                        if (!await CheckPermission()) continue;
+                        var userLogin = line["/add-co-author ".Length..].Trim('@').Trim();
+                        User coAuthor;
+                        try
+                        {
+                            coAuthor = await GitHub.Instance.User.Get(userLogin);
+                        }
+                        catch (Exception e)
+                        {
+                            sb.AppendLine("无法获取到指定用户。");
+                            continue;
+                        }
+
+                        var email = $"Co-authored-by: {coAuthor.Login} <{coAuthor.Id}+{coAuthor.Login}@users.noreply.github.com>";
+                        var prBody = pr.Body;
+                        if (prBody.IsNullOrWhiteSpace())
+                        {
+                            prBody = email;
+                            goto end;
+                        }
+                        if (!prBody.EndsWith('\n') || !(prBody.Split('\n').Last().Split(':').FirstOrDefault().Equals("Co-authored-by", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            prBody += '\n';
+                        }
+
+                        prBody += email;
+                        end:
+                        await GitHub.Instance.PullRequest.Update(Constants.RepoID, prid,
+                            new PullRequestUpdate() {Body = prBody});
+                        sb.AppendLine("完成。");
+                    }
+
                     if (line.StartsWith("/format "))
                     {
                         if (!await CheckPermission()) continue;

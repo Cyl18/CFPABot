@@ -12,6 +12,7 @@ using CFPABot.Azusa;
 using CFPABot.Azusa.Pages;
 using CFPABot.Command;
 using CFPABot.Controllers;
+using CFPABot.IDK;
 using CFPABot.PRData;
 using CFPABot.ProjectHex;
 using CFPABot.Utils;
@@ -82,24 +83,44 @@ namespace CFPABot
 
                     await Task.Delay(TimeSpan.FromMinutes(5));
                 }
-            }); 
-            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
-                _ = Task.Run(async () =>
-            {
-                while (true)
-                {
-                    try
-                    {
-                        await CurseForgeIDMappingManager.Update();
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine($"Mapping Error: {e}");
-                    }
-
-                    await Task.Delay(TimeSpan.FromMinutes(60));
-                }
             });
+            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
+            {
+                _ = Task.Run(async () =>
+                {
+                    while (true)
+                    {
+                        try
+                        {
+                            await CurseForgeIDMappingManager.Update();
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"Mapping Error: {e}");
+                        }
+
+                        await Task.Delay(TimeSpan.FromMinutes(60));
+                    }
+                });
+
+                _ = Task.Run(async () =>
+                {
+                    while (true)
+                    {
+                        try
+                        {
+                            await TranslationRequestUpdater.Run();
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"#2702 Error: {e}");
+                        }
+
+                        await Task.Delay(TimeSpan.FromMinutes(60));
+                    }
+                });
+            }
+                
             
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
