@@ -1,5 +1,10 @@
 ﻿@page "/"
+@using CFPABot.PRData
+@using Microsoft.AspNetCore.Http
 
+@inject IBlazorStrap _blazorStrap
+@inject IHttpContextAccessor _http
+@inject NavigationManager _navigationManager
 <PageTitle>Index</PageTitle>
 
 <h1>CFPA Helper Beta</h1>
@@ -7,3 +12,41 @@
 <p>
 这里是一些辅助 CFPA/Minecraft-Mod-Language-Package 的一些小工具
 </p>
+<br/>
+@if (LoginManager.GetLoginStatus(_http))
+{
+    @code{
+        string userName = "[加载中]";
+        string userAvatar = "";
+        void GetName()
+        {
+            userName = (LoginManager.GetGitHubClient(_http).User.Current().Result).Login;
+        }
+        void GetAvatar()
+        {
+            userAvatar = (LoginManager.GetGitHubClient(_http).User.Current().Result).AvatarUrl;
+        }
+
+        protected override async Task OnInitializedAsync()
+        {
+            if (LoginManager.GetLoginStatus(_http))
+                Task.Run(() =>
+                {
+                    GetName();
+                    GetAvatar();
+                    InvokeAsync(StateHasChanged);
+                });
+            
+
+        }
+
+    }
+    <BSImage style="width: 50px;" Source="@userAvatar" MarginBottom="Margins.Small"></BSImage>
+    <BSLabel MarginBottom="Margins.Medium">登录账号: @(userName) <BSLink Url="/api/GitHubOAuth/Signout">登出</BSLink></BSLabel>
+}
+else
+{
+    <BSAlert Color="BSColor.Danger" HasIcon="true" MarginBottom="Margins.Medium">你还没有登录.</BSAlert>
+    <BSButton MarginBottom="Margins.ExtraLarge" Color="BSColor.Primary" OnClick="() => _navigationManager.NavigateTo(LoginManager.LoginUrl)">GitHub 登录</BSButton>
+
+}

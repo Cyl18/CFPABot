@@ -1,6 +1,130 @@
 ﻿@page "/SpecialDiff"
+@using CFPABot.Utils
+@using DiffPatch.Data
+@using Microsoft.AspNetCore.Http
+@using Octokit
+@using System.Text
+@using System.IO
+@inject IBlazorStrap _blazorStrap
+@inject IHttpContextAccessor _http
+@inject NavigationManager _navigationManager
+@implements IDisposable
 <h3>SpecialDiff</h3>
+<BSToaster/>
+
+<PageTitle>特殊 Diff</PageTitle>
+
+
 
 @code {
-    
+    int step = 0;
+    int prid = -1;
+    ForkRepoManager forkRepo;
+    FileDiff[] diff;
+    PullRequest pr;
+    string enDir;
+    string cnDir;
+
+    void ShowToast(string text)
+    {
+        InvokeAsync((() =>
+        {
+            _blazorStrap.Toaster.Add("警告", text, o =>
+            {
+                o.Color = BSColor.Warning;
+                o.HasIcon = true;
+                o.Toast = Toast.TopRight;
+            });
+        }));
+    }
+
+    async void CloneRepo()
+    {
+        forkRepo = new ForkRepoManager(Constants.GitHubOAuthToken);
+        diff = await GitHub.Diff(prid).ConfigureAwait(false);
+        pr = await GitHub.GetPullRequest(prid).ConfigureAwait(false);
+        var cn = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("zh_cn", StringComparison.OrdinalIgnoreCase)))?.To;
+        var en = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("en_us", StringComparison.OrdinalIgnoreCase)))?.To;
+        if (cn == null || en == null)
+        {
+            ShowToast("找不到中文或英文文件夹");
+            return;
+        }
+
+
+        var enT = Traverse(en);
+        var cnT = Traverse(cn);
+        if (cnT == null || enT == null)
+        {
+            ShowToast($"找不到中文或英文文件夹\nen: {en}\ncn:{cn}");
+            return;
+        }
+
+        enDir = Path.Combine(forkRepo.WorkingDirectory, enT);
+        cnDir = Path.Combine(forkRepo.WorkingDirectory, cnT);
+        step++;
+        InvokeAsync(StateHasChanged);
+    }
+
+    string Traverse(string str)
+    {
+        var s = str.Split('/');
+        var sb = new StringBuilder();
+        var flag = false;
+        foreach (var s1 in s)
+        {
+            sb.Append(s1 + "/");
+            if (s1.Equals("zh_cn", StringComparison.OrdinalIgnoreCase) || s1.Equals("en_us", StringComparison.OrdinalIgnoreCase))
+            {
+                flag = true;
+                break;
+            }
+        }
+        if (flag)
+        {
+            return sb.ToString().TrimEnd('/');
+        }
+        else
+        {
+            return null;
+        }
+    }
+
+    public void Dispose()
+    {
+        forkRepo?.Dispose();
+    }
+
+}
+
+@if (step == 0)
+{
+    @if (!LoginManager.GetLoginStatus(_http))
+    {
+        <BSAlert Color="BSColor.Danger" HasIcon="true">警告：登录后才可以提交审核，你可以去主页登录</BSAlert>
+    }
+    <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
+        <span class="@BS.Input_Group_Text">PRID</span>
+        <BSInput TValue="int" MarginBottom="Margins.Medium" InputType="InputType.Number" @bind-Value="prid"/>
+        <BSButton OnClick="CloneRepo" Color="BSColor.Primary">开始</BSButton>
+    </BSInputGroup>
+}
+@if (step == 1)
+{
+    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Large" style="width: 60rem;">
+        <BSCard CardType="CardType.Body">
+
+
+        </BSCard>
+    </BSCard>
+
+    <BSCard Class="fade-in" CardType="CardType.Card" style="width: 32rem;" MarginTop="Margins.Medium">
+        <BSCard CardType="CardType.Body">
+            <BSCol>
+                基础文件路径: @(Path.GetRelativePath(forkRepo.WorkingDirectory, enDir))
+                </BSCol>
+
+
+        </BSCard>
+    </BSCard>
 }

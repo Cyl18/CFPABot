@@ -1,0 +1,64 @@
+﻿@page "/GitHubInCNHelper"
+@using BlazorStrap.Shared.Components.Modal
+
+@inject IBlazorStrap _blazorStrap
+<PageTitle>GitHub 无法访问</PageTitle>
+<BSToaster/>
+
+<BSModal DataId="modal1">
+    <Header>请输入主群群号</Header>
+    <Content>
+        <div>
+            630943368 （提示：可以复制粘贴）
+            <BSInput TValue="string" MarginTop="Margins.Medium" InputType="InputType.Number" @bind-Value="groupNumber"/>
+        </div>
+        
+    </Content>
+    <Footer Context="modal">
+        <BSButton Color="BSColor.Primary" OnClick="() => Confirm(modal)">OK</BSButton>
+    </Footer>
+</BSModal>
+@if (!flag)
+{
+    <BSButton Color="BSColor.Primary" Target="modal1">开始</BSButton>
+
+}
+<br/>
+@if (flag)
+{
+    <h4>如果你遇到了 GitHub 访问很慢的问题：</h4>
+    <p>- 使用 <a href="https://steampp.net/" target="_blank">Watt Toolkit</a>（免费，非广告）</p>
+    <p>- 使用 <a href="https://uu.163.com/" target="_blank">UU 加速器</a> 搜索并 加速学术资源（免费，需要实名，非广告）</p>
+    <p>- 使用 <a href="https://www.dogfight360.com/blog/475/" target="_blank">UsbEAm</a>（非广告, 上面无效可以试试这个）</p>
+    <p>- 使用 Minecraft 中七根木棍（找你认识的朋友）</p>
+    <br/>
+    <p>如果你找到了更多方法，欢迎告诉我（Cyl18）加到这个页面~</p>
+}
+@code {
+
+    string groupNumber = "";
+    bool flag = false;
+    void ShowToast(string text)
+    {
+        _blazorStrap.Toaster.Add("警告", text, o =>
+        {
+            o.Color = BSColor.Warning;
+            o.HasIcon = true;
+            o.Toast = Toast.TopRight;
+        });
+    }
+
+    void Confirm(BSModalBase bsModalBase)
+    {
+        bsModalBase.HideAsync();
+        if (groupNumber.Trim() == "630943368")
+        {
+            flag = true;
+        }
+        else
+        {
+            ShowToast("输入错了...");
+        }
+    }
+
+}

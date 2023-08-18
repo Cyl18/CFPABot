@@ -22,11 +22,14 @@ namespace CFPABot.Azusa
             Directory.CreateDirectory(WorkingDirectory);
         }
 
-        public void Clone(string repoOwner, string repoName, string userName, string userEmail)
+        public void Clone(string repoOwner, string repoName, string userName = null, string userEmail = null)
         {
             Run($"clone https://x-access-token:{_token}@github.com/{repoOwner}/{repoName}.git --depth=1 .");
-            Run($"config user.name \"{userName}\"");
-            Run($"config user.email \"{userEmail}\"");
+            if (userEmail != null)
+            {
+                Run($"config user.name \"{userName}\"");
+                Run($"config user.email \"{userEmail}\"");   
+            }
         }
         
 
