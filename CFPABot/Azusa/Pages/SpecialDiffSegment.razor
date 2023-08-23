@@ -52,6 +52,7 @@
     object model = new object();
     [Parameter]
     public string FilePath { get; set; }
+    [Parameter]
     public PullRequest PR { get; set; }
 
     [Parameter]
@@ -62,6 +63,9 @@
     public string CnFile { get; set; }
     [Parameter]
     public List<PullRequestReviewComment> Comments { get; set; }
+    [Parameter]
+    public GitHubClient GitHubClient { get; set; }
+
 
     string suggestion;
 
@@ -101,10 +105,10 @@
 
     }
 
-    void Update()
+    async void Update()
     {
-        LoginManager.GetGitHubClient(_http).PullRequest.ReviewComment.Create(Constants.RepoID, PR.Number, new PullRequestReviewCommentCreate(suggestion, PR.Head.Sha, FilePath, realStartLine));
-
+        await GitHubClient.PullRequest.ReviewComment.Create(Constants.RepoID, PR.Number, new PullRequestReviewCommentCreate(suggestion, PR.Head.Sha, FilePath, realStartLine));
+        _blazorStrap.Toaster.Add("Okay!", op => op.CloseAfter = 3);
 
     }
 
