@@ -36,7 +36,7 @@
         <BSModalContent>
             <div class="mb-3">
                 <BSLabel>注释</BSLabel>
-                <BSInput style="white-space: pre-wrap;height:200px;" InputType="InputType.TextArea" @bind-Value="suggestion" />
+                <BSInput style="white-space: pre-wrap;height:330px;" InputType="InputType.TextArea" @bind-Value="suggestion" />
             </div>
         </BSModalContent>
         <BSModalFooter>
@@ -92,7 +92,7 @@
             var endLine = json.GetProperty("endLineNumber").GetInt32() -1;
             realStartLine = startLine + 1;
 
-            suggestion = "```suggestion" + CnFile.Split('\n').Skip(startLine).Take(endLine - startLine + 1).Connect("\n") + "\n```";
+            suggestion = "```suggestion\n" + CnFile.Split('\n').Skip(startLine).Take(endLine - startLine + 1).Connect("\n") + "\n```";
         }
         catch (Exception e)
         {
