@@ -10,8 +10,8 @@
 @inject IBlazorStrap _blazorStrap
 @inject IHttpContextAccessor _http
 
-<BSLabel MarginBottom="Margins.Small" @bind-Target="Id">文件名：@FileName</BSLabel>
-<BSButton MarginBottom="Margins.Small" Color="BSColor.Primary" OnClick="Test">对所选内容进行注释</BSButton>
+<BSLabel MarginBottom="Margins.Small" >文件名：@FileName</BSLabel>
+<BSButton MarginBottom="Margins.Small" Color="BSColor.Primary" @bind-Target="Id" OnClick="Test">对所选内容进行注释</BSButton>
 
 @foreach (var s in Comments)
 {
@@ -48,7 +48,7 @@
 
 @code {
 
-    
+
     object model = new object();
     [Parameter]
     public string FilePath { get; set; }
@@ -96,9 +96,8 @@
         }
         catch (Exception e)
         {
+            
         }
-
-        Debugger.Break();
 
     }
 
