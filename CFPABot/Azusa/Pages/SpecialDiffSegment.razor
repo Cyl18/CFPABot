@@ -1,0 +1,109 @@
+﻿@using System.Diagnostics
+@using System.Text.Json
+@using CFPABot.Utils
+@using GammaLibrary.Extensions
+@using Ganss.Xss
+@using Markdig
+@using Microsoft.AspNetCore.Http
+@using Octokit
+@inject IJSRuntime js
+@inject IBlazorStrap _blazorStrap
+@inject IHttpContextAccessor _http
+
+<BSLabel MarginBottom="Margins.Small" Target="model9-@Id">文件名：@FileName</BSLabel>
+<BSButton MarginBottom="Margins.Small" OnClick="Test">对所选内容进行注释</BSButton>
+
+@foreach (var s in Comments)
+{
+    <p>
+        @if (s.OriginalCommitId != s.CommitId)
+        {
+            <strong>已过时：</strong>
+        }
+        @(s.User.Login) 的建议: <br />
+    </p>
+    <code>
+        @((MarkupString)(new HtmlSanitizer().Sanitize(Markdown.ToHtml(s.Body,
+            new MarkdownPipelineBuilder().UsePipeTables().UseBootstrap().UseGridTables().Build()))))
+    </code>
+}
+
+<div id="container-@Id" style="width:100%;height:700px;border:1px solid grey"></div>
+
+<BSModal DataId="model-@Id" HideOnValidSubmit="true" IsStaticBackdrop="true">
+    <BSForm OnValidSubmit="@Update">
+        <BSModalHeader>New Employee Form</BSModalHeader>
+        <BSModalContent>
+            <div class="mb-3">
+                <BSLabel>注释</BSLabel>
+                <BSInput InputType="InputType.Text" @bind-Value="suggestion" />
+            </div>
+        </BSModalContent>
+        <BSModalFooter>
+            <BSButton Target="model9">Cancel</BSButton>
+            <BSButton IsSubmit="true" Color="BSColor.Primary">Save</BSButton>
+        </BSModalFooter>
+    </BSForm>
+</BSModal>
+
+@code {
+    [Parameter]
+    public string FilePath { get; set; }
+    public PullRequest PR { get; set; }
+
+    [Parameter]
+    public string FileName { get; set; }
+    [Parameter]
+    public string EnFile { get; set; }
+    [Parameter]
+    public string CnFile { get; set; }
+    [Parameter]
+    public List<PullRequestReviewComment> Comments { get; set; }
+
+    string suggestion;
+
+    public readonly string Id = Guid.NewGuid().ToString("N");
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await js.InvokeAsync<object>("load_diff_editor", Id, true);
+            await js.InvokeAsync<object>("set_diff_content", Id, EnFile, CnFile, FileName.EndsWith(".json") ? "json" : "ini");
+
+            // var content = CustomCommandContentConfig.Instance.Content;
+            // await js.InvokeAsync<object>("set_editor_content", content.IsNullOrWhiteSpace() ? GetDefaultContent() : content);
+        }
+    }
+
+    int realStartLine;
+    async void Test()
+    {
+
+        try
+        {
+            var a = await js.InvokeAsync<string>("get_editor_selection", Id);
+            var json = JsonDocument.Parse(a).RootElement;
+            var startLine = json.GetProperty("startLineNumber").GetInt32() -1;
+            var endLine = json.GetProperty("endLineNumber").GetInt32() -1;
+            realStartLine = startLine + 1;
+
+            suggestion = "```suggestion" + CnFile.Split('\n').Skip(startLine).Take(endLine - startLine + 1).Connect("\n") + "\n```";
+        }
+        catch (Exception e)
+        {
+        }
+
+        Debugger.Break();
+
+    }
+
+    void Update()
+    {
+        LoginManager.GetGitHubClient(_http).PullRequest.ReviewComment.Create(Constants.RepoID, PR.Number, new PullRequestReviewCommentCreate(suggestion, PR.Head.Sha, FilePath, realStartLine));
+
+
+    }
+
+}

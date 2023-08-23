@@ -6,6 +6,7 @@
 @using CFPABot.DiffEngine
 @using CFPABot.Utils
 @using GammaLibrary.Extensions
+@using Ganss.Xss
 @using Serilog
 @inject IBlazorStrap _blazorStrap
 
@@ -103,8 +104,8 @@
 
 @if (markdownHtml != null)
 {
-    @((MarkupString)(Markdown.ToHtml(markdownHtml,
-        new MarkdownPipelineBuilder().UsePipeTables().UseBootstrap().UseGridTables().Build())))
+        @((MarkupString)(new HtmlSanitizer().Sanitize(Markdown.ToHtml(markdownHtml,
+                new MarkdownPipelineBuilder().UsePipeTables().UseBootstrap().UseGridTables().Build()))))
 
 }
 }
