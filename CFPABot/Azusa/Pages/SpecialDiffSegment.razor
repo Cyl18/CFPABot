@@ -36,12 +36,12 @@
         <BSModalContent>
             <div class="mb-3">
                 <BSLabel>注释</BSLabel>
-                <BSInput InputType="InputType.Text" @bind-Value="suggestion" />
+                <BSInput InputType="InputType.TextArea" InputSize="Size.ExtraLarge" @bind-Value="suggestion" />
             </div>
         </BSModalContent>
         <BSModalFooter>
-            <BSButton Target="model9">Cancel</BSButton>
-            <BSButton IsSubmit="true" Color="BSColor.Primary">Save</BSButton>
+            <BSButton @bind-Target="Id">Cancel</BSButton>
+            <BSButton IsSubmit="true" Color="BSColor.Primary">提交</BSButton>
         </BSModalFooter>
     </BSForm>
 </BSModal>
