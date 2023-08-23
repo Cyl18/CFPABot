@@ -11,7 +11,7 @@
 @inject IHttpContextAccessor _http
 
 <BSLabel MarginBottom="Margins.Small" @bind-Target="Id">文件名：@FileName</BSLabel>
-<BSButton MarginBottom="Margins.Small" OnClick="Test">对所选内容进行注释</BSButton>
+<BSButton MarginBottom="Margins.Small" Color="BSColor.Primary" OnClick="Test">对所选内容进行注释</BSButton>
 
 @foreach (var s in Comments)
 {
@@ -22,7 +22,7 @@
         }
         @(s.User.Login) 的建议: <br />
     </p>
-    <code>
+    <code style="white-space: pre-line">
         @((MarkupString)(new HtmlSanitizer().Sanitize(Markdown.ToHtml(s.Body,
             new MarkdownPipelineBuilder().UsePipeTables().UseBootstrap().UseGridTables().Build()))))
     </code>
