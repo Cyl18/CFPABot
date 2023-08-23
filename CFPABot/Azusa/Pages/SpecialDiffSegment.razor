@@ -32,10 +32,10 @@
 
 <BSModal @bind-DataId="Id" HideOnValidSubmit="true" IsStaticBackdrop="true">
     <BSForm Model="model" OnValidSubmit="@Update">
-        <BSModalHeader>New Employee Form</BSModalHeader>
+        <BSModalHeader>提交</BSModalHeader>
         <BSModalContent>
             <div class="mb-3">
-                <BSLabel>注释</BSLabel>
+                <BSLabel>Review 内容</BSLabel>
                 <BSInput style="white-space: pre-wrap;height:330px;" InputType="InputType.TextArea" @bind-Value="suggestion" />
             </div>
         </BSModalContent>
