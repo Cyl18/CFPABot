@@ -104,8 +104,8 @@
 
 @if (markdownHtml != null)
 {
-        @((MarkupString)(new HtmlSanitizer().Sanitize(Markdown.ToHtml(markdownHtml,
-                new MarkdownPipelineBuilder().UsePipeTables().UseBootstrap().UseGridTables().Build()))))
+        @((MarkupString)(Markdown.ToHtml(markdownHtml,
+                new MarkdownPipelineBuilder().UsePipeTables().UseBootstrap().UseGridTables().Build())))
 
 }
 }

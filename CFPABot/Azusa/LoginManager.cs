@@ -15,7 +15,7 @@ namespace CFPABot.Azusa
     {
 
         public static string LoginUrl =>
-            $"https://github.com/login/oauth/authorize?client_id={Constants.GitHubOAuthClientId}&scope=user:email%20public_repo%20workflow";
+            $"https://github.com/login/oauth/authorize?client_id={Constants.GitHubOAuthClientId}&scope=user:email%20public_repo%20workflow"; // &prompt=consent
 
         public static string GetToken(IHttpContextAccessor http)
         {
