@@ -37,7 +37,7 @@
 <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
 
     <span class="@BS.Input_Group_Text">PRID</span>
-    <BSInput TValue="int" MarginBottom="Margins.Medium" InputType="InputType.Number" @bind-Value="prid" />
+    <BSInput TValue="int" InputType="InputType.Number" @bind-Value="prid" />
 
 <span class="@BS.Input_Group_Text">Slug</span>
             <BSInput TValue="string" InputType="InputType.Text" @bind-Value="slug" />
@@ -53,7 +53,7 @@
             <BSRow Class="border">
                 <BSInputGroup Size="Size.Medium" MarginTop="Margins.Small" MarginBottom="Margins.Medium">
                     <BSLabel class="@BS.Input_Group_Text">Diff1-源（如英文）</BSLabel>
-                    <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium" @bind-Value="diff1from">
+                    <BSInput InputType="InputType.Select" InputSize="Size.Medium" @bind-Value="diff1from">
                         @foreach (var x in indexs)
                         {
                             <option value="@x">@texts[x]</option>
@@ -64,7 +64,7 @@
             <BSRow Class="border">
                 <BSInputGroup Size="Size.Medium" MarginTop="Margins.Small" MarginBottom="Margins.Medium">
                     <BSLabel class="@BS.Input_Group_Text">Diff1-当前（如英文）</BSLabel>
-                    <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium" @bind-Value="diff1to">
+                    <BSInput InputType="InputType.Select" InputSize="Size.Medium" @bind-Value="diff1to">
                         @foreach (var x in indexs)
                         {
                             <option value="@x">@texts[x]</option>
@@ -77,7 +77,7 @@
             <BSRow Class="border">
                 <BSInputGroup Size="Size.Medium" MarginTop="Margins.Small" MarginBottom="Margins.Medium">
                     <BSLabel class="@BS.Input_Group_Text">Diff2-源（如中文）</BSLabel>
-                    <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium" @bind-Value="diff2from">
+                    <BSInput InputType="InputType.Select" InputSize="Size.Medium" @bind-Value="diff2from">
                         @foreach (var x in indexs)
                         {
                             <option value="@x">@texts[x]</option>
@@ -88,7 +88,7 @@
             <BSRow Class="border">
                 <BSInputGroup Size="Size.Medium" MarginTop="Margins.Small" MarginBottom="Margins.Medium">
                     <BSLabel class="@BS.Input_Group_Text">Diff2-当前（如中文）</BSLabel>
-                    <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium" @bind-Value="diff2to">
+                    <BSInput InputType="InputType.Select" InputSize="Size.Medium" @bind-Value="diff2to">
                         @foreach (var x in indexs)
                         {
                             <option value="@x">@texts[x]</option>
