@@ -5,12 +5,17 @@
 @using Octokit
 @using System.Text
 @using System.IO
+@using BlazorStrap.V5
+@using CFPABot.Azusa.Pages
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web.Virtualization
 @inject IBlazorStrap _blazorStrap
 @inject IHttpContextAccessor _http
 @inject NavigationManager _navigationManager
-@implements IDisposable
+@implements System.IDisposable
+@inject IJSRuntime js
 <h3>SpecialDiff</h3>
-<BSToaster/>
+<BSToaster />
 
 <PageTitle>特殊 Diff</PageTitle>
 
@@ -18,12 +23,17 @@
 
 @code {
     int step = 0;
-    int prid = -1;
+    int? prid = null;
     ForkRepoManager forkRepo;
     FileDiff[] diff;
     PullRequest pr;
     string enDir;
     string cnDir;
+    string cnT;
+    string enT;
+    bool loading = false;
+    List<(string fileName, string en, string cn, List<PullRequestReviewComment> comments, string filePath, PullRequest pr)?> model = new();
+    IReadOnlyList<PullRequestReviewComment> suggestions;
 
     void ShowToast(string text)
     {
@@ -38,32 +48,67 @@
         }));
     }
 
+    void BuildCache()
+    {
+        foreach (var enFilePath in Directory.GetFiles(enDir, "*.*", SearchOption.AllDirectories))
+        {
+            var cnFilePath = Flip(enFilePath);
+            if (enFilePath == cnFilePath) model.Add(null);
+            var fileName = Path.GetRelativePath(enDir, enFilePath);
+            model.Add((fileName, File.ReadAllText(enFilePath), File.ReadAllText(cnFilePath), suggestions.Where(x => x.Path.EndsWith(fileName)).ToList(), Path.GetRelativePath(forkRepo.WorkingDirectory, enFilePath), pr));
+        }
+    }
+
     async void CloneRepo()
     {
-        forkRepo = new ForkRepoManager(Constants.GitHubOAuthToken);
-        diff = await GitHub.Diff(prid).ConfigureAwait(false);
-        pr = await GitHub.GetPullRequest(prid).ConfigureAwait(false);
-        var cn = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("zh_cn", StringComparison.OrdinalIgnoreCase)))?.To;
-        var en = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("en_us", StringComparison.OrdinalIgnoreCase)))?.To;
-        if (cn == null || en == null)
+        try
         {
-            ShowToast("找不到中文或英文文件夹");
-            return;
+            loading = true;
+            await InvokeAsync(StateHasChanged);
+
+            pr = await GitHub.GetPullRequest(prid.Value).ConfigureAwait(false);
+            forkRepo = new ForkRepoManager(Constants.GitHubOAuthToken);
+            forkRepo.Clone(pr.Head.User.Login, pr.Head.Repository.Name, branch: pr.Head.Ref);
+            
+            diff = await GitHub.Diff(prid.Value).ConfigureAwait(false);
+            var cn = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("zh_cn", StringComparison.OrdinalIgnoreCase)))?.To;
+            var en = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("en_us", StringComparison.OrdinalIgnoreCase)))?.To;
+            if (cn == null || en == null)
+            {
+                ShowToast("找不到中文或英文文件夹");
+                return;
+            }
+
+
+            enT = Traverse(en);
+            cnT = Traverse(cn);
+            if (cnT == null || enT == null)
+            {
+                ShowToast($"找不到中文或英文文件夹\nen: {en}\ncn:{cn}");
+                return;
+            }
+
+            enDir = Path.Combine(forkRepo.WorkingDirectory, enT);
+            cnDir = Path.Combine(forkRepo.WorkingDirectory, cnT);
+            suggestions = await GitHub.InstancePersonal.PullRequest.ReviewComment.GetAll(Constants.RepoID, prid.Value);
+            BuildCache();
+
+            step++;
+            InvokeAsync(StateHasChanged);
         }
-
-
-        var enT = Traverse(en);
-        var cnT = Traverse(cn);
-        if (cnT == null || enT == null)
+        catch (Exception e)
         {
-            ShowToast($"找不到中文或英文文件夹\nen: {en}\ncn:{cn}");
-            return;
+            ShowToast(e.Message);
         }
+        finally
+        {
+            loading = false;
+        }
+    }
 
-        enDir = Path.Combine(forkRepo.WorkingDirectory, enT);
-        cnDir = Path.Combine(forkRepo.WorkingDirectory, cnT);
-        step++;
-        InvokeAsync(StateHasChanged);
+    string Flip(string str)
+    {
+        return str.Replace(enT, cnT);
     }
 
     string Traverse(string str)
@@ -103,28 +148,49 @@
     {
         <BSAlert Color="BSColor.Danger" HasIcon="true">警告：登录后才可以提交审核，你可以去主页登录</BSAlert>
     }
+
     <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
         <span class="@BS.Input_Group_Text">PRID</span>
-        <BSInput TValue="int" MarginBottom="Margins.Medium" InputType="InputType.Number" @bind-Value="prid"/>
-        <BSButton OnClick="CloneRepo" Color="BSColor.Primary">开始</BSButton>
+        <BSInput TValue="int?" InputType="InputType.Number" @bind-Value="prid" />
+        @if (!loading)
+        {
+            <BSButton OnClick="CloneRepo" Color="BSColor.Primary">开始</BSButton>
+        }
+        else
+        {
+            <BSLabel>加载中！</BSLabel>
+        }
     </BSInputGroup>
+
 }
 @if (step == 1)
 {
-    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Large" style="width: 60rem;">
-        <BSCard CardType="CardType.Body">
-
-
-        </BSCard>
-    </BSCard>
-
     <BSCard Class="fade-in" CardType="CardType.Card" style="width: 32rem;" MarginTop="Margins.Medium">
         <BSCard CardType="CardType.Body">
             <BSCol>
-                基础文件路径: @(Path.GetRelativePath(forkRepo.WorkingDirectory, enDir))
-                </BSCol>
-
-
+                基础文件路径:
+                <code>@(Path.GetRelativePath(forkRepo.WorkingDirectory, enDir))</code>
+            </BSCol>
         </BSCard>
     </BSCard>
+
+        @foreach (var flight in model)
+        {
+            <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Large" style="width: 80vw;">
+                <BSCard CardType="CardType.Body">
+                    @if (flight == null)
+                    {
+                        <BSLabel>这个文件没有对应的中文文件.</BSLabel>
+                    }
+                    else
+                    {
+                        <SpecialDiffSegment FileName="@flight.Value.fileName" CnFile="@flight.Value.cn" EnFile="@flight.Value.en" Comments="@flight.Value.comments" GitHubClient="@LoginManager.GetGitHubClient(_http)" FilePath="@flight.Value.filePath" PR="pr"/>
+
+                    }
+                </BSCard>
+            </BSCard>
+        }
+
+
+
 }

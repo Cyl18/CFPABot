@@ -1,41 +1,46 @@
 ﻿<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">Azusa</a>
         <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
             <span class="navbar-toggler-icon"></span>
         </button>
+        <a class="navbar-brand" href="">Azusa</a>
     </div>
 </div>
 
 <div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
     <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+        <div class="nav-item">
+            <NavLink class="nav-link px-3" href="" Match="NavLinkMatch.All">
                 <span class="oi oi-home" aria-hidden="true"></span> Home
             </NavLink>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="GitHubInCNHelper">
+        <div class="nav-item">
+            <NavLink class="nav-link px-3" href="GitHubInCNHelper">
                 <span class="oi oi-code" aria-hidden="true"></span> GitHub 访问/登录慢
             </NavLink>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="SubmitAssistant">
+        <div class="nav-item">
+            <NavLink class="nav-link px-3" href="SubmitAssistant">
                 <span class="oi oi-cloud-upload" aria-hidden="true"></span> 快速翻译文件上传
             </NavLink>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="Diff">
+        <div class="nav-item">
+            <NavLink class="nav-link px-3" href="Diff">
                 <span class="oi oi-loop" aria-hidden="true"></span> Diff
             </NavLink>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="PRList">
+        <div class="nav-item">
+            <NavLink class="nav-link px-3" href="SpecialDiff">
+                <span class="oi oi-loop" aria-hidden="true"></span> 特殊 Diff
+            </NavLink>
+        </div>
+        <div class="nav-item">
+            <NavLink class="nav-link px-3" href="PRList">
                 <span class="oi oi-fork" aria-hidden="true"></span> PR 列表
             </NavLink>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="ModList">
+        <div class="nav-item">
+            <NavLink class="nav-link px-3" href="ModList">
                 <span class="oi oi-folder" aria-hidden="true"></span> 主库模组列表
             </NavLink>
         </div>

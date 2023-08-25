@@ -364,3 +364,5 @@ MigrationBackup/
 FodyWeavers.xsd
 PublishProfiles/
 publish.bat
+launchSettings.json
+CFPABot/Properties/launchSettings.json
