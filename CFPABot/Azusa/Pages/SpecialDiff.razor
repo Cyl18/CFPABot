@@ -34,6 +34,10 @@
     bool loading = false;
     List<(string fileName, string en, string cn, List<PullRequestReviewComment> comments, string filePath, PullRequest pr)?> model = new();
     IReadOnlyList<PullRequestReviewComment> suggestions;
+    string[] endirs;
+    string[] cndirs;
+    string en;
+    string cn;
 
     void ShowToast(string text)
     {
@@ -71,27 +75,24 @@
             forkRepo.Clone(pr.Head.User.Login, pr.Head.Repository.Name, branch: pr.Head.Ref);
             
             diff = await GitHub.Diff(prid.Value).ConfigureAwait(false);
-            var cn = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("zh_cn", StringComparison.OrdinalIgnoreCase)))?.To;
-            var en = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("en_us", StringComparison.OrdinalIgnoreCase)))?.To;
+            cn = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("zh_cn", StringComparison.OrdinalIgnoreCase)))?.To;
+            en = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("en_us", StringComparison.OrdinalIgnoreCase)))?.To;
             if (cn == null || en == null)
             {
                 ShowToast("找不到中文或英文文件夹");
                 return;
             }
 
+            cndirs = diff.Where(x => x.To.Split('/').Any(y => y.Equals("zh_cn", StringComparison.OrdinalIgnoreCase))).Select(x => Traverse(x.To)).Distinct().ToArray();
+            endirs = diff.Where(x => x.To.Split('/').Any(y => y.Equals("en_us", StringComparison.OrdinalIgnoreCase))).Select(x => Traverse(x.To)).Distinct().ToArray();
+            cn = cndirs.First();
+            en = endirs.First();
 
-            enT = Traverse(en);
-            cnT = Traverse(cn);
-            if (cnT == null || enT == null)
+            if (cndirs.Length == 1)
             {
-                ShowToast($"找不到中文或英文文件夹\nen: {en}\ncn:{cn}");
+                Step2();
                 return;
             }
-
-            enDir = Path.Combine(forkRepo.WorkingDirectory, enT);
-            cnDir = Path.Combine(forkRepo.WorkingDirectory, cnT);
-            suggestions = await GitHub.InstancePersonal.PullRequest.ReviewComment.GetAll(Constants.RepoID, prid.Value);
-            BuildCache();
 
             step++;
             InvokeAsync(StateHasChanged);
@@ -104,6 +105,26 @@
         {
             loading = false;
         }
+    }
+
+    async void Step2()
+    {
+        enT = Traverse(en);
+        cnT = Traverse(cn);
+        if (cnT == null || enT == null)
+        {
+            ShowToast($"找不到中文或英文文件夹\nen: {en}\ncn:{cn}");
+            return;
+        }
+
+        enDir = Path.Combine(forkRepo.WorkingDirectory, enT);
+        cnDir = Path.Combine(forkRepo.WorkingDirectory, cnT);
+        suggestions = await GitHub.InstancePersonal.PullRequest.ReviewComment.GetAll(Constants.RepoID, prid.Value);
+        BuildCache();
+
+        step = 2;
+        InvokeAsync(StateHasChanged);
+
     }
 
     string Flip(string str)
@@ -163,7 +184,39 @@
     </BSInputGroup>
 
 }
+
 @if (step == 1)
+{
+    <BSCard Class="fade-in" CardType="CardType.Card" style="width: 46rem;" MarginTop="Margins.Medium">
+        <BSCard CardType="CardType.Body">
+            <BSLabel>选择对应的文件夹：</BSLabel>
+
+            <BSInput InputType="InputType.Select" @bind-Value="en" MarginBottom="Margins.Medium">
+                @foreach (var i in endirs)
+                {
+                    <option value="@i">@i</option>
+                }
+            </BSInput>
+            
+            <BSInput InputType="InputType.Select" @bind-Value="cn" MarginBottom="Margins.Medium">
+                
+                @foreach (var i in cndirs)
+                {
+                    <option value="@i">@i</option>
+                }
+            </BSInput>
+            
+            <BSButton OnClick="() => Step2()">OK!</BSButton>
+            <BSCol>
+                基础文件路径:
+                <code>@(Path.GetRelativePath(forkRepo.WorkingDirectory, en))</code>
+            </BSCol>
+        </BSCard>
+    </BSCard>
+}
+
+
+@if (step == 2)
 {
     <BSCard Class="fade-in" CardType="CardType.Card" style="width: 32rem;" MarginTop="Margins.Medium">
         <BSCard CardType="CardType.Body">

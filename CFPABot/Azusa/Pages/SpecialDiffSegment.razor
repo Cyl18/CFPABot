@@ -95,7 +95,7 @@
             var endLine = json.GetProperty("endLineNumber").GetInt32() -1;
             realStartLine = startLine + 1;
 
-            suggestion = "```suggestion\n" + CnFile.Split('\n').Skip(startLine).Take(endLine - startLine + 1).Connect("\n") + "\n```";
+            suggestion = "```suggestion\n" + CnFile.Split('\n').Skip(startLine).Take(/*endLine - startLine + 1*/1).Connect("\n") + "\n```";
         }
         catch (Exception e)
         {
@@ -108,8 +108,10 @@
     {
         await GitHubClient.PullRequest.ReviewComment.Create(Constants.RepoID, PR.Number, new PullRequestReviewCommentCreate(suggestion, PR.Head.Sha, FilePath, realStartLine));
         _blazorStrap.Toaster.Add("Okay!", op => op.CloseAfter = 3);
-
-
+        
+        
     }
+
+    public ElementReference Ref { get; set; }
 
 }
