@@ -999,11 +999,23 @@ namespace CFPABot.Utils
                     ("粉色", "原版译名采用`粉红色`，**如果上下文中有原版的 16 色才需要更改**", t => !t.diff.Content.Contains("浅粉色") && !t.diff.Content.Contains("艳粉色") && !t.diff.Content.Contains("亮粉色")),
                     ("地狱", "`地狱`在 1.16 后更名为`下界`", tuple => tuple.version != MCVersion.v1122),
                     ("漂浮", "请注意区分`漂浮`和`飘浮`", null),
+                    ("錾制", "在 1.19.2 后更名为`雕纹`，**如果原文为 Chiseled 则需要更改**", x => x.version >= MCVersion.v119),
+                    ("菌丝", "在 1.19.2 后更名为`菌丝体`", x => x.version >= MCVersion.v119),
+                    ("速度", "请注意区分 1.19.4 后的`速度`（属性）与`迅捷`（状态效果）", x => x.version >= MCVersion.v119),
+                    ("迅捷", "请注意区分 1.19.4 后的`速度`（属性）与`迅捷`（状态效果）", x => x.version >= MCVersion.v119),
+                    ("防火", "在 1.19.4 后更名为`抗火`", x => x.version >= MCVersion.v119),
+                    ("末影", "可能是`末地`，具体请**参考英文原文**（`Ender/End`）", x => x.version >= MCVersion.v119),
+                    ("潜声", "你想说的可能是`幽匿（Sculk）`？", x => x.version >= MCVersion.v119),
+                    ("粘土", "在 1.16.5 后更名为 `黏土`", x => x.version != MCVersion.v1122),
+                    ("粘液", "在 1.16.5 后更名为 `黏液`", x => x.version != MCVersion.v1122),
+                    ("猪人", "你想说的可能是`猪灵（Piglin）？`", x => x.version != MCVersion.v1122),
                 };
                 (string checkname, string message, Predicate<(LineDiff diff, MCVersion version)> customCheck)[] errors = {
                     ("爬行者", "`爬行者`在 1.15 后更名为`苦力怕`", tuple => tuple.version != MCVersion.v1122),
                     ("刷怪箱", "`刷怪箱`在 1.16 后更名为`刷怪笼`", tuple => tuple.version != MCVersion.v1122),
                     ("浅灰色", "原版译名采用`淡灰色`", null),
+                    ("迷之炖菜", "在 1.19.2 后更名为`谜之炖菜`", x => x.version >= MCVersion.v119 && x.diff.Content.Contains("迷之炖菜")),
+                    ("摔落保护", "在 1.19.4 后更名为`摔落缓冲`", x => x.version >= MCVersion.v119)
                 };
                 // 俺的服务器只有1个U 就不写多线程力
                 var diffCheckedSet = new HashSet<string>();
