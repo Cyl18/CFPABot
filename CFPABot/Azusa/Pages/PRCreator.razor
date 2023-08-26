@@ -252,7 +252,7 @@ else
                 }
                 string imcVersion = " ";
 
-                string[] mcVersions = Enum.GetValues<MCVersion>().Select(x => x.ToVersionString()).ToArray();
+                string[] mcVersions = Enum.GetValues<MCVersion>().Where(x => (int)x < (int)MCVersion.v120fabric).Select(x => x.ToVersionString()).ToArray();
 
                 string curseForgeSlug = "";
                 bool inputProjectID = false;

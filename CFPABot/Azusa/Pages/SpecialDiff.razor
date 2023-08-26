@@ -55,7 +55,7 @@
             var cnFilePath = Flip(enFilePath);
             if (enFilePath == cnFilePath) model.Add(null);
             var fileName = Path.GetRelativePath(enDir, enFilePath);
-            model.Add((fileName, File.ReadAllText(enFilePath), File.ReadAllText(cnFilePath), suggestions.Where(x => x.Path.EndsWith(fileName)).ToList(), Path.GetRelativePath(forkRepo.WorkingDirectory, enFilePath), pr));
+            model.Add((fileName, File.ReadAllText(enFilePath), File.ReadAllText(cnFilePath), suggestions.Where(x => x.Path.EndsWith(fileName)).ToList(), Path.GetRelativePath(forkRepo.WorkingDirectory, cnFilePath), pr));
         }
     }
 

@@ -15,6 +15,7 @@ using GammaLibrary.Extensions;
 using Octokit;
 using Octokit.Internal;
 using Serilog;
+using WorkflowRun = CFPABot.Models.Workflow.WorkflowRun;
 
 namespace CFPABot.Utils
 {
