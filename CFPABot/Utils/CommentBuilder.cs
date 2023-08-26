@@ -1008,7 +1008,7 @@ namespace CFPABot.Utils
                     ("潜声", "你想说的可能是`幽匿（Sculk）`？", x => x.version >= MCVersion.v119),
                     ("粘土", "在 1.16.5 后更名为 `黏土`", x => x.version != MCVersion.v1122),
                     ("粘液", "在 1.16.5 后更名为 `黏液`", x => x.version != MCVersion.v1122),
-                    ("猪人", "你想说的可能是`猪灵（Piglin）？`", x => x.version != MCVersion.v1122),
+                    ("猪人", "你想说的可能是`猪灵（Piglin）`？", x => x.version != MCVersion.v1122),
                 };
                 (string checkname, string message, Predicate<(LineDiff diff, MCVersion version)> customCheck)[] errors = {
                     ("爬行者", "`爬行者`在 1.15 后更名为`苦力怕`", tuple => tuple.version != MCVersion.v1122),
