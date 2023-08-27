@@ -24,7 +24,7 @@ namespace CFPABot.Azusa
 
         public void Clone(string repoOwner, string repoName, string userName = null, string userEmail = null, string branch = null)
         {
-            Run($"clone {(branch == null ? "" : $"-b {branch}")} https://x-access-token:{_token}@github.com/{repoOwner}/{repoName}.git --depth=1 .");
+            Run($"clone {(branch == null ? "" : $"-b {branch}")} https://x-access-token:{_token}@github.com/{repoOwner}/{repoName}.git --depth=1 --reference-if-able /app/repo-cache .");
             if (userEmail != null)
             {
                 Run($"config user.name \"{userName}\"");

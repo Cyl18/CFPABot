@@ -70,11 +70,15 @@
             loading = true;
             await InvokeAsync(StateHasChanged);
 
-            pr = await GitHub.GetPullRequest(prid.Value).ConfigureAwait(false);
             forkRepo = new ForkRepoManager(Constants.GitHubOAuthToken);
-            forkRepo.Clone(pr.Head.User.Login, pr.Head.Repository.Name, branch: pr.Head.Ref);
-            
-            diff = await GitHub.Diff(prid.Value).ConfigureAwait(false);
+
+            pr = await GitHub.GetPullRequest(prid.Value).ConfigureAwait(false);
+            var t3 = Task.Run(async () => { diff = await GitHub.Diff(prid.Value).ConfigureAwait(false); });
+            var t2 = Task.Run(() => { forkRepo.Clone(pr.Head.User.Login, pr.Head.Repository.Name, branch: pr.Head.Ref); });
+
+            await t2;
+            await t3;
+
             cn = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("zh_cn", StringComparison.OrdinalIgnoreCase)))?.To;
             en = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("en_us", StringComparison.OrdinalIgnoreCase)))?.To;
             if (cn == null || en == null)

@@ -44,7 +44,7 @@ namespace CFPABot
                 e.MaximumReceiveMessageSize = 102400000;
                 
             })
-                .AddMessagePackProtocol(options => options.SerializerOptions = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block).WithSecurity(MessagePackSecurity.UntrustedData));;
+                .AddMessagePackProtocol(options => options.SerializerOptions = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block).WithSecurity(MessagePackSecurity.UntrustedData)); ;
             services.AddHttpContextAccessor();
             services.AddSingleton<WebhookEventProcessor, MyWebhookEventProcessor>();
         }
@@ -57,7 +57,9 @@ namespace CFPABot
                 app.UseDeveloperExceptionPage();
             }
             app.UseHealthChecks("/healthcheck");
+
             app.UseDirectoryBrowser(new DirectoryBrowserOptions() { RequestPath = "/project-hex", FileProvider = new PhysicalFileProvider("/app/project-hex") });
+
             app.UseStaticFiles(new StaticFileOptions
             {
                 RequestPath = "/static",
@@ -73,10 +75,7 @@ namespace CFPABot
                 {
                     RequestPath = "/css",
                     FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwrootx/css")),
-                    OnPrepareResponse =
-                        context =>
-                        {
-                        }
+                    
                 });
             }
             

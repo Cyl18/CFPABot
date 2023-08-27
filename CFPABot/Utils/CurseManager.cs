@@ -142,7 +142,9 @@ namespace CFPABot.Utils
 
         public static string GetDownloadUrl(CurseForge.APIClient.Models.Files.File release)
         {
-            return release.DownloadUrl;
+            // https://github.com/huanghongxun/HMCL/blob/javafx/HMCLCore/src/main/java/org/jackhuang/hmcl/mod/curse/CurseManifestFile.java#L87
+            var fileID = release.Id;
+            return release.DownloadUrl ?? $"https://edge.forgecdn.net/files/{fileID / 1000}/{fileID%1000}/{HttpUtility.UrlEncode(release.FileName)}";
         }
 
         public static int MapModIDToProjectID(string modid)
@@ -283,7 +285,7 @@ namespace CFPABot.Utils
                         {
                             try
                             {
-                                    File.Delete(filePath);
+                                File.Delete(filePath);
                             }
                             catch (Exception)
                             {
@@ -327,9 +329,10 @@ namespace CFPABot.Utils
             var cfClient = GetCfClient();
             int page = 0;
             var result = new List<CurseForge.APIClient.Models.Files.File>();
+
             do
             {
-                var files = await cfClient.GetModFilesAsync(modId, index: (page++));
+                var files = await cfClient.GetModFilesAsync(modId, index: (page++), pageSize: 10000);
 
                 if (files.Data.Count == 0)
                 {
