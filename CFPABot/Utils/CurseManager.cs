@@ -144,7 +144,7 @@ namespace CFPABot.Utils
         {
             // https://github.com/huanghongxun/HMCL/blob/javafx/HMCLCore/src/main/java/org/jackhuang/hmcl/mod/curse/CurseManifestFile.java#L87
             var fileID = release.Id;
-            return release.DownloadUrl ?? $"https://mediafilez.forgecdn.net/files/{fileID / 1000}/{fileID%1000}/{HttpUtility.UrlEncode(release.FileName)}";
+            return release.DownloadUrl ?? $"https://edge.forgecdn.net/files/{fileID / 1000}/{fileID%1000}/{HttpUtility.UrlEncode(release.FileName).Replace(" ", "%20")}";
         }
 
         public static int MapModIDToProjectID(string modid)
@@ -332,14 +332,14 @@ namespace CFPABot.Utils
 
             do
             {
-                var files = await cfClient.GetModFilesAsync(modId, index: (page++), pageSize: 10000);
+                var files = await cfClient.GetModFilesAsync(modId, pageSize: 10000);
 
                 if (files.Data.Count == 0)
                 {
                     break;
                 }
                 result.AddRange(files.Data);
-            } while (true);
+            } while (false);
 
             lock (ModFilesCache)
             {

@@ -19,16 +19,16 @@
 <BSLabel MarginBottom="Margins.Medium">搜索后共有 @FilteredMods.Count 个模组</BSLabel>
 @if (searchTimeUsage != null)
 {
-    <BSLabel MarginBottom="Margins.Medium">&nbsp; 搜索耗时 @(searchTimeUsage.Value.TotalMilliseconds.ToString("F1"))ms</BSLabel>
+    <BSLabel MarginBottom="Margins.Medium">&nbsp;搜索耗时 @(searchTimeUsage.Value.TotalSeconds.ToString("F6"))s</BSLabel>
 }
 <br/>
-<BSLabel MarginBottom="Margins.Medium">上次更新时间： @(ModListConfig.Instance.LastTime.ToString("u"))</BSLabel>
+<BSLabel MarginBottom="Margins.Medium">上次更新时间： @(ModListConfig.Instance.LastTime.ToString("u"))，此列表每 2 天更新一次</BSLabel>
 <BSPagination Pages="@(pages / perPage + 1)" @bind-Value="Page" MarginBottom="Margins.Medium"/>
 @code
 {
     string searchWord = "";
     int Page = 1;
-    int perPage = 555;
+    int perPage = 333;
     int pages => FilteredMods.Count;
     List<(string searchWord, ModListCache.ModListModel)> Mods;
     List<ModListCache.ModListModel> FilteredMods;

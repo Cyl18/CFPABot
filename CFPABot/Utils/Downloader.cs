@@ -93,6 +93,8 @@ namespace CFPABot.Utils
         {
             Log.Debug($"文件下载：{url}");
             Directory.CreateDirectory("temp");
+            if (url.Contains("+")) url = url.Replace("https://edge.forgecdn.net", "https://mediafilez.forgecdn.net");
+            
             var fileName = $"{url.Split("/").Last()}";
 
             using var l = await AcquireLock($"download {fileName}");
