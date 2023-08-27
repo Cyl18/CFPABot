@@ -1,4 +1,4 @@
-﻿@page "/SpecialDiff"
+﻿@page "/SpecialDiff/{PPrid?}"
 @using CFPABot.Utils
 @using DiffPatch.Data
 @using Microsoft.AspNetCore.Http
@@ -7,6 +7,7 @@
 @using System.IO
 @using BlazorStrap.V5
 @using CFPABot.Azusa.Pages
+@using GammaLibrary.Extensions
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 @inject IBlazorStrap _blazorStrap
@@ -22,6 +23,8 @@
 
 
 @code {
+    [Parameter]
+    public string PPrid { get; set; }
     int step = 0;
     int? prid = null;
     ForkRepoManager forkRepo;
@@ -38,6 +41,16 @@
     string[] cndirs;
     string en;
     string cn;
+
+
+    protected override void OnInitialized()
+    {
+        prid = PPrid.ToIntOrNull();
+        if (PPrid != null)
+        {
+            CloneRepo();
+        }
+    }
 
     void ShowToast(string text)
     {
@@ -225,6 +238,8 @@
     <BSCard Class="fade-in" CardType="CardType.Card" style="width: 32rem;" MarginTop="Margins.Medium">
         <BSCard CardType="CardType.Body">
             <BSCol>
+                PRID: @prid
+                <br/>
                 基础文件路径:
                 <code>@(Path.GetRelativePath(forkRepo.WorkingDirectory, enDir))</code>
             </BSCol>

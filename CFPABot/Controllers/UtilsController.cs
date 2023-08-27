@@ -5,7 +5,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using CFPABot.Azusa.Pages;
+using CFPABot.DiffEngine;
 using CFPABot.Utils;
+using CurseForge.APIClient.Models.Mods;
 using GammaLibrary.Extensions;
 using Octokit;
 using Octokit.Webhooks.Models.PullRequestEvent;
@@ -41,6 +44,15 @@ namespace CFPABot.Controllers
         public async Task<string> ModID([FromQuery]string slug, [FromQuery] string versionString)
         {
             return await CurseManager.GetModID(await CurseManager.GetAddon(slug), versionString.ToMCVersion(), true, false);
+        }
+
+        [HttpGet("GetAllModFilesInRepo")]
+        public async Task<JsonResult> GetAllModFilesInRepo()
+        {
+            var mods = ModList.ModListConfig.Instance.ModLists.Select(x => new {slug=x.modSlug, cfid= ModIDMappingMetadata.Instance.Mapping.GetValueOrDefault(x.modSlug), versions = x.versions.Select(y => y.version.ToVersionDirectory()) })
+                .Where(x => x.cfid != 0);
+
+            return new JsonResult(mods);
         }
 
         private bool VerifyAccess()

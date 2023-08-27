@@ -128,7 +128,7 @@ namespace CFPABot.Utils
             {
                 await updateCallback();
                 await UpdateCheckSegment(fileDiff);
-                await UpdateDiffSegment();
+                await UpdateDiffSegment(fileDiff);
             }
             catch (Exception e)
             {
@@ -429,7 +429,7 @@ namespace CFPABot.Utils
             }
         }
 
-        public async Task UpdateDiffSegment()
+        public async Task UpdateDiffSegment(FileDiff[] fileDiffs)
         {
             if (IsMoreThanTwoWaiting(nameof(UpdateDiffSegment))) return;
             using var l = await AcquireLock(nameof(UpdateDiffSegment));
@@ -440,6 +440,7 @@ namespace CFPABot.Utils
                 var sb = new StringBuilder();
                 var exceptionList = new List<Exception>();
                 var list = await LangFileFetcher.FromPR(PullRequestID, exceptionList);
+                
                 sb.AppendLine();
                 sb.AppendLine("🔛 Diff： ");
                 sb.AppendLine();
@@ -568,7 +569,8 @@ namespace CFPABot.Utils
                             Description = $"pr-{PullRequestID}-diff", Files = {{$"pr-{PullRequestID}-diff.md", result}},
                             Public = false
                         });
-                        result = $"🔛 Diff 内容过长，已经上传至 <{gist.HtmlUrl}>。\n";
+                        result = $"🔛 语言文件 Diff 内容过长，已经上传至 <{gist.HtmlUrl}>。\n";
+                        
                     }
                     catch (Exception e)
                     {
@@ -583,6 +585,10 @@ namespace CFPABot.Utils
             }
             finally
             {
+                if (fileDiffs.Any(x => x.To.Split('/').Any(y => y.Equals("zh_cn", StringComparison.OrdinalIgnoreCase))))
+                {
+                    result = ($"\n🔛 [转到复杂文件 Diff](https://cfpa.cyan.cafe/Azusa/SpecialDiff/{PullRequestID})\n\n") + result;
+                }
                 Context.DiffSegment = result;
             }
         }

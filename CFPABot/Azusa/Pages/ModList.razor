@@ -19,7 +19,7 @@
 <BSLabel MarginBottom="Margins.Medium">搜索后共有 @FilteredMods.Count 个模组</BSLabel>
 @if (searchTimeUsage != null)
 {
-    <BSLabel MarginBottom="Margins.Medium">搜索耗时 @(searchTimeUsage.Value.TotalMilliseconds.ToString("F1"))ms</BSLabel>
+    <BSLabel MarginBottom="Margins.Medium">&nbsp; 搜索耗时 @(searchTimeUsage.Value.TotalMilliseconds.ToString("F1"))ms</BSLabel>
 }
 <br/>
 <BSLabel MarginBottom="Margins.Medium">上次更新时间： @(ModListConfig.Instance.LastTime.ToString("u"))</BSLabel>
