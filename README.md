@@ -1,7 +1,9 @@
 # CFPABot
 https://github.com/CFPAOrg/Minecraft-Mod-Language-Package 的 *PR 管理*及一些*网页工具*
 
-*此处应有一句感人肺腑的话((*
+***但是这一切真的值得吗((***
+
+https://cfpa.cyan.cafe/Azusa/
 
 > 其实代码是一堆 sh\*t 山 我自己都看不懂（
 

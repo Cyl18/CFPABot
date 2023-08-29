@@ -19,7 +19,6 @@ using CurseForge.APIClient.Models.Mods;
 using DiffPlex.DiffBuilder;
 using GammaLibrary.Extensions;
 using Language.Core;
-using LibGit2Sharp;
 using Octokit;
 using Serilog;
 using MemoryStream = System.IO.MemoryStream;
@@ -223,12 +222,12 @@ namespace CFPABot.Controllers
             {
                 var s = JsonDocument.Parse(await Download.String($"https://addons-ecs.forgesvc.net/api/v2/addon/{addon.Id}/"));
                 var url = s.RootElement.GetProperty("sourceUrl").GetString().TrimEnd('/');
-                var analyzeResult = await RepoAnalyzer.Analyze(url);
+                /*var analyzeResult = await RepoAnalyzer.Analyze(url);
                 foreach (var (branch, filePath, fileName, langType, commitSha) in analyzeResult.Results)
                 {
                     AddRadio($"模组源代码<a href=\"https://github.com/{analyzeResult.Owner}/{analyzeResult.RepoName}\">仓库</a>中 {branch} 分支的 <a href=\"https://github.com/{analyzeResult.Owner}/{analyzeResult.RepoName}/blob/{commitSha}/{filePath}\">{filePath}</a>", $"link`" +
                         $"https://raw.githubusercontent.com/{analyzeResult.Owner}/{analyzeResult.RepoName}/{commitSha}/{filePath}");
-                }
+                }*/
             }
             catch (Exception)
             {

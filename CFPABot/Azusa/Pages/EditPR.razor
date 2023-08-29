@@ -1,0 +1,51 @@
+﻿@page "/EditPR/{PPRID?}"
+@using GammaLibrary.Extensions
+@using Microsoft.AspNetCore.Http
+
+@inject IBlazorStrap _blazorStrap
+@inject IHttpContextAccessor _http
+@inject NavigationManager _navigationManager
+
+@inject IJSRuntime js
+
+<h3>EditPR</h3>
+<BSToaster />
+<PageTitle>PR 编辑</PageTitle>
+
+
+@if (!LoginManager.GetLoginStatus(_http))
+{
+    <BSAlert Color="BSColor.Danger" HasIcon="true">警告：登录后才可以编辑，你可以去主页登录</BSAlert>
+}
+
+<BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
+    <span class="@BS.Input_Group_Text">PRID</span>
+    <BSInput TValue="int?" InputType="InputType.Number" @bind-Value="prid" />
+    @if (!true)
+    {
+        <BSButton Color="BSColor.Primary">开始</BSButton>
+    }
+    else
+    {
+        <BSLabel>加载中！</BSLabel>
+    }
+</BSInputGroup>
+
+@code {
+
+
+    [Parameter]
+    public string PPrid { get; set; }
+    int step = 0;
+    int? prid = null;
+
+    protected override void OnInitialized()
+    {
+        prid = PPrid.ToIntOrNull();
+        if (PPrid != null)
+        {
+            
+        }
+    }
+
+}

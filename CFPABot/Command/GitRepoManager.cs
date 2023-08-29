@@ -22,7 +22,7 @@ namespace CFPABot.Command
 
         public void Clone(string repoOwner, string repoName, string branchName)
         {
-            Run($"clone https://x-access-token:{GitHub.GetToken()}@github.com/{repoOwner}/{repoName}.git --depth=1 . -b {branchName}");
+            Run($"clone https://x-access-token:{GitHub.GetToken()}@github.com/{repoOwner}/{repoName}.git --reference-if-able /app/repo-cache --depth=1 . -b {branchName}");
             Run("config user.name \"cfpa-bot[bot]\"");
             Run("config user.email \"101878103+cfpa-bot[bot]@users.noreply.github.com\"");
         }

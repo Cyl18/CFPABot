@@ -55,6 +55,23 @@ namespace CFPABot.Controllers
             return new JsonResult(mods);
         }
 
+        [HttpGet("SendMail")]
+        public IActionResult SendMail([FromQuery] string password, [FromQuery] string mail)
+        {
+            if (password != Constants.GitHubWebhookSecret) return Unauthorized();
+            MailUtils.SendNotification(mail, "https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/3731");
+            return Ok();
+        }
+
+        [HttpGet("GetCsv/{prid}")]
+        public IActionResult GetCsv(string prid)
+        {
+            var dir = "/app/caches/csv";
+            var path1 = dir + $"/{prid}.csv";
+
+            return File(System.IO.File.ReadAllBytes(path1), "text/csv");
+        }
+
         private bool VerifyAccess()
         {
             return HttpContext.Request.Headers["Authorization"].FirstOrDefault() == Constants.GitHubWebhookSecret;

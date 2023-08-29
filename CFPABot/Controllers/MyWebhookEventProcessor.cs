@@ -94,7 +94,20 @@ namespace CFPABot.Controllers
                 action == PullRequestAction.Closed)
             {
                 _ = Task.Run(() => PRDataManager.Refresh(prid));
-            }            
+            }
+
+            if (action == PullRequestAction.Opened)
+            {
+                _ = Task.Run(async () =>
+                {
+                    var task = await GitHub.Instance.Repository.GetAllContributors(Constants.RepoID);
+                    var pr = await GitHub.GetPullRequest(prid);
+                    if (task.All(x => x.Login != pr.User.Login) && !pr.User.Email.IsNullOrWhiteSpace()) // first time
+                    {
+                        MailUtils.SendNotification(pr.User.Email, pr.HtmlUrl);
+                    }
+                });
+            }
 
         }
 

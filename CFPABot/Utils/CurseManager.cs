@@ -354,7 +354,8 @@ namespace CFPABot.Utils
             if (version == null) return null;
             try
             {
-                if (addon.LatestFiles.FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file)
+                if (addon.LatestFiles.OrderBy(x => version.Value.ToVersionString().Contains("fabric") ? !x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")
+                        : x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")).FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file)
                 {
                     var fileName = await Download.DownloadFile(GetDownloadUrl(file));
                     await using var fs = FileUtils.OpenFile(fileName);
@@ -369,7 +370,8 @@ namespace CFPABot.Utils
                 else
                 {
                     var allModFiles = await GetAllModFiles(addon);
-                    if (allModFiles.FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file1)
+                    if (allModFiles.OrderBy(x => version.Value.ToVersionString().Contains("fabric") ? !x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")
+                            : x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")).FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file1)
                     {
                         var fileName = await Download.DownloadFile(GetDownloadUrl(file1));
                         await using var fs = FileUtils.OpenFile(fileName);
@@ -397,7 +399,8 @@ namespace CFPABot.Utils
             if (version == null) return (null, null);
             try
             {
-                if (addon.LatestFiles.OrderByDescending(f => f.Id).FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file)
+                if (addon.LatestFiles.OrderByDescending(f => f.Id).ThenBy(x => version.Value.ToVersionString().Contains("fabric") ? !x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")
+                        : x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")).FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file)
                 {
                     var downloadUrl = GetDownloadUrl(file);
                     var (fs, files) = await GetModLangFiles(downloadUrl, type, version == MCVersion.v1122 ? LangFileType.Lang : LangFileType.Json);
@@ -410,7 +413,8 @@ namespace CFPABot.Utils
                 else
                 {
                     var allModFiles = await GetAllModFiles(addon);
-                    if (allModFiles.OrderByDescending(f => f.Id).FirstOrDefault(f =>
+                    if (allModFiles.OrderByDescending(f => f.Id).ThenBy(x => version.Value.ToVersionString().Contains("fabric") ? !x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")
+                            : x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")).FirstOrDefault(f =>
                             f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file1)
                     {
                         var downloadUrl = GetDownloadUrl(file1);
@@ -479,7 +483,7 @@ namespace CFPABot.Utils
         public static string GetGameVersionString(this CurseForge.APIClient.Models.Files.File f)
         {
             // bug 实际上有的模组文件会有多个版本
-            return f.GameVersions.FirstOrDefault(v => v.Contains(".")); 
+            return f.GameVersions.FirstOrDefault(v => v.Contains(".")) ?? "x"; 
         }
     }
     class CurseForgeIDMappingManager

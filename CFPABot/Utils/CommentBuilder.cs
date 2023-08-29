@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -17,6 +18,8 @@ using CurseForge.APIClient.Models.Files;
 using CurseForge.APIClient.Models.Mods;
 using DiffPatch.Data;
 using GammaLibrary.Extensions;
+using Modrinth;
+using Modrinth.Exceptions;
 using Octokit;
 using Serilog;
 using Serilog.Core;
@@ -186,7 +189,7 @@ namespace CFPABot.Utils
                 }
 
                 var addons = new List<Mod>();
-                foreach (var modid in modids)
+                foreach (var modid in modids.Where(x => x != "1UNKNOWN" && x != "0-modrinth-mod"))
                 {
                     try
                     {
@@ -196,6 +199,47 @@ namespace CFPABot.Utils
                     {
                         sb.AppendLine(e.Message);
                     }
+                }
+
+                var modDomains = modInfos.Where(x => x.CurseForgeID == "0-modrinth-mod").Select(m => m.ModDomain).Distinct().ToArray();
+                var client = new ModrinthClient();
+                var flag1 = false;
+                foreach (var s in modDomains)
+                {
+                    try
+                    {
+                        var project = await client.Project.GetAsync(s);
+                        sb.AppendLine($"- 找到 Modrinth 模组：[{project.Title}]({project.Url})");
+                        flag1 = true;
+                    }
+                    catch (ModrinthApiException e)
+                    {
+                        try
+                        {
+                            var search = await client.Project.SearchAsync(s);
+                            sb.AppendLine();
+                            sb.AppendLine($"- {s} 的 Modrinth 搜索结果：");
+
+                            foreach (var result in search.Hits.Take(3))
+                            {
+                                sb.AppendLine($"  - [{result.Title}]({result.Url})");
+                            }
+                            sb.AppendLine();
+                            flag1 = true;
+                        }
+                        catch (Exception exception)
+                        {
+                        }
+                    }
+                }
+
+                if (flag1)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("ℹ Modrinth 的 Bot 功能为临时辅助，不代表最终结果。");
+                    sb.AppendLine();
+                    sb.AppendLine("---");
+                    sb.AppendLine();
                 }
 
                 if (addons.Count == 0)
@@ -847,7 +891,7 @@ namespace CFPABot.Utils
                     Mod addon = null;
                     try
                     {
-                        if (curseID != "1UNKNOWN")
+                        if (curseID != "1UNKNOWN" && curseID != "0-modrinth-mod")
                             addon = await CurseManager.GetAddon(curseID);
                     }
                     catch (Exception)

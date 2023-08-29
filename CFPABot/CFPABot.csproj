@@ -19,20 +19,18 @@
   <ItemGroup>
     <PackageReference Include="BlazorStrap" Version="5.1.102.51923" />
     <PackageReference Include="BlazorStrap.V5" Version="5.1.102.51723" />
-    <PackageReference Include="CsvHelper" Version="30.0.1" />
+    <PackageReference Include="Csv" Version="2.0.93" />
     <PackageReference Include="CurseForge.APIClient" Version="2.1.0" />
     <PackageReference Include="DiffPatch" Version="2.0.0" />
     <PackageReference Include="DiffPlex" Version="1.7.1" />
     <PackageReference Include="GammaLibrary" Version="2.3.0" />
     <PackageReference Include="GitHubJwt" Version="0.0.5" />
     <PackageReference Include="HtmlSanitizer" Version="8.0.692" />
-    <PackageReference Include="LibGit2Sharp" Version="0.26.2" />
-    <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="2.0.306" />
-    <PackageReference Include="MailKit" Version="4.1.0" />
     <PackageReference Include="Markdig" Version="0.31.0" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="7.0.9" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.11.1" />
     <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="7.0.8" />
+    <PackageReference Include="Modrinth.Net" Version="3.3.0" />
     <PackageReference Include="NETCore.Encrypt" Version="2.1.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
     <PackageReference Include="Octokit" Version="7.1.0" />

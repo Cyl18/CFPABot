@@ -1,0 +1,27 @@
+﻿@page "/WeeklyReport"
+@using System.IO
+<h3>WeeklyReport</h3>
+
+@code {
+
+
+
+
+
+    List<string> GetDates()
+    {
+        var files = Directory.GetFiles("/app/config/weekly-reports/");
+        var list = files.Select(Path.GetFileNameWithoutExtension).ToList();
+        var last = DateOnly.FromDateTime(DateTime.Now);
+        while (last.DayOfWeek != DayOfWeek.Sunday)
+        {
+            last = last.AddDays(-1);
+        }
+        var next = last.AddDays(7);
+        var s1 = last.ToString("O");
+        var s2 = next.ToString("O");
+        if (!list.Contains(s1)) list.Add(s1);
+        if (!list.Contains(s2)) list.Add(s2);
+        return list;
+    }
+}

@@ -6,7 +6,6 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using GammaLibrary.Enhancements;
 using GammaLibrary.Extensions;
-using LibGit2Sharp;
 using Serilog;
 
 namespace CFPABot.Utils
@@ -39,7 +38,7 @@ namespace CFPABot.Utils
             await l.WaitAsync();
             return l;
         }
-
+        /*
         public static async Task<RepoAnalyzeResult> Analyze(string githubLink)
         {
             using var l = await AcquireLock(githubLink);
@@ -102,6 +101,6 @@ namespace CFPABot.Utils
 
             repo.Branches.Update(trackedBranch, b => b.UpstreamBranch = trackedBranch.CanonicalName);
             return Commands.Checkout(repo, branchName);
-        }
+        }*/
     }
 }

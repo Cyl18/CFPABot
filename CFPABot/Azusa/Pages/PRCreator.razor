@@ -649,6 +649,8 @@ else
             {
                 var pr = await prCreatorModule.CreatePR(prBody);
                 prlink = pr.HtmlUrl;
+                MailUtils.SendNotification(email, prlink);
+
             }
 
             void SendPRManually()
