@@ -186,6 +186,19 @@ namespace CFPABot.Command
                         sb.AppendLine("完成。");
                     }
 
+                    //
+                    // if (line.StartsWith("/revert "))
+                    // {
+                    //     if (!await CheckPermission()) continue;
+                    //     var userLogin = line["/revert ".Length..].Trim();
+                    //     var r = GetRepo();
+                    //
+                    //     r.Run($"revert --no-edit {userLogin}");
+                    //     r.Push();
+                    //     sb.AppendLine("完成。");
+                    // }
+
+
                     if (line.StartsWith("/format "))
                     {
                         if (!await CheckPermission()) continue;

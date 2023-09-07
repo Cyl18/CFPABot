@@ -693,7 +693,7 @@ namespace CFPABot.Utils
                                 var relPrids = x.Where(y => y.prid != PullRequestID).Select(y => y.prid).Distinct();
                                 foreach (var relPrid in relPrids)
                                 {
-                                    if (!hs.Add(relPrid))
+                                    if (hs.Add(relPrid))
                                     {
                                         sb.Append($"#{relPrid} ");
                                     }
@@ -742,7 +742,7 @@ namespace CFPABot.Utils
                 //     sb.AppendLine($"⚠ 检测到了含有空格的路径。例如： `{(diffs.Any(diff => diff.To.Split('/').Any(s => s.Contains(" "))))}`");
                 // }
 
-                if (diffs.Any(diff => !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || x is '_' or '-' or '.' or '/') && diff.To.Contains("lang")))
+                if (diffs.Any(diff => !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || char.IsUpper(x) || x is '_' or '-' or '.' or '/') && diff.To.Contains("lang")))
                 {
                     sb.AppendLine($"⚠⚠⚠ **检测到了可能不合规的路径。**");
                     sb.AppendLine($"⚠⚠⚠ **检测到了可能不合规的路径。**");

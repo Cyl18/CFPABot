@@ -70,7 +70,7 @@
         foreach (var enFilePath in Directory.GetFiles(enDir, "*.*", SearchOption.AllDirectories))
         {
             var cnFilePath = Flip(enFilePath);
-            if (enFilePath == cnFilePath) model.Add(null);
+            if (enFilePath == cnFilePath) model.Add((null, null, null, null, enFilePath, null));
             var fileName = Path.GetRelativePath(enDir, enFilePath);
             model.Add((fileName, File.ReadAllText(enFilePath), File.ReadAllText(cnFilePath), suggestions.Where(x => x.Path.EndsWith(fileName)).ToList(), Path.GetRelativePath(forkRepo.WorkingDirectory, cnFilePath), pr));
         }
@@ -246,13 +246,13 @@
         </BSCard>
     </BSCard>
 
-        @foreach (var flight in model)
+        @foreach (var flight in model.OrderBy(x => x.Value.filePath))
         {
             <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Large" style="width: 80vw;">
                 <BSCard CardType="CardType.Body">
-                    @if (flight == null)
+                    @if (flight.Value.fileName == null)
                     {
-                        <BSLabel>这个文件没有对应的中文文件.</BSLabel>
+                        <BSLabel>@flight.Value.filePath 没有对应的中文文件.</BSLabel>
                     }
                     else
                     {

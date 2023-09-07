@@ -87,7 +87,7 @@ namespace CFPABot.DiffEngine
             Content = document.RootElement
                 .EnumerateObject()
                 .Where(k => !k.Name.StartsWith("_"))
-                .Select(o => new KeyValuePair<string, string>(o.Name, o.Value.GetString()))
+                .Select(o => new KeyValuePair<string, string>(o.Name, o.Value.ValueKind == JsonValueKind.String ? o.Value.GetString() : o.Value.GetRawText()))
                 .DistinctBy(o => o.Key) // workaround https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/2070
                 .ToDictionary(o => o.Key, o => o.Value);
         }
