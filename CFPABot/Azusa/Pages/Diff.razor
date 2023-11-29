@@ -9,6 +9,7 @@
 @using Ganss.Xss
 @using Serilog
 @using System.Globalization
+@using System.Net
 @using Csv
 @using Markdig.Extensions.Tables
 @inject IBlazorStrap _blazorStrap
@@ -16,8 +17,9 @@
 
 <PageTitle>Diff</PageTitle>
 <h3>Diff</h3>
-<BSToaster />
+<BSToaster/>
 <BSAlert Color="BSColor.Info" HasIcon="true" MarginBottom="Margins.Medium">Two-Way 对比只需要填写 Diff1-当前 和 Diff2-当前 即可</BSAlert>
+
 @code {
 
     [Parameter]
@@ -28,6 +30,7 @@
 
     int prid;
     string slug;
+
     void ShowToast(string text)
     {
         _blazorStrap.Toaster.Add("警告", text, o =>
@@ -37,14 +40,16 @@
             o.Toast = Toast.TopRight;
         });
     }
+
 }
+
 <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
 
     <span class="@BS.Input_Group_Text">PRID</span>
-    <BSInput TValue="int" InputType="InputType.Number" @bind-Value="prid" />
+    <BSInput TValue="int" InputType="InputType.Number" @bind-Value="prid"/>
 
     <span class="@BS.Input_Group_Text">Slug</span>
-    <BSInput TValue="string" InputType="InputType.Text" @bind-Value="slug" />
+    <BSInput TValue="string" InputType="InputType.Text" @bind-Value="slug"/>
     <BSButton Color="BSColor.Info" OnClick="() => RefreshTexts(false)">获取 PR 数据</BSButton>
     <BSButton Color="BSColor.Info" OnClick="() => GetModFiles()">获取模组文件</BSButton>
 </BSInputGroup>
@@ -52,44 +57,69 @@
 
 @if (!refreshing)
 {
-    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Medium" MarginBottom="Margins.Medium" style="width: 24rem;">
-        <BSCard CardType="CardType.Body">
-            <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
-                <BSInputCheckbox CheckedValue="true" id="c1" @bind-Value="ACDedup" />
-                <BSLabel for="c1" IsCheckLabel="true">A-C 去重</BSLabel>
-            </div>
-            <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
-                <BSInputCheckbox CheckedValue="true" id="c2" @bind-Value="BDDedup" />
-                <BSLabel for="c2" IsCheckLabel="true">B-D 去重</BSLabel>
-            </div>
-            <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
-                <BSInputCheckbox CheckedValue="true" id="c3" @bind-Value="CDDedup" />
-                <BSLabel for="c3" IsCheckLabel="true">C-D 去重</BSLabel>
-            </div>
-            <BSButton Color="BSColor.Info" OnClick="() => DownloadCsv()">下载 csv</BSButton>
-        </BSCard>
-    </BSCard>
-    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Medium" MarginBottom="Margins.Medium" style="width: 24rem;">
-    <BSCard CardType="CardType.Body">
-        <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
-            <span class="@BS.Input_Group_Text">Minecraft 版本</span>
-            <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium" @bind-Value="imcVersion">
-                <option value=" " disabled>选择版本</option>
-                @foreach (var x in mcVersions)
-                {
-                    <option value="@x">@x</option>
-                }
-            </BSInput>
-        </BSInputGroup>
-        <BSButton Color="BSColor.Info" OnClick="() => AddVersion()">添加版本</BSButton>
+    <BSContainer>
+            <BSRow>
+                <BSCol Align="Align.Start">
+                    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Medium" MarginBottom="Margins.Medium" style="width: 24rem;">
+                        <BSCard CardType="CardType.Body">
+                            <BSLabel MarginBottom="Margins.Medium">添加主库中的游戏版本</BSLabel>
+                            <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Small">
+                                <span class="@BS.Input_Group_Text">Minecraft 版本</span>
+                                <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium" @bind-Value="imcVersion">
+                                    <option value=" " disabled>选择版本</option>
+                                    @foreach (var x in mcVersions)
+                                    {
+                                        <option value="@x">@x</option>
+                                    }
+                                </BSInput>
+                            </BSInputGroup>
+                            <BSButton Color="BSColor.Info" OnClick="() => AddVersion()">添加版本</BSButton>
+        
+                        </BSCard>
+                    </BSCard>
+        
+                </BSCol>
+                <BSCol Align="Align.Start">
+                    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Medium" MarginBottom="Margins.Medium" style="width: 12rem;">
+                        <BSCard CardType="CardType.Body">
+                            <BSLabel MarginBottom="Margins.Medium">导出 CSV 相关</BSLabel>
+                            <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
+                                <BSInputCheckbox CheckedValue="true" id="c1" @bind-Value="ACDedup"/>
+                                <BSLabel for="c1" IsCheckLabel="true">A-C 去重</BSLabel>
+                            </div>
+                            <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
+                                <BSInputCheckbox CheckedValue="true" id="c2" @bind-Value="BDDedup"/>
+                                <BSLabel for="c2" IsCheckLabel="true">B-D 去重</BSLabel>
+                            </div>
+                            <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
+                                <BSInputCheckbox CheckedValue="true" id="c3" @bind-Value="CDDedup"/>
+                                <BSLabel for="c3" IsCheckLabel="true">C-D 去重</BSLabel>
+                            </div>
+                            <BSButton Color="BSColor.Info" OnClick="() => DownloadCsv()">下载 csv</BSButton>
+                        </BSCard>
+                    </BSCard>
+                </BSCol>
+                <BSCol Align="Align.Start">
+                    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Medium" MarginBottom="Margins.Medium" style="width: 24rem;">
+                        <BSCard CardType="CardType.Body">
+                            <BSLabel MarginBottom="Margins.Medium">添加小语种</BSLabel>
+                            <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Small">
+                                <span class="@BS.Input_Group_Text">小语种文件路径</span>
+                                <BSInput TValue="string" InputType="InputType.Text" @bind-Value="languageFilePath"/>
+                                <BSLabel>提示: 直接在 GitHub 复制, 以 projects 开头</BSLabel>
+                            </BSInputGroup>
+                            <BSButton Color="BSColor.Info" OnClick="() => AddLanguage()">确认</BSButton>
+                        </BSCard>
+                    </BSCard>
+                </BSCol>
+            </BSRow>
+    </BSContainer>
 
-    </BSCard>
-    </BSCard>
     <BSContainer MarginBottom="Margins.Medium">
         <BSCol Column="8" MarginBottom="Margins.Small">
             <BSRow Class="border">
                 <BSInputGroup Size="Size.Medium" MarginTop="Margins.Small" MarginBottom="Margins.Medium">
-                    <BSLabel class="@BS.Input_Group_Text">Diff1-源（如英文）-A</BSLabel>
+                    <BSLabel class="@BS.Input_Group_Text" Size="Size.Medium">Diff1-源（如英文）-A</BSLabel>
                     <BSInput InputType="InputType.Select" InputSize="Size.Medium" @bind-Value="diff1from">
                         @foreach (var x in indexs)
                         {
@@ -100,7 +130,7 @@
             </BSRow>
             <BSRow Class="border">
                 <BSInputGroup Size="Size.Medium" MarginTop="Margins.Small" MarginBottom="Margins.Medium">
-                    <BSLabel class="@BS.Input_Group_Text">Diff1-当前（如英文）-B</BSLabel>
+                    <BSLabel class="@BS.Input_Group_Text" Size="Size.Medium">Diff1-当前（如英文）-B</BSLabel>
                     <BSInput InputType="InputType.Select" InputSize="Size.Medium" @bind-Value="diff1to">
                         @foreach (var x in indexs)
                         {
@@ -113,7 +143,7 @@
         <BSCol Column="8">
             <BSRow Class="border">
                 <BSInputGroup Size="Size.Medium" MarginTop="Margins.Small" MarginBottom="Margins.Medium">
-                    <BSLabel class="@BS.Input_Group_Text">Diff2-源（如中文）-C</BSLabel>
+                    <BSLabel class="@BS.Input_Group_Text" Size="Size.Medium">Diff2-源（如中文）-C</BSLabel>
                     <BSInput InputType="InputType.Select" InputSize="Size.Medium" @bind-Value="diff2from">
                         @foreach (var x in indexs)
                         {
@@ -124,7 +154,7 @@
             </BSRow>
             <BSRow Class="border">
                 <BSInputGroup Size="Size.Medium" MarginTop="Margins.Small" MarginBottom="Margins.Medium">
-                    <BSLabel class="@BS.Input_Group_Text">Diff2-当前（如中文）-D</BSLabel>
+                    <BSLabel class="@BS.Input_Group_Text" Size="Size.Medium">Diff2-当前（如中文）-D</BSLabel>
                     <BSInput InputType="InputType.Select" InputSize="Size.Medium" @bind-Value="diff2to">
                         @foreach (var x in indexs)
                         {
@@ -137,18 +167,18 @@
         </BSCol>
     </BSContainer>
 
-    <BSButton MarginBottom="Margins.Medium" MarginTop="Margins.Medium" Color="BSColor.Info" OnClick="RunDiff">Diff！</BSButton>
+    <BSButton MarginBottom="Margins.Medium" MarginTop="Margins.Medium" Color="BSColor.Primary" OnClick="RunDiff">执行 Diff！</BSButton>
     <BSButton MarginBottom="Margins.Medium" MarginTop="Margins.Medium" Color="BSColor.Info" OnClick="DownloadDiff">下载 Diff</BSButton>
 
 @if (markdownHtml != null)
 {
-        @((MarkupString)(Markdown.ToHtml(markdownHtml,
-                new MarkdownPipelineBuilder().UsePipeTables(new PipeTableOptions()).UseBootstrap().UseGridTables().Build())))
-
+    @((MarkupString) (Markdown.ToHtml(markdownHtml,
+        new MarkdownPipelineBuilder().UsePipeTables(new PipeTableOptions()).UseBootstrap().UseGridTables().Build())))
 }
 }
-@if(refreshing){
-<BSAlert HasIcon="true" Color="BSColor.Info">刷新中..</BSAlert>
+@if (refreshing)
+{
+    <BSAlert HasIcon="true" Color="BSColor.Info">刷新中..</BSAlert>
 }
 
 
@@ -160,7 +190,7 @@
     public LangFileWrapper[] langFiles = new LangFileWrapper[0];
     HashSet<ModVersion> versions = new();
     public int diff1from;
-    public int diff1to;  
+    public int diff1to;
     public int diff2from;
     public int diff2to;
     bool refreshing = false;
@@ -189,7 +219,6 @@
             var index = list.FindIndex(x => x.Contains(s));
             return index == -1 ? 0 : index;
         }
-
     }
 
     private async Task RefreshTexts(bool firstTime)
@@ -212,9 +241,8 @@
         if (prid != 0 && slug.NotNullNorWhiteSpace())
         {
             await AddPr(prid, slug, textsV, langV);
-            
         }
-        
+
         indexs = Enumerable.Range(0, textsV.Count).ToArray();
         texts = textsV.ToArray();
         langFiles = langV.ToArray();
@@ -224,6 +252,69 @@
 
     ModPath path;
 
+    /// <summary>小语种文件名</summary>
+    string languageFilePath { get; set; } = "";
+
+    
+    static HttpClient hc = new HttpClient();
+    static async Task<bool> LinkExists(string link)
+    {
+        try
+        {
+            var message = await hc.SendAsync(new HttpRequestMessage(HttpMethod.Head, link));
+            message.EnsureSuccessStatusCode();
+            return true;
+        }
+        catch (HttpRequestException e)
+        {
+            if (e.StatusCode != HttpStatusCode.NotFound)
+                Log.Warning($"LinkExists returned unusual status code: {e.StatusCode}");
+            return false;
+        }
+    }
+    async void AddLanguage()
+    {
+        refreshing = true;
+        var pr = await GitHub.GetPullRequest(prid);
+
+        var textsV = texts.ToList();
+        var langV = langFiles.ToList();
+        
+        try
+        {
+            var from = pr.Base.Sha;
+            var to = pr.Head.Sha;
+            var url1 = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{from}/{languageFilePath}";
+            var url2 = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{to}/{languageFilePath}";
+            if (await LinkExists(url1).ConfigureAwait(false))
+            {
+                var s = $"手动添加的 {languageFilePath.Split('/').Last()} （主库）";
+                textsV.Add(s);
+                langV.Add(LangFileWrapper.FromContent(await Download.String(url1, true)));
+            }
+            if (await LinkExists(url2).ConfigureAwait(false))
+            {
+                var s = $"手动添加的 {languageFilePath.Split('/').Last()} （PR）";
+                textsV.Add(s);
+                langV.Add(LangFileWrapper.FromContent(await Download.String(url2, true)));
+            }
+        }
+        catch (Exception e)
+        {
+            ShowToast(e.Message);
+            Log.Error(e, "UI get 小语种 language files");
+        }
+        finally
+        {
+            indexs = Enumerable.Range(0, textsV.Count).ToArray();
+            texts = textsV.ToArray();
+            langFiles = langV.ToArray();
+
+            refreshing = false;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+    
     private async Task AddPr(int pr, string pCfSlug, List<string> textsV, List<LangFileWrapper> langV)
     {
         try
@@ -275,8 +366,6 @@
 
                 path = modPath;
             }
-
-            
         }
         catch (Exception e)
         {
@@ -419,13 +508,12 @@
     private async Task GetModFiles()
     {
         refreshing = true;
-        
+
         var textsV = texts.ToList();
         var langV = langFiles.ToList();
 
         try
         {
-            
             var addon = await CurseManager.GetAddon(slug);
             foreach (var modVersion in versions)
             {
@@ -443,7 +531,7 @@
                 if (modCnFile.files != null && modCnFile.files.FirstOrDefault() is {} f)
                 {
                     var s = $"{modCnFile.downloadFileName} 的中文语言文件";
-                    
+
                     textsV.Add(s);
                     langV.Add(LangFileWrapper.FromContent(f));
                 }
@@ -463,21 +551,21 @@
             refreshing = false;
             InvokeAsync(StateHasChanged);
         }
-        
     }
 
     bool ACDedup = false;
     bool BDDedup = false;
     bool CDDedup = false;
 
-    
+
     MCVersion? _mcVersion
     {
         get => imcVersion.IsNullOrWhiteSpace() ? MCVersion.v120 : imcVersion.ToMCVersion();
     }
+
     string imcVersion = " ";
 
-    string[] mcVersions = Enum.GetValues<MCVersion>().Where(x => (int)x <= (int)MCVersion.v120fabric).Select(x => x.ToVersionString()).ToArray();
+    string[] mcVersions = Enum.GetValues<MCVersion>().Where(x => (int) x <= (int) MCVersion.v120fabric).Select(x => x.ToVersionString()).ToArray();
 
 
     async void AddVersion()
@@ -489,7 +577,6 @@
         var langV = langFiles.ToList();
         try
         {
-
             var (fromEnFile, fromCnFile) = await LangFileFetcher.FromRepo(prid, slug, v);
             if (fromEnFile != null)
             {
@@ -498,7 +585,6 @@
                 {
                     textsV.Add(s);
                     langV.Add(LangFileWrapper.FromLangFile(fromEnFile));
-
                 }
             }
 
@@ -520,27 +606,24 @@
         catch (Exception e)
         {
             Console.WriteLine(e);
-
         }
         finally
         {
             refreshing = false;
             InvokeAsync(StateHasChanged);
-
         }
     }
 
     async Task DownloadCsv()
     {
-        var list =  new LangFilePair(await langFiles[diff1from].Get(), await langFiles[diff1to].Get(), await langFiles[diff2from].Get(), await langFiles[diff2to].Get(), path);
+        var list = new LangFilePair(await langFiles[diff1from].Get(), await langFiles[diff1to].Get(), await langFiles[diff2from].Get(), await langFiles[diff2to].Get(), path);
         var dir = "/app/caches/csv";
         Directory.CreateDirectory(dir);
         var path1 = dir + $"/{prid}.csv";
-        var columnNames = new [] { "行号", "Key", texts[diff1from], texts[diff1to], texts[diff2from], texts[diff2to] };
+        var columnNames = new[] {"行号", "Key", texts[diff1from], texts[diff1to], texts[diff2from], texts[diff2to]};
         var l = new List<string[]>();
         using (var writer = new StreamWriter(File.OpenWrite(path1), new UTF8Encoding(true)))
         {
-
             foreach (var (key, a, b, c, d) in LangDiffer.Run(list))
             {
                 var lines = list.ToCNFile.OriginalFile.Split('\n');
@@ -548,14 +631,13 @@
                 if (ACDedup && a == c) continue;
                 if (BDDedup && d == b) continue;
                 if (CDDedup && c == d) continue;
-                
-                l.Add(new []{line.ToString(), key?? "🚫", a ?? "🚫", b?? "🚫", c?? "🚫", d?? "🚫"});
+
+                l.Add(new[] {line.ToString(), key ?? "🚫", a ?? "🚫", b ?? "🚫", c ?? "🚫", d ?? "🚫"});
             }
 
             CsvWriter.Write(writer, columnNames, l);
         }
         _navigationManager.NavigateTo($"https://cfpa.cyan.cafe/api/Utils/GetCsv/{prid}", true);
-
     }
 
     async Task DownloadDiff()
