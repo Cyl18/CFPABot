@@ -12,6 +12,7 @@ using CurseForge.APIClient.Models.Mods;
 using GammaLibrary.Extensions;
 using Octokit;
 using Octokit.Webhooks.Models.PullRequestEvent;
+using System.IO;
 
 namespace CFPABot.Controllers
 {
@@ -70,6 +71,14 @@ namespace CFPABot.Controllers
             var path1 = dir + $"/{prid}.csv";
 
             return File(System.IO.File.ReadAllBytes(path1), "text/csv");
+        }     
+        [HttpGet("GetDiff/{prid}")]
+        public IActionResult GetDiff(string prid)
+        {
+            var dir = "/app/caches/csv";
+            var path1 = dir + $"/{prid}.md";
+
+            return File(System.IO.File.ReadAllBytes(path1), "text/markdown");
         }
 
         private bool VerifyAccess()

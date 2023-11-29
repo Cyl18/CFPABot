@@ -258,12 +258,8 @@ namespace CFPABot.DiffEngine
                 LangType.EN => "en_us",
                 _ => throw new ArgumentOutOfRangeException()
             };
-            var lang2 = LangType switch
-            {
-                LangType.CN => "zh_CN",
-                LangType.EN => "en_US",
-                _ => throw new ArgumentOutOfRangeException()
-            };
+            var l1split = lang1.Split("_");
+            var lang2 = l1split[0] + "_" + l1split[1].ToUpper();
             var langFileName1 = LangFileType switch
             {
                 LangFileType.Json => $"{lang1}.json",
