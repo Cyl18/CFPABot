@@ -645,7 +645,7 @@
         var dir = "/app/caches/csv";
         Directory.CreateDirectory(dir);
         var path1 = dir + $"/{prid}.md";
-        File.WriteAllText(path1, await GenDiff());
+        File.WriteAllText(path1, await GenDiff(), Encoding.UTF8);
         _navigationManager.NavigateTo($"https://cfpa.cyan.cafe/api/Utils/GetDiff/{prid}", true);
     }
 
