@@ -101,6 +101,7 @@ namespace CFPABot.Utils
 
             logger.Debug("构建内容...");
             var sb2 = new StringBuilder();
+            sb2.AppendLine("<a href=\"https://github.com/Cyl18/CFPABot\"><image src=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/assets/14993992/5f597afc-ee3d-4285-addc-9f9561b4a252\"></a>\n---\n");
             sb2.AppendLine(Context.ModLinkSegment);
             sb2.AppendLine("---");
             sb2.AppendLine(Context.BuildArtifactsSegment);
