@@ -77,7 +77,7 @@ namespace CFPABot.Controllers
         {
             var dir = "/app/caches/csv";
             var path1 = dir + $"/{prid}.md";
-
+            HttpContext.Response.Headers.AcceptCharset = "utf-8";
             return File(System.IO.File.ReadAllBytes(path1), "text/markdown");
         }
 
