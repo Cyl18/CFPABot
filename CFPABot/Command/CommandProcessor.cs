@@ -209,15 +209,15 @@ namespace CFPABot.Command
                     }
 
                     
-                    if (line.StartsWith("/revert"))
-                    {
-                        if (!await CheckPermission()) continue;
-                        var r = GetRepo();
-                    
-                        r.Run($"revert --no-edit HEAD");
-                        r.Push();
-                        sb.AppendLine("完成。");
-                    }
+                    // if (line.StartsWith("/revert"))
+                    // {
+                    //     if (!await CheckPermission()) continue;
+                    //     var r = GetRepo();
+                    //
+                    //     r.Run($"revert --no-edit HEAD");
+                    //     r.Push();
+                    //     sb.AppendLine("完成。");
+                    // }
 
 
                     if (line.StartsWith("/format "))
@@ -365,7 +365,7 @@ namespace CFPABot.Command
                                                 nLines.Add(s);
                                             }
 
-                                            var l = $"{spaces}\"__comment.cpfa.{user.Login.ToLowerInvariant()}.{keyInLine}\": {comment.ToJsonString(new JsonSerializerOptions {Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping})}{(hasComma ? "" : ",")}";
+                                            var l = $"{spaces}\"__comment.cpfa.{user.Login.ToLowerInvariant()}.{keyInLine}\": {comment.ToJsonString(new JsonSerializerOptions {Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping})}{(hasComma ? "," : "")}";
                                             nLines.Add(l);
                                             flag = true;
                                         }
