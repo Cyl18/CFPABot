@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using CFPABot.DiffEngine;
@@ -53,32 +54,30 @@ namespace CFPABot.Command
                 foreach (var line in content.Split("\r\n"))
                 {
                     if (!line.StartsWith("/")) continue;
-                    if (line.StartsWith("/mv "))
+
+                    if (line.StartsWith("/rename "))
                     {
                         if (!await CheckPermission()) continue;
-                        throw new CommandException($"/mv 已经被弃用，请使用 `{line.Replace("/mv ", "/mv-recursive")}`");
-                        var arg = line["/mv ".Length..];
+                        var arg = line["/rename ".Length..];
                         var r = GetRepo();
                         var args = GitRepoManager.SplitArguments(arg);
-                        Directory.CreateDirectory(Path.Combine(r.WorkingDirectory, Path.GetDirectoryName(args[1])));
-                        foreach (var path in args)
-                        {
-                            var baseDir = Path.GetFullPath(r.WorkingDirectory);
-                            if (!Path.GetFullPath(path, baseDir).StartsWith(baseDir))
-                            {
-                                throw new CommandException(Locale.Command_mv_SecurityCheckFailure);
-                            }
-                        }
-                        r.Run($"mv -f {arg}");
 
+                        var from = Path.Combine(r.WorkingDirectory, args[0]);
+                        if (!File.Exists(from))
+                        {
+                            throw new CommandException("文件不存在。");
+                        }
+                        var to = Path.Combine(r.WorkingDirectory, args[1]);
+                        File.Move(from, to, true);
+                        
                         r.AddAllFiles();
                         r.Commit($"mv {(arg.Replace("\"", "\\\""))}", user);
                     }
                     
-                    if (line.StartsWith("/mv-recursive "))
+                    if (line.StartsWith("/mv "))
                     {
                         if (!await CheckPermission()) continue;
-                        var arg = line["/mv-recursive ".Length..];
+                        var arg = line["/mv ".Length..];
                         var r = GetRepo();
                         var args = GitRepoManager.SplitArguments(arg);
                         Directory.CreateDirectory(Path.Combine(r.WorkingDirectory, Path.GetDirectoryName(args[1])));
@@ -275,6 +274,10 @@ namespace CFPABot.Command
                         foreach (var diff in diffs)
                         {
                             var filePath = Path.Combine(r.WorkingDirectory, diff.To);
+                            if (!Path.GetFileName(filePath).Contains("zh_"))
+                            {
+                                continue;
+                            }
                             if (filePath.EndsWith("json"))
                             {
                                 var json = JsonDocument.Parse(File.ReadAllText(filePath));
@@ -294,6 +297,78 @@ namespace CFPABot.Command
 
                         r.AddAllFiles();
                         r.Commit($"Replace '{args[0]}' with '{args[1]}'", user);
+                    }
+                    
+                    if (line.StartsWith("/add-comment "))
+                    {
+                        if (!await CheckPermission()) continue;
+                        var args = GitRepoManager.SplitArguments(line["/add-comment ".Length..]);
+                        var r = GetRepo();
+                        if (args.Length < 2) throw new CommandException("应该大于2个参数。");
+                        // key, comment
+                        var keyPart = args[0];
+                        var comment = args.Skip(1).Connect(" ");
+                        var flag = false;
+                        var diffs = await GitHub.Diff(prid);
+                        foreach (var diff in diffs)
+                        {
+                            var filePath = Path.Combine(r.WorkingDirectory, diff.To);
+                            if (!Path.GetFileName(filePath).Contains("zh_"))
+                            {
+                                continue;
+                            }
+                            if (filePath.EndsWith("json"))
+                            {
+                                var lines = File.ReadAllLines(filePath);
+                                var nLines = new List<string>();
+                                foreach (var s in lines)
+                                {
+                                    var regex = Regex.Match(s, "^(\\s*)\"(.*?)\"\\s*?:.*?(,)*.*$");
+                                    if (regex.Success)
+                                    {
+                                        var spaces = regex.Groups[1].Value;
+                                        var keyInLine = regex.Groups[2].Value;
+                                        var hasComma = regex.Groups[3].Success;
+
+                                        if (keyInLine.Contains(keyPart))
+                                        {
+                                            if (!hasComma)
+                                            {
+                                                nLines.Add(s + ",");
+                                            }
+                                            else
+                                            {
+                                                nLines.Add(s);
+                                            }
+
+                                            var l = $"{spaces}\"_comment.cpfa.{user.Login.ToLowerInvariant()}.{keyInLine}\": {comment.ToJsonString()}{(hasComma ? "" : ",")}";
+                                            nLines.Add(l);
+                                            flag = true;
+                                        }
+                                        else
+                                        {
+                                            nLines.Add(s);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        nLines.Add(s);
+                                    }
+                                }
+
+                                File.WriteAllLines(filePath, nLines);
+                            }
+                        }
+
+                        if (!flag)
+                        {
+                            throw new CommandException("没有找到对应的 key");
+                        }
+                        else
+                        {
+                            r.AddAllFiles();
+                            r.Commit($"Add comment", user);
+                        }
                     }
 
                     if (line.StartsWith("/add-mapping "))
