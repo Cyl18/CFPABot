@@ -40,7 +40,28 @@ namespace CFPABot.Command
                 Interlocked.Decrement(ref currentRuns);
             }
         }
+        // https://stackoverflow.com/questions/3825390/effective-way-to-find-any-files-encoding
+        public static Encoding GetEncoding(string filename)
+        {
+            // Read the BOM
+            var bom = new byte[4];
+            using (var file = new FileStream(filename, FileMode.Open, FileAccess.Read))
+            {
+                file.Read(bom, 0, 4);
+            }
 
+            // Analyze the BOM
+            if (bom[0] == 0x2b && bom[1] == 0x2f && bom[2] == 0x76) return Encoding.UTF7;
+            if (bom[0] == 0xef && bom[1] == 0xbb && bom[2] == 0xbf) return Encoding.UTF8;
+            if (bom[0] == 0xff && bom[1] == 0xfe && bom[2] == 0 && bom[3] == 0) return Encoding.UTF32; //UTF-32LE
+            if (bom[0] == 0xff && bom[1] == 0xfe) return Encoding.Unicode; //UTF-16LE
+            if (bom[0] == 0xfe && bom[1] == 0xff) return Encoding.BigEndianUnicode; //UTF-16BE
+            if (bom[0] == 0 && bom[1] == 0 && bom[2] == 0xfe && bom[3] == 0xff) return new UTF32Encoding(true, true);  //UTF-32BE
+
+            // We actually have no idea what the encoding is if we reach this point, so
+            // you may wish to return null instead of defaulting to ASCII
+            return new UTF8Encoding(false);
+        }
         public static async Task RunInternal(int prid, string content, int commentID, GitHubUser user)
         {
             
@@ -193,7 +214,7 @@ namespace CFPABot.Command
                         if (!await CheckPermission()) continue;
                         var r = GetRepo();
                     
-                        r.Run($"revert --no-edit HEAD~1..HEAD");
+                        r.Run($"revert --no-edit HEAD");
                         r.Push();
                         sb.AppendLine("完成。");
                     }
@@ -320,13 +341,7 @@ namespace CFPABot.Command
                             }
                             if (filePath.EndsWith("json"))
                             {
-                                Encoding encoding;
-                                // https://stackoverflow.com/questions/4385707/c-sharp-detecting-encoding-in-a-file-write-change-to-file-using-the-found-enc
-                                using (var reader = new StreamReader(filePath))
-                                {
-                                    reader.Read();
-                                    encoding = reader.CurrentEncoding;
-                                }
+                                Encoding encoding = GetEncoding(filePath);
 
                                 var lines = File.ReadAllLines(filePath, encoding);
                                 var nLines = new List<string>();
@@ -350,7 +365,7 @@ namespace CFPABot.Command
                                                 nLines.Add(s);
                                             }
 
-                                            var l = $"{spaces}\"_comment.cpfa.{user.Login.ToLowerInvariant()}.{keyInLine}\": {comment.ToJsonString()}{(hasComma ? "" : ",")}";
+                                            var l = $"{spaces}\"__comment.cpfa.{user.Login.ToLowerInvariant()}.{keyInLine}\": {comment.ToJsonString(new JsonSerializerOptions {Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping})}{(hasComma ? "" : ",")}";
                                             nLines.Add(l);
                                             flag = true;
                                         }
