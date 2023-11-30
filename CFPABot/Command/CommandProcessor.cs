@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using CFPABot.DiffEngine;
@@ -39,7 +40,28 @@ namespace CFPABot.Command
                 Interlocked.Decrement(ref currentRuns);
             }
         }
+        // https://stackoverflow.com/questions/3825390/effective-way-to-find-any-files-encoding
+        public static Encoding GetEncoding(string filename)
+        {
+            // Read the BOM
+            var bom = new byte[4];
+            using (var file = new FileStream(filename, FileMode.Open, FileAccess.Read))
+            {
+                file.Read(bom, 0, 4);
+            }
 
+            // Analyze the BOM
+            if (bom[0] == 0x2b && bom[1] == 0x2f && bom[2] == 0x76) return Encoding.UTF7;
+            if (bom[0] == 0xef && bom[1] == 0xbb && bom[2] == 0xbf) return Encoding.UTF8;
+            if (bom[0] == 0xff && bom[1] == 0xfe && bom[2] == 0 && bom[3] == 0) return Encoding.UTF32; //UTF-32LE
+            if (bom[0] == 0xff && bom[1] == 0xfe) return Encoding.Unicode; //UTF-16LE
+            if (bom[0] == 0xfe && bom[1] == 0xff) return Encoding.BigEndianUnicode; //UTF-16BE
+            if (bom[0] == 0 && bom[1] == 0 && bom[2] == 0xfe && bom[3] == 0xff) return new UTF32Encoding(true, true);  //UTF-32BE
+
+            // We actually have no idea what the encoding is if we reach this point, so
+            // you may wish to return null instead of defaulting to ASCII
+            return new UTF8Encoding(false);
+        }
         public static async Task RunInternal(int prid, string content, int commentID, GitHubUser user)
         {
             
@@ -53,34 +75,34 @@ namespace CFPABot.Command
                 foreach (var line in content.Split("\r\n"))
                 {
                     if (!line.StartsWith("/")) continue;
-                    if (line.StartsWith("/mv "))
+
+                    if (line.StartsWith("/rename "))
                     {
                         if (!await CheckPermission()) continue;
-                        throw new CommandException($"/mv 已经被弃用，请使用 `{line.Replace("/mv ", "/mv-recursive")}`");
-                        var arg = line["/mv ".Length..];
+                        var arg = line["/rename ".Length..];
                         var r = GetRepo();
                         var args = GitRepoManager.SplitArguments(arg);
-                        Directory.CreateDirectory(Path.Combine(r.WorkingDirectory, Path.GetDirectoryName(args[1])));
-                        foreach (var path in args)
+                        if (args.Any(x => x.Contains(".."))) throw new CommandException("¿");
+                        
+                        var from = Path.Combine(r.WorkingDirectory, args[0]);
+                        if (!File.Exists(from))
                         {
-                            var baseDir = Path.GetFullPath(r.WorkingDirectory);
-                            if (!Path.GetFullPath(path, baseDir).StartsWith(baseDir))
-                            {
-                                throw new CommandException(Locale.Command_mv_SecurityCheckFailure);
-                            }
+                            throw new CommandException("文件不存在。");
                         }
-                        r.Run($"mv -f {arg}");
-
+                        var to = Path.Combine(r.WorkingDirectory, args[1]);
+                        File.Move(from, to, true);
+                        
                         r.AddAllFiles();
                         r.Commit($"mv {(arg.Replace("\"", "\\\""))}", user);
                     }
                     
-                    if (line.StartsWith("/mv-recursive "))
+                    if (line.StartsWith("/mv "))
                     {
                         if (!await CheckPermission()) continue;
-                        var arg = line["/mv-recursive ".Length..];
+                        var arg = line["/mv ".Length..];
                         var r = GetRepo();
                         var args = GitRepoManager.SplitArguments(arg);
+                        if (args.Any(x => x.Contains(".."))) throw new CommandException("¿");
                         Directory.CreateDirectory(Path.Combine(r.WorkingDirectory, Path.GetDirectoryName(args[1])));
                         foreach (var path in args)
                         {
@@ -186,14 +208,13 @@ namespace CFPABot.Command
                         sb.AppendLine("完成。");
                     }
 
-                    //
-                    // if (line.StartsWith("/revert "))
+                    
+                    // if (line.StartsWith("/revert"))
                     // {
                     //     if (!await CheckPermission()) continue;
-                    //     var userLogin = line["/revert ".Length..].Trim();
                     //     var r = GetRepo();
                     //
-                    //     r.Run($"revert --no-edit {userLogin}");
+                    //     r.Run($"revert --no-edit HEAD");
                     //     r.Push();
                     //     sb.AppendLine("完成。");
                     // }
@@ -275,6 +296,10 @@ namespace CFPABot.Command
                         foreach (var diff in diffs)
                         {
                             var filePath = Path.Combine(r.WorkingDirectory, diff.To);
+                            if (!Path.GetFileName(filePath).Contains("zh_"))
+                            {
+                                continue;
+                            }
                             if (filePath.EndsWith("json"))
                             {
                                 var json = JsonDocument.Parse(File.ReadAllText(filePath));
@@ -294,6 +319,80 @@ namespace CFPABot.Command
 
                         r.AddAllFiles();
                         r.Commit($"Replace '{args[0]}' with '{args[1]}'", user);
+                    }
+                    
+                    if (line.StartsWith("/add-comment "))
+                    {
+                        if (!await CheckPermission()) continue;
+                        var args = GitRepoManager.SplitArguments(line["/add-comment ".Length..]);
+                        var r = GetRepo();
+                        if (args.Length < 2) throw new CommandException("应该大于2个参数。");
+                        // key, comment
+                        var keyPart = args[0];
+                        var comment = args.Skip(1).Connect(" ");
+                        var flag = false;
+                        var diffs = await GitHub.Diff(prid);
+                        foreach (var diff in diffs)
+                        {
+                            var filePath = Path.Combine(r.WorkingDirectory, diff.To);
+                            if (!Path.GetFileName(filePath).Contains("zh_"))
+                            {
+                                continue;
+                            }
+                            if (filePath.EndsWith("json"))
+                            {
+                                Encoding encoding = GetEncoding(filePath);
+
+                                var lines = File.ReadAllLines(filePath, encoding);
+                                var nLines = new List<string>();
+                                foreach (var s in lines)
+                                {
+                                    var regex = Regex.Match(s, "^(\\s*)\"(.*?)\"\\s*?:[^,]*(,+)?.*$");
+                                    if (regex.Success)
+                                    {
+                                        var spaces = regex.Groups[1].Value;
+                                        var keyInLine = regex.Groups[2].Value;
+                                        var hasComma = regex.Groups[3].Success;
+
+                                        if (keyInLine.Contains(keyPart))
+                                        {
+                                            if (!hasComma)
+                                            {
+                                                nLines.Add(s + ",");
+                                            }
+                                            else
+                                            {
+                                                nLines.Add(s);
+                                            }
+
+                                            var l = $"{spaces}\"__comment.cpfa.{user.Login.ToLowerInvariant()}.{keyInLine}\": {comment.ToJsonString(new JsonSerializerOptions {Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping})}{(hasComma ? "," : "")}";
+                                            nLines.Add(l);
+                                            flag = true;
+                                        }
+                                        else
+                                        {
+                                            nLines.Add(s);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        nLines.Add(s);
+                                    }
+                                }
+
+                                File.WriteAllLines(filePath, nLines, encoding);
+                            }
+                        }
+
+                        if (!flag)
+                        {
+                            throw new CommandException("没有找到对应的 key");
+                        }
+                        else
+                        {
+                            r.AddAllFiles();
+                            r.Commit($"Add comment", user);
+                        }
                     }
 
                     if (line.StartsWith("/add-mapping "))
