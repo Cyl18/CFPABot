@@ -1,0 +1,41 @@
+﻿@page "/CommandList"
+<h3>CommandList</h3>
+善用 GitHub Files 中的复制按钮~
+<br/>
+
+<p>
+    <code>/rename &lt;from&gt; &lt;to&gt;</code> 将 from 重命名（移动）至 to
+    <br /><sub>如/rename projects/1.16/assets/create/create/lang/zh_ch.json projects/1.16/assets/create/create/lang/zh_cn.json</sub>
+</p>
+
+<p>
+    <code>/mv &lt;from&gt; &lt;to&gt;</code> 将 from 文件夹移动至 to
+</p>
+
+<p>
+    <code>/update-en &lt;mod&gt; &lt;game-version&gt;</code> 更新指定模组的英文文件，此命令 Bot 会自动提示
+</p>
+
+<p>
+    <code>/replace &lt;a&gt; &lt;b&gt;</code> 将 PR 更改文件中的 所有中文文件中的 a 替换为 b
+</p>
+
+<p>
+    <code>/add-comment &lt;part-of-key&gt; &lt;comment&gt;</code> 对中文语言文件添加一行注释，part-of-key 为要添加注释的行的键
+</p>
+
+<p>
+    <code>/add-co-author &lt;github-user-name&gt;</code> 添加指定的协作者到 PR，可以直接 @@ 对方
+</p>
+
+<p>
+    <code>/diff</code> 没啥用了，去用网页版的吧
+</p>
+
+<p>
+    <code>/sort-keys &lt;file-path&gt;</code> 重排指定文件的键序，一般为 MCreator 使用
+</p>
+
+<p>
+    <code>/revert</code> 撤销上一个 commit
+</p>

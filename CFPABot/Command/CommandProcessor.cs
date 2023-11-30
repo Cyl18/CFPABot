@@ -61,7 +61,8 @@ namespace CFPABot.Command
                         var arg = line["/rename ".Length..];
                         var r = GetRepo();
                         var args = GitRepoManager.SplitArguments(arg);
-
+                        if (args.Any(x => x.Contains(".."))) throw new CommandException("¿");
+                        
                         var from = Path.Combine(r.WorkingDirectory, args[0]);
                         if (!File.Exists(from))
                         {
@@ -80,6 +81,7 @@ namespace CFPABot.Command
                         var arg = line["/mv ".Length..];
                         var r = GetRepo();
                         var args = GitRepoManager.SplitArguments(arg);
+                        if (args.Any(x => x.Contains(".."))) throw new CommandException("¿");
                         Directory.CreateDirectory(Path.Combine(r.WorkingDirectory, Path.GetDirectoryName(args[1])));
                         foreach (var path in args)
                         {
@@ -185,17 +187,16 @@ namespace CFPABot.Command
                         sb.AppendLine("完成。");
                     }
 
-                    //
-                    // if (line.StartsWith("/revert "))
-                    // {
-                    //     if (!await CheckPermission()) continue;
-                    //     var userLogin = line["/revert ".Length..].Trim();
-                    //     var r = GetRepo();
-                    //
-                    //     r.Run($"revert --no-edit {userLogin}");
-                    //     r.Push();
-                    //     sb.AppendLine("完成。");
-                    // }
+                    
+                    if (line.StartsWith("/revert"))
+                    {
+                        if (!await CheckPermission()) continue;
+                        var r = GetRepo();
+                    
+                        r.Run($"revert --no-edit HEAD~1..HEAD");
+                        r.Push();
+                        sb.AppendLine("完成。");
+                    }
 
 
                     if (line.StartsWith("/format "))
@@ -319,11 +320,19 @@ namespace CFPABot.Command
                             }
                             if (filePath.EndsWith("json"))
                             {
-                                var lines = File.ReadAllLines(filePath);
+                                Encoding encoding;
+                                // https://stackoverflow.com/questions/4385707/c-sharp-detecting-encoding-in-a-file-write-change-to-file-using-the-found-enc
+                                using (var reader = new StreamReader(filePath))
+                                {
+                                    reader.Read();
+                                    encoding = reader.CurrentEncoding;
+                                }
+
+                                var lines = File.ReadAllLines(filePath, encoding);
                                 var nLines = new List<string>();
                                 foreach (var s in lines)
                                 {
-                                    var regex = Regex.Match(s, "^(\\s*)\"(.*?)\"\\s*?:.*?(,)*.*$");
+                                    var regex = Regex.Match(s, "^(\\s*)\"(.*?)\"\\s*?:[^,]*(,+)?.*$");
                                     if (regex.Success)
                                     {
                                         var spaces = regex.Groups[1].Value;
@@ -356,7 +365,7 @@ namespace CFPABot.Command
                                     }
                                 }
 
-                                File.WriteAllLines(filePath, nLines);
+                                File.WriteAllLines(filePath, nLines, encoding);
                             }
                         }
 

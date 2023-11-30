@@ -113,6 +113,7 @@ namespace CFPABot.Utils
             sb2.AppendLine("---");
             sb2.AppendLine(Context.DiffSegment);
             sb2.AppendLine("---");
+            sb2.AppendLine("ℹ [机器人的命令列表](https://cfpa.cyan.cafe/Azusa/CommandList)");
             sb2.AppendLine(Context.ReloadSegment);
 
             Interlocked.Increment(ref UpdatingCount);
@@ -142,6 +143,7 @@ namespace CFPABot.Utils
 
             Interlocked.Decrement(ref UpdatingCount);
             var sb = new StringBuilder();
+            sb2.AppendLine("<a href=\"https://github.com/Cyl18/CFPABot\"><image src=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/assets/14993992/5f597afc-ee3d-4285-addc-9f9561b4a252\"></a>\n---\n");
             sb.AppendLine(Context.ModLinkSegment);
             sb.AppendLine("---");
             sb.AppendLine(Context.BuildArtifactsSegment);
@@ -152,6 +154,7 @@ namespace CFPABot.Utils
             sb.AppendLine(Context.DiffSegment);
 
             sb.AppendLine("---");
+            sb.AppendLine("ℹ [机器人的命令列表](https://cfpa.cyan.cafe/Azusa/CommandList)");
             sb.AppendLine(Context.ReloadSegment);
 
             if (UpdatingCount > 0)
@@ -788,7 +791,7 @@ namespace CFPABot.Utils
                                 var modDomain =
                                     await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
                                 var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
-                                sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。你可以使用命令 `/mv-recursive \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。你可以使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
                                 sb.AppendLine();
                             }
                             catch (Exception)
@@ -814,7 +817,7 @@ namespace CFPABot.Utils
                                     var modDomain =
                                         await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
                                     var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
-                                    sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。 你可以使用命令 `/mv-recursive \"{names.Take(5).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                    sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。 你可以使用命令 `/mv \"{names.Take(5).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
                                     sb.AppendLine();
                                 }
                                 catch (Exception)

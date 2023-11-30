@@ -259,7 +259,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 你可以使用命令 `/mv-recursive &quot;projects/{0}/assets/{1}/{2}/&quot; &quot;projects/{3}/assets/{4}/{5}/&quot;` 来移动目录。.
+        ///   Looks up a localized string similar to 你可以使用命令 `/mv &quot;projects/{0}/assets/{1}/{2}/&quot; &quot;projects/{3}/assets/{4}/{5}/&quot;` 来移动目录。.
         /// </summary>
         public static string Check_ModID_Failed_2 {
             get {
@@ -521,7 +521,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 可以在上面的链接中右方找到 About Project -&gt; Project ID 然后使用命令 `/add-mapping {0} [CURSEFORGE_PROJECT_ID]`. 如果路径有误则使用 `/mv-recursive &quot;projects/[GAME_VERSION]/assets/{1}/&quot; &quot;projects/[GAME_VERSION]/assets/[NEW_DIR]/&quot;`。.
+        ///   Looks up a localized string similar to 可以在上面的链接中右方找到 About Project -&gt; Project ID 然后使用命令 `/add-mapping {0} [CURSEFORGE_PROJECT_ID]`. 如果路径有误则使用 `/mv &quot;projects/[GAME_VERSION]/assets/{1}/&quot; &quot;projects/[GAME_VERSION]/assets/[NEW_DIR]/&quot;`。.
         /// </summary>
         public static string General_MapModIDToProjectID_Error_4 {
             get {
