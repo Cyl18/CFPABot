@@ -73,6 +73,12 @@ namespace CFPABot.ProjectHex
                     }
                 }
                 Console.WriteLine("运行 Packer 中");
+
+                if (!File.Exists(Path.Combine(RunDir, "config/packer/1.20.json")))
+                {
+                    File.WriteAllText(Path.Combine(RunDir, "config/packer/1.20.json"), 
+                        File.ReadAllText(Path.Combine(RunDir, "config/packer/1.19.json")).Replace("1.19", "1.20"));
+                }
                 foreach (var value in Enum.GetValues<MCVersion>())
                 {
                     RunPacker(value);
