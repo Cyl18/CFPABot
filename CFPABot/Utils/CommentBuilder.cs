@@ -143,7 +143,7 @@ namespace CFPABot.Utils
 
             Interlocked.Decrement(ref UpdatingCount);
             var sb = new StringBuilder();
-            sb2.AppendLine("<a href=\"https://github.com/Cyl18/CFPABot\"><image src=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/assets/14993992/5f597afc-ee3d-4285-addc-9f9561b4a252\"></a>\n---\n");
+            sb.AppendLine("<a href=\"https://github.com/Cyl18/CFPABot\"><image src=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/assets/14993992/5f597afc-ee3d-4285-addc-9f9561b4a252\"></a>\n---\n");
             sb.AppendLine(Context.ModLinkSegment);
             sb.AppendLine("---");
             sb.AppendLine(Context.BuildArtifactsSegment);
