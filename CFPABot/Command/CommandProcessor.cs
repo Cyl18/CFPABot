@@ -204,8 +204,6 @@ namespace CFPABot.Command
                                        $"别看我，我只是个协作\n\n" +
                                        $"Co-authored-by: {coAuthor.Login} <{coAuthor.Id}+{coAuthor.Login}@users.noreply.github.com>" +
                                        "\"");
-
-                        sb.AppendLine("完成。");
                     }
 
                     
@@ -216,7 +214,6 @@ namespace CFPABot.Command
                     
                         r.Run($"revert --no-edit HEAD");
                         r.Push();
-                        sb.AppendLine("完成。");
                     }
 
                     if (line.StartsWith("/revert "))
@@ -227,7 +224,6 @@ namespace CFPABot.Command
 
                         r.Run($"revert --no-edit {hash}");
                         r.Push();
-                        sb.AppendLine("完成。");
                     }
 
 
