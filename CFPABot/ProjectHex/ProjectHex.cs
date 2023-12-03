@@ -79,6 +79,13 @@ namespace CFPABot.ProjectHex
                     File.WriteAllText(Path.Combine(RunDir, "config/packer/1.20.json"), 
                         File.ReadAllText(Path.Combine(RunDir, "config/packer/1.19.json")).Replace("1.19", "1.20"));
                 }
+
+                if (!File.Exists(Path.Combine(RunDir, "config/packer/1.20-fabric.json")))
+                {
+                    File.WriteAllText(Path.Combine(RunDir, "config/packer/1.20-fabric.json"),
+                        File.ReadAllText(Path.Combine(RunDir, "config/packer/1.18-fabric.json")).Replace("1.18", "1.20"));
+                }
+
                 foreach (var value in Enum.GetValues<MCVersion>())
                 {
                     RunPacker(value);
