@@ -209,15 +209,26 @@ namespace CFPABot.Command
                     }
 
                     
-                    // if (line.StartsWith("/revert"))
-                    // {
-                    //     if (!await CheckPermission()) continue;
-                    //     var r = GetRepo();
-                    //
-                    //     r.Run($"revert --no-edit HEAD");
-                    //     r.Push();
-                    //     sb.AppendLine("完成。");
-                    // }
+                    if (line == "/revert")
+                    {
+                        if (!await CheckPermission()) continue;
+                        var r = GetRepo();
+                    
+                        r.Run($"revert --no-edit HEAD");
+                        r.Push();
+                        sb.AppendLine("完成。");
+                    }
+
+                    if (line.StartsWith("/revert "))
+                    {
+                        if (!await CheckPermission()) continue;
+                        var r = GetRepo(noDepth: true);
+                        var hash = line["/revert ".Length..].Trim('"');
+
+                        r.Run($"revert --no-edit {hash}");
+                        r.Push();
+                        sb.AppendLine("完成。");
+                    }
 
 
                     if (line.StartsWith("/format "))
@@ -671,7 +682,7 @@ namespace CFPABot.Command
                 return hasPermission;
             }
 
-            GitRepoManager GetRepo()
+            GitRepoManager GetRepo(bool noDepth = false)
             {
                 if (!repo.IsValueCreated)
                 {
@@ -679,7 +690,7 @@ namespace CFPABot.Command
                     {
                         throw new CommandException(Locale.Command_general_MainBranchProtected);
                     }
-                    repo.Value.Clone(pr.Head.Repository.Owner.Login, pr.Head.Repository.Name, pr.Head.Ref);
+                    repo.Value.Clone(pr.Head.Repository.Owner.Login, pr.Head.Repository.Name, pr.Head.Ref, noDepth);
                 }
 
                 return repo.Value;

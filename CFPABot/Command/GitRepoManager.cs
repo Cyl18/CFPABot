@@ -20,9 +20,9 @@ namespace CFPABot.Command
             Directory.CreateDirectory(WorkingDirectory);
         }
 
-        public void Clone(string repoOwner, string repoName, string branchName)
+        public void Clone(string repoOwner, string repoName, string branchName, bool noDepth)
         {
-            Run($"clone https://x-access-token:{GitHub.GetToken()}@github.com/{repoOwner}/{repoName}.git --reference-if-able /app/repo-cache --depth=1 . -b {branchName}");
+            Run($"clone https://x-access-token:{GitHub.GetToken()}@github.com/{repoOwner}/{repoName}.git --reference-if-able /app/repo-cache {(noDepth ? "" : "--depth=3")} . -b {branchName}");
             Run("config user.name \"cfpa-bot[bot]\"");
             Run("config user.email \"101878103+cfpa-bot[bot]@users.noreply.github.com\"");
         }

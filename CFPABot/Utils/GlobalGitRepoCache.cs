@@ -16,6 +16,7 @@ namespace CFPABot.Utils
         {
             WorkingDirectory = $"/app/repo-cache";
             Directory.CreateDirectory(WorkingDirectory);
+            Clone();
         }
 
         public Task Clone()
@@ -25,7 +26,7 @@ namespace CFPABot.Utils
                 if (!File.Exists(WorkingDirectory + "/README.md"))
                 {
                     Run(
-                        $"clone https://x-access-token:{GitHub.GetToken()}@github.com/{Constants.Owner}/{Constants.RepoName}.git --depth=1 .");
+                        $"clone https://x-access-token:{GitHub.GetToken()}@github.com/{Constants.Owner}/{Constants.RepoName}.git .");
                 }
             });
         }
