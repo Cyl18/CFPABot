@@ -347,14 +347,14 @@ namespace CFPABot.Command
                                 var nLines = new List<string>();
                                 foreach (var s in lines)
                                 {
-                                    var regex = Regex.Match(s, "^(\\s*)\"(.*?)\"\\s*?:[^,]*(,+)?.*$");
+                                    var regex = Regex.Match(s, "^(\\s+)\"(.*?)\"\\s*?:[^,]*(,+)?.*$");
                                     if (regex.Success)
                                     {
                                         var spaces = regex.Groups[1].Value;
                                         var keyInLine = regex.Groups[2].Value;
                                         var hasComma = regex.Groups[3].Success;
 
-                                        if (keyInLine.Contains(keyPart))
+                                        if (keyInLine == keyPart)
                                         {
                                             if (!hasComma)
                                             {
