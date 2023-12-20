@@ -23,10 +23,10 @@ namespace CFPABot.Controllers
             var config = Azusa.Pages.ModList.ModListConfig.Instance;
             foreach (var (modSlug, modName, modDomain, curseForgeLink, versions) in config.ModLists)
             {
-                var list1 = new List<(string version, string loader, string repoLink)>();
+                var list1 = new List<VersionModel>();
                 foreach (var (version, repoLink) in versions)
                 {
-                    list1.Add((ModPath.GetVersionDirectory(version.MinecraftVersion, ModLoader.Forge), version.ModLoader.ToString(), repoLink));
+                    list1.Add(new VersionModel(ModPath.GetVersionDirectory(version.MinecraftVersion, ModLoader.Forge), version.ModLoader.ToString(), repoLink));
                 }
                 
                 list.Add(new ModListModel(modSlug, modName, modDomain, curseForgeLink, list1));
@@ -44,7 +44,9 @@ namespace CFPABot.Controllers
     }
 
     public record BMCLModListModel(List<ModListModel> modlist, DateTime lastUpdate);
-    public record ModListModel(string modSlug, string modName, string modDomain, string curseForgeLink, List<(string version, string loader, string repoLink)> versions);
+
+    public record VersionModel(string version, string loader, string repoLink);
+    public record ModListModel(string modSlug, string modName, string modDomain, string curseForgeLink, List<VersionModel> versions);
 
 
 }
