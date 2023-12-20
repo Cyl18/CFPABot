@@ -211,7 +211,7 @@
             }
         }
 
-        public record ModListModel(string modSlug, string modName, string modDomain,string curseForgeLink, List<(ModVersion version, string repoLink)> versions);
+        public record ModListModel(string modSlug, string modName, string modDomain, string curseForgeLink, List<(ModVersion version, string repoLink)> versions);
         static bool isValidName(string s)
         {
             var p = Path.GetFileName(s);
