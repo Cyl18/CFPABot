@@ -121,7 +121,7 @@
                 <BSInputGroup Size="Size.Medium" MarginTop="Margins.Small" MarginBottom="Margins.Medium">
                     <BSLabel class="@BS.Input_Group_Text" Size="Size.Medium">Diff1-源（如英文）-A</BSLabel>
                     <BSInput InputType="InputType.Select" InputSize="Size.Medium" @bind-Value="diff1from">
-                        @foreach (var x in indexs)
+                        @foreach (var x in indexes)
                         {
                             <option value="@x">@texts[x]</option>
                         }
@@ -132,7 +132,7 @@
                 <BSInputGroup Size="Size.Medium" MarginTop="Margins.Small" MarginBottom="Margins.Medium">
                     <BSLabel class="@BS.Input_Group_Text" Size="Size.Medium">Diff1-当前（如英文）-B</BSLabel>
                     <BSInput InputType="InputType.Select" InputSize="Size.Medium" @bind-Value="diff1to">
-                        @foreach (var x in indexs)
+                        @foreach (var x in indexes)
                         {
                             <option value="@x">@texts[x]</option>
                         }
@@ -145,7 +145,7 @@
                 <BSInputGroup Size="Size.Medium" MarginTop="Margins.Small" MarginBottom="Margins.Medium">
                     <BSLabel class="@BS.Input_Group_Text" Size="Size.Medium">Diff2-源（如中文）-C</BSLabel>
                     <BSInput InputType="InputType.Select" InputSize="Size.Medium" @bind-Value="diff2from">
-                        @foreach (var x in indexs)
+                        @foreach (var x in indexes)
                         {
                             <option value="@x">@texts[x]</option>
                         }
@@ -156,7 +156,7 @@
                 <BSInputGroup Size="Size.Medium" MarginTop="Margins.Small" MarginBottom="Margins.Medium">
                     <BSLabel class="@BS.Input_Group_Text" Size="Size.Medium">Diff2-当前（如中文）-D</BSLabel>
                     <BSInput InputType="InputType.Select" InputSize="Size.Medium" @bind-Value="diff2to">
-                        @foreach (var x in indexs)
+                        @foreach (var x in indexes)
                         {
                             <option value="@x">@texts[x]</option>
                         }
@@ -186,7 +186,7 @@
 @code {
     string markdownHtml = null;
     public string[] texts = new string[0];
-    public int[] indexs = new int[0];
+    public int[] indexes = new int[0];
     public LangFileWrapper[] langFiles = new LangFileWrapper[0];
     HashSet<ModVersion> versions = new();
     public int diff1from;
@@ -243,7 +243,7 @@
             await AddPr(prid, slug, textsV, langV);
         }
 
-        indexs = Enumerable.Range(0, textsV.Count).ToArray();
+        indexes = Enumerable.Range(0, textsV.Count).ToArray();
         texts = textsV.ToArray();
         langFiles = langV.ToArray();
         refreshing = false;
@@ -306,7 +306,7 @@
         }
         finally
         {
-            indexs = Enumerable.Range(0, textsV.Count).ToArray();
+            indexes = Enumerable.Range(0, textsV.Count).ToArray();
             texts = textsV.ToArray();
             langFiles = langV.ToArray();
 
@@ -544,7 +544,7 @@
         }
         finally
         {
-            indexs = Enumerable.Range(0, textsV.Count).ToArray();
+            indexes = Enumerable.Range(0, textsV.Count).ToArray();
             texts = textsV.ToArray();
             langFiles = langV.ToArray();
 
@@ -599,7 +599,7 @@
             }
 
 
-            indexs = Enumerable.Range(0, textsV.Count).ToArray();
+            indexes = Enumerable.Range(0, textsV.Count).ToArray();
             texts = textsV.ToArray();
             langFiles = langV.ToArray();
         }

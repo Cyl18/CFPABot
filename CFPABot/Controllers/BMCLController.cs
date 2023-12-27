@@ -12,9 +12,21 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace CFPABot.Controllers
 {
+
     [Route("api/[controller]")]
     [ApiController]
     public class BMCLController : ControllerBase
+    {
+        [HttpGet("ModList")]
+        public IActionResult ModList()
+        {
+            return RedirectPermanent("/api/BakaXL/ModList");
+        }
+
+    }
+    [Route("api/[controller]")]
+    [ApiController]
+    public class BakaXLController : ControllerBase
     {
         [HttpGet("ModList")]
         public string ModList()
