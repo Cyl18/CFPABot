@@ -24,7 +24,8 @@ namespace CFPABot.Azusa
         string _token;
         string _domain;
 
-        public PRCreatorModule(GitHubClient gitHubClient, PRCreator.FileCache enCache, PRCreator.FileCache cnCache, string email, string slug, string versionString, string prTitle, Action<string> updateAction, string githubOauthToken, string modDomain, string branchName = null)
+        public PRCreatorModule(GitHubClient gitHubClient, PRCreator.FileCache enCache, PRCreator.FileCache cnCache, string email, string slug,
+            string versionString, string prTitle, Action<string> updateAction, string githubOauthToken, string modDomain, string branchName = null)
         {
             _gitHubClient = gitHubClient;
             _enCache = enCache;

@@ -171,7 +171,19 @@ namespace CFPABot.ProjectHex
         void RunPacker(MCVersion version)
         {
             var process = Process.Start(new ProcessStartInfo("Packer", $"--version=\"{version.ToVersionString()}\"") { WorkingDirectory = RunDir, RedirectStandardOutput = true});
-            process.StandardOutput.ReadToEnd();
+            
+            var stdout = process.StandardOutput;
+
+            if (version == MCVersion.v1122)
+            {
+                using var fs = File.OpenWrite("logs/packer-1.12.2.log");
+                stdout.BaseStream.CopyTo(fs);
+            }
+            else
+            {
+                stdout.ReadToEnd();
+            }
+
             process.WaitForExit();
         }
     }

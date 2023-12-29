@@ -268,7 +268,7 @@
         catch (HttpRequestException e)
         {
             if (e.StatusCode != HttpStatusCode.NotFound)
-                Log.Warning($"LinkExists returned unusual status code: {e.StatusCode}");
+                Log.Warning($"LinkExists returned an unusual status code: {e.StatusCode}");
             return false;
         }
     }
