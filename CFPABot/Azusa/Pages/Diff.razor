@@ -18,6 +18,10 @@
 <PageTitle>Diff</PageTitle>
 <h3>Diff</h3>
 <BSToaster/>
+@if (PPrID.IsNullOrWhiteSpace())
+{
+    <BSAlert Color="BSColor.Info" HasIcon="true" MarginBottom="Margins.Medium">检测到你直接打开了这个页面，建议你打开 PR 内 Bot 提示的"对比"链接，不要手动填写</BSAlert>
+}
 <BSAlert Color="BSColor.Info" HasIcon="true" MarginBottom="Margins.Medium">Two-Way 对比只需要填写 Diff1-当前 和 Diff2-当前 即可</BSAlert>
 
 @code {

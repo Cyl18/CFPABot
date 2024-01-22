@@ -154,7 +154,7 @@ namespace CFPABot
                 {
                     try
                     {
-                        await new ProjectHexRunner().Run();
+                        await new ProjectHexRunner().Run(force);
                         ProjectHexConfig.Instance.LastTime = DateTime.Now;
                         ProjectHexConfig.Instance.DownloadsSinceLastPack = 0;
                         ProjectHexConfig.Save();

@@ -31,7 +31,7 @@ namespace CFPABot.ProjectHex
         }
 
 
-        public async Task Run()
+        public async Task Run(bool force = false)
         {
             var issueID = 2444;
             var issue = await GitHub.Instance.Issue.Get(Constants.RepoID, issueID);
@@ -74,23 +74,11 @@ namespace CFPABot.ProjectHex
                 }
                 Console.WriteLine("运行 Packer 中");
 
-                if (!File.Exists(Path.Combine(RunDir, "config/packer/1.20.json")))
-                {
-                    File.WriteAllText(Path.Combine(RunDir, "config/packer/1.20.json"), 
-                        File.ReadAllText(Path.Combine(RunDir, "config/packer/1.19.json")).Replace("1.19", "1.20"));
-                }
-
-                if (!File.Exists(Path.Combine(RunDir, "config/packer/1.20-fabric.json")))
-                {
-                    File.WriteAllText(Path.Combine(RunDir, "config/packer/1.20-fabric.json"),
-                        File.ReadAllText(Path.Combine(RunDir, "config/packer/1.18-fabric.json")).Replace("1.18", "1.20"));
-                }
-
-                foreach (var value in Enum.GetValues<MCVersion>())
+                foreach (var value in Enum.GetValues<MCVersion>().TakeWhile(x => x < MCVersion.v121fabric))
                 {
                     RunPacker(value);
                 }
-                Commit();
+                Commit(force);
                 body += $"> **Note**\n";
                 body += $"> 最后更新时间: {(DateTime.UtcNow + TimeSpan.FromHours(8)):u}\n";
                 body += $"> 打包所用时间: {sw.Elapsed.TotalMinutes:F1} min\n";
@@ -111,7 +99,7 @@ namespace CFPABot.ProjectHex
 
         }
 
-        public void Commit()
+        public void Commit(bool debug)
         {
             foreach (var file in Directory.GetFiles("project-hex"))
             {
@@ -122,7 +110,11 @@ namespace CFPABot.ProjectHex
                 Console.WriteLine($"Moving file {file}");
                 File.Move(file, $"project-hex/{Path.GetFileNameWithoutExtension(file).TrimStart('.').TrimStart('/').TrimStart('\\')}-{File.ReadAllBytes(file).SHA256().ToHexString().Substring(0,6)}.zip");
             }
-            Directory.Delete(RunDir, true);
+
+            if (!debug)
+            {
+                Directory.Delete(RunDir, true);
+            }
         }
         void RunBashCommand(string args)
         {
@@ -173,7 +165,7 @@ namespace CFPABot.ProjectHex
             var process = Process.Start(new ProcessStartInfo("Packer", $"--version=\"{version.ToVersionString()}\"") { WorkingDirectory = RunDir, RedirectStandardOutput = true});
             
             var stdout = process.StandardOutput;
-
+            
             if (version == MCVersion.v1122)
             {
                 using var fs = File.OpenWrite("logs/packer-1.12.2.log");
