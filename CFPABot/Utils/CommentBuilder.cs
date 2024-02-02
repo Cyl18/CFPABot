@@ -770,13 +770,13 @@ namespace CFPABot.Utils
                         continue;
                     }
 
-                    if (names.FirstOrDefault() != "projects") continue;
-
-                    if (names.Length < 5)
+                    if (names.Length < 5 && (diff.To.Contains(".lang") || diff.To.Contains(".json")))
                     {
                         sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。请检查你的提交路径：`{diff.To}`");
                         continue;
                     }
+
+                    if (names.FirstOrDefault() != "projects") continue;
                     // projects/{version}/assets/{curseSlug}/{modDomain}/lang/zh_cn.{}
                     try
                     {
