@@ -15,7 +15,7 @@ namespace CFPABot.Checks
         {
             this.prid = prid;
         }
-
+        
         public async Task Run()
         {
             var labelManager = GitHub.Instance.Issue.Labels;

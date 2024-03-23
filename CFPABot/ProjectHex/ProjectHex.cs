@@ -36,7 +36,7 @@ namespace CFPABot.ProjectHex
             var issueID = 2444;
             var issue = await GitHub.Instance.Issue.Get(Constants.RepoID, issueID);
             var body = issue.Body;
-            body = body.Substring(0, body.LastIndexOf("->") + 2) + "\n\n";
+            body = body.Substring(0, body.LastIndexOf("->", StringComparison.Ordinal) + 2) + "\n\n";
             try
             {
                 RunGitCommand("clone https://github.com/CFPAOrg/Minecraft-Mod-Language-Package.git .");
@@ -46,7 +46,9 @@ namespace CFPABot.ProjectHex
                 RunGitCommand("checkout -b some-rannnnnndom-name");
                 var sw = Stopwatch.StartNew();
                 var prs = (await GitHub.Instance.PullRequest.GetAllForRepository(Constants.RepoID)).Where(p => !p.Draft).ToArray();
-
+                var o = prs.Where(l => !l.Labels.Any(x => x.Name == "excluded-from-project-hex"))
+                    .Select(x => $"pull/{x.Number}/head:pr-{x.Number}-{x.Head.Ref}").Connect(" ");
+                RunGitCommand($"fetch origin {o}");
                 foreach (var pr in prs)
                 {
                     if (pr.Labels.Any(l => l.Name == "excluded-from-project-hex"))
@@ -54,7 +56,7 @@ namespace CFPABot.ProjectHex
                         Console.WriteLine($"Excluded PR: {pr.Number}");
                         continue;
                     }
-                    RunGitCommand($"fetch -f origin pull/{pr.Number}/head:{pr.Head.Ref}");
+                    //RunGitCommand($"fetch -f origin pull/{pr.Number}/head:{pr.Head.Ref}");
                     try
                     {
                         RunGitCommand($"merge -X theirs {pr.Head.Sha}");
@@ -140,10 +142,11 @@ namespace CFPABot.ProjectHex
 
         void RunGitCommand(string args)
         {
+            Console.WriteLine($"git {args}");
+
             var process = Process.Start(new ProcessStartInfo("git", args) { RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = RunDir });
             var stdout = "";
             var stderr = "";
-            Console.WriteLine($"git {args}");
             process.OutputDataReceived += (sender, eventArgs) => { stdout += eventArgs.Data; };
             process.ErrorDataReceived += (sender, eventArgs) => { stderr += eventArgs.Data; };
             process.BeginOutputReadLine();

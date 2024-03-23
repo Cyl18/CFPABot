@@ -19,13 +19,14 @@
   <ItemGroup>
     <PackageReference Include="BlazorStrap" Version="5.1.102.51923" />
     <PackageReference Include="BlazorStrap.V5" Version="5.1.102.51723" />
+    <PackageReference Include="ChatGPT.Net" Version="2.0.0" />
     <PackageReference Include="Csv" Version="2.0.93" />
     <PackageReference Include="CurseForge.APIClient" Version="2.1.0" />
     <PackageReference Include="DiffPatch" Version="2.0.0" />
     <PackageReference Include="DiffPlex" Version="1.7.1" />
     <PackageReference Include="GammaLibrary" Version="2.3.0" />
     <PackageReference Include="GitHubJwt" Version="0.0.5" />
-    <PackageReference Include="HtmlSanitizer" Version="8.0.692" />
+    <PackageReference Include="HtmlSanitizer" Version="8.0.843" />
     <PackageReference Include="Markdig" Version="0.31.0" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="7.0.9" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.11.1" />
@@ -84,8 +85,6 @@
   </ItemGroup>
 
 
-  <ItemGroup>
-    <Folder Include="DiffEngineMK2\" />
-  </ItemGroup>
+  <Import Project="..\CFPABot.Shared\CFPABot.Shared.projitems" Label="Shared" />
 
 </Project>
