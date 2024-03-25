@@ -11,7 +11,7 @@ namespace CFPABot.DiffEngine
     public record LangFilePair(LangFile FromENFile, LangFile ToEnFile, LangFile FromCNFile, LangFile ToCNFile, ModPath ModPath);
     public class LangFileFetcher
     {
-        public static async Task<(LangFile fromEnLang, LangFile fromCnLang)> FromRepo(int prid, string slug,ModVersion version)
+        public static async Task<(LangFile fromEnLang, LangFile fromCnLang)> FromRepo(int prid, string slug, ModVersion version)
         {
 
             var diff = await GitHub.Diff(prid);

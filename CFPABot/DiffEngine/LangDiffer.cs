@@ -29,6 +29,7 @@ namespace CFPABot.DiffEngine
 
         private static string PostProcess(this string str)
         {
+            return str;
             if (str.Contains("$"))
             {
                 return $"`{str.Replace("<", "\\<").Replace("`", "\\`").Replace("\n", "[换行符]")}`";
