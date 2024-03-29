@@ -81,6 +81,53 @@ namespace CFPABot.Controllers
             return File(System.IO.File.ReadAllBytes(path1), "text/markdown");
         }
 
+        [HttpGet("Diff/{prid}")]
+        public async Task<IActionResult> Diff(string prid)
+        {
+            var s = await Download.String(Constants.BaseRepoUrl + $"/pull/{prid}.diff", true);
+            return Content(s);
+        }
+
+        [HttpGet("ModName/{slug}")]
+        public async Task<IActionResult> GetModName(string slug)
+        {
+            try
+            {
+                if (slug.StartsWith("modrinth-"))
+                {
+                    slug = slug["modrinth-".Length..];
+                    var mod = await ModrinthManager.GetMod(slug);
+                    return Content(mod.Title);
+                }
+                else
+                {
+                    var mod = await CurseManager.GetAddon(slug);
+                    return Content(mod.Name);
+                }
+                
+            }
+            catch (Exception e)
+            {
+                return StatusCode(418, e.GetType() + "\n" + e.Message);
+            }
+        }
+
+        [HttpGet("AddMapping/{id}")]
+        public async Task<IActionResult> AddMapping(string id)
+        {
+            try
+            {
+                var addon = await CurseManager.GetAddon(id.ToInt());
+                ModIDMappingMetadata.Instance.Mapping[addon.Slug] = id.ToInt();
+                ModIDMappingMetadata.Save();
+                return Content($"成功添加 Mapping：{addon.Slug} => {id}");
+            }
+            catch (Exception e)
+            {
+                return Content("失败："+e.Message);
+            }
+        }
+
         private bool VerifyAccess()
         {
             return HttpContext.Request.Headers["Authorization"].FirstOrDefault() == Constants.GitHubWebhookSecret;

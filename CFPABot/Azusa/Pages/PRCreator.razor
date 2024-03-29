@@ -17,6 +17,7 @@
 <PageTitle>模组翻译快捷上传</PageTitle>
 <BSToaster />
 <h1>模组翻译快捷上传</h1>
+<BSAlert MarginBottom="Margins.Medium" Color="BSColor.Danger">新版提交器已上线！在这里测试：<BSAlertLink>https://cyan.cafe/CFPABot.Client/Publish.html</BSAlertLink> 记得反馈结果给 Cyl18~</BSAlert>
 <BSLabel MarginBottom="Margins.Medium" Class="@BS.Text_Info">如果你遇到了什么问题，可以在 CFPA 群中 @@Cyl18 反馈，或者前往 <BSLink Url="https://github.com/Cyl18/CFPABot/issues">这里</BSLink> 提交 Issue。</BSLabel>
 <br/>
 
@@ -26,6 +27,7 @@
     @code{
     string userName = "[加载中]";
     string userAvatar = "";
+
     void GetName()
     {
         userName = (LoginManager.GetGitHubClient(_http).User.Current().Result).Login;

@@ -701,28 +701,60 @@
 
         try
         {
-            var addon = await CurseManager.GetAddon(slug);
-            foreach (var modVersion in versions)
+            if (slug.StartsWith("modrinth-"))
             {
-                var modEnFile = await CurseManager.GetModEnFile(addon, modVersion.ToVersionDirectory().ToMCVersion(), LangType.EN);
-                var modCnFile = await CurseManager.GetModEnFile(addon, modVersion.ToVersionDirectory().ToMCVersion(), LangType.CN);
-
-                if (modEnFile.files != null && modEnFile.files.FirstOrDefault() is { } f2)
+                slug = slug["modrinth-".Length..];
+                var addon = await ModrinthManager.GetMod(slug);
+                foreach (var modVersion in versions)
                 {
-                    var s = $"{modCnFile.downloadFileName} 的英文语言文件";
+                    var modEnFile = await ModrinthManager.GetModEnFile(addon, modVersion.ToVersionDirectory().ToMCVersion(), LangType.EN);
+                    var modCnFile = await ModrinthManager.GetModEnFile(addon, modVersion.ToVersionDirectory().ToMCVersion(), LangType.CN);
 
-                    textsV.Add(s);
-                    langV.Add(LangFileWrapper.FromContent(f2));
+                    if (modEnFile.files != null && modEnFile.files.FirstOrDefault() is { } f2)
+                    {
+                        var s = $"{modCnFile.downloadFileName} 的英文语言文件";
+
+                        textsV.Add(s);
+                        langV.Add(LangFileWrapper.FromContent(f2));
+                    }
+
+                    if (modCnFile.files != null && modCnFile.files.FirstOrDefault() is {} f)
+                    {
+                        var s = $"{modCnFile.downloadFileName} 的中文语言文件";
+
+                        textsV.Add(s);
+                        langV.Add(LangFileWrapper.FromContent(f));
+                    }
                 }
-
-                if (modCnFile.files != null && modCnFile.files.FirstOrDefault() is {} f)
+                return;
+            }
+            else
+            {
+                var addon = await CurseManager.GetAddon(slug);
+                foreach (var modVersion in versions)
                 {
-                    var s = $"{modCnFile.downloadFileName} 的中文语言文件";
+                    var modEnFile = await CurseManager.GetModEnFile(addon, modVersion.ToVersionDirectory().ToMCVersion(), LangType.EN);
+                    var modCnFile = await CurseManager.GetModEnFile(addon, modVersion.ToVersionDirectory().ToMCVersion(), LangType.CN);
 
-                    textsV.Add(s);
-                    langV.Add(LangFileWrapper.FromContent(f));
+                    if (modEnFile.files != null && modEnFile.files.FirstOrDefault() is { } f2)
+                    {
+                        var s = $"{modCnFile.downloadFileName} 的英文语言文件";
+
+                        textsV.Add(s);
+                        langV.Add(LangFileWrapper.FromContent(f2));
+                    }
+
+                    if (modCnFile.files != null && modCnFile.files.FirstOrDefault() is { } f)
+                    {
+                        var s = $"{modCnFile.downloadFileName} 的中文语言文件";
+
+                        textsV.Add(s);
+                        langV.Add(LangFileWrapper.FromContent(f));
+                    }
                 }
             }
+            
+            
         }
         catch (Exception e)
         {

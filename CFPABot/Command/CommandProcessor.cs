@@ -152,36 +152,74 @@ namespace CFPABot.Command
                             MCVersion.v1122 => "en_us.lang",
                             _ => "en_us.json"
                         };
-                        var addon = await CurseManager.GetAddon(curseForgeID);
-
-                        var modID = await CurseManager.GetModID(addon, version, true, false);
-                        var (files, downloadFileName) = await CurseManager.GetModEnFile(addon, version, LangType.EN);
-                        if (files.Length != 1)
+                        if (curseForgeID.StartsWith("modrinth-"))
                         {
-                            sb.AppendLine(Locale.Command_update_en_MultipleLangFiles);
-                            continue;
+                            curseForgeID = curseForgeID["modrinth-".Length..];
+                            var addon = await ModrinthManager.GetMod(curseForgeID);
+
+                            var modID = await ModrinthManager.GetModID(addon, version, true, false);
+                            var (files, downloadFileName) = await ModrinthManager.GetModEnFile(addon, version, LangType.EN);
+                            if (files.Length != 1)
+                            {
+                                sb.AppendLine(Locale.Command_update_en_MultipleLangFiles);
+                                continue;
+                            }
+
+                            sb.AppendLine(string.Format(Locale.Command_update_en_Success, downloadFileName));
+                            var f = files[0];
+                            using var sr = new MemoryStream(f.ToUTF8Bytes()).CreateStreamReader(Encoding.UTF8);
+                            using var sw = File.Open(
+                                Path.Combine(r.WorkingDirectory,
+                                    $"projects/{versionString}/assets/{curseForgeID}/{modID}/lang/{versionFile}"),
+                                FileMode.Create).CreateStreamWriter(new UTF8Encoding(false));
+
+                            switch (version)
+                            {
+                                case MCVersion.v1122:
+                                    new LangFormatter(sr, sw).Format();
+                                    break;
+                                default:
+                                    new JsonFormatter(sr, sw).Format();
+                                    break;
+                            }
+
+                            r.AddAllFiles();
+                            r.Commit($"Update en_us file for {(curseForgeID.Replace("\"", "\\\""))}", user);
                         }
-
-                        sb.AppendLine(string.Format(Locale.Command_update_en_Success, downloadFileName));
-                        var f = files[0];
-                        using var sr = new MemoryStream(f.ToUTF8Bytes()).CreateStreamReader(Encoding.UTF8);
-                        using var sw = File.Open(
-                            Path.Combine(r.WorkingDirectory,
-                                $"projects/{versionString}/assets/{curseForgeID}/{modID}/lang/{versionFile}"),
-                            FileMode.Create).CreateStreamWriter(new UTF8Encoding(false));
-
-                        switch (version)
+                        else
                         {
-                            case MCVersion.v1122:
-                                new LangFormatter(sr, sw).Format();
-                                break;
-                            default:
-                                new JsonFormatter(sr, sw).Format();
-                                break;
-                        }
+                            var addon = await CurseManager.GetAddon(curseForgeID);
 
-                        r.AddAllFiles();
-                        r.Commit($"Update en_us file for {(curseForgeID.Replace("\"", "\\\""))}", user);
+                            var modID = await CurseManager.GetModID(addon, version, true, false);
+                            var (files, downloadFileName) = await CurseManager.GetModEnFile(addon, version, LangType.EN);
+                            if (files.Length != 1)
+                            {
+                                sb.AppendLine(Locale.Command_update_en_MultipleLangFiles);
+                                continue;
+                            }
+
+                            sb.AppendLine(string.Format(Locale.Command_update_en_Success, downloadFileName));
+                            var f = files[0];
+                            using var sr = new MemoryStream(f.ToUTF8Bytes()).CreateStreamReader(Encoding.UTF8);
+                            using var sw = File.Open(
+                                Path.Combine(r.WorkingDirectory,
+                                    $"projects/{versionString}/assets/{curseForgeID}/{modID}/lang/{versionFile}"),
+                                FileMode.Create).CreateStreamWriter(new UTF8Encoding(false));
+
+                            switch (version)
+                            {
+                                case MCVersion.v1122:
+                                    new LangFormatter(sr, sw).Format();
+                                    break;
+                                default:
+                                    new JsonFormatter(sr, sw).Format();
+                                    break;
+                            }
+
+                            r.AddAllFiles();
+                            r.Commit($"Update en_us file for {(curseForgeID.Replace("\"", "\\\""))}", user);
+                        }
+                        
                     }
 
                     if (line.StartsWith("/add-co-author "))

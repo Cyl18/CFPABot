@@ -9,6 +9,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using CFPABot.Azusa.wwwroot2;
 using CFPABot.Command;
 using CFPABot.DiffEngine;
 using CFPABot.Exceptions;
@@ -25,6 +26,7 @@ using Serilog;
 using Serilog.Core;
 using Serilog.Core.Enrichers;
 using File = System.IO.File;
+using Project = Modrinth.Models.Project;
 
 namespace CFPABot.Utils
 {
@@ -193,7 +195,7 @@ namespace CFPABot.Utils
                 }
 
                 var addons = new List<Mod>();
-                foreach (var modid in modids.Where(x => x != "1UNKNOWN" && x != "0-modrinth-mod"))
+                foreach (var modid in modids.Where(x => x != "1UNKNOWN" && x != "0-modrinth-mod" && !x.StartsWith("modrinth-")))
                 {
                     try
                     {
@@ -207,6 +209,35 @@ namespace CFPABot.Utils
 
                 var modDomains = modInfos.Where(x => x.CurseForgeID == "0-modrinth-mod").Select(m => m.ModDomain).Distinct().ToArray();
                 var client = new ModrinthClient();
+
+                
+                var modrinthMods = modInfos.Where(x => x.CurseForgeID.StartsWith("modrinth-")).Select(m => m.CurseForgeID.Substring("modrinth-".Length)).Distinct().ToArray();
+
+                var sbModrinthError = new StringBuilder();
+                var modrinthList = new List<(string slug, string url, string iconUrl, string name)>();
+                foreach (var modrinthMod in modrinthMods)
+                {
+                    try
+                    {
+                        var project = await client.Project.GetAsync(modrinthMod);
+                        
+                        modrinthList.Add((project.Slug, project.Url, project.IconUrl, project.Title));
+                    }
+                    catch (ModrinthApiException e)
+                    {
+                        sbModrinthError.Append($"Modrinth 检索遇到问题：");
+                        sbModrinthError.AppendLine(e.Message);
+                    }    
+                }
+
+                var modrinthError = sbModrinthError.ToString();
+                if (modrinthError.NotNullNorWhiteSpace())
+                {
+                    sb.AppendLine();
+                    sb.AppendLine(modrinthError);
+                    sb.AppendLine();
+                }
+
                 var flag1 = false;
                 foreach (var s in modDomains)
                 {
@@ -246,9 +277,9 @@ namespace CFPABot.Utils
                     sb.AppendLine();
                 }
 
-                if (addons.Count == 0)
+                if (addons.Count == 0 && modrinthList.Count == 0)
                 {
-                    sb.AppendLine("ℹ 此 PR 没有检测到 CurseForge 模组修改。");
+                    sb.AppendLine("ℹ 此 PR 没有检测到 CurseForge/Modrinth 模组修改。");
                     return;
                 }
 
@@ -256,6 +287,22 @@ namespace CFPABot.Utils
                 sb1.AppendLine("|     | 模组 | 🔗 链接 | :art: 相关文件 |");
                 sb1.AppendLine("| --- | --- | --- | --- |");
                 int modCount = 0;
+
+                foreach (var (slug, url, iconUrl, name) in modrinthList)
+                {
+                    sb1.AppendLine($"| " +
+                    /* Thumbnail*/ $"<image src=\"{iconUrl}\" width=\"32\"/> |" +
+                                   /* Mod Name */ $" [**{name.Trim().Replace("[", "\\[").Replace("]", "\\]").Replace("|", "\\|")}**]({url}) |" +
+                                   // /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault(), enforcedLang: true)} |" + // 这里应该enforce吗？
+                                   /* Source   */ $" " +
+                                   /* Mcmod    */ $" [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20{HttpUtility.UrlEncode(name)}) \\|" +
+                                   /* Compare  */ $" [:file_folder: 对比(Azusa)](https://cfpa.cyan.cafe/Azusa/Diff/{PullRequestID}/modrinth-{slug}) |" +
+                                   /* Mod DL   */ $" Modrinth |" +
+                                   ""
+                    );
+                    modCount++;
+                }
+
                 foreach (var addon in addons)
                 {
                     modCount++;
@@ -787,12 +834,27 @@ namespace CFPABot.Utils
                             sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。缺少了 {{modDomain}} 和 lang 文件夹。请检查你的提交路径：`{diff.To}`；");
                             try
                             {
-                                var addon = await CurseManager.GetAddon(names[3]);
-                                var modDomain =
-                                    await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
-                                var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
-                                sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。你可以使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
-                                sb.AppendLine();
+                                var slug = names[3];
+                                if (slug.StartsWith("modrinth-"))
+                                {
+                                    slug = slug["modrinth-".Length..];
+                                    var addon = await ModrinthManager.GetMod(slug);
+                                    var modDomain =
+                                        await ModrinthManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
+                                    var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
+                                    sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。你可以使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                    sb.AppendLine();
+                                }
+                                else
+                                {
+                                    var addon = await CurseManager.GetAddon(names[3]);
+                                    var modDomain =
+                                        await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
+                                    var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
+                                    sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。你可以使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                    sb.AppendLine();
+                                }
+                                
                             }
                             catch (Exception)
                             {
@@ -893,9 +955,10 @@ namespace CFPABot.Utils
                     if (checkedSet.Contains(check)) continue;
                     checkedSet.Add(check);
                     Mod addon = null;
+
                     try
                     {
-                        if (curseID != "1UNKNOWN" && curseID != "0-modrinth-mod")
+                        if (curseID != "1UNKNOWN" && curseID != "0-modrinth-mod" && !curseID.StartsWith("modrinth-"))
                             addon = await CurseManager.GetAddon(curseID);
                     }
                     catch (Exception)
@@ -927,6 +990,43 @@ namespace CFPABot.Utils
                                 sb.AppendLine(string.Format(Locale.Check_ModID_Failed_1, filemodid.Connect("/"), modid));
                                 sb.AppendLine(string.Format(Locale.Check_ModID_Failed_2, versionString, curseID, modid, versionString, curseID, (filemodid.Length != 1 ? "{MOD_DOMAIN}" : filemodid[0])));
                             
+                                //continue;
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            sb.AppendLine(string.Format(Locale.Check_ModID_Error, e.Message));
+                        }
+
+                    Project z = null;
+                    try
+                    {
+                        if (curseID.StartsWith("modrinth-"))
+                            z = await ModrinthManager.GetMod(curseID["modrinth-".Length..]);
+                    }
+                    catch (Exception)
+                    {
+                        sb.AppendLine(string.Format(Locale.Check_ModID_ModNotFound, curseID, versionString));
+                    }
+                    if (z != null)
+                        try
+                        {
+                            var filemodid = await ModrinthManager.GetModIDForCheck(z, mcVersion);
+                            if (filemodid == null || filemodid.Length == 0)
+                            {
+                                    sb.AppendLine(string.Format(Locale.Check_ModID_ModIDNotFound, modid));
+                                
+
+                            }
+                            if (filemodid.Any(id => id == modid))
+                            {
+                                sb.AppendLine(string.Format(Locale.Check_ModID_Success, modid));
+                            }
+                            else
+                            {
+                                sb.AppendLine(string.Format(Locale.Check_ModID_Failed_1, filemodid.Connect("/"), modid));
+                                sb.AppendLine(string.Format(Locale.Check_ModID_Failed_2, versionString, curseID, modid, versionString, curseID, (filemodid.Length != 1 ? "{MOD_DOMAIN}" : filemodid[0])));
+
                                 //continue;
                             }
                         }
@@ -1063,13 +1163,18 @@ namespace CFPABot.Utils
                     ("粘土", "在 1.16.5 后更名为 `黏土`", x => x.version != MCVersion.v1122),
                     ("粘液", "在 1.16.5 后更名为 `黏液`", x => x.version != MCVersion.v1122),
                     ("猪人", "你想说的可能是`猪灵（Piglin）`？", x => x.version != MCVersion.v1122),
+                    ("循声守卫", "你想说的可能是`监守者（Warden）？`", x => x.version >= MCVersion.v119),
+                    ("成就", "你想说的可能是`进度（Advancement）`", null),
+                    ("附魔", "请注意区分`附魔（Enchant/Enchanting）`和`魔咒（Enchantment）`", null),
+                    ("魔咒", "请注意区分`附魔（Enchant/Enchanting）`和`魔咒（Enchantment）`", null),
                 };
                 (string checkname, string message, Predicate<(LineDiff diff, MCVersion version)> customCheck)[] errors = {
                     ("爬行者", "`爬行者`在 1.15 后更名为`苦力怕`", tuple => tuple.version != MCVersion.v1122),
                     ("刷怪箱", "`刷怪箱`在 1.16 后更名为`刷怪笼`", tuple => tuple.version != MCVersion.v1122),
                     ("浅灰色", "原版译名采用`淡灰色`", null),
                     ("迷之炖菜", "在 1.19.2 后更名为`谜之炖菜`", x => x.version >= MCVersion.v119 && x.diff.Content.Contains("迷之炖菜")),
-                    ("摔落保护", "在 1.19.4 后更名为`摔落缓冲`", x => x.version >= MCVersion.v119)
+                    ("摔落保护", "在 1.19.4 后更名为`摔落缓冲`", x => x.version >= MCVersion.v119),
+                    ("黏土块", "在 1.19.3 后译名为 `黏土`", x => x.version >= MCVersion.v119)
                 };
                 // 俺的服务器只有1个U 就不写多线程力
                 var diffCheckedSet = new HashSet<string>();
