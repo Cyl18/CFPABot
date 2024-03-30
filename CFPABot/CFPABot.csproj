@@ -84,7 +84,4 @@
     <None Include="Azusa\Shared\NavMenu.razor" />
   </ItemGroup>
 
-
-  <Import Project="..\CFPABot.Shared\CFPABot.Shared.projitems" Label="Shared" />
-
 </Project>
