@@ -179,7 +179,7 @@
                     </BSInput>
                 </BSInputGroup>
             </BSRow>
-
+            
         </BSCol>
     </BSContainer>
 
@@ -284,14 +284,14 @@
             
 
             <BSLabel>建议改为</BSLabel>
-            <BSInput InputType="InputType.TextArea" style="height: 70px" Value="@suggestionContent" @oninput="(async e => { suggestionContent = e.Value.ToString(); await RefreshReviewContent(); })" />
+            <BSInput InputType="InputType.TextArea" style="height: 70px" @bind-Value="suggestionContent" @onblur="(async e => {await RefreshReviewContent(); })" />
 
             <BSLabel>审查级别</BSLabel>
             @foreach (var x in Enum.GetValues<SuggestionLevel>())
             {
                 <div Class="@BS.Form_Check">
-                    <BSInputRadio CheckedValue="@(x)" @bind-Value="level" @onchange="() => RefreshReviewContent()"/>
-                    <BSLabel IsCheckLabel="true">@x</BSLabel>
+                    <BSInputRadio CheckedValue="@(x)" @bind-Value="level" @onchange="() => RefreshReviewContent()" id="@x"/>
+                    <BSLabel IsCheckLabel="true" for="@x">@x</BSLabel>
                 </div>
             }
         </BSContainer>
@@ -301,7 +301,7 @@
             <BSLabel for="y1" IsCheckLabel="true">添加原文</BSLabel>
         </div>
 
-        <BSInput InputType="InputType.TextArea" style="height: 200px" MarginBottom="Margins.Medium" Value="@reviewContent" @oninput="(args => reviewContent = args.Value.ToString())"/>
+        <BSInput InputType="InputType.TextArea" style="height: 200px" MarginBottom="Margins.Medium" @bind-Value="reviewContent"/>
         
 
         <div style="white-space: pre-line">
@@ -1000,12 +1000,12 @@
         what = langs.Where(x => x.ModPath.CurseForgeSlug == slug).Where(x => texts[diff2to].Contains(x.ModPath.ModVersion.ToString()+" ")).FirstOrDefault();
         run:
 
-        var strings = what.ToCNFile.OriginalFile.Split(Environment.NewLine, StringSplitOptions.None);
+        var strings = what.ToCNFile.OriginalFile.Replace("\r\n", "\n").Split(Environment.NewLine, StringSplitOptions.None);
         for (var i = 0; i < strings.Length; i++)
         {
             if (strings[i].Contains(diffLine.Key + "\"") || strings[i].Contains(diffLine.Key + "="))
             {
-                suggestionContent = strings[i].Trim();
+                suggestionContent = strings[i];
                 lineNumber = i + 1;
                 modPath = what.ModPath;
                 enSource = diffLine.En;
@@ -1021,6 +1021,12 @@
 
     async void SubmitReview()
     {
+        await InvokeAsync(StateHasChanged).ConfigureAwait(false);
+        await Task.Delay(1);
+        await InvokeAsync(async () =>
+        {
+            await RefreshReviewContent();
+        });
         var pr = await GitHub.Instance.PullRequest.Get(Constants.RepoID, prid);
 
         var lang1 = "zh_cn";
@@ -1066,7 +1072,7 @@
         run: // 这里有问题 缓存刷新
         await LoginManager.GetGitHubClient(_http).PullRequest.ReviewComment.Create(Constants.RepoID, prid,
             new SbCy(reviewContent, pr.Head.Sha, modPath.ToPathString() + "lang/" + fileName, lineNumber) { Line = lineNumber });
-        await RunDiff();
+        
         await OpenCanvas();
     }
 

@@ -11,7 +11,6 @@ EXPOSE 80
 FROM mcr.microsoft.com/dotnet/sdk:7.0 AS publish
 WORKDIR /src
 COPY ["CFPABot/CFPABot.csproj", "CFPABot/"]
-COPY ../CFPABot.Shared ../CFPABot.Shared
 RUN dotnet restore "CFPABot/CFPABot.csproj" 
 COPY . .
 RUN dotnet clean CFPABot.sln --configuration "Debug"
