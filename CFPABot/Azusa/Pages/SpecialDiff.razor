@@ -91,17 +91,22 @@
 
             await t2;
             await t3;
+            var dir = Directory.GetFiles(forkRepo.WorkingDirectory, "*.*", SearchOption.AllDirectories).Select(x => Path.GetRelativePath(forkRepo.WorkingDirectory, x)).ToArray();
 
-            cn = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("zh_cn", StringComparison.OrdinalIgnoreCase)))?.To;
-            en = diff.FirstOrDefault(x => x.To.Split('/').Any(y => y.Equals("en_us", StringComparison.OrdinalIgnoreCase)))?.To;
-            if (cn == null || en == null)
+
+            cndirs = diff.Where(x => x.To.Split('/').Any(y => y.Equals("zh_cn", StringComparison.OrdinalIgnoreCase))).Select(x => Traverse(x.To)).Distinct().Order().ToArray();
+            var namespaces = cndirs.Select(x => x.Split('/')[3]).ToArray();
+            endirs = dir.Where(x => 
+                x.Split('/').Any(y => y.Equals("en_us", StringComparison.OrdinalIgnoreCase)) &&
+                x.Split('/').Any(y => namespaces.Contains(y))
+                ).Select(x => Traverse(x)).Distinct().Order().ToArray();
+
+            if (cndirs.Length == 0 || endirs.Length == 0)
             {
                 ShowToast("找不到中文或英文文件夹");
                 return;
             }
 
-            cndirs = diff.Where(x => x.To.Split('/').Any(y => y.Equals("zh_cn", StringComparison.OrdinalIgnoreCase))).Select(x => Traverse(x.To)).Distinct().ToArray();
-            endirs = diff.Where(x => x.To.Split('/').Any(y => y.Equals("en_us", StringComparison.OrdinalIgnoreCase))).Select(x => Traverse(x.To)).Distinct().ToArray();
             cn = cndirs.First();
             en = endirs.First();
 
