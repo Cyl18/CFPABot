@@ -22,5 +22,5 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENV LD_LIBRARY_PATH=/app/runtimes/debian.9-x64/native/
-HEALTHCHECK --interval=5s --timeout=10s --retries=3 CMD curl --fail http://127.0.0.1:80/healthcheck || exit 1
+HEALTHCHECK --interval=5s --timeout=10s --retries=3 CMD curl --fail http://127.0.0.1:8080/healthcheck || exit 1
 ENTRYPOINT ["dotnet", "CFPABot.dll"]

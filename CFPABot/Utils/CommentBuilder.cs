@@ -132,7 +132,14 @@ namespace CFPABot.Utils
             logger.Debug("第一次更新内容...");
             using (await AcquireLock("UpdateLock"))
             {
-                await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->\n" + sb2.ToString());
+                try
+                {
+                    await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->\n" + sb2.ToString());
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
             }
 
             try
