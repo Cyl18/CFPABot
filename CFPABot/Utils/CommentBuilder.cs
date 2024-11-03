@@ -1032,11 +1032,12 @@ namespace CFPABot.Utils
                         {
                             try
                             {
-                                await CurseManager.GetModEnFile(addon, mcVersion, LangType.EN);
+                                var x = await CurseManager.GetModEnFile(addon, mcVersion, LangType.EN);
+                                logger.Debug($"{x.downloadFileName} 预载完成");
                             }
                             catch (Exception e)
                             {
-                                Console.WriteLine(e);
+                                logger.Debug(e, "preload");
                             }
                         }
                     });
