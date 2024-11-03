@@ -351,7 +351,7 @@ namespace CFPABot.Utils
                                             /* Source   */ $" {CurseManager.GetRepoText(d1)} \\|" +
                                             /* Mcmod    */ $" [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20{HttpUtility.UrlEncode(d1.Name)}) \\|" +
                                             /* Compare  */ $" [:file_folder: 对比(Azusa)](https://cfpa.cyan.cafe/Azusa/Diff/{PullRequestID}/{d1.Slug}) |" +
-                                            /* Mod DL   */ $" {CurseManager.GetDownloadsText(d1, versions)}{await CurseManager.GetModRepoLinkText(d1, infos).ConfigureAwait(false)} |" +
+                                            /* Mod DL   */ $" {await CurseManager.GetModRepoLinkText(d1, infos).ConfigureAwait(false)} |" +
                                             "")
                              );
                          }))
@@ -390,7 +390,7 @@ namespace CFPABot.Utils
                                /* Source   */ $" {CurseManager.GetRepoText(addonModel)} \\|" +
                                /* Mcmod    */ $" [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20{HttpUtility.UrlEncode(depAddon.Name)}) \\|" +
                                /* Compare  */ $" &nbsp;&nbsp;* |" +
-                               /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} |" +
+                               /* Mod DL   */ $" * |" +
                                "";
                                 }))
                                 {
