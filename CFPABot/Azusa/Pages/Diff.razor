@@ -412,7 +412,11 @@
             diff1from = Find("主库的 en 文件");
             diff1to = Find("PR 的 en 文件");
             diff2from = Find("主库的 cn 文件");
-            diff2to = Find("PR 的 cn 文件");
+            diff2to = Find("PR 的 cn 组合文件");
+            if (diff2to == 0)
+            {
+                diff2to = Find("PR 的 cn 文件");
+            }
         }
 
         await RunDiff();
