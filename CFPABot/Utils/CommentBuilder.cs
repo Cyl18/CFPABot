@@ -1000,7 +1000,7 @@ namespace CFPABot.Utils
                 var checkedSet = new HashSet<(string version, string curseID)>();
                 var cbag = new HashSet<(string, string)>();
                 // 提前下载
-                await Parallel.ForEachAsync(diffs, new ParallelOptions() { MaxDegreeOfParallelism = 12 },
+                await Parallel.ForEachAsync(diffs, new ParallelOptions() { MaxDegreeOfParallelism = 6 },
                     async (diff, token) =>
                     {
                         var names = diff.To.Split('/');

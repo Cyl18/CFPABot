@@ -59,16 +59,16 @@ namespace CFPABot.Utils
                 sb.Append("<details> <summary>最新模组文件</summary>");
                 var p = new HashSet<int>();
                 // https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/2538
-                foreach (var file in GetAllModFiles(addon).Result.OrderByDescending(s => new Version(s.GameVersions.Where(x => !x.Contains('-')).First(v => v.Contains(".")/*sb curseforge*/))))
-                {
-                    if (p.Contains(file.Id)) continue;
-
-                    p.Add(file.Id);
-                    if (versions.Any(v => file.GetGameVersionString().StartsWith(v.ToStandardVersionString())))
-                    {
-                        sb.Append($"[**{file.GetGameVersionString()}**/{(file.ReleaseType switch { FileReleaseType.Beta => "🅱 ", FileReleaseType.Alpha => "🅰 ", FileReleaseType.Release => "", _ => throw new ArgumentOutOfRangeException()})}{file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar", "")}]({GetDownloadUrl(file)})<br />");
-                    }
-                }
+                // foreach (var file in GetAllModFiles(addon).Result.OrderByDescending(s => new Version(s.GameVersions.Where(x => !x.Contains('-')).First(v => v.Contains(".")/*sb curseforge*/))))
+                // {
+                //     if (p.Contains(file.Id)) continue;
+                //
+                //     p.Add(file.Id);
+                //     if (versions.Any(v => file.GetGameVersionString().StartsWith(v.ToStandardVersionString())))
+                //     {
+                //         sb.Append($"[**{file.GetGameVersionString()}**/{(file.ReleaseType switch { FileReleaseType.Beta => "🅱 ", FileReleaseType.Alpha => "🅰 ", FileReleaseType.Release => "", _ => throw new ArgumentOutOfRangeException()})}{file.FileName.Replace('[', '*').Replace(']', '*').Replace(".jar", "")}]({GetDownloadUrl(file)})<br />");
+                //     }
+                // }
                 sb.Append("</details>");
             }
             catch (Exception e)
