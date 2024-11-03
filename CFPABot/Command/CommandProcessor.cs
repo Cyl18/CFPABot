@@ -137,6 +137,7 @@ namespace CFPABot.Command
 
                         r.AddAllFiles();
                         r.Commit($"mv {(arg.Replace("\"", "\\\""))}", user);
+                        Directory.Delete(tmpdir, true);
                     }
 
                     if (line.StartsWith("/update-en "))

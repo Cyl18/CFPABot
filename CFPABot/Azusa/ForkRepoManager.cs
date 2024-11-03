@@ -15,9 +15,10 @@ namespace CFPABot.Azusa
         string _token;
         public string WorkingDirectory { get; }
 
-        public ForkRepoManager(string token)
+        public ForkRepoManager(string token = null)
         {
             WorkingDirectory = $"/app/caches/repos/{Guid.NewGuid():N}";
+            token ??= Constants.GitHubOAuthToken;
             _token = token;
             Directory.CreateDirectory(WorkingDirectory);
         }
@@ -75,6 +76,7 @@ namespace CFPABot.Azusa
         {
             try
             {
+                Run("fsmonitor--daemon stop");
                 Directory.Delete(WorkingDirectory, true);
             }
             catch (Exception e)

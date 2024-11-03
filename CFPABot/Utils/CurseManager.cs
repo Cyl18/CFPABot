@@ -34,9 +34,12 @@ namespace CFPABot.Utils
             {
                 var url = addon.Logo.ThumbnailUrl;
                 if (url == null) return "✨";
-
-                await using var stream = await new HttpClient().GetStreamAsync(url);
                 var fileName = $"{url.Split("/").Last()}";
+                if (File.Exists($"wwwroot/{fileName}"))
+                {
+                    return $"<image src=\"https://cfpa.cyan.cafe/static/{fileName}\" width=\"32\"/>";
+                }
+                await using var stream = await new HttpClient().GetStreamAsync(url);
                 await using var fs = File.OpenWrite($"wwwroot/{fileName}");
                 await stream.CopyToAsync(fs);
                 return $"<image src=\"https://cfpa.cyan.cafe/static/{fileName}\" width=\"32\"/>";
@@ -265,7 +268,7 @@ namespace CFPABot.Utils
             const string CachePath = "config/curse_files_cache";
 
             [JsonIgnore]
-            public bool Invalid => (DateTime.UtcNow - UpdateTime) > TimeSpan.FromDays(2);
+            public bool Invalid => (DateTime.UtcNow - UpdateTime) > TimeSpan.FromDays(1);
             static readonly object locker = new();
 
             public static CurseModFilesMetadata TryGet(int modid)

@@ -72,7 +72,7 @@ namespace CFPABot
             Directory.CreateDirectory("caches/");
             Directory.CreateDirectory("caches/repos/");
             Directory.CreateDirectory("project-hex");
-
+            _ = new GlobalGitRepoCache();
             if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
                 _ = Task.Run(async () =>
             {

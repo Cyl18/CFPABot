@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
@@ -9,6 +10,8 @@ using System.Net.WebSockets;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
+using CFPABot.Command;
+using CFPABot.Controllers;
 using GammaLibrary.Extensions;
 using Serilog;
 
@@ -94,21 +97,56 @@ namespace CFPABot.Utils
             Log.Debug($"文件下载：{url}");
             Directory.CreateDirectory("temp");
             if (url.Contains("+")) url = url.Replace("https://edge.forgecdn.net", "https://mediafilez.forgecdn.net");
-            
+
             var fileName = $"{url.Split("/").Last()}";
 
             using var l = await AcquireLock($"download {fileName}");
 
             if (File.Exists($"temp/{fileName}"))
             {
+                lastAccessTime[fileName] = DateTime.Now;
                 return $"temp/{fileName}";
             }
             await using var fs = File.OpenWrite($"temp/{fileName}");
             await using var stream = await hc.GetStreamAsync(url);
             await stream.CopyToAsync(fs);
+            Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromDays(1));
+                if (lastAccessTime.TryGetValue(fileName, out var time) && DateTime.Now - time < TimeSpan.FromDays(0.5)) return;
+                
+                var l = await AcquireLock($"download {fileName}");
+
+                while (!SpinWait.SpinUntil(() =>
+                           MyWebhookEventProcessor.commentBuilders.All(c => !c.Value.IsAnyLockAcquired()), 100) ||
+                       !SpinWait.SpinUntil(() => CommandProcessor.CurrentRuns == 0, 100))
+                {
+                    l.Dispose();
+                    await Task.Delay(1000);
+                    l = await AcquireLock($"download {fileName}");
+                }
+                File.Delete($"temp/{fileName}");
+                lastAccessTime.TryRemove(fileName, out _);
+                l.Dispose();
+
+            });
             return $"temp/{fileName}";
         }
 
+        private static ConcurrentDictionary<string, DateTime> lastAccessTime = new();
+        public static async Task<bool> LinkExists(string link)
+        {
+            try
+            {
+                var message = await hc.SendAsync(new HttpRequestMessage(HttpMethod.Head, link));
+                message.EnsureSuccessStatusCode();
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
         public static async Task<string> CurseForgeString(string url)
         {
             // 好像反正 CurseForge API 给了 UserAgent 就要 403

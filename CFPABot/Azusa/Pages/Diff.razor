@@ -11,6 +11,7 @@
 @using System.Globalization
 @using System.Net
 @using System.Reflection
+@using CFPABot.CompositionHandler
 @using ChatGPT.Net
 @using ChatGPT.Net.DTO.ChatGPT
 @using Csv
@@ -24,7 +25,7 @@
 
 <PageTitle>Diff</PageTitle>
 <h3>Diff</h3>
-<BSToaster/>
+<BSToaster />
 @if (PPrID.IsNullOrWhiteSpace())
 {
     <BSAlert Color="BSColor.Warning" HasIcon="true" MarginBottom="Margins.Medium">检测到你直接打开了这个页面，建议你打开 PR 内 Bot 提示的"对比"链接，不要手动填写</BSAlert>
@@ -35,7 +36,11 @@
 
 }
 <BSAlert Color="BSColor.Info" HasIcon="true" MarginBottom="Margins.Medium">Two-Way 对比只需要填写 Diff1-当前 和 Diff2-当前 即可</BSAlert>
+@if (hasCompositionFile)
+{
+    <BSAlert Color="BSColor.Warning" HasIcon="true" MarginBottom="Margins.Medium">这个 PR 包含了组合文件，包含组合文件的内容审核功能不可用。</BSAlert>
 
+}
 @code {
 
     [Parameter]
@@ -62,10 +67,10 @@
 <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
 
     <span class="@BS.Input_Group_Text">PRID</span>
-    <BSInput TValue="int" InputType="InputType.Number" @bind-Value="prid"/>
+    <BSInput TValue="int" InputType="InputType.Number" @bind-Value="prid" />
 
     <span class="@BS.Input_Group_Text">Slug</span>
-    <BSInput TValue="string" InputType="InputType.Text" @bind-Value="slug"/>
+    <BSInput TValue="string" InputType="InputType.Text" @bind-Value="slug" />
     <BSButton Color="BSColor.Info" OnClick="() => RefreshTexts(false)">获取 PR 数据</BSButton>
     <BSButton Color="BSColor.Info" OnClick="() => GetModFiles()">获取模组文件</BSButton>
 </BSInputGroup>
@@ -74,61 +79,61 @@
 @if (!refreshing)
 {
     <BSContainer>
-            <BSRow>
-                <BSCol Align="Align.Start">
-                    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Medium" MarginBottom="Margins.Medium" style="width: 24rem;">
-                        <BSCard CardType="CardType.Body">
-                            <BSLabel MarginBottom="Margins.Medium">添加主库中的游戏版本</BSLabel>
-                            <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Small">
-                                <span class="@BS.Input_Group_Text">Minecraft 版本</span>
-                                <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium" @bind-Value="imcVersion">
-                                    <option value=" " disabled>选择版本</option>
-                                    @foreach (var x in mcVersions)
-                                    {
-                                        <option value="@x">@x</option>
-                                    }
-                                </BSInput>
-                            </BSInputGroup>
-                            <BSButton Color="BSColor.Info" OnClick="() => AddVersion()">添加版本</BSButton>
-        
-                        </BSCard>
+        <BSRow>
+            <BSCol Align="Align.Start">
+                <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Medium" MarginBottom="Margins.Medium" style="width: 24rem;">
+                    <BSCard CardType="CardType.Body">
+                        <BSLabel MarginBottom="Margins.Medium">添加主库中的游戏版本</BSLabel>
+                        <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Small">
+                            <span class="@BS.Input_Group_Text">Minecraft 版本</span>
+                            <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium" @bind-Value="imcVersion">
+                                <option value=" " disabled>选择版本</option>
+                                @foreach (var x in mcVersions)
+                                {
+                                    <option value="@x">@x</option>
+                                }
+                            </BSInput>
+                        </BSInputGroup>
+                        <BSButton Color="BSColor.Info" OnClick="() => AddVersion()">添加版本</BSButton>
+
                     </BSCard>
-        
-                </BSCol>
-                <BSCol Align="Align.Start">
-                    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Medium" MarginBottom="Margins.Medium" style="width: 12rem;">
-                        <BSCard CardType="CardType.Body">
-                            <BSLabel MarginBottom="Margins.Medium">导出 CSV 相关</BSLabel>
-                            <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
-                                <BSInputCheckbox CheckedValue="true" id="c1" @bind-Value="ACDedup"/>
-                                <BSLabel for="c1" IsCheckLabel="true">A-C 去重</BSLabel>
-                            </div>
-                            <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
-                                <BSInputCheckbox CheckedValue="true" id="c2" @bind-Value="BDDedup"/>
-                                <BSLabel for="c2" IsCheckLabel="true">B-D 去重</BSLabel>
-                            </div>
-                            <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
-                                <BSInputCheckbox CheckedValue="true" id="c3" @bind-Value="CDDedup"/>
-                                <BSLabel for="c3" IsCheckLabel="true">C-D 去重</BSLabel>
-                            </div>
-                            <BSButton Color="BSColor.Info" OnClick="() => DownloadCsv()">下载 csv</BSButton>
-                        </BSCard>
+                </BSCard>
+
+            </BSCol>
+            <BSCol Align="Align.Start">
+                <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Medium" MarginBottom="Margins.Medium" style="width: 12rem;">
+                    <BSCard CardType="CardType.Body">
+                        <BSLabel MarginBottom="Margins.Medium">导出 CSV 相关</BSLabel>
+                        <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
+                            <BSInputCheckbox CheckedValue="true" id="c1" @bind-Value="ACDedup" />
+                            <BSLabel for="c1" IsCheckLabel="true">A-C 去重</BSLabel>
+                        </div>
+                        <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
+                            <BSInputCheckbox CheckedValue="true" id="c2" @bind-Value="BDDedup" />
+                            <BSLabel for="c2" IsCheckLabel="true">B-D 去重</BSLabel>
+                        </div>
+                        <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
+                            <BSInputCheckbox CheckedValue="true" id="c3" @bind-Value="CDDedup" />
+                            <BSLabel for="c3" IsCheckLabel="true">C-D 去重</BSLabel>
+                        </div>
+                        <BSButton Color="BSColor.Info" OnClick="() => DownloadCsv()">下载 csv</BSButton>
                     </BSCard>
-                </BSCol>
-                <BSCol Align="Align.Start">
-                    <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Medium" MarginBottom="Margins.Medium" style="width: 24rem;">
-                        <BSCard CardType="CardType.Body">
-                            <BSLabel MarginBottom="Margins.Medium">添加小语种</BSLabel>
-                            <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Small">
-                                <span class="@BS.Input_Group_Text">小语种文件路径</span>
-                                <BSInput TValue="string" InputType="InputType.Text" @bind-Value="languageFilePath"/>
-                                <BSLabel>提示: 直接在 GitHub 复制, 以 projects 开头</BSLabel>
-                            </BSInputGroup>
-                            <BSButton Color="BSColor.Info" OnClick="() => AddLanguage()">确认</BSButton>
-                        </BSCard>
+                </BSCard>
+            </BSCol>
+            <BSCol Align="Align.Start">
+                <BSCard Class="fade-in" CardType="CardType.Card" MarginTop="Margins.Medium" MarginBottom="Margins.Medium" style="width: 24rem;">
+                    <BSCard CardType="CardType.Body">
+                        <BSLabel MarginBottom="Margins.Medium">添加小语种</BSLabel>
+                        <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Small">
+                            <span class="@BS.Input_Group_Text">小语种文件路径</span>
+                            <BSInput TValue="string" InputType="InputType.Text" @bind-Value="languageFilePath" />
+                            <BSLabel>提示: 直接在 GitHub 复制, 以 projects 开头</BSLabel>
+                        </BSInputGroup>
+                        <BSButton Color="BSColor.Info" OnClick="() => AddLanguage()">确认</BSButton>
                     </BSCard>
-                </BSCol>
-            </BSRow>
+                </BSCard>
+            </BSCol>
+        </BSRow>
     </BSContainer>
 
     <BSContainer MarginBottom="Margins.Medium">
@@ -179,7 +184,7 @@
                     </BSInput>
                 </BSInputGroup>
             </BSRow>
-            
+
         </BSCol>
     </BSContainer>
 
@@ -189,26 +194,26 @@
         </BSInput>
     </BSInputGroup>
     <BSLabel>(==> 代表从旧翻译变动到新翻译，并不是审核内容)</BSLabel>
-    <br/>
+    <br />
 
     <BSButton MarginBottom="Margins.Medium" MarginTop="Margins.Medium" Color="BSColor.Primary" OnClick="() => RunDiff()">运行 Diff</BSButton>
     <BSButton MarginBottom="Margins.Medium" MarginTop="Margins.Medium" Color="BSColor.Primary" OnClick="SubmitOverallReview">提交审核结果</BSButton>
     <BSButton MarginBottom="Margins.Medium" MarginTop="Margins.Medium" Color="BSColor.Info" OnClick="AIReview">ChatGPT 审核</BSButton>
 
 
-@if (markdownHtml != null)
-{
-    @((MarkupString) (Markdown.ToHtml(markdownHtml,
-        new MarkdownPipelineBuilder().UsePipeTables(new PipeTableOptions()).UseBootstrap().UseGridTables().Build())))
-}
+    @if (markdownHtml != null)
+    {
+        @((MarkupString)(Markdown.ToHtml(markdownHtml,
+                new MarkdownPipelineBuilder().UsePipeTables(new PipeTableOptions()).UseBootstrap().UseGridTables().Build())))
+    }
 
 
     <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
-        <BSInputCheckbox CheckedValue="true" UnCheckedValue="false" id="x1" @bind-Value="ShowKey"/>
+        <BSInputCheckbox CheckedValue="true" UnCheckedValue="false" id="x1" @bind-Value="ShowKey" />
         <BSLabel for="x1" IsCheckLabel="true">显示 Key</BSLabel>
     </div>
     <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
-        <BSInputCheckbox CheckedValue="true" UnCheckedValue="false" id="x2" @bind-Value="ShowTerm"/>
+        <BSInputCheckbox CheckedValue="true" UnCheckedValue="false" id="x2" @bind-Value="ShowTerm" />
         <BSLabel for="x2" IsCheckLabel="true">显示术语检查</BSLabel>
     </div>
 
@@ -252,24 +257,24 @@
                         </BSTD>
 
                     </BSTR>
-                    @foreach (var i in comments.Where(x1 => x.Line == x1.Line)) 
-                     { 
-                         <BSContainer style="display: flex">
-                             <img src="@i.UserAvatar" height="40" width="40"/>
-                             <div style="white-space: pre-line">
-                                 @(i.UserName): <br/>
-                                 @((MarkupString) (Markdown.ToHtml(i.Content,
-                                     new MarkdownPipelineBuilder().UsePipeTables(new PipeTableOptions()).UseBootstrap().UseGridTables().Build())))
-                             </div>
-                         </BSContainer>
-                          
-                     }
+                    @foreach (var i in comments.Where(x1 => x.Line == x1.Line))
+                    {
+                        <BSContainer style="display: flex">
+                            <img src="@i.UserAvatar" height="40" width="40" />
+                            <div style="white-space: pre-line">
+                                @(i.UserName): <br />
+                                @((MarkupString)(Markdown.ToHtml(i.Content,
+                                    new MarkdownPipelineBuilder().UsePipeTables(new PipeTableOptions()).UseBootstrap().UseGridTables().Build())))
+                            </div>
+                        </BSContainer>
+
+                    }
                 }
             }
         </BSTBody>
     </BSTable>
 
-    
+
 
 
 }
@@ -281,7 +286,7 @@
     <Header>添加审核内容</Header>
     <Content>
         <BSContainer MarginBottom="Margins.Medium" MarginTop="Margins.Medium">
-            
+
 
             <BSLabel>建议改为</BSLabel>
             <BSInput InputType="InputType.TextArea" style="height: 70px" @bind-Value="suggestionContent" @onblur="(async e => {await RefreshReviewContent(); })" />
@@ -290,22 +295,22 @@
             @foreach (var x in Enum.GetValues<SuggestionLevel>())
             {
                 <div Class="@BS.Form_Check">
-                    <BSInputRadio CheckedValue="@(x)" @bind-Value="level" @onchange="() => RefreshReviewContent()" id="@x"/>
+                    <BSInputRadio CheckedValue="@(x)" @bind-Value="level" @onchange="() => RefreshReviewContent()" id="@x" />
                     <BSLabel IsCheckLabel="true" for="@x">@x</BSLabel>
                 </div>
             }
         </BSContainer>
-        
+
         <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
             <BSInputCheckbox CheckedValue="true" UnCheckedValue="false" id="y1" @bind-Value="ShowOriginalText" @onchange="() => RefreshReviewContent()" />
             <BSLabel for="y1" IsCheckLabel="true">添加原文</BSLabel>
         </div>
 
-        <BSInput InputType="InputType.TextArea" style="height: 200px" MarginBottom="Margins.Medium" @bind-Value="reviewContent"/>
-        
+        <BSInput InputType="InputType.TextArea" style="height: 200px" MarginBottom="Margins.Medium" @bind-Value="reviewContent" />
+
 
         <div style="white-space: pre-line">
-            @((MarkupString) (Markdown.ToHtml(reviewContent,
+            @((MarkupString)(Markdown.ToHtml(reviewContent,
                 new MarkdownPipelineBuilder().UsePipeTables(new PipeTableOptions()).UseBootstrap().UseGridTables().Build())))
         </div>
 
@@ -319,30 +324,30 @@
         <BSInput InputType="InputType.TextArea" style="height: 250px" @bind-Value="overallReviewContent" />
         <BSContainer MarginTop="Margins.Medium">
             <div Class="@BS.Form_Check">
-                <BSInputRadio CheckedValue="@(ReviewResults.Comment)" @bind-Value="reviewResult"/>
+                <BSInputRadio CheckedValue="@(ReviewResults.Comment)" @bind-Value="reviewResult" />
                 <BSLabel IsCheckLabel="true">Comment</BSLabel>
             </div>
             <div Class="@BS.Form_Check">
-                <BSInputRadio CheckedValue="@(ReviewResults.Approve)" @bind-Value="reviewResult"/>
+                <BSInputRadio CheckedValue="@(ReviewResults.Approve)" @bind-Value="reviewResult" />
                 <BSLabel IsCheckLabel="true">Approve</BSLabel>
             </div>
             <div Class="@BS.Form_Check">
-                <BSInputRadio CheckedValue="@(ReviewResults.RequestChanges)" @bind-Value="reviewResult"/>
+                <BSInputRadio CheckedValue="@(ReviewResults.RequestChanges)" @bind-Value="reviewResult" />
                 <BSLabel IsCheckLabel="true">Request Changes</BSLabel>
             </div>
-            
+
 
         </BSContainer>
         <BSButton MarginTop="Margins.Medium" Color="BSColor.Primary" OnClick="() => EndSubmitOverallReview()">提交</BSButton>
     </Content>
 </BSOffCanvas>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
 @code {
     string overallReviewContent = "";
     enum ReviewResults
@@ -516,10 +521,14 @@
         }
     }
 
+    bool hasCompositionFile = false;
     private async Task AddPr(int pr, string pCfSlug, List<string> textsV, List<LangFileWrapper> langV)
     {
         try
         {
+            bool? tested = null;
+            var pullRequest = await GitHub.GetPullRequest(pr);
+            using var compositionFileHandler = new CompositionFileHandler(pullRequest);
             var langs = await LangFileFetcher.FromPR(pr, new List<Exception>());
             var langFilePairs = langs.Where(x => x.ModPath.CurseForgeSlug == pCfSlug);
             foreach (var (fromEnFile, toEnFile, fromCnFile, toCnFile, modPath) in langFilePairs)
@@ -565,6 +574,27 @@
                     }
                 }
 
+                try
+                {
+                    var s = $"#{pr} {pCfSlug} {modPath.ModVersion} PR 的 cn 组合文件";
+                    tested ??= await Download.LinkExists(
+                        $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{pullRequest.Head.Sha}/projects/{modPath.ModVersion.ToVersionDirectory()}/assets/{pCfSlug}/{modPath.ModDomain}/packer-policy.json");
+                    if (tested == true)
+                    {
+                        var file = compositionFileHandler.AcquireLangFile(pCfSlug, modPath.ModDomain, modPath.ModVersion.ToVersionDirectory());
+                        if (!texts.Contains(s))
+                        {
+                            textsV.Add(s);
+                            langV.Add(LangFileWrapper.FromContent(file));
+                            hasCompositionFile = true;
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+
+                }
+
                 path = modPath;
             }
         }
@@ -594,7 +624,7 @@
         var sb = new StringBuilder();
         var o = new LangFilePair(await langFiles[diff1from].Get(), await langFiles[diff1to].Get(),
             await langFiles[diff2from].Get(), await langFiles[diff2to].Get(), path);
-        
+
 
         void AddLineCn(string sourceEn, string currentEn, StringBuilder stringBuilder, string sourceCn, string currentCn)
         {
@@ -643,31 +673,31 @@
         }
 
         var list1 = new List<DiffLine>();
-            var diffLines = LangDiffer.Run(o);
-            var lines = o.ToCNFile.OriginalFile.Split('\n');
+        var diffLines = LangDiffer.Run(o);
+        var lines = o.ToCNFile.OriginalFile.Split('\n');
 
 
-            foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
-            {
-                if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
+        foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
+        {
+            if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace()) continue;
 
             var line = 1 + lines.ToList().FindIndex(x => x.Contains(key + "\"") || x.Contains(key + '='));
 
-                AddLine(sourceEn, currentEn, sb, sourceCn, currentCn);
-                var en = sb.ToString();
-                sb.Clear();
-                AddLineCn(sourceEn, currentEn, sb, sourceCn, currentCn);
-                var cn = sb.ToString();
-                sb.Clear();
-                string termTextResult = "中文或英文为空";
-                var termResult = currentEn != null && currentCn != null &&
-                                 CommandProcessor.CheckTerms(currentEn.ToLower(), currentCn.ToLower(), out termTextResult);
+            AddLine(sourceEn, currentEn, sb, sourceCn, currentCn);
+            var en = sb.ToString();
+            sb.Clear();
+            AddLineCn(sourceEn, currentEn, sb, sourceCn, currentCn);
+            var cn = sb.ToString();
+            sb.Clear();
+            string termTextResult = "中文或英文为空";
+            var termResult = currentEn != null && currentCn != null &&
+                             CommandProcessor.CheckTerms(currentEn.ToLower(), currentCn.ToLower(), out termTextResult);
 
-                list1.Add(new DiffLine(line, key, en, cn, termTextResult));
-            }
+            list1.Add(new DiffLine(line, key, en, cn, termTextResult));
+        }
 
 
-        
+
         comments.Clear();
         var pr = await GitHub.GetPullRequest(prid);
         var cs = await GitHub.Instance.PullRequest.ReviewComment.GetAll(Constants.RepoID, prid);
@@ -678,13 +708,13 @@
             var line = diffHunk.Split("\n").Last(x => x != "" && x[0] == '+');
             if (list1.FirstOrDefault(x => line.Contains(x.Key + "\"") || line.Contains(x.Key + '=')) is { } l)
             {
-                bool invalid = pullRequestReviewComment.OriginalCommitId != pr.Head.Sha; 
+                bool invalid = pullRequestReviewComment.OriginalCommitId != pr.Head.Sha;
                 if (!texts[diff2to].Contains(new LangFilePath(pullRequestReviewComment.Path).ModPath.GameVersionDirectoryName + " "))
                 {
-                    continue;   
+                    continue;
                 }
-                
-                comments.Add(new PRReviewComment(pullRequestReviewComment.User.Login, (invalid ? "**注意：这个回复可能已经被 resolved，请在 GitHub 上查看。**\n": "") + pullRequestReviewComment.Body, pullRequestReviewComment.User.AvatarUrl, l.Line));
+
+                comments.Add(new PRReviewComment(pullRequestReviewComment.User.Login, (invalid ? "**注意：这个回复可能已经被 resolved，请在 GitHub 上查看。**\n" : "") + pullRequestReviewComment.Body, pullRequestReviewComment.User.AvatarUrl, l.Line));
             }
         }
 
@@ -719,7 +749,7 @@
                         langV.Add(LangFileWrapper.FromContent(f2));
                     }
 
-                    if (modCnFile.files != null && modCnFile.files.FirstOrDefault() is {} f)
+                    if (modCnFile.files != null && modCnFile.files.FirstOrDefault() is { } f)
                     {
                         var s = $"{modCnFile.downloadFileName} 的中文语言文件";
 
@@ -754,8 +784,8 @@
                     }
                 }
             }
-            
-            
+
+
         }
         catch (Exception e)
         {
@@ -785,7 +815,7 @@
 
     string imcVersion = " ";
 
-    string[] mcVersions = Enum.GetValues<MCVersion>().Where(x => (int) x <= (int) MCVersion.v120fabric).Select(x => x.ToVersionString()).ToArray();
+    string[] mcVersions = Enum.GetValues<MCVersion>().Where(x => (int)x <= (int)MCVersion.v120fabric).Select(x => x.ToVersionString()).ToArray();
 
 
     async void AddVersion()
@@ -840,7 +870,7 @@
         var dir = "/app/caches/csv";
         Directory.CreateDirectory(dir);
         var path1 = dir + $"/{prid}.csv";
-        var columnNames = new[] {"行号", "Key", texts[diff1from], texts[diff1to], texts[diff2from], texts[diff2to]};
+        var columnNames = new[] { "行号", "Key", texts[diff1from], texts[diff1to], texts[diff2from], texts[diff2to] };
         var l = new List<string[]>();
         using (var writer = new StreamWriter(File.OpenWrite(path1), new UTF8Encoding(true)))
         {
@@ -852,7 +882,7 @@
                 if (BDDedup && d == b) continue;
                 if (CDDedup && c == d) continue;
 
-                l.Add(new[] {line.ToString(), key ?? "🚫", a ?? "🚫", b ?? "🚫", c ?? "🚫", d ?? "🚫"});
+                l.Add(new[] { line.ToString(), key ?? "🚫", a ?? "🚫", b ?? "🚫", c ?? "🚫", d ?? "🚫" });
             }
 
             CsvWriter.Write(writer, columnNames, l);
@@ -948,12 +978,12 @@
 
 
         }
-        var bot = new ChatGpt(Constants.ChatGptApiKey, new ChatGptOptions() { BaseUrl = "https://chat.tinycms.xyz:3002", Model = "gpt-3.5-turbo-0125", MaxTokens = 1024});
+        var bot = new ChatGpt(Constants.ChatGptApiKey, new ChatGptOptions() { BaseUrl = "https://chat.tinycms.xyz:3002", Model = "gpt-3.5-turbo-0125", MaxTokens = 1024 });
 
         try
         {
             var ask = await bot.Ask(prompt
-                                    +sb.ToString());
+                                    + sb.ToString());
             markdownHtml = ask;
 
         }
@@ -997,8 +1027,8 @@
             goto run;
         }
         var langs = await LangFileFetcher.FromPR(prid, new List<Exception>());
-        what = langs.Where(x => x.ModPath.CurseForgeSlug == slug).Where(x => texts[diff2to].Contains(x.ModPath.ModVersion.ToString()+" ")).FirstOrDefault();
-        run:
+        what = langs.Where(x => x.ModPath.CurseForgeSlug == slug).Where(x => texts[diff2to].Contains(x.ModPath.ModVersion.ToString() + " ")).FirstOrDefault();
+    run:
 
         var strings = what.ToCNFile.OriginalFile.Replace("\r\n", "\n").Split(Environment.NewLine, StringSplitOptions.None);
         for (var i = 0; i < strings.Length; i++)
@@ -1069,10 +1099,10 @@
         {
             throw new Exception("Cannot find file");
         }
-        run: // 这里有问题 缓存刷新
+    run: // 这里有问题 缓存刷新
         await LoginManager.GetGitHubClient(_http).PullRequest.ReviewComment.Create(Constants.RepoID, prid,
             new SbCy(reviewContent, pr.Head.Sha, modPath.ToPathString() + "lang/" + fileName, lineNumber) { Line = lineNumber });
-        
+
         await OpenCanvas();
     }
 
@@ -1087,25 +1117,25 @@
         try
         {
             await LoginManager.GetGitHubClient(_http).PullRequest.Review.Create(Constants.RepoID, prid, new PullRequestReviewCreate()
-            {
-                Body = overallReviewContent,
-                Event = reviewResult switch
                 {
-                    ReviewResults.Comment => PullRequestReviewEvent.Comment,
-                    ReviewResults.Approve => PullRequestReviewEvent.Approve,
-                    ReviewResults.RequestChanges => PullRequestReviewEvent.RequestChanges,
-                    _ => throw new ArgumentOutOfRangeException()
-                },
-                CommitId = pr.Head.Sha,
-                Comments = new List<DraftPullRequestReviewComment>() { }
+                    Body = overallReviewContent,
+                    Event = reviewResult switch
+                    {
+                        ReviewResults.Comment => PullRequestReviewEvent.Comment,
+                        ReviewResults.Approve => PullRequestReviewEvent.Approve,
+                        ReviewResults.RequestChanges => PullRequestReviewEvent.RequestChanges,
+                        _ => throw new ArgumentOutOfRangeException()
+                    },
+                    CommitId = pr.Head.Sha,
+                    Comments = new List<DraftPullRequestReviewComment>() { }
 
-            });
+                });
         }
         catch (Exception e)
         {
             ShowToast(e.Message);
         }
-        
+
         await OpenCanvas2();
     }
 

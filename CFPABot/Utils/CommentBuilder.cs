@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Web;
 using CFPABot.Azusa.wwwroot2;
 using CFPABot.Command;
+using CFPABot.CompositionHandler;
 using CFPABot.DiffEngine;
 using CFPABot.Exceptions;
 using CFPABot.PRData;
@@ -1058,6 +1059,8 @@ namespace CFPABot.Utils
                     string[] modENFile = null;
                     string downloadModName = null;
 
+                    using var compositionFileHandler = new CompositionFileHandler(pr);
+
                     try
                     {
                         cnfile = await Download.String(cnlink);
@@ -1070,7 +1073,23 @@ namespace CFPABot.Utils
                         }
                         catch (Exception)
                         {
-                            sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadCn, modid, versionString));
+                            try
+                            {
+                                if (await Download.LinkExists($"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/packer-policy.json"))
+                                {
+                                    cnfile = compositionFileHandler.AcquireLangFile(curseID, modid, versionString);
+                                }
+                                else
+                                {
+                                    sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadCn, modid, versionString));
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                logger.Error(e, "packer-policy");
+                                sb.AppendLine($"⚠ 组合文件处理出错：{e.Message}");
+                                sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadCn, modid, versionString));
+                            }
                         }
                     }
 
