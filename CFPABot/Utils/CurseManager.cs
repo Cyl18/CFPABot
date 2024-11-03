@@ -187,11 +187,21 @@ namespace CFPABot.Utils
             {
                 if (ModCache.TryGetValue(modCurseForgeID, out var r) && (DateTime.Now - ModCacheWriteTime[modCurseForgeID]) < TimeSpan.FromMinutes(5))
                 {
+                    ModCacheWriteTime[modCurseForgeID] = DateTime.Now;
                     return r;
                 }
             }
-            
-            var res = (await cfClient.GetModAsync(modCurseForgeID)).Data;
+
+            start:
+            var delay = Task.Delay(TimeSpan.FromSeconds(50));
+            var req = cfClient.GetModAsync(modCurseForgeID);
+            await Task.WhenAny(delay, req);
+            if (!req.IsCompleted)
+            {
+                Console.WriteLine($"正在重试 {modCurseForgeID}");
+                goto start;
+            }
+            var res = (await req).Data;
 
             lock (ModCache)
             {
