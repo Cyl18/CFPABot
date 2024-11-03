@@ -91,20 +91,20 @@ namespace CFPABot.Utils
         public async Task UpdateInternal(Func<Task> updateCallback)
         {
             // using var l = AcquireLock(nameof(Update));
-            logger.Debug("获取 Diff...");
+            logger.Debug($"[{PullRequestID}] 获取 Diff...");
             var fileDiff = await GitHub.Diff(PullRequestID);
             if (Context.BuildArtifactsSegment.IsNullOrEmpty() && fileDiff.All(d => !d.To.StartsWith("projects/"))) return;
 
             IssueComment comment;
             using (await AcquireLock("UpdateLock"))
             {
-                logger.Debug("获取 PR Comment...");
+                logger.Debug($"[{PullRequestID}] 获取 PR Comment...");
                 var comments = await GitHub.GetPRComments(PullRequestID);
                 comment = comments.FirstOrDefault(c => (c.User.Login == "Cyl18-Bot" || c.User.Login.Equals("cfpa-bot[bot]", StringComparison.OrdinalIgnoreCase)) && c.Body.StartsWith("<!--CYBOT-->"))
                           ?? await CreateComment();
             }
 
-            logger.Debug("构建内容...");
+            logger.Debug($"[{PullRequestID}] 构建内容...");
             var sb2 = new StringBuilder();
             sb2.AppendLine("<a href=\"https://github.com/Cyl18/CFPABot\"><image src=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/assets/14993992/5f597afc-ee3d-4285-addc-9f9561b4a252\"></a>\n---\n");
             sb2.AppendLine(Context.ModLinkSegment);
@@ -172,6 +172,7 @@ namespace CFPABot.Utils
                 logger.Debug("第二次更新内容...");
                 await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->\n" + sb.ToString());
             }
+            Console.WriteLine($"{PullRequestID} 更新完成");
             SaveContext();
         }
 
@@ -184,6 +185,7 @@ namespace CFPABot.Utils
         public async Task UpdateModLinkSegment(FileDiff[] diffs)
         {
             using var l = await AcquireLock(nameof(UpdateModLinkSegment));
+            logger.Debug($"[{PullRequestID}] 开始更新 ModLinkSegment");
             var sb = new StringBuilder();
             var sb1 = new StringBuilder();
 
@@ -410,11 +412,14 @@ namespace CFPABot.Utils
             {
                 Context.ModLinkSegment = sb.ToString();
             }
+            logger.Debug($"[{PullRequestID}] 结束更新 ModLinkSegment");
 
         }
 
         public async Task UpdateBuildArtifactsSegment()
         {
+            logger.Debug($"[{PullRequestID}] 开始更新 BuildArtifactsSegment");
+
             if (IsMoreThanTwoWaiting(nameof(UpdateBuildArtifactsSegment))) return;
             using var l = await AcquireLock(nameof(UpdateBuildArtifactsSegment));
             var sb = new StringBuilder();
@@ -545,11 +550,14 @@ namespace CFPABot.Utils
             finally
             {
                 Context.BuildArtifactsSegment = sb.ToString();
+                logger.Debug($"[{PullRequestID}] 结束更新 BuildArtifactsSegment");
             }
         }
 
         public async Task UpdateDiffSegment(FileDiff[] fileDiffs)
         {
+            logger.Debug($"[{PullRequestID}] 开始更新 UpdateDiffSegment");
+
             if (IsMoreThanTwoWaiting(nameof(UpdateDiffSegment))) return;
             using var l = await AcquireLock(nameof(UpdateDiffSegment));
             string result = null;
@@ -710,11 +718,14 @@ namespace CFPABot.Utils
                     result = ($"\n🔛 [转到复杂文件 Diff](https://cfpa.cyan.cafe/Azusa/SpecialDiff/{PullRequestID})\n\n") + result;
                 }
                 Context.DiffSegment = result;
+                logger.Debug($"[{PullRequestID}] 结束更新 UpdateDiffSegment");
             }
         }
 
         public async Task UpdateCheckSegment(FileDiff[] diffs)
         {
+            logger.Debug($"[{PullRequestID}] 开始更新 CheckSegment");
+
             if (IsMoreThanTwoWaiting(nameof(UpdateCheckSegment))) return;
             using var l = await AcquireLock(nameof(UpdateCheckSegment));
             var sb = new StringBuilder();
@@ -1327,6 +1338,8 @@ namespace CFPABot.Utils
                 {
                     Context.CheckSegment = c;
                 }
+                logger.Debug($"[{PullRequestID}] 结束更新 CheckSegment");
+
             }
         }
 
