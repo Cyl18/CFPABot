@@ -22,6 +22,7 @@ using CurseForge.APIClient.Models.Files;
 using CurseForge.APIClient.Models.Mods;
 using DiffPatch.Data;
 using GammaLibrary.Extensions;
+using Microsoft.DotNet.Scaffolding.Shared.CodeModifier.CodeChange;
 using Modrinth;
 using Modrinth.Exceptions;
 using Octokit;
@@ -170,7 +171,22 @@ namespace CFPABot.Utils
             using (await AcquireLock("UpdateLock"))
             {
                 logger.Debug("第二次更新内容...");
-                await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->\n" + sb.ToString());
+                try
+                {
+                    await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->\n" + sb.ToString());
+                }
+                catch (ApiValidationException e)
+                {
+                    var gist = await GitHub.InstancePersonal.Gist.Create(new NewGist()
+                    {
+                        Description = $"pr-{PullRequestID}-bot",
+                        Files = { { $"pr-{PullRequestID}-bot.md", sb.ToString() } },
+                        Public = false
+                    });
+                    await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->\n<a href=\"https://github.com/Cyl18/CFPABot\"><image src=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/assets/14993992/5f597afc-ee3d-4285-addc-9f9561b4a252\"></a>\n---\n" +
+                        $"嘻嘻，内容过长！已经上传到了 <{gist.HtmlUrl}>");
+
+                }
             }
             Console.WriteLine($"{PullRequestID} 更新完成");
             SaveContext();
@@ -975,6 +991,43 @@ namespace CFPABot.Utils
                 // 检查中英文 key 是否对应
                 // 检查 ModID
                 var checkedSet = new HashSet<(string version, string curseID)>();
+                
+                // 提前下载
+                foreach (var diff in diffs)
+                {
+                    var names = diff.To.Split('/');
+                    if (names.Length < 7) continue; // 超级硬编码
+                    if (names[0] != "projects") continue;
+                    if (names[5] != "lang") continue;
+
+                    var versionString = names[1];
+                    var curseID = names[3];
+                    var modid = names[4];
+                    var check = (versionString, curseID);
+                    var mcVersion = versionString.ToMCVersion();
+                    Mod addon = null;
+
+                    try
+                    {
+                        if (curseID != "1UNKNOWN" && curseID != "0-modrinth-mod" && !curseID.StartsWith("modrinth-"))
+                            addon = await CurseManager.GetAddon(curseID);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                    if (addon != null && names[3] != "1UNKNOWN")
+                    {
+                        try
+                        {
+                            CurseManager.GetModEnFile(addon, mcVersion, LangType.EN);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
+                    }
+                }
+
                 foreach (var diff in diffs)
                 {
                     var names = diff.To.Split('/');
