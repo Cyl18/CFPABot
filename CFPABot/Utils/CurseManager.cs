@@ -20,6 +20,7 @@ using GammaLibrary;
 using GammaLibrary.Extensions;
 using Octokit;
 using Serilog;
+using Serilog.Core;
 using ApiClient = CurseForge.APIClient.ApiClient;
 using Exception = System.Exception;
 using File = System.IO.File;
@@ -87,19 +88,24 @@ namespace CFPABot.Utils
             {
                 sb.Append("<details> <summary>语言文件链接</summary>");
                 var (curseForgeID, modDomain, mcVersion) = infos.First();
-                
-                foreach (var v in Enum.GetValues<MCVersion>().Select(n => n.ToVersionString()))
-                {
-                    foreach (var file in v == "1.12.2" ? new[] { "zh_cn.lang", "zh_CN.lang", "en_us.lang", "en_US.lang" } : new[] { "zh_cn.json", "zh_CN.json", "en_us.json", "en_US.json" })
-                    {
-                        var link = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/main/projects/{v}/assets/{curseForgeID}/{modDomain}/lang/{file}";
-                        if (await LinkExists(link))
-                        {
-                            sb.Append($"[{v}/{file}](https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/projects/{v}/assets/{curseForgeID}/{modDomain}/lang/{file}) <br/>");
-                        }
-                    }
 
-                }
+                await Parallel.ForEachAsync(
+                    Enum.GetValues<MCVersion>().Where(x => x <= MCVersion.v122fabric).Select(n => n.ToVersionString()),
+                    async (v, _) =>
+                    {
+                        foreach (var file in v == "1.12.2" ? new[] { "zh_cn.lang", "zh_CN.lang", "en_us.lang", "en_US.lang" } : new[] { "zh_cn.json", "zh_CN.json", "en_us.json", "en_US.json" })
+                        {
+                            var link = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/main/projects/{v}/assets/{curseForgeID}/{modDomain}/lang/{file}";
+                            if (await Download.LinkExists(link))
+                            {
+                                sb.Append($"[{v}/{file}](https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/projects/{v}/assets/{curseForgeID}/{modDomain}/lang/{file}) <br/>");
+                            }
+                        }
+                    });
+
+                    
+
+                
 
                 sb.Append("</details>");
             }
@@ -198,7 +204,7 @@ namespace CFPABot.Utils
             await Task.WhenAny(delay, req);
             if (!req.IsCompleted)
             {
-                Console.WriteLine($"正在重试 {modCurseForgeID}");
+                Log.Logger.Debug($"正在重试 {modCurseForgeID}");
                 goto start;
             }
             var res = (await req).Data;
