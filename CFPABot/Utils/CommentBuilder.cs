@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Runtime.Intrinsics.Arm;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -54,7 +56,7 @@ namespace CFPABot.Utils
             catch (Exception e)
             {
                 Log.Error(e, "new CommentBuilder 失败");
-                Context = new CommentContext() {ID = pullRequestID};
+                Context = new CommentContext() { ID = pullRequestID };
             }
         }
 
@@ -68,7 +70,7 @@ namespace CFPABot.Utils
                 File.WriteAllText(ContextFilePath, JsonSerializer.Serialize(Context));
             }
         }
-        
+
         volatile int UpdatingCount = 0;
 
         public async Task Update(Func<Task> updateCallback)
@@ -92,7 +94,7 @@ namespace CFPABot.Utils
             logger.Debug("获取 Diff...");
             var fileDiff = await GitHub.Diff(PullRequestID);
             if (Context.BuildArtifactsSegment.IsNullOrEmpty() && fileDiff.All(d => !d.To.StartsWith("projects/"))) return;
-            
+
             IssueComment comment;
             using (await AcquireLock("UpdateLock"))
             {
@@ -125,7 +127,7 @@ namespace CFPABot.Utils
                 sb2.AppendLine("---");
                 sb2.AppendLine("**:construction: 正在更新内容...**");
             }
-            
+
             logger.Debug("第一次更新内容...");
             using (await AcquireLock("UpdateLock"))
             {
@@ -196,22 +198,30 @@ namespace CFPABot.Utils
                 }
 
                 var addons = new List<Mod>();
+                var tasks = new List<Task>();
                 foreach (var modid in modids.Where(x => x != "1UNKNOWN" && x != "0-modrinth-mod" && !x.StartsWith("modrinth-")))
                 {
-                    try
+                    tasks.Add(Task.Run(async () =>
                     {
-                        addons.Add(await CurseManager.GetAddon(modid));
-                    }
-                    catch (CheckException e)
-                    {
-                        sb.AppendLine(e.Message);
-                    }
+                        try
+                        {
+                            addons.Add(await CurseManager.GetAddon(modid));
+                        }
+                        catch (CheckException e)
+                        {
+                            lock (sb)
+                            {
+                                sb.AppendLine(e.Message);
+                            }
+                        }
+                    }));
                 }
 
+                await Task.WhenAll(tasks);
                 var modDomains = modInfos.Where(x => x.CurseForgeID == "0-modrinth-mod").Select(m => m.ModDomain).Distinct().ToArray();
                 var client = new ModrinthClient();
 
-                
+
                 var modrinthMods = modInfos.Where(x => x.CurseForgeID.StartsWith("modrinth-")).Select(m => m.CurseForgeID.Substring("modrinth-".Length)).Distinct().ToArray();
 
                 var sbModrinthError = new StringBuilder();
@@ -221,14 +231,14 @@ namespace CFPABot.Utils
                     try
                     {
                         var project = await client.Project.GetAsync(modrinthMod);
-                        
+
                         modrinthList.Add((project.Slug, project.Url, project.IconUrl, project.Title));
                     }
                     catch (ModrinthApiException e)
                     {
                         sbModrinthError.Append($"Modrinth 检索遇到问题：");
                         sbModrinthError.AppendLine(e.Message);
-                    }    
+                    }
                 }
 
                 var modrinthError = sbModrinthError.ToString();
@@ -304,52 +314,65 @@ namespace CFPABot.Utils
                     modCount++;
                 }
 
-                foreach (var addon in addons)
+                foreach (var addon in addons.AsParallel().AsSequential().Select(async d1 =>
+                         {
+                             Interlocked.Increment(ref modCount);
+                             var infos = modInfos.Where(i => i.CurseForgeID == d1.Slug).ToArray();
+                             var versions = infos.Select(i => i.Version).ToArray();
+                             return ((addon: d1, s: $"| " +
+                                            /* Thumbnail*/ $"{await CurseManager.GetThumbnailText(d1).ConfigureAwait(false)} |" +
+                                            /* Mod Name */ $" [**{d1.Name.Trim().Replace("[", "\\[").Replace("]", "\\]").Replace("|", "\\|")}**]({d1.Links.WebsiteUrl}) |" +
+                                            // /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault(), enforcedLang: true)} |" + // 这里应该enforce吗？
+                                            /* Source   */ $" {CurseManager.GetRepoText(d1)} \\|" +
+                                            /* Mcmod    */ $" [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20{HttpUtility.UrlEncode(d1.Name)}) \\|" +
+                                            /* Compare  */ $" [:file_folder: 对比(Azusa)](https://cfpa.cyan.cafe/Azusa/Diff/{PullRequestID}/{d1.Slug}) |" +
+                                            /* Mod DL   */ $" {CurseManager.GetDownloadsText(d1, versions)}{await CurseManager.GetModRepoLinkText(d1, infos).ConfigureAwait(false)} |" +
+                                            "")
+                             );
+                         }))
                 {
-                    modCount++;
+
+                    sb1.AppendLine((await addon).s);
+                    var add = (await addon).addon;
                     try
                     {
-                        var infos = modInfos.Where(i => i.CurseForgeID == addon.Slug).ToArray();
-                        var versions = infos.Select(i => i.Version).ToArray();
-                        sb1.AppendLine($"| " +
-                        /* Thumbnail*/ $"{await CurseManager.GetThumbnailText(addon)} |" +
-                        /* Mod Name */ $" [**{addon.Name.Trim().Replace("[","\\[").Replace("]", "\\]").Replace("|", "\\|")}**]({addon.Links.WebsiteUrl}) |" +
-                        // /* Mod ID   */ $" {await CurseManager.GetModID(addon, versions.FirstOrDefault(), enforcedLang: true)} |" + // 这里应该enforce吗？
-                        /* Source   */ $" {CurseManager.GetRepoText(addon)} \\|" +
-                        /* Mcmod    */ $" [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) \\|" +
-                        /* Compare  */ $" [:file_folder: 对比(Azusa)](https://cfpa.cyan.cafe/Azusa/Diff/{PullRequestID}/{addon.Slug}) |" +
-                        /* Mod DL   */ $" {CurseManager.GetDownloadsText(addon, versions)}{await CurseManager.GetModRepoLinkText(addon, infos)} |" +
-                        ""
-                        );
+
 
                         try
                         {
-                            var addonModel = await CurseManager.GetAddon(addon.Id);
+
+                            var infos = modInfos.Where(i => i.CurseForgeID == add.Slug).ToArray();
+                            var versions = infos.Select(i => i.Version).ToArray();
+                            var addonModel = await CurseManager.GetAddon(add.Id);
                             var deps = addonModel.LatestFiles.OrderByDescending(a => a.FileDate).FirstOrDefault(a => a.Dependencies.Any())?.Dependencies;
-                            var distinctSet = new HashSet<int>();
+                            var distinctSet = new ConcurrentBag<int>();
                             if (deps != null)
                             {
-                                foreach (var dep in deps)
+                                foreach (var dep in deps.AsParallel().AsSequential().Select(async d =>
                                 {
-                                    if (dep.RelationType != FileRelationType.RequiredDependency) continue;
+                                    if (d.RelationType != FileRelationType.RequiredDependency) return null;
                                     // 2 都是附属
                                     // 3 是需要的
                                     // 还没遇到 1
-                                    if (distinctSet.Contains(dep.ModId)) continue;
-                                    var depAddon = await CurseManager.GetAddon(dep.ModId);
-                                    distinctSet.Add(dep.ModId);
-                                    modCount++;
-
-                                    sb1.AppendLine($"| " +
-                                        /* Thumbnail*/ $" {await CurseManager.GetThumbnailText(depAddon)} |" +
-                                        /* Mod Name */ $" 依赖-[*{depAddon.Name.Replace("[", "\\[").Replace("]", "\\]")}*]({depAddon.Links.WebsiteUrl}) |" +
-                                        // /* Mod ID   */ $" \\* |" +
-                                        /* Source   */ $" {CurseManager.GetRepoText(addonModel)} \\|" +
-                                        /* Mcmod    */ $" [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20{HttpUtility.UrlEncode(depAddon.Name)}) \\|" +
-                                        /* Compare  */ $" &nbsp;&nbsp;* |" +
-                                        /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} |" +
-                                        ""
-                                    );
+                                    if (distinctSet.Contains(d.ModId)) return null;
+                                    var depAddon = await CurseManager.GetAddon(d.ModId).ConfigureAwait(false);
+                                    distinctSet.Add(d.ModId);
+                                    Interlocked.Increment(ref modCount);
+                                    return $"| " +
+                               /* Thumbnail*/ $" {await CurseManager.GetThumbnailText(depAddon).ConfigureAwait(false)} |" +
+                               /* Mod Name */ $" 依赖-[*{depAddon.Name.Replace("[", "\\[").Replace("]", "\\]")}*]({depAddon.Links.WebsiteUrl}) |" +
+                               // /* Mod ID   */ $" \\* |" +
+                               /* Source   */ $" {CurseManager.GetRepoText(addonModel)} \\|" +
+                               /* Mcmod    */ $" [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20{HttpUtility.UrlEncode(depAddon.Name)}) \\|" +
+                               /* Compare  */ $" &nbsp;&nbsp;* |" +
+                               /* Mod DL   */ $" {CurseManager.GetDownloadsText(depAddon, versions)} |" +
+                               "";
+                                }))
+                                {
+                                    if (dep != null)
+                                    {
+                                        sb1.AppendLine(await dep);
+                                    }
                                 }
                             }
                         }
@@ -357,11 +380,11 @@ namespace CFPABot.Utils
                         {
                             Log.Error(e, "获取依赖失败");
                         }
-                        
-                    }               
+
+                    }
                     catch (Exception e)
                     {
-                        sb1.AppendLine($"| | [链接]({addon.Links.WebsiteUrl}) | {e.Message} | |");
+                        sb1.AppendLine($"| | [链接]({add.Links.WebsiteUrl}) | {e.Message} | |");
                         Log.Error(e, "UpdateModLinkSegment");
                     }
                 }
@@ -440,7 +463,7 @@ namespace CFPABot.Utils
                 if (workflowRun.Conclusion == "action_required")
                 {
                     var diff = await GitHub.Diff(pr.Number);
-                    var blacklist = new[] {".github", "src"};
+                    var blacklist = new[] { ".github", "src" };
                     if (diff.Any(f => blacklist.Any(black => f.To.StartsWith(black) || f.From.StartsWith(black))))
                     {
                         sb.AppendLine("ℹ 由于修改了源代码，不能自动批准执行 PR Packer。");
@@ -536,7 +559,7 @@ namespace CFPABot.Utils
                 var sb = new StringBuilder();
                 var exceptionList = new List<Exception>();
                 var list = await LangFileFetcher.FromPR(PullRequestID, exceptionList);
-                
+
                 sb.AppendLine();
                 sb.AppendLine("🔛 Diff： ");
                 sb.AppendLine();
@@ -662,11 +685,12 @@ namespace CFPABot.Utils
                         result = $"PR: <https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/{PullRequestID}>\n\n" + result; // 来自 mamaruo 的请求
                         var gist = await GitHub.InstancePersonal.Gist.Create(new NewGist()
                         {
-                            Description = $"pr-{PullRequestID}-diff", Files = {{$"pr-{PullRequestID}-diff.md", result}},
+                            Description = $"pr-{PullRequestID}-diff",
+                            Files = { { $"pr-{PullRequestID}-diff.md", result } },
                             Public = false
                         });
                         result = $"🔛 语言文件 Diff 内容过长，已经上传至 <{gist.HtmlUrl}>。\n";
-                        
+
                     }
                     catch (Exception e)
                     {
@@ -695,18 +719,18 @@ namespace CFPABot.Utils
             using var l = await AcquireLock(nameof(UpdateCheckSegment));
             var sb = new StringBuilder();
             var reportSb = new StringBuilder();
-            
+
             // 如果能用 就不要动屎山 写这一行的时候下面有299行代码
             // 现在有391行 哈哈
             try
             {
                 var pr = await GitHub.GetPullRequest(PullRequestID);
-                
+
                 var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}.txt";
                 var filePath = "wwwroot/" + fileName;
                 var webPath = $"https://cfpa.cyan.cafe/static/{fileName}";
                 if (File.Exists(filePath) && Context.CheckSegment != "") { return; }
-                
+
                 if (diffs.Length > 1000)
                 {
                     sb.AppendLine(Locale.Check_General_ToManyFiles);
@@ -775,7 +799,7 @@ namespace CFPABot.Utils
                         }
                     }
                 }
-                
+
                 if (relFlag)
                 {
                     sb.AppendLine("");
@@ -804,7 +828,7 @@ namespace CFPABot.Utils
                     sb.AppendLine();
                 }
 
-                
+
 
                 #region 检查常见的路径提交错误
 
@@ -855,7 +879,7 @@ namespace CFPABot.Utils
                                     sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。你可以使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
                                     sb.AppendLine();
                                 }
-                                
+
                             }
                             catch (Exception)
                             {
@@ -865,7 +889,7 @@ namespace CFPABot.Utils
                                 // mod addon 找不到
                             }
                         }
-                        
+
                         if (names.Length == 6)
                         {
                             if (names[2] != "assets" || names[3] == "lang") goto fail;
@@ -900,7 +924,7 @@ namespace CFPABot.Utils
                         }
 
                         continue;
-                        fail:
+                    fail:
                         sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。请检查你的提交路径：`{diff.To}`");
                         sb.AppendLine();
                     }
@@ -924,7 +948,7 @@ namespace CFPABot.Utils
                     if (names.Length < 7) continue; // 超级硬编码
                     if (names[0] != "projects") continue;
                     if (names[5] != "lang") continue; // 只检查语言文件
-                    
+
                     if (names.Any(s => s.ToLower() != s && s != "1UNKNOWN"))
                     {
                         reportSb.AppendLine($"检测到大写字母：{diff.To}");
@@ -952,7 +976,7 @@ namespace CFPABot.Utils
                     var modid = names[4];
                     var check = (versionString, curseID);
                     var mcVersion = versionString.ToMCVersion();
-                    
+
                     if (checkedSet.Contains(check)) continue;
                     checkedSet.Add(check);
                     Mod addon = null;
@@ -990,7 +1014,7 @@ namespace CFPABot.Utils
                             {
                                 sb.AppendLine(string.Format(Locale.Check_ModID_Failed_1, filemodid.Connect("/"), modid));
                                 sb.AppendLine(string.Format(Locale.Check_ModID_Failed_2, versionString, curseID, modid, versionString, curseID, (filemodid.Length != 1 ? "{MOD_DOMAIN}" : filemodid[0])));
-                            
+
                                 //continue;
                             }
                         }
@@ -1015,8 +1039,8 @@ namespace CFPABot.Utils
                             var filemodid = await ModrinthManager.GetModIDForCheck(z, mcVersion);
                             if (filemodid == null || filemodid.Length == 0)
                             {
-                                    sb.AppendLine(string.Format(Locale.Check_ModID_ModIDNotFound, modid));
-                                
+                                sb.AppendLine(string.Format(Locale.Check_ModID_ModIDNotFound, modid));
+
 
                             }
                             if (filemodid.Any(id => id == modid))
@@ -1041,7 +1065,7 @@ namespace CFPABot.Utils
                         try
                         {
                             flagMCreator = false;
-                            GitHub.Instance.Issue.Labels.AddToIssue(Constants.RepoID, PullRequestID, new []{"MCreator"});
+                            GitHub.Instance.Issue.Labels.AddToIssue(Constants.RepoID, PullRequestID, new[] { "MCreator" });
                         }
                         catch (Exception e)
                         {
@@ -1054,7 +1078,7 @@ namespace CFPABot.Utils
                     var headSha = pr.Head.Sha;
                     var enlink = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/lang/{mcVersion.ToENLangFile()}";
                     var cnlink = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/lang/{mcVersion.ToCNLangFile()}";
-                    
+
                     string cnfile = null, enfile = null;
                     string[] modENFile = null;
                     string downloadModName = null;
@@ -1155,11 +1179,11 @@ namespace CFPABot.Utils
                             }
 
                             if (addon == null) break;
-                            
+
                             modKeyResult = ModKeyAnalyzer.Analyze(new ModInfoForCheck(modid, mcVersion, downloadModName, curseID), enfile, modENFile[0], sb, reportSb);
                         }
                     } while (false);
-                    
+
 
 
                     if (keyResult || modKeyResult)
@@ -1218,7 +1242,7 @@ namespace CFPABot.Utils
                         foreach (var lineDiff in chunk.Changes.Where(line => line.Type != LineChangeType.Delete)) // fix https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/1946
                         {
                             var content = lineDiff.Content;
-                            
+
                             var mcVersion = names[1].ToMCVersion();
                             foreach (var (checkname, message, customCheck) in warnings)
                             {
@@ -1260,8 +1284,8 @@ namespace CFPABot.Utils
                             }
                         }
                     }
-                    
-                    
+
+
                 }
 
                 if (reportedCap || reportedKey || typoResult)
@@ -1287,7 +1311,7 @@ namespace CFPABot.Utils
                             sb.AppendLine(Locale.Check_Translate_Hint);
                         }
                         sb.AppendLine(string.Format(Locale.Check_Result1, webPath));
-                        
+
                     }
                 }
             }
@@ -1326,7 +1350,7 @@ namespace CFPABot.Utils
                     var to = Math.Min(value.Length, nameIndex + checkname.Length + 12);
                     var sb = new StringBuilder();
                     if (from == 0 && to == value.Length) return line;
-                    
+
                     if (from != 0) sb.Append("...");
                     sb.Append(value[from..to]);
                     if (from != value.Length) sb.Append("...");
@@ -1381,7 +1405,7 @@ namespace CFPABot.Utils
 
         public int CurrentCount
             => semaphore.CurrentCount;
-        
+
         public Task WaitAsync()
         {
             Interlocked.Increment(ref WaitCount);

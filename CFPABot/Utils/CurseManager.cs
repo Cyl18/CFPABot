@@ -171,7 +171,7 @@ namespace CFPABot.Utils
         }
 
         
-        static Dictionary<int, WeakReference<Mod>> ModCache = new ();
+        static Dictionary<int, Mod> ModCache = new ();
         static Dictionary<int, DateTime> ModCacheWriteTime = new ();
         public static  Task<Mod> GetAddon(string modSlug)
         {
@@ -185,9 +185,9 @@ namespace CFPABot.Utils
             // 恨不得我的邮箱被塞爆
             lock (ModCache)
             {
-                if (ModCache.TryGetValue(modCurseForgeID, out var r) && r.TryGetTarget(out var m) && (DateTime.Now - ModCacheWriteTime[modCurseForgeID]) < TimeSpan.FromMinutes(5))
+                if (ModCache.TryGetValue(modCurseForgeID, out var r) && (DateTime.Now - ModCacheWriteTime[modCurseForgeID]) < TimeSpan.FromMinutes(5))
                 {
-                    return m;
+                    return r;
                 }
             }
             
@@ -195,8 +195,20 @@ namespace CFPABot.Utils
 
             lock (ModCache)
             {
-                ModCache[modCurseForgeID] = new WeakReference<Mod>(res);
+                ModCache[modCurseForgeID] = res;
                 ModCacheWriteTime[modCurseForgeID] = DateTime.Now;
+                if (Random.Shared.NextDouble() < 0.1)
+                {
+                    foreach (var (key, value) in ModCache)
+                    {
+                        var time = ModCacheWriteTime[key];
+                        if (DateTime.Now - time > TimeSpan.FromMinutes(20))
+                        {
+                            ModCache.Remove(key);
+                            ModCacheWriteTime.Remove(key);
+                        }
+                    }
+                }
             }
             return res;
         }
