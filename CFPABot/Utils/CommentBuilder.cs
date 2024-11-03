@@ -998,42 +998,48 @@ namespace CFPABot.Utils
                 // 检查中英文 key 是否对应
                 // 检查 ModID
                 var checkedSet = new HashSet<(string version, string curseID)>();
-                
+                var cbag = new HashSet<(string, string)>();
                 // 提前下载
-                foreach (var diff in diffs)
-                {
-                    var names = diff.To.Split('/');
-                    if (names.Length < 7) continue; // 超级硬编码
-                    if (names[0] != "projects") continue;
-                    if (names[5] != "lang") continue;
+                await Parallel.ForEachAsync(diffs, new ParallelOptions() { MaxDegreeOfParallelism = 12 },
+                    async (diff, token) =>
+                    {
+                        var names = diff.To.Split('/');
+                        if (names.Length < 7) return; // 超级硬编码
+                        if (names[0] != "projects") return;
+                        if (names[5] != "lang") return;
 
-                    var versionString = names[1];
-                    var curseID = names[3];
-                    var modid = names[4];
-                    var check = (versionString, curseID);
-                    var mcVersion = versionString.ToMCVersion();
-                    Mod addon = null;
+                        var versionString = names[1];
+                        var curseID = names[3];
+                        var modid = names[4];
+                        var check = (versionString, curseID);
+                        lock (cbag)
+                        {
+                            if (!cbag.Add(check)) return;
+                        }
 
-                    try
-                    {
-                        if (curseID != "1UNKNOWN" && curseID != "0-modrinth-mod" && !curseID.StartsWith("modrinth-"))
-                            addon = await CurseManager.GetAddon(curseID);
-                    }
-                    catch (Exception)
-                    {
-                    }
-                    if (addon != null && names[3] != "1UNKNOWN")
-                    {
+                        var mcVersion = versionString.ToMCVersion();
+                        Mod addon = null;
+
                         try
                         {
-                            CurseManager.GetModEnFile(addon, mcVersion, LangType.EN);
+                            if (curseID != "1UNKNOWN" && curseID != "0-modrinth-mod" && !curseID.StartsWith("modrinth-"))
+                                addon = await CurseManager.GetAddon(curseID);
                         }
-                        catch (Exception e)
+                        catch (Exception)
                         {
-                            Console.WriteLine(e);
                         }
-                    }
-                }
+                        if (addon != null && names[3] != "1UNKNOWN")
+                        {
+                            try
+                            {
+                                await CurseManager.GetModEnFile(addon, mcVersion, LangType.EN);
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine(e);
+                            }
+                        }
+                    });
 
                 foreach (var diff in diffs)
                 {
