@@ -76,7 +76,7 @@ namespace CFPABot.Azusa
         {
             try
             {
-                Run("fsmonitor--daemon stop");
+
                 Directory.Delete(WorkingDirectory, true);
             }
             catch (Exception e)

@@ -93,7 +93,6 @@ namespace CFPABot.Command
         {
             try
             {
-                Run("fsmonitor--daemon stop");
                 Directory.Delete(WorkingDirectory, true);
             }
             catch (Exception e)
