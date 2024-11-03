@@ -585,7 +585,7 @@
                         if (!texts.Contains(s))
                         {
                             textsV.Add(s);
-                            langV.Add(LangFileWrapper.FromContent(file));
+                            langV.Add(LangFileWrapper.FromLangFile(LangFile.FromString(file, LangFileWrapper.GuessType(file))));
                             hasCompositionFile = true;
                         }
                     }

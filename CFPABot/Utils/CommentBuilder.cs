@@ -1063,32 +1063,42 @@ namespace CFPABot.Utils
 
                     try
                     {
-                        cnfile = await Download.String(cnlink);
+                        try
+                        {
+                            if (await Download.LinkExists($"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/packer-policy.json"))
+                            {
+                                cnfile = compositionFileHandler.AcquireLangFile(curseID, modid, versionString);
+                            }
+                            else
+                            {
+                                sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadCn, modid, versionString));
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            logger.Error(e, "packer-policy");
+                            sb.AppendLine($"⚠ 组合文件处理出错：{e.Message}");
+                            sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadCn, modid, versionString));
+                            throw;
+                        }
+
                     }
                     catch (Exception)
                     {
                         try
                         {
-                            cnfile = await Download.String(cnlink.Replace("zh_cn", "zh_CN"));
+                            cnfile = await Download.String(cnlink);
+
                         }
                         catch (Exception)
                         {
                             try
                             {
-                                if (await Download.LinkExists($"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/packer-policy.json"))
-                                {
-                                    cnfile = compositionFileHandler.AcquireLangFile(curseID, modid, versionString);
-                                }
-                                else
-                                {
-                                    sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadCn, modid, versionString));
-                                }
+
                             }
-                            catch (Exception e)
+                            catch (Exception)
                             {
-                                logger.Error(e, "packer-policy");
-                                sb.AppendLine($"⚠ 组合文件处理出错：{e.Message}");
-                                sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadCn, modid, versionString));
+                                cnfile = await Download.String(cnlink.Replace("zh_cn", "zh_CN"));
                             }
                         }
                     }
