@@ -190,8 +190,8 @@ namespace CFPABot.Utils
                     return m;
                 }
             }
-
-            var res = (await cfClient.GetModsByIdListAsync(new GetModsByIdsListRequestBody(){ModIds = new List<int>() { modCurseForgeID } })).Data[0];
+            
+            var res = (await cfClient.GetModAsync(modCurseForgeID)).Data;
 
             lock (ModCache)
             {

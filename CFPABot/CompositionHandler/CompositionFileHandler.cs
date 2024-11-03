@@ -40,8 +40,8 @@ namespace CFPABot.CompositionHandler
             using var zipArchive = new ZipArchive(File.OpenRead(Path.Combine(repo.WorkingDirectory, $"Minecraft-Mod-Language-Package-{versionString}.zip")), ZipArchiveMode.Read, false, Encoding.UTF8);
             foreach (var entry in zipArchive.Entries)
             {
-                if (entry.FullName.Equals($"projects/{versionString}/assets/{curseId}/{modid}/lang/zh_cn.lang", StringComparison.OrdinalIgnoreCase) || 
-                    entry.FullName.Equals($"projects/{versionString}/assets/{curseId}/{modid}/lang/zh_cn.json", StringComparison.OrdinalIgnoreCase))
+                if (entry.FullName.Equals($"assets/{modid}/lang/zh_cn.lang", StringComparison.OrdinalIgnoreCase) || 
+                    entry.FullName.Equals($"assets/{modid}/lang/zh_cn.json", StringComparison.OrdinalIgnoreCase))
                 {
                     return entry.Open().ReadToEnd();
                 }
