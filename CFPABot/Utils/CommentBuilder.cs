@@ -184,7 +184,7 @@ namespace CFPABot.Utils
                         Public = false
                     });
                     await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->\n<a href=\"https://github.com/Cyl18/CFPABot\"><image src=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/assets/14993992/5f597afc-ee3d-4285-addc-9f9561b4a252\"></a>\n---\n" +
-                        $"嘻嘻，内容过长！已经上传到了 <{gist.HtmlUrl}>");
+                        $"嘻嘻，内容过长！已经上传到了 <{gist.HtmlUrl}>\n{Context.ReloadSegment}");
 
                 }
             }
