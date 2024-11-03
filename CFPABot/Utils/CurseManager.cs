@@ -11,6 +11,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using CFPABot.Azusa.Pages;
 using CFPABot.Exceptions;
 using CFPABot.Resources;
 using CurseForge.APIClient;
@@ -88,27 +89,30 @@ namespace CFPABot.Utils
             {
                 sb.Append("<details> <summary>语言文件链接</summary>");
                 var (curseForgeID, modDomain, mcVersion) = infos.First();
-
-                await Parallel.ForEachAsync(
-                    Enum.GetValues<MCVersion>().Where(x => x <= MCVersion.v122fabric).Select(n => n.ToVersionString()),
-                    async (v, _) =>
+                if (ModList.ModListConfig.Instance.ModLists.FirstOrDefault(x => x.modSlug == addon.Slug) is {} mod)
+                {
+                    foreach (var modVersion in mod.versions)
                     {
-                        foreach (var file in v == "1.12.2" ? new[] { "zh_cn.lang", "zh_CN.lang", "en_us.lang", "en_US.lang" } : new[] { "zh_cn.json", "zh_CN.json", "en_us.json", "en_US.json" })
-                        {
-                            var link = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/main/projects/{v}/assets/{curseForgeID}/{modDomain}/lang/{file}";
-                            if (await Download.LinkExists(link).ConfigureAwait(false))
-                            {
-                                lock (sb)
-                                {
-                                    sb.Append($"[{v}/{file}](https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/projects/{v}/assets/{curseForgeID}/{modDomain}/lang/{file}) <br/>");
-                                }
-                            }
-                        }
-                    });
+                        sb.Append($"[{modVersion.version}]({modVersion.repoLink}) <br/>");
 
-                    
+                    }
 
-                
+                }
+                // await Parallel.ForEachAsync(
+                //     Enum.GetValues<MCVersion>().Where(x => x <= MCVersion.v122fabric).Select(n => n.ToVersionString()),
+                //     async (v, _) =>
+                //     {
+                //         foreach (var file in v == "1.12.2" ? new[] { "zh_cn.lang", "zh_CN.lang", "en_us.lang", "en_US.lang" } : new[] { "zh_cn.json", "zh_CN.json", "en_us.json", "en_US.json" })
+                //         {
+                //             var link = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/main/projects/{v}/assets/{curseForgeID}/{modDomain}/lang/{file}";
+                //             if (await Download.LinkExists(link).ConfigureAwait(false))
+                //             {
+                //                 lock (sb)
+                //                 {
+                //                 }
+                //             }
+                //         }
+                //     });
 
                 sb.Append("</details>");
             }
