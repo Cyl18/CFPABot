@@ -192,8 +192,8 @@ namespace CFPABot
             Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
-                    // webBuilder.ConfigureKestrel(x =>
-                    //     x.ConfigureEndpointDefaults(lo => lo.Protocols = HttpProtocols.Http2));
+                     webBuilder.ConfigureKestrel(x =>
+                         x.ListenAnyIP(8080));
                     webBuilder.UseStartup<Startup>();
                 }).ConfigureWebHost(x =>
                 {
