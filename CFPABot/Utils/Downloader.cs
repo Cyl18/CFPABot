@@ -138,7 +138,7 @@ namespace CFPABot.Utils
         {
             try
             {
-                var message = await hc.SendAsync(new HttpRequestMessage(HttpMethod.Head, link));
+                var message = await hc.SendAsync(new HttpRequestMessage(HttpMethod.Head, link)).ConfigureAwait(false);
                 message.EnsureSuccessStatusCode();
                 return true;
             }

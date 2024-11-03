@@ -759,6 +759,7 @@ namespace CFPABot.Utils
             try
             {
                 var pr = await GitHub.GetPullRequest(PullRequestID);
+                using var compositionFileHandler = new CompositionFileHandler(pr);
 
                 var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}.txt";
                 var filePath = "wwwroot/" + fileName;
@@ -1161,7 +1162,6 @@ namespace CFPABot.Utils
                     string[] modENFile = null;
                     string downloadModName = null;
 
-                    using var compositionFileHandler = new CompositionFileHandler(pr);
 
                     try
                     {
