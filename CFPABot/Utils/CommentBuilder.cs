@@ -392,13 +392,10 @@ namespace CFPABot.Utils
                                "";
                                 }))
                                 {
-                                    if (dep != null)
+                                    var d = await dep;
+                                    if (d != null)
                                     {
-                                        var d = await dep;
-                                        lock (sb3)
-                                        {
-                                            sb3.AppendLine(d);
-                                        }
+                                        sb3.AppendLine(d);
                                     }
                                 }
                             }
