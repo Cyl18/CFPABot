@@ -358,16 +358,14 @@ namespace CFPABot.Utils
                 {
 
                     sb1.AppendLine((await addon).s);
+                    var sb3 = new StringBuilder();
                     var add = (await addon).addon;
                     try
                     {
-
-
                         try
                         {
 
                             var infos = modInfos.Where(i => i.CurseForgeID == add.Slug).ToArray();
-                            var versions = infos.Select(i => i.Version).ToArray();
                             var addonModel = await CurseManager.GetAddon(add.Id);
                             var deps = addonModel.LatestFiles.OrderByDescending(a => a.FileDate).FirstOrDefault(a => a.Dependencies.Any())?.Dependencies;
                             var distinctSet = new ConcurrentBag<int>();
@@ -396,7 +394,11 @@ namespace CFPABot.Utils
                                 {
                                     if (dep != null)
                                     {
-                                        sb1.AppendLine(await dep);
+                                        var d = await dep;
+                                        lock (sb3)
+                                        {
+                                            sb3.AppendLine(d);
+                                        }
                                     }
                                 }
                             }
@@ -405,13 +407,15 @@ namespace CFPABot.Utils
                         {
                             Log.Error(e, "获取依赖失败");
                         }
-
+                        
                     }
                     catch (Exception e)
                     {
                         sb1.AppendLine($"| | [链接]({add.Links.WebsiteUrl}) | {e.Message} | |");
                         Log.Error(e, "UpdateModLinkSegment");
                     }
+
+                    sb1.Append(sb3.ToString());
                 }
 
                 if (modCount > 8)
