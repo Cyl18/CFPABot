@@ -709,7 +709,7 @@
         {
             var diffHunk = pullRequestReviewComment.DiffHunk;
 
-            var line = diffHunk.Split("\n").Last(x => x != "" && x[0] == '+');
+            var line = diffHunk.Split("\n").Last(x => x != "" && (x[0] == '+' || x[0] == '-'));
             if (list1.FirstOrDefault(x => line.Contains(x.Key + "\"") || line.Contains(x.Key + '=')) is { } l)
             {
                 bool invalid = pullRequestReviewComment.OriginalCommitId != pr.Head.Sha;
