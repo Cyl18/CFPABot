@@ -404,7 +404,7 @@ namespace CFPABot.Utils
                         {
                             Log.Error(e, "获取依赖失败");
                         }
-                        
+
                     }
                     catch (Exception e)
                     {
@@ -1166,24 +1166,26 @@ namespace CFPABot.Utils
 
                     try
                     {
-                        try
+
+                        if (await Download.LinkExists($"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/packer-policy.json"))
                         {
-                            if (await Download.LinkExists($"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/packer-policy.json"))
+                            try
                             {
                                 cnfile = compositionFileHandler.AcquireLangFile(curseID, modid, versionString);
                             }
-                            else
+                            catch (Exception e)
                             {
+                                logger.Error(e, "packer-policy");
+                                sb.AppendLine($"⚠ 组合文件处理出错：{e.Message}");
                                 sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadCn, modid, versionString));
+                                throw;
                             }
                         }
-                        catch (Exception e)
+                        else
                         {
-                            logger.Error(e, "packer-policy");
-                            sb.AppendLine($"⚠ 组合文件处理出错：{e.Message}");
-                            sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadCn, modid, versionString));
-                            throw;
+                            throw new DivideByZeroException();
                         }
+
 
                     }
                     catch (Exception)
@@ -1191,17 +1193,16 @@ namespace CFPABot.Utils
                         try
                         {
                             cnfile = await Download.String(cnlink);
-
                         }
                         catch (Exception)
                         {
                             try
                             {
-
+                                cnfile = await Download.String(cnlink.Replace("zh_cn", "zh_CN"));
                             }
                             catch (Exception)
                             {
-                                cnfile = await Download.String(cnlink.Replace("zh_cn", "zh_CN"));
+                                sb.AppendLine(string.Format(Locale.Check_FileKey_FailedToDownloadCn, modid, versionString));
                             }
                         }
                     }
