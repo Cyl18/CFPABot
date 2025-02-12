@@ -1070,6 +1070,17 @@ namespace CFPABot.Utils
                     {
                         sb.AppendLine(string.Format(Locale.Check_ModID_ModNotFound, curseID, versionString));
                     }
+
+                    if (addon != null && addon.Slug != curseID)
+                    {
+                        sb.AppendLine("❌ 检测到此模组作者更改了 Slug 名，请使用以下命令进行路径移动：");
+                        sb.AppendLine("```");
+                        sb.AppendLine($"/mv projects/{versionString}/assets/{curseID}/ projects/{versionString}/assets/{addon.Slug}/");
+                        sb.AppendLine($"/add-mapping {addon.Slug} {addon.Id}");
+                        sb.AppendLine("```");
+                        sb.AppendLine();
+                    }
+
                     if (addon != null)
                         try
                         {
