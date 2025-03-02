@@ -138,8 +138,16 @@
 
     async void Step2()
     {
-        enT = Traverse(en);
-        cnT = Traverse(cn);
+        if (cn.Contains("ae2guide"))
+        {
+            enT = "";
+            cnT = "_zh_cn";
+        }
+        else
+        {
+            enT = Traverse(en);
+            cnT = Traverse(cn);
+        }
         if (cnT == null || enT == null)
         {
             ShowToast($"找不到中文或英文文件夹\nen: {en}\ncn:{cn}");
@@ -170,7 +178,7 @@
         {
             sb.Append(s1 + "/");
             if (s1.Equals("zh_cn", StringComparison.OrdinalIgnoreCase) || s1.Equals("en_us", StringComparison.OrdinalIgnoreCase)
-            || s1 == "_zh_cn" || s1 != "_zh_cn" && str.Contains("ae2guide"))
+            || s1 == "_zh_cn")
             {
                 flag = true;
                 break;
