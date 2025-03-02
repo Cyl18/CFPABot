@@ -140,8 +140,8 @@
     {
         if (cn.Contains("ae2guide"))
         {
-            enT = "";
-            cnT = "_zh_cn";
+            cnT = Traverse(cn);
+            enT = cnT.Replace("/_zh_cn", "");
         }
         else
         {
