@@ -69,6 +69,8 @@
     {
         foreach (var enFilePath in Directory.GetFiles(enDir, "*.*", SearchOption.AllDirectories))
         {
+            if (enFilePath.Contains("_zh_cn")) continue;
+            
             var cnFilePath = Flip(enFilePath);
             if (enFilePath == cnFilePath) model.Add((null, null, null, null, enFilePath, null));
             var fileName = Path.GetRelativePath(enDir, enFilePath);
