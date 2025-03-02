@@ -170,7 +170,7 @@
         {
             sb.Append(s1 + "/");
             if (s1.Equals("zh_cn", StringComparison.OrdinalIgnoreCase) || s1.Equals("en_us", StringComparison.OrdinalIgnoreCase)
-            || s1 == "_zh_cn" || s1 == "_en_us")
+            || s1 == "_zh_cn" || s1 != "_zh_cn" && str.Contains("ae2guide"))
             {
                 flag = true;
                 break;
