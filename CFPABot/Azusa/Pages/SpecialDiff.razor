@@ -96,7 +96,7 @@
 
             cndirs = diff.Where(x => x.To.Split('/').Any(y => y.TrimStart('_').Equals("zh_cn", StringComparison.OrdinalIgnoreCase))).Select(x => Traverse(x.To)).Distinct().Order().ToArray();
             var namespaces = cndirs.Select(x => x.Split('/')[3]).ToArray();
-            if (cndirs.Contains("_zh_cn")) // 给AE2手册一个特殊待遇
+            if (cndirs.Any(x => x.Contains("_zh_cn"))) // 给AE2手册一个特殊待遇
             {
                 endirs = new []{ cndirs[0].Replace("_zh_cn", "") };
             }
