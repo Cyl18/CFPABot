@@ -1,0 +1,80 @@
+﻿@page "/pr-llm-review"
+@using CFPABot.CFPALLM
+@using CFPABot.Utils
+@using GammaLibrary.Extensions
+@using Microsoft.AspNetCore.Http
+@using Octokit
+<h3>PRLLMReview</h3>
+
+@inject IBlazorStrap _blazorStrap
+@inject NavigationManager _navigationManager
+@inject IHttpContextAccessor _http
+
+<BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
+
+    <span class="@BS.Input_Group_Text">PRID</span>
+    <BSInput TValue="int" InputType="InputType.Number" @bind-Value="prid" />
+
+    <span class="@BS.Input_Group_Text">路径</span>
+    <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium" @bind-Value="path">
+        <option value=" " disabled>选择路径</option>
+        @foreach (var x in paths)
+        {
+            <option value="@x">@x</option>
+        }
+    </BSInput>
+    <BSButton Color="BSColor.Info" OnClick="() => GetPaths()">获取 Path</BSButton>
+</BSInputGroup>
+@* <BSButton MarginBottom="Margins.Medium" Color="BSColor.Info" OnClick="() => Run()">执行</BSButton> *@
+
+
+@code {
+    int step = 0;
+    int prid;
+    string[] paths = Array.Empty<string>();
+    string path = " ";
+    protected override void OnInitialized()
+    {
+        if (!LoginManager.IsAdmin(_http).Result)
+        {
+            _navigationManager.NavigateTo("/");
+        }
+    }
+
+    private async Task GetPaths()
+    {
+        var diffs = await GitHub.Diff(prid);
+        paths = diffs.Select(x => x.To).Where(x => x.Contains("zh_cn")).ToArray();
+        path = paths.Any() ? paths[0] : " ";
+    }
+
+    private async Task Run()
+    {
+        var prReviewAssistantDatas = await CFPALLMManager.RunPRReview(prid, path);
+        var pr = await GitHub.GetPullRequest(prid);
+        foreach (var (startLine, inReplyToId, replyContent) in prReviewAssistantDatas)
+        {
+            if (inReplyToId == -1)
+            {
+                if (replyContent.Contains("```"))
+                {
+                    await GitHub.AddPRReviewCommentMultiLine(prid, new GitHub.PRReviewCommentMultiLine() { body = replyContent, commit_id = pr.Head.Sha, start_line = startLine, path = path, line = startLine - 3 + replyContent.Split("```")[1].Split('\n').Length });
+                }
+                else
+                {
+                    await GitHub.Instance.PullRequest.ReviewComment.Create(Constants.RepoID, prid, new PullRequestReviewCommentCreate(replyContent, pr.Head.Sha, path, startLine));
+                }
+            }
+            else
+            {
+                await GitHub.Instance.PullRequest.ReviewComment.CreateReply(Constants.RepoID, prid, new PullRequestReviewCommentReplyCreate(replyContent, inReplyToId));
+            }
+        }
+
+        if (prReviewAssistantDatas.IsEmpty())
+        {
+            await GitHub.Instance.Issue.Comment.Create(Constants.RepoID, prid, "LGTM");
+        }
+    }
+
+}

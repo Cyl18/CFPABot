@@ -94,10 +94,10 @@
             var dir = Directory.GetFiles(forkRepo.WorkingDirectory, "*.*", SearchOption.AllDirectories).Select(x => Path.GetRelativePath(forkRepo.WorkingDirectory, x)).ToArray();
 
 
-            cndirs = diff.Where(x => x.To.Split('/').Any(y => y.Equals("zh_cn", StringComparison.OrdinalIgnoreCase))).Select(x => Traverse(x.To)).Distinct().Order().ToArray();
+            cndirs = diff.Where(x => x.To.Split('/').Any(y => y.TrimStart('_').Equals("zh_cn", StringComparison.OrdinalIgnoreCase))).Select(x => Traverse(x.To)).Distinct().Order().ToArray();
             var namespaces = cndirs.Select(x => x.Split('/')[3]).ToArray();
             endirs = dir.Where(x => 
-                x.Split('/').Any(y => y.Equals("en_us", StringComparison.OrdinalIgnoreCase)) &&
+                x.Split('/').Any(y => y.TrimStart('_').Equals("en_us", StringComparison.OrdinalIgnoreCase)) &&
                 x.Split('/').Any(y => namespaces.Contains(y))
                 ).Select(x => Traverse(x)).Distinct().Order().ToArray();
 
@@ -162,7 +162,7 @@
         foreach (var s1 in s)
         {
             sb.Append(s1 + "/");
-            if (s1.Equals("zh_cn", StringComparison.OrdinalIgnoreCase) || s1.Equals("en_us", StringComparison.OrdinalIgnoreCase))
+            if (s1.TrimStart('_').Equals("zh_cn", StringComparison.OrdinalIgnoreCase) || s1.TrimStart('_').Equals("en_us", StringComparison.OrdinalIgnoreCase))
             {
                 flag = true;
                 break;

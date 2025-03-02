@@ -737,7 +737,7 @@ namespace CFPABot.Utils
             }
             finally
             {
-                if (fileDiffs.Any(x => x.To.Split('/').Any(y => y.Equals("zh_cn", StringComparison.OrdinalIgnoreCase))))
+                if (fileDiffs.Any(x => x.To.Split('/').Any(y => y.TrimStart('_').Equals("zh_cn", StringComparison.OrdinalIgnoreCase))))
                 {
                     result = ($"\n🔛 [转到复杂文件 Diff](https://cfpa.cyan.cafe/Azusa/SpecialDiff/{PullRequestID})\n\n") + result;
                 }

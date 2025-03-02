@@ -1,0 +1,17 @@
+﻿@page "/Debug"
+@using Microsoft.AspNetCore.Http
+<h3>Debug</h3>
+@inject IBlazorStrap _blazorStrap
+@inject NavigationManager _navigationManager
+@inject IHttpContextAccessor _http
+
+@code {
+    protected override void OnInitialized()
+    {
+        if (!LoginManager.IsAdmin(_http).Result)
+        {
+            _navigationManager.NavigateTo("/");
+        }
+    }
+
+}

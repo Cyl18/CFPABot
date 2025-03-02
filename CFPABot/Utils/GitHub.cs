@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Json;
 using System.Threading.Tasks;
 using CFPABot.Controllers;
 using CFPABot.Exceptions;
@@ -48,7 +49,7 @@ namespace CFPABot.Utils
                     UpdateClient();
                 }
             }
-            
+
             return _client;
         }
 
@@ -81,7 +82,7 @@ namespace CFPABot.Utils
 
             return response.Token;
         }
-        
+
         public static async Task<FileDiff[]> Diff(int id)
             => DiffParserHelper.Parse((await Download.String(Constants.BaseRepoUrl + $"/pull/{id}.diff", true))
                 // workaround https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/1924
@@ -90,9 +91,9 @@ namespace CFPABot.Utils
 
         public static Task<IReadOnlyList<IssueComment>> GetPRComments(int id)
             => Instance.Issue.Comment.GetAllForIssue(Constants.Owner, Constants.RepoName, id);
-        
-        
-        
+
+
+
         public static async Task<PullRequest> GetPRFromHeadRef(string @ref)
         {
             try
@@ -100,7 +101,7 @@ namespace CFPABot.Utils
                 var list = await Instance.PullRequest.GetAllForRepository(Constants.Owner, Constants.RepoName, new PullRequestRequest() { Head = @ref });
                 if (list.Count == 0)
                 {
-                    var list2 = await Instance.PullRequest.GetAllForRepository(Constants.Owner, Constants.RepoName, new PullRequestRequest() { Head = @ref, State = ItemStateFilter.Closed});
+                    var list2 = await Instance.PullRequest.GetAllForRepository(Constants.Owner, Constants.RepoName, new PullRequestRequest() { Head = @ref, State = ItemStateFilter.Closed });
                     // 其实理论上不应该这么做，但是考虑到 workflow run 没有什么价值
                     return list2.OrderByDescending(pr => pr.CreatedAt).First();
                 }
@@ -151,8 +152,8 @@ namespace CFPABot.Utils
             var livePr = await Instance.PullRequest.Get(Constants.Owner, Constants.RepoName, id).ConfigureAwait(false);
             return livePr;
         }
-        
-        
+
+
         public static async Task<IReadOnlyList<PullRequestFile>> GetPullRequestFiles(int id)
         {
             Log.Debug($"获取 PR Files: {id}");
@@ -168,6 +169,25 @@ namespace CFPABot.Utils
             hc.DefaultRequestHeaders.Add("Authorization", $"bearer {GetToken()}");
 
             await hc.PostAsync($"https://api.github.com/repos/{Constants.Owner}/{Constants.RepoName}/actions/runs/{runID}/approve", new StringContent(""));
+        }
+
+        public static async Task AddPRReviewCommentMultiLine(int pr, PRReviewCommentMultiLine comment)
+        {
+            var hc = new HttpClient();
+            hc.DefaultRequestHeaders.Add("User-Agent", "cfpa-bot");
+            hc.DefaultRequestHeaders.Add("Authorization", $"bearer {GetToken()}");
+
+            await hc.PostAsync($"https://api.github.com/repos/{Constants.Owner}/{Constants.RepoName}/pulls/{pr}/comments", JsonContent.Create(comment));
+        }
+
+        public class PRReviewCommentMultiLine
+        {
+            public string body { get; set; }
+            public string commit_id { get; set; }
+            public string path { get; set; }
+            public int start_line { get; set; }
+            public int line { get; set; }
+            public string start_side { get; set; } = "RIGHT";
         }
 
         public static async Task ForceUpdatePrBotComment(int prid)
@@ -188,13 +208,13 @@ namespace CFPABot.Utils
         public static async Task<RateLimitModel> GetTokenLimit()
         {
             var limits = await GetClient().Miscellaneous.GetRateLimits();
-            return new RateLimitModel(DateTime.Now , limits.Rate.Remaining, limits.Rate.Limit,
+            return new RateLimitModel(DateTime.Now, limits.Rate.Remaining, limits.Rate.Limit,
                 limits.Resources.Core.Remaining, limits.Resources.Core.Limit,
                 limits.Resources.Search.Remaining, limits.Resources.Search.Limit);
         }
 
         public record RateLimitModel(DateTime RecordTime, int MainRemaining, int MainMax, int CoreRemaining, int CoreMax, int SearchRemaining, int SearchMax);
-                
+
         [ConfigurationPath("config/ratelimit.json")]
         public class RateLimitConfig : Configuration<RateLimitConfig>
         {
@@ -206,7 +226,7 @@ namespace CFPABot.Utils
         {
             Log.Debug($"获取 Workflow Run: {checkSuiteID}");
             var result = await Download.GitHubAPIJson<WorkflowRunModel>($"https://api.github.com/repos/CFPAOrg/Minecraft-Mod-Language-Package/actions/workflows/{Constants.PRPackerFileName}/runs?event=pull_request&check_suite_id={checkSuiteID}");
-            
+
             return result.TotalCount == 0 ? null : result.WorkflowRuns.OrderByDescending(run => run.CreatedAt).First();
         }
 
