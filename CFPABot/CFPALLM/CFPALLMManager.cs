@@ -29,7 +29,7 @@ public static class CFPALLMManager
         Log.Information($"{prid} 的 LLM 审核结果:");
         Log.Information(s);
         var last = s.Split("</think>").Last();
-        var regex = new Regex(@"\[.*\]", RegexOptions.Multiline);
+        var regex = new Regex(@"\[(.|\n)*\]", RegexOptions.Multiline);
         return regex.Match(last).Value.JsonDeserialize<PRReviewAssistantData[]>();
     }
     public static async Task<string> ProcessPrReviewInput(int prid, string path)
