@@ -18,7 +18,7 @@ public static class CFPALLMManager
 {
     public static async Task<PRReviewAssistantData[]> RunPRReview(int prid, string path)
     {
-        var openAiClient = new OpenAIClient(clientSettings: new OpenAIClientSettings("https://ark.cn-beijing.volces.com/api/v3"),
+        var openAiClient = new OpenAIClient(clientSettings: new OpenAIClientSettings("https://ark.cn-beijing.volces.com/api", apiVersion: "v3"),
             openAIAuthentication: Environment.GetEnvironmentVariable("HUOSHAN_API_KEY"), client: new HttpClient() { Timeout = TimeSpan.FromMinutes(1000) });
         var response = await openAiClient.ChatEndpoint.GetCompletionAsync(new ChatRequest(new[]
         {
