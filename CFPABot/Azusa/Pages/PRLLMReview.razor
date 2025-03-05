@@ -1,4 +1,5 @@
 ﻿@page "/pr-llm-review"
+@using System.Text.RegularExpressions
 @using CFPABot.CFPALLM
 @using CFPABot.Utils
 @using GammaLibrary.Extensions
@@ -25,7 +26,7 @@
     </BSInput>
     <BSButton Color="BSColor.Info" OnClick="() => GetPaths()">获取 Path</BSButton>
 </BSInputGroup>
-@* <BSButton MarginBottom="Margins.Medium" Color="BSColor.Info" OnClick="() => Run()">执行</BSButton> *@
+<BSButton MarginBottom="Margins.Medium" Color="BSColor.Info" OnClick="() => Run()">执行</BSButton>
 
 
 @code {
@@ -48,16 +49,42 @@
         path = paths.Any() ? paths[0] : " ";
     }
 
+    private static HttpClient hc = new HttpClient();
     private async Task Run()
     {
         var prReviewAssistantDatas = await CFPALLMManager.RunPRReview(prid, path);
         var pr = await GitHub.GetPullRequest(prid);
-        foreach (var (startLine, inReplyToId, replyContent) in prReviewAssistantDatas)
+        var langFilePath = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{pr.Head.Sha}/{path}";
+        var langFile = await hc.GetStringAsync(langFilePath);
+        foreach (var (key, inReplyToId, replyContent) in prReviewAssistantDatas)
         {
             if (inReplyToId == -1)
             {
+                int startLine = -1;
+                var i = 0;
+                foreach (var line in langFile.Split('\n'))
+                {
+                    var regex = Regex.Match(line, "^(\\s+)\"(.*?)\"\\s*?:[^,]*(,+)?.*$");
+                    if (regex.Success)
+                    {
+                        var keyInLine = regex.Groups[2].Value;
+                        if (keyInLine.Equals(key, StringComparison.OrdinalIgnoreCase))
+                        {
+                            startLine = i + 1;
+                            break;
+                        }
+                    }
+                    i++;
+                }
+
+                if (startLine == -1)
+                {
+                    throw new Exception("大模型太笨了");
+                }
                 if (replyContent.Contains("```"))
                 {
+                    
+
                     await GitHub.AddPRReviewCommentMultiLine(prid, new GitHub.PRReviewCommentMultiLine() { body = replyContent, commit_id = pr.Head.Sha, start_line = startLine, path = path, line = startLine - 3 + replyContent.Split("```")[1].Split('\n').Length });
                 }
                 else
