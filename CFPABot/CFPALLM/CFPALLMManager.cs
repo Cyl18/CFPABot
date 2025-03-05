@@ -23,7 +23,7 @@ public static class CFPALLMManager
         var response = await openAiClient.ChatEndpoint.GetCompletionAsync(new ChatRequest(new[]
         {
             new Message(Role.User, "请你扮演一位Minecraft模组语言翻译PR审核者，根据以下Json Schema审核此PR，如果你觉得什么都很好则输出空数组，注意错别字，漏翻，意思不对的情况，你的建议必须使用```suggestion来表示哪处要换成什么，并在后文加上说明和英文原文，```suggestion的前面和后面都需要换行；如果不确定，则提出疑问；在使用```suggestion的时候要注意只修改键值对的值内容，**特别要注意保留空格和键**；" +
-                                   "你可以对连续的行进行建议，但是要注意保留键；你可以思考；不仅是对其他人的回复进行回复，你也可以提交新的建议。\n你*必须*以下方的Json Schema来输出内容，如果不是回复，InReplyToId则为-1，如果有回复，InReplyToId则为回复的ID；ReplyContent则为你的建议，例如输出" + """[{"Key":" a.b=c","InReplyToId":-1,"ReplyContent":"```suggestion\n a.b=d\n```\n因为xyz，原文为c"}]。""" + "\n" +
+                                   "你可以对连续的行进行建议，但是一定要保留原来的JSON格式；你可以思考；不仅是对其他人的回复进行回复，你也可以提交新的建议。\n你*必须*以下方的Json Schema来输出内容，如果不是回复，InReplyToId则为-1，如果有回复，InReplyToId则为回复的ID；ReplyContent则为你的建议，例如输出" + """[{"Key":" a.b=c","InReplyToId":-1,"ReplyContent":"```suggestion\n a.b=d\n```\n因为xyz，原文为c"}]。""" + "\n" +
                                      "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"Key\":{\"type\":\"string\"},\"InReplyToId\":{\"type\":\"integer\"},\"ReplyContent\":{\"type\":\"string\"}},\"required\":[\"Key\",\"InReplyToId\",\"ReplyContent\"]}}"+"\n请使用```suggestion。请以JSON输出结果。以下为数据：\n" + await ProcessPrReviewInput(prid, path))
         }, "deepseek-r1-250120", responseFormat: ChatResponseFormat.Json));
         var s = response.FirstChoice.Message.ToString();

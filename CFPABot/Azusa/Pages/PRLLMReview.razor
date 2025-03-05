@@ -96,8 +96,15 @@
                         var segs = replyContent.Split("```")[1].Split('\n');
                         var line = startLine;
                         var endLine = startLine - 3 + segs.Length;
-                        Console.WriteLine($"{line}-{endLine} {replyContent}");
-                        await GitHub.AddPRReviewCommentMultiLine(prid, new GitHub.PRReviewCommentMultiLine() { body = replyContent, commit_id = pr.Head.Sha, start_line = line, path = path, line = endLine }).ConfigureAwait(false);
+                        if (line == endLine)
+                        {
+                            await GitHub.Instance.PullRequest.ReviewComment.Create(Constants.RepoID, prid, new PullRequestReviewCommentCreate(replyContent, pr.Head.Sha, path, startLine)).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            await GitHub.AddPRReviewCommentMultiLine(prid, new GitHub.PRReviewCommentMultiLine() { body = replyContent, commit_id = pr.Head.Sha, start_line = line, path = path, line = endLine }).ConfigureAwait(false);
+
+                        }
                     }
                     else
                     {
