@@ -22,9 +22,9 @@ public static class CFPALLMManager
             openAIAuthentication: Environment.GetEnvironmentVariable("HUOSHAN_API_KEY"), client: new HttpClient() { Timeout = TimeSpan.FromMinutes(1000) });
         var response = await openAiClient.ChatEndpoint.GetCompletionAsync(new ChatRequest(new[]
         {
-            new Message(Role.User, "请你扮演一位Minecraft模组语言翻译PR审核者，根据以下Json Schema审核此PR，如果你觉得什么都很好则输出空数组，注意错别字，漏翻，意思不对的情况，你可以提出疑问，或者提出改进方案（使用```suggestion），你可以对连续的行进行建议\n你可以以<think>进行思考，你必须以下方的Json Schema来输出内容，如果不是回复，InReplyToId则为-1，ReplyContent则为你的建议，例如输出" + """[{"Key":"a.b","InReplyToId":-1,"ReplyContent":"我的建议是:___"}]""" + "\n" +
+            new Message(Role.User, "请你扮演一位Minecraft模组语言翻译PR审核者，根据以下Json Schema审核此PR，如果你觉得什么都很好则输出空数组，注意错别字，漏翻，意思不对的情况，你可以提出疑问，或者提出改进方案（使用```suggestion），你可以对连续的行进行建议\n你可以以<think>进行思考，你必须以下方的Json Schema来输出内容，如果不是回复，InReplyToId则为-1，如果有回复，InReplyToId则为回复的ID；ReplyContent则为你的建议，例如输出" + """[{"Key":"a.b","InReplyToId":-1,"ReplyContent":"我的建议是:___"}]""" + "\n" +
                                      "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"Key\":{\"type\":\"string\"},\"InReplyToId\":{\"type\":\"integer\"},\"ReplyContent\":{\"type\":\"string\"}},\"required\":[\"StartLine\",\"InReplyToId\",\"ReplyContent\"]}}"+"\n" + await ProcessPrReviewInput(prid, path))
-        }, "deepseek-r1-250120"));
+        }, "deepseek-r1-250120", responseFormat: ChatResponseFormat.Json));
         var s = response.FirstChoice.Message.ToString();
         Log.Information($"{prid} 的 LLM 审核结果:");
         Log.Information(s);
