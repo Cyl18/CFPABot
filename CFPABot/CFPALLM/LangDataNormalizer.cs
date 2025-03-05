@@ -45,14 +45,14 @@ namespace CFPABot.CFPALLM
             var document = JsonDocument.Parse(enfile, new() { CommentHandling = JsonCommentHandling.Skip });
             if (!document.RootElement.EnumerateObject().Any())
             {
-                ens = null; return true;
+                ens = null; return false;
             }
             ens = document.RootElement
                 .EnumerateObject()
                 .Where(k => !k.Name.StartsWith("_"))
                 .Select(o => new KeyValuePair<string, string>(o.Name, o.Value.ValueKind == JsonValueKind.String ? o.Value.GetString() : o.Value.GetRawText()))
                 .DistinctBy(o => o.Key);
-            return false;
+            return true;
         }
 
         public static List<KeyValuePair<string, string>> Unnormalize(List<KeyValuePair<string, string>> data)
