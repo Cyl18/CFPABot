@@ -147,17 +147,26 @@
                 }
             }
 
+            var msg = "你好！我们正在测试使用生成式大模型进行辅助人工审核。目前使用的模型为 DeepSeek R1。模型输出的很多内容可能有错误，请见谅。";
             var sbResult = resultSb.ToString();
+            var sent = false;
             if (prReviewAssistantDatas.data.IsEmpty() && sbResult.IsNullOrWhiteSpace())
             {
-                await GitHub.Instance.Issue.Comment.Create(Constants.RepoID, prid, "LGTM").ConfigureAwait(false);
+                sent = true;
+                await GitHub.Instance.Issue.Comment.Create(Constants.RepoID, prid, msg + "\n\nLGTM").ConfigureAwait(false);
             }
 
             if (!sbResult.IsNullOrWhiteSpace())
             {
+                sent = true;
                 await GitHub.Instance.Issue.Comment.Create(Constants.RepoID, prid, "大模型太笨了，有的 key 无法匹配，以下为内容\n\n" + sbResult).ConfigureAwait(false);
             }
 
+            if (!sent)
+            {
+                await GitHub.Instance.Issue.Comment.Create(Constants.RepoID, prid, msg).ConfigureAwait(false);
+
+            }
             rawOutput = prReviewAssistantDatas.rawOutput;
             confirmDisabled = true;
         }
