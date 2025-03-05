@@ -93,7 +93,8 @@
 
                     if (replyContent.Contains("```"))
                     {
-                        await GitHub.AddPRReviewCommentMultiLine(prid, new GitHub.PRReviewCommentMultiLine() { body = replyContent, commit_id = pr.Head.Sha, start_line = startLine, path = path, line = startLine - 3 + replyContent.Split("```")[1].Split('\n').Length }).ConfigureAwait(false);
+                        var segs = replyContent.Split("```")[1].Split('\n');
+                        await GitHub.AddPRReviewCommentMultiLine(prid, new GitHub.PRReviewCommentMultiLine() { body = replyContent, commit_id = pr.Head.Sha, start_line = startLine, path = path, line = startLine - 3 + segs.Length }).ConfigureAwait(false);
                     }
                     else
                     {

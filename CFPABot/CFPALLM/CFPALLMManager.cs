@@ -49,11 +49,11 @@ public static class CFPALLMManager
         if (path.Contains(".json"))
         {
             if (!LangDataNormalizer.ProcessJsonSingle(enFile, out var ens)) throw new CheckException("Json 语法错误");
-            enContent = ens.Select(x => $"{x.Key}={x.Value}").Connect("\n");
+            enContent = ens.Select(x => $"{x.Key}={x.Value.Replace("\n","\\n")}").Connect("\n");
         }
         else
         {
-            enContent = LangDataNormalizer.ProcessLangSingle(enFile).Select(x => $"{x.Key}={x.Value}").Connect("\n");
+            enContent = LangDataNormalizer.ProcessLangSingle(enFile).Select(x => $"{x.Key}={x.Value.Replace("\n", "\\n")}").Connect("\n");
 
         }
 
