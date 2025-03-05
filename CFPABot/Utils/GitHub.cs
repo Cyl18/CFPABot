@@ -177,7 +177,8 @@ namespace CFPABot.Utils
             hc.DefaultRequestHeaders.Add("User-Agent", "cfpa-bot");
             hc.DefaultRequestHeaders.Add("Authorization", $"bearer {GetToken()}");
 
-            await hc.PostAsync($"https://api.github.com/repos/{Constants.Owner}/{Constants.RepoName}/pulls/{pr}/comments", JsonContent.Create(comment));
+            var message = await hc.PostAsync($"https://api.github.com/repos/{Constants.Owner}/{Constants.RepoName}/pulls/{pr}/comments", JsonContent.Create(comment));
+            Console.WriteLine($"PR: {pr} 创建回复: {message}");
         }
 
         public class PRReviewCommentMultiLine
