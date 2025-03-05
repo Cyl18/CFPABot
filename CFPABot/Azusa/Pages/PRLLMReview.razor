@@ -86,77 +86,88 @@
 
     private async Task Confirm()
     {
-        var pr = await GitHub.GetPullRequest(prid).ConfigureAwait(false);
-        var langFilePath = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{pr.Head.Sha}/{path}";
-        var langFile = await hc.GetStringAsync(langFilePath).ConfigureAwait(false);
-        var resultSb = new StringBuilder();
-        foreach (var (key, inReplyToId, replyContent) in prReviewAssistantDatas.data)
+        try
         {
-            if (inReplyToId == -1)
+            var pr = await GitHub.GetPullRequest(prid).ConfigureAwait(false);
+            var langFilePath = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{pr.Head.Sha}/{path}";
+            var langFile = await hc.GetStringAsync(langFilePath).ConfigureAwait(false);
+            var resultSb = new StringBuilder();
+            foreach (var (key, inReplyToId, replyContent) in prReviewAssistantDatas.data)
             {
-                int startLine = -1;
-                var i = 0;
-                foreach (var line in langFile.Split('\n'))
+                if (inReplyToId == -1)
                 {
-                    var regex = Regex.Match(line, "^(\\s+)\"(.*?)\"\\s*?:[^,]*(,+)?.*$");
-                    if (regex.Success)
+                    int startLine = -1;
+                    var i = 0;
+                    foreach (var line in langFile.Split('\n'))
                     {
-                        var keyInLine = regex.Groups[2].Value;
-                        if (keyInLine.Equals(key, StringComparison.OrdinalIgnoreCase))
+                        var regex = Regex.Match(line, "^(\\s+)\"(.*?)\"\\s*?:[^,]*(,+)?.*$");
+                        if (regex.Success)
                         {
-                            startLine = i + 1;
-                            break;
+                            var keyInLine = regex.Groups[2].Value;
+                            if (keyInLine.Equals(key, StringComparison.OrdinalIgnoreCase))
+                            {
+                                startLine = i + 1;
+                                break;
+                            }
                         }
+
+                        i++;
                     }
 
-                    i++;
-                }
-
-                if (startLine == -1)
-                {
-                    resultSb.AppendLine($"{key}: \n{replyContent}\n");
-                    continue;
-                }
-
-                if (replyContent.Contains("```"))
-                {
-                    var segs = replyContent.Split("```")[1].Split('\n');
-                    var line = startLine;
-                    var endLine = startLine - 3 + segs.Length;
-                    if (line == endLine)
+                    if (startLine == -1)
                     {
-                        await GitHub.Instance.PullRequest.ReviewComment.Create(Constants.RepoID, prid, new PullRequestReviewCommentCreate(replyContent, pr.Head.Sha, path, startLine)).ConfigureAwait(false);
+                        resultSb.AppendLine($"{key}: \n{replyContent}\n");
+                        continue;
+                    }
+
+                    if (replyContent.Contains("```"))
+                    {
+                        var segs = replyContent.Split("```")[1].Split('\n');
+                        var line = startLine;
+                        var endLine = startLine - 3 + segs.Length;
+                        if (line == endLine)
+                        {
+                            await GitHub.Instance.PullRequest.ReviewComment.Create(Constants.RepoID, prid, new PullRequestReviewCommentCreate(replyContent, pr.Head.Sha, path, startLine)).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            await GitHub.AddPRReviewCommentMultiLine(prid, new GitHub.PRReviewCommentMultiLine() { body = replyContent, commit_id = pr.Head.Sha, start_line = line, path = path, line = endLine }).ConfigureAwait(false);
+
+                        }
                     }
                     else
                     {
-                        await GitHub.AddPRReviewCommentMultiLine(prid, new GitHub.PRReviewCommentMultiLine() { body = replyContent, commit_id = pr.Head.Sha, start_line = line, path = path, line = endLine }).ConfigureAwait(false);
-
+                        await GitHub.Instance.PullRequest.ReviewComment.Create(Constants.RepoID, prid, new PullRequestReviewCommentCreate(replyContent, pr.Head.Sha, path, startLine)).ConfigureAwait(false);
                     }
                 }
                 else
                 {
-                    await GitHub.Instance.PullRequest.ReviewComment.Create(Constants.RepoID, prid, new PullRequestReviewCommentCreate(replyContent, pr.Head.Sha, path, startLine)).ConfigureAwait(false);
+                    await GitHub.Instance.PullRequest.ReviewComment.CreateReply(Constants.RepoID, prid, new PullRequestReviewCommentReplyCreate(replyContent, inReplyToId)).ConfigureAwait(false);
                 }
             }
-            else
+
+            var sbResult = resultSb.ToString();
+            if (prReviewAssistantDatas.data.IsEmpty() && sbResult.IsNullOrWhiteSpace())
             {
-                await GitHub.Instance.PullRequest.ReviewComment.CreateReply(Constants.RepoID, prid, new PullRequestReviewCommentReplyCreate(replyContent, inReplyToId)).ConfigureAwait(false);
+                await GitHub.Instance.Issue.Comment.Create(Constants.RepoID, prid, "LGTM").ConfigureAwait(false);
             }
-        }
 
-        var sbResult = resultSb.ToString();
-        if (prReviewAssistantDatas.data.IsEmpty() && sbResult.IsNullOrWhiteSpace())
+            if (!sbResult.IsNullOrWhiteSpace())
+            {
+                await GitHub.Instance.Issue.Comment.Create(Constants.RepoID, prid, "大模型太笨了，有的 key 无法匹配，以下为内容\n\n" + sbResult).ConfigureAwait(false);
+            }
+
+            rawOutput = prReviewAssistantDatas.rawOutput;
+            confirmDisabled = true;
+        }
+        catch (Exception e)
         {
-            await GitHub.Instance.Issue.Comment.Create(Constants.RepoID, prid, "LGTM").ConfigureAwait(false);
+            rawOutput = e.ToString();
         }
-
-        if (!sbResult.IsNullOrWhiteSpace())
+        finally
         {
-            await GitHub.Instance.Issue.Comment.Create(Constants.RepoID, prid, "大模型太笨了，有的 key 无法匹配，以下为内容\n\n" + sbResult).ConfigureAwait(false);
+            confirmDisabled = true;
         }
-
-        rawOutput = prReviewAssistantDatas.rawOutput;
-        confirmDisabled = true;
 
     }
 
