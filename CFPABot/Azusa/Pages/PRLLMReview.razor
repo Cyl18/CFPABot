@@ -96,7 +96,7 @@
                         var segs = replyContent.Split("```")[1].Split('\n');
                         var line = startLine;
                         var endLine = startLine - 3 + segs.Length;
-                        Console.WriteLine($"{segs.Skip(1).FirstOrDefault()}:{line}-{endLine}");
+                        Console.WriteLine($"{line}-{endLine} {replyContent}");
                         await GitHub.AddPRReviewCommentMultiLine(prid, new GitHub.PRReviewCommentMultiLine() { body = replyContent, commit_id = pr.Head.Sha, start_line = line, path = path, line = endLine }).ConfigureAwait(false);
                     }
                     else
