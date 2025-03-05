@@ -71,6 +71,7 @@
         {
             disabled = true;
             prReviewAssistantDatas = await CFPALLMManager.RunPRReview(prid, path, prompt).ConfigureAwait(false);
+            rawOutput = prReviewAssistantDatas.rawOutput;
             confirmDisabled = false;
         }
         catch (Exception e)
