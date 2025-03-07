@@ -61,18 +61,23 @@ public static class CFPALLMManager
 
         foreach (var oprr in await GitHub.Instance.PullRequest.ReviewComment.GetAll(Constants.RepoID, prid))
         {
+            bool resolved = false;
             foreach (var reviewThreadsEdge in prreviewData.Repository.PullRequest.ReviewThreads.Edges)
             {
                 if (reviewThreadsEdge.Node.Comments.Edges.Any(x => x.Node.FullDatabaseId == oprr.Id))
                 {
-                    if (reviewThreadsEdge.Node.IsOutdated || reviewThreadsEdge.Node.IsResolved)
+                    if (reviewThreadsEdge.Node.IsResolved)
                     {
-                        goto end;
+                        resolved = true;
                     }
                 }       
             }
 
             sb.AppendLine("[Comment]");
+            if (resolved)
+            {
+                sb.AppendLine("此回复已解决");
+            }
             sb.AppendLine($"Id:{oprr.Id}");
             if (oprr.InReplyToId != null)
             {
@@ -82,7 +87,6 @@ public static class CFPALLMManager
             sb.AppendLine("Content:");
             sb.AppendLine(oprr.Body);
             sb.AppendLine("EndOfContent");
-            end: ;
         }
 
         return sb.ToString();
