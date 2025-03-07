@@ -29,6 +29,10 @@
         </BSInput>
         <BSButton Color="BSColor.Info" OnClick="() => GetPaths()">获取 Path</BSButton>
     </BSInputGroup>
+    <div Class="@BS.Form_Check" MarginBottom="Margins.Small">
+        <BSInputCheckbox CheckedValue="true" id="c1" @bind-Value="diffMode" />
+        <BSLabel for="c1" IsCheckLabel="true">Diff 模式（针对模组翻译更新的情况）</BSLabel>
+    </div>
     <div class="mb-3">
         <BSLabel>Prompt</BSLabel>
         <BSInput InputType="InputType.TextArea" @bind-Value="(prompt)" />
@@ -54,6 +58,7 @@ else
     string path = " ";
     string rawOutput = "";
     bool isAdmin = false;
+    bool diffMode = false;
     protected override void OnInitialized()
     {
         isAdmin = LoginManager.IsAdmin(_http).Result;
@@ -77,7 +82,7 @@ else
         try
         {
             disabled = true;
-            prReviewAssistantDatas = await CFPALLMManager.RunPRReview(prid, path, prompt).ConfigureAwait(false);
+            prReviewAssistantDatas = await CFPALLMManager.RunPRReview(prid, path, prompt, diffMode).ConfigureAwait(false);
             rawOutput = prReviewAssistantDatas.rawOutput;
             confirmDisabled = false;
         }

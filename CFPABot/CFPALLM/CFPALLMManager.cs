@@ -16,13 +16,13 @@ public record PRReviewAssistantData(string Key, long InReplyToId, string ReplyCo
 
 public static class CFPALLMManager
 {
-    public static async Task<(PRReviewAssistantData[] data, string rawOutput)> RunPRReview(int prid, string path, string prompt)
+    public static async Task<(PRReviewAssistantData[] data, string rawOutput)> RunPRReview(int prid, string path, string prompt, bool diffMode)
     {
         var openAiClient = new OpenAIClient(clientSettings: new OpenAIClientSettings("https://ark.cn-beijing.volces.com/api", apiVersion: "v3"),
             openAIAuthentication: Environment.GetEnvironmentVariable("HUOSHAN_API_KEY"), client: new HttpClient() { Timeout = TimeSpan.FromMinutes(1000) });
         var response = await openAiClient.ChatEndpoint.GetCompletionAsync(new ChatRequest(new[]
         {
-            new Message(Role.User, prompt + await ProcessPrReviewInput(prid, path))
+            new Message(Role.User, prompt + await ProcessPrReviewInput(prid, path, diffMode))
         }, "deepseek-r1-250120", responseFormat: ChatResponseFormat.Json));
         var s = response.FirstChoice.Message.ToString();
         Log.Information($"{prid} 的 LLM 审核结果:");
@@ -31,32 +31,42 @@ public static class CFPALLMManager
         var regex = new Regex(@"\[(.|\n)*\]", RegexOptions.Multiline);
         return (regex.Match(last).Value.JsonDeserialize<PRReviewAssistantData[]>(), s);
     }
-    public static async Task<string> ProcessPrReviewInput(int prid, string path)
+    public static async Task<string> ProcessPrReviewInput(int prid, string path, bool diffMode)
     {
         var sb = new StringBuilder();
         var pr = await GitHub.GetPullRequest(prid);
-
-        var cnFile = await GetLangFileFromGitHub(pr.Head.Sha, path);
         var enFile = await GetLangFileFromGitHub(pr.Head.Sha, path.Replace("zh_cn", "en_us"));
-        if (cnFile == null || enFile == null)
-        {
-            throw new CheckException("找不到对应的文件");
-        }
-
         string enContent;
         if (path.Contains(".json"))
         {
             if (!LangDataNormalizer.ProcessJsonSingle(enFile, out var ens)) throw new CheckException("Json 语法错误");
-            enContent = ens.Select(x => $"{x.Key}={x.Value.Replace("\n","\\n")}").Connect("\n");
+            enContent = ens.Select(x => $"{x.Key}={x.Value.Replace("\n", "\\n")}").Connect("\n");
         }
         else
         {
             enContent = LangDataNormalizer.ProcessLangSingle(enFile).Select(x => $"{x.Key}={x.Value.Replace("\n", "\\n")}").Connect("\n");
-
         }
 
-        sb.AppendLine("[英文文件]\n" + enContent);
-        sb.AppendLine("[中文文件]\nSTART_OF_FILE\n" + cnFile + "END_OF_FILE");
+        if (!diffMode)
+        {
+            var cnFile = await GetLangFileFromGitHub(pr.Head.Sha, path);
+            if (cnFile == null || enFile == null)
+            {
+                throw new CheckException("找不到对应的文件");
+            }
+
+            sb.AppendLine("[英文文件]\n" + enContent);
+            sb.AppendLine("[中文文件]\nSTART_OF_FILE\n" + cnFile + "END_OF_FILE");
+        }
+        else
+        {
+            var files = await GitHub.Instance.PullRequest.Files(Constants.RepoID, prid);
+            var cnDiff = files.First(x => x.FileName == path).Patch;
+            sb.AppendLine("[英文文件]\n" + enContent);
+            sb.AppendLine("[中文文件Diff]\nSTART_OF_FILE\n" + cnDiff + "END_OF_FILE");
+
+
+        }
         var prreviewData = await GitHub.GetPRReviewData(prid);
 
         foreach (var oprr in await GitHub.Instance.PullRequest.ReviewComment.GetAll(Constants.RepoID, prid))
