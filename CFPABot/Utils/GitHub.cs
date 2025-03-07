@@ -9,10 +9,14 @@ using CFPABot.Exceptions;
 using CFPABot.Models;
 using CFPABot.Models.Artifact;
 using CFPABot.Models.Workflow;
+using CFPABot.Utils.Models;
 using DiffPatch;
 using DiffPatch.Data;
 using GammaLibrary;
 using GammaLibrary.Extensions;
+using GraphQL;
+using GraphQL.Client.Http;
+using GraphQL.Client.Serializer.SystemTextJson;
 using Octokit;
 using Octokit.Internal;
 using Serilog;
@@ -236,6 +240,47 @@ namespace CFPABot.Utils
         {
             Log.Debug($"获取 Artifact: {workflowRun.Id}");
             return Download.GitHubAPIJson<ArtifactModel>(workflowRun.ArtifactsUrl);
+        }
+
+        public static async Task<GitHubPRReviewData> GetPRReviewData(int prid)
+        {
+            var graphQLClient = new GraphQLHttpClient(
+                "https://api.github.com/graphql",
+                new SystemTextJsonSerializer());
+            graphQLClient.HttpClient.DefaultRequestHeaders.Add("Authorization", $"bearer {GetToken()}");
+            var req = new GraphQLRequest
+            {
+                Query = """
+                        query FetchReviewComments($owner: String!, $repo: String!, $pr: Int!){
+                          repository(owner: $owner, name: $repo) {
+                            pullRequest(number: $pr){
+                             reviewThreads (first:100){
+                              edges{
+                                node{
+                                  isOutdated
+                                  isResolved
+                                  comments(first:100){
+                                    edges{
+                                      node{
+                                        fullDatabaseId
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            } 
+                            }
+                          }
+                        }
+                        """,
+                Variables = new
+                {
+                    owner = "CFPAOrg",
+                    repo = "Minecraft-Mod-Language-Package",
+                    pr = prid
+                }
+            };
+            var response = await graphQLClient.SendQueryAsync<GitHubPRReviewData>(req);
         }
     }
 

@@ -26,6 +26,8 @@
     <PackageReference Include="DiffPlex" Version="1.7.1" />
     <PackageReference Include="GammaLibrary" Version="2.3.0" />
     <PackageReference Include="GitHubJwt" Version="0.0.5" />
+    <PackageReference Include="GraphQL.Client" Version="6.1.0" />
+    <PackageReference Include="GraphQL.Client.Serializer.SystemTextJson" Version="6.1.0" />
     <PackageReference Include="HtmlSanitizer" Version="8.0.843" />
     <PackageReference Include="Markdig" Version="0.31.0" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="7.0.9" />

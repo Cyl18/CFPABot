@@ -57,9 +57,21 @@ public static class CFPALLMManager
 
         sb.AppendLine("[英文文件]\n" + enContent);
         sb.AppendLine("[中文文件]\nSTART_OF_FILE\n" + cnFile + "END_OF_FILE");
+        var prreviewData = await GitHub.GetPRReviewData(prid);
 
         foreach (var oprr in await GitHub.Instance.PullRequest.ReviewComment.GetAll(Constants.RepoID, prid))
         {
+            foreach (var reviewThreadsEdge in prreviewData.Repository.PullRequest.ReviewThreads.Edges)
+            {
+                if (reviewThreadsEdge.Node.Comments.Edges.Any(x => x.Node.FullDatabaseId == oprr.Id))
+                {
+                    if (reviewThreadsEdge.Node.IsOutdated || reviewThreadsEdge.Node.IsResolved)
+                    {
+                        goto end;
+                    }
+                }       
+            }
+
             sb.AppendLine("[Comment]");
             sb.AppendLine($"Id:{oprr.Id}");
             if (oprr.InReplyToId != null)
@@ -70,6 +82,7 @@ public static class CFPALLMManager
             sb.AppendLine("Content:");
             sb.AppendLine(oprr.Body);
             sb.AppendLine("EndOfContent");
+            end: ;
         }
 
         return sb.ToString();
