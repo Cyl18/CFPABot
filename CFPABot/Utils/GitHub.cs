@@ -174,7 +174,16 @@ namespace CFPABot.Utils
 
             await hc.PostAsync($"https://api.github.com/repos/{Constants.Owner}/{Constants.RepoName}/actions/runs/{runID}/approve", new StringContent(""));
         }
+        public static async Task AddPRReviewCommentSingleLine(int pr, PRReviewCommentSingleLine comment)
+        {
+            var hc = new HttpClient();
+            hc.DefaultRequestHeaders.Add("User-Agent", "cfpa-bot");
+            hc.DefaultRequestHeaders.Add("Authorization", $"bearer {GetToken()}");
 
+            var message = await hc.PostAsync($"https://api.github.com/repos/{Constants.Owner}/{Constants.RepoName}/pulls/{pr}/comments", JsonContent.Create(comment));
+            Console.WriteLine($"PR: {pr} 创建回复: {message}");
+            Console.WriteLine($"{await message.Content.ReadAsStringAsync()}");
+        }
         public static async Task AddPRReviewCommentMultiLine(int pr, PRReviewCommentMultiLine comment)
         {
             var hc = new HttpClient();
@@ -184,6 +193,14 @@ namespace CFPABot.Utils
             var message = await hc.PostAsync($"https://api.github.com/repos/{Constants.Owner}/{Constants.RepoName}/pulls/{pr}/comments", JsonContent.Create(comment));
             Console.WriteLine($"PR: {pr} 创建回复: {message}");
             Console.WriteLine($"{await message.Content.ReadAsStringAsync()}");
+        }
+        public class PRReviewCommentSingleLine
+        {
+            public string body { get; set; }
+            public string commit_id { get; set; }
+            public string path { get; set; }
+            public int line { get; set; }
+            public string side { get; set; } = "RIGHT";
         }
 
         public class PRReviewCommentMultiLine
