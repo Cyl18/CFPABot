@@ -66,7 +66,7 @@ else
         path = paths.Any() ? paths[0] : " ";
     }
 
-    string prompt = "请你扮演一位Minecraft模组语言翻译PR审核者，根据以下Json Schema审核此PR，注意错别字，漏翻，意思不对的情况。请核对英文原文和中文翻译，键值对的键仅为辅助。你的建议必须使用```suggestion来表示哪处要换成什么，保留中文源文件的格式，并在后文加上说明和整段内容的完整的英文原文，```suggestion的前面和后面都需要换行；如果不确定，则提出疑问；在使用```suggestion的时候要注意只修改键值对的值内容，**特别要注意保留空格和键**；" +
+    string prompt = "请你扮演一位专业的Minecraft模组语言翻译PR审核者，根据以下Json Schema审核此PR，注意错别字，漏翻，意思不对的情况。请核对英文原文和中文翻译，键值对的键仅为辅助。你的建议必须使用```suggestion来表示哪处要换成什么，保留中文源文件的格式，并在后文加上说明和整段内容的完整的英文原文，```suggestion的前面和后面都需要换行；如果不确定，则提出疑问；在使用```suggestion的时候要注意只修改键值对的值内容，**特别要注意保留空格和键**；" +
                     "你可以对连续的行进行建议，但是一定要保留原来的JSON格式；你可以思考；不仅是对其他人的回复进行回复，你也可以提交新的建议。如果你觉得什么都很好则输出空数组。\n你*必须*以下方的Json Schema来输出内容，如果不是回复，InReplyToId则为-1，如果有回复，InReplyToId则为回复的ID；ReplyContent则为你的建议，例如输出" + """[{"Key":"a.b","InReplyToId":-1,"ReplyContent":"```suggestion\n "a.b=c",\n```\n因为xyz，原文为c"}]。""" + "\n" +
                     "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"Key\":{\"type\":\"string\"},\"InReplyToId\":{\"type\":\"integer\"},\"ReplyContent\":{\"type\":\"string\"}},\"required\":[\"Key\",\"InReplyToId\",\"ReplyContent\"]}}" + "\n请使用```suggestion。请以JSON输出结果。以下为数据：\n";
 
