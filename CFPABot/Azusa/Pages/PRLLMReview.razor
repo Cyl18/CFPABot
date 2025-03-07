@@ -12,27 +12,36 @@
 @inject NavigationManager _navigationManager
 @inject IHttpContextAccessor _http
 
-<BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
+@if (isAdmin)
+{
+    <BSInputGroup Size="Size.Medium" MarginBottom="Margins.Medium">
 
-    <span class="@BS.Input_Group_Text">PRID</span>
-    <BSInput TValue="int" InputType="InputType.Number" @bind-Value="prid" />
+        <span class="@BS.Input_Group_Text">PRID</span>
+        <BSInput TValue="int" InputType="InputType.Number" @bind-Value="prid" />
 
-    <span class="@BS.Input_Group_Text">路径</span>
-    <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium" @bind-Value="path">
-        <option value=" " disabled>选择路径</option>
-        @foreach (var x in paths)
-        {
-            <option value="@x">@x</option>
-        }
-    </BSInput>
-    <BSButton Color="BSColor.Info" OnClick="() => GetPaths()">获取 Path</BSButton>
-</BSInputGroup>
-<div class="mb-3">
-    <BSLabel>Prompt</BSLabel>
-    <BSInput InputType="InputType.TextArea" @bind-Value="(prompt)" />
-</div>
-<BSButton MarginBottom="Margins.Medium" Color="BSColor.Info" OnClick="() => Run()" disabled="@disabled">执行</BSButton>
-<BSButton MarginBottom="Margins.Medium" Color="BSColor.Info" OnClick="() => Confirm()" disabled="@confirmDisabled">提交</BSButton>
+        <span class="@BS.Input_Group_Text">路径</span>
+        <BSInput InputType="InputType.Select" InputSize="Size.Medium" MarginBottom="Margins.Medium" @bind-Value="path">
+            <option value=" " disabled>选择路径</option>
+            @foreach (var x in paths)
+            {
+                <option value="@x">@x</option>
+            }
+        </BSInput>
+        <BSButton Color="BSColor.Info" OnClick="() => GetPaths()">获取 Path</BSButton>
+    </BSInputGroup>
+    <div class="mb-3">
+        <BSLabel>Prompt</BSLabel>
+        <BSInput InputType="InputType.TextArea" @bind-Value="(prompt)" />
+    </div>
+    <BSButton MarginBottom="Margins.Medium" Color="BSColor.Info" OnClick="() => Run()" disabled="@disabled">执行</BSButton>
+    <BSButton MarginBottom="Margins.Medium" Color="BSColor.Info" OnClick="() => Confirm()" disabled="@confirmDisabled">提交</BSButton>
+
+}
+else
+{
+    <BSAlert Color="BSColor.Warning" HasIcon="true" MarginBottom="Margins.Medium">你需要是管理员才能进行操作。</BSAlert>
+
+}
 
 <code>@rawOutput</code>
 
@@ -44,12 +53,10 @@
     string[] paths = Array.Empty<string>();
     string path = " ";
     string rawOutput = "";
+    bool isAdmin = false;
     protected override void OnInitialized()
     {
-        if (!LoginManager.IsAdmin(_http).Result)
-        {
-            _navigationManager.NavigateTo("/");
-        }
+        isAdmin = LoginManager.IsAdmin(_http).Result;
     }
 
     private async Task GetPaths()
@@ -59,8 +66,8 @@
         path = paths.Any() ? paths[0] : " ";
     }
 
-    string prompt = "请你扮演一位Minecraft模组语言翻译PR审核者，根据以下Json Schema审核此PR，如果你觉得什么都很好则输出空数组，注意错别字，漏翻，意思不对的情况。请核对英文原文和中文翻译，键值对的键仅为辅助。你的建议必须使用```suggestion来表示哪处要换成什么，并在后文加上说明和整段内容的完整的英文原文，```suggestion的前面和后面都需要换行；如果不确定，则提出疑问；在使用```suggestion的时候要注意只修改键值对的值内容，**特别要注意保留空格和键**；" +
-                    "你可以对连续的行进行建议，但是一定要保留原来的JSON格式；你可以思考；不仅是对其他人的回复进行回复，你也可以提交新的建议。\n你*必须*以下方的Json Schema来输出内容，如果不是回复，InReplyToId则为-1，如果有回复，InReplyToId则为回复的ID；ReplyContent则为你的建议，例如输出" + """[{"Key":" a.b=c","InReplyToId":-1,"ReplyContent":"```suggestion\n a.b=d\n```\n因为xyz，原文为c"}]。""" + "\n" +
+    string prompt = "请你扮演一位Minecraft模组语言翻译PR审核者，根据以下Json Schema审核此PR，如果你觉得什么都很好则输出空数组，注意错别字，漏翻，意思不对的情况。请核对英文原文和中文翻译，键值对的键仅为辅助。你的建议必须使用```suggestion来表示哪处要换成什么，保留中文源文件的格式，并在后文加上说明和整段内容的完整的英文原文，```suggestion的前面和后面都需要换行；如果不确定，则提出疑问；在使用```suggestion的时候要注意只修改键值对的值内容，**特别要注意保留空格和键**；" +
+                    "你可以对连续的行进行建议，但是一定要保留原来的JSON格式；你可以思考；不仅是对其他人的回复进行回复，你也可以提交新的建议。\n你*必须*以下方的Json Schema来输出内容，如果不是回复，InReplyToId则为-1，如果有回复，InReplyToId则为回复的ID；ReplyContent则为你的建议，例如输出" + """[{"Key":"a.b","InReplyToId":-1,"ReplyContent":"```suggestion\n "a.b=c",\n```\n因为xyz，原文为c"}]。""" + "\n" +
                     "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"Key\":{\"type\":\"string\"},\"InReplyToId\":{\"type\":\"integer\"},\"ReplyContent\":{\"type\":\"string\"}},\"required\":[\"Key\",\"InReplyToId\",\"ReplyContent\"]}}" + "\n请使用```suggestion。请以JSON输出结果。以下为数据：\n";
 
     private (PRReviewAssistantData[] data, string rawOutput) prReviewAssistantDatas;
@@ -147,7 +154,8 @@
                 }
             }
 
-            var msg = "你好！我们正在测试使用生成式大模型进行辅助人工审核。目前使用的模型为 DeepSeek R1。模型输出的很多内容可能有错误，请见谅。";
+            var self = await LoginManager.GetGitHubClient(_http).User.Current().ConfigureAwait(false);
+            var msg = $"你好！我们正在测试使用生成式大模型进行辅助人工审核。目前使用的模型为 DeepSeek R1。\n模型输出的很多内容可能有错误，不代表审核结果，仅作辅助。\n提交者 @{self.Login}";
             var sbResult = resultSb.ToString();
             var sent = false;
             if (prReviewAssistantDatas.data.IsEmpty() && sbResult.IsNullOrWhiteSpace())
