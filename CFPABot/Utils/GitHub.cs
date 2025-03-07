@@ -281,6 +281,7 @@ namespace CFPABot.Utils
                 }
             };
             var response = await graphQLClient.SendQueryAsync<GitHubPRReviewData>(req);
+            return response.Data;
         }
     }
 
