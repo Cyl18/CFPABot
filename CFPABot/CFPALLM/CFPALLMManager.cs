@@ -20,6 +20,7 @@ public static class CFPALLMManager
 {
     public static async Task<(PRReviewAssistantData[] data, string rawOutput, string indentedjson)> RunPRReview(int prid, string path, string prompt, bool diffMode, IProgress<string> progress)
     {
+        var delta = "";
         var openAiClient = new OpenAIClient(clientSettings: new OpenAIClientSettings("https://ark.cn-beijing.volces.com/api", apiVersion: "v3"),
             openAIAuthentication: Environment.GetEnvironmentVariable("HUOSHAN_API_KEY"), client: new HttpClient() { Timeout = TimeSpan.FromMinutes(1000) });
         var response = await openAiClient.ChatEndpoint.StreamCompletionAsync(new ChatRequest(new[]
@@ -27,10 +28,12 @@ public static class CFPALLMManager
             new Message(Role.User, prompt + await ProcessPrReviewInput(prid, path, diffMode))
         }, "deepseek-r1-250120", responseFormat: ChatResponseFormat.Json), chatResponse =>
         {
-            var value = chatResponse.FirstChoice?.Message?.ToString();
+            var value = chatResponse.FirstChoice?.Delta?.ToString();
+
             if (value != null)
             {
-                progress.Report(value);
+                delta += value;
+                progress.Report(delta);
             }
         });
         var s = response.FirstChoice.Message.ToString();

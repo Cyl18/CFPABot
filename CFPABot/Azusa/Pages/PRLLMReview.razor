@@ -47,7 +47,11 @@ else
 
 }
 <br/>
-<BSProgress></BSProgress>
+@if (disabled)
+{
+    <BSSpinner></BSSpinner>
+}
+
 <br/>
 <code>@rawOutput</code>
 
