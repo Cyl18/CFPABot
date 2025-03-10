@@ -46,7 +46,7 @@ else
     <BSAlert Color="BSColor.Warning" HasIcon="true" MarginBottom="Margins.Medium">你需要是管理员才能进行操作。</BSAlert>
 
 }
-
+<br/>
 <code>@rawOutput</code>
 
 @code {
@@ -75,15 +75,19 @@ else
                     "你可以对连续的行进行建议，但是一定要保留原来的JSON格式；你可以思考；不仅是对其他人的回复进行回复，你也可以提交新的建议。如果你觉得什么都很好则输出空数组。如果传入的数据为Diff，则检查变动的行。\n你*必须*以下方的Json Schema来输出内容，如果不是回复，InReplyToId则为-1，如果有回复，InReplyToId则为回复的ID；ReplyContent则为你的建议；Key为语言行键值对的键。例如输出" + """[{"Key":"a.b","InReplyToId":-1,"ReplyContent":"```suggestion\n "a.b=c",\n```\n因为xyz，原文为c"}]。""" + "\n" +
                     "{\"$schema\":\"http://json-schema.org/draft-07/schema#\",\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"Key\":{\"type\":\"string\"},\"InReplyToId\":{\"type\":\"integer\"},\"ReplyContent\":{\"type\":\"string\"}},\"required\":[\"Key\",\"InReplyToId\",\"ReplyContent\"]}}" + "\n请使用```suggestion。请以JSON输出结果。以下为数据：\n";
 
-    private (PRReviewAssistantData[] data, string rawOutput) prReviewAssistantDatas;
+    private (PRReviewAssistantData[] data, string rawOutput, string json) prReviewAssistantDatas;
     private static HttpClient hc = new HttpClient();
     private async Task Run()
     {
         try
         {
             disabled = true;
-            prReviewAssistantDatas = await CFPALLMManager.RunPRReview(prid, path, prompt, diffMode).ConfigureAwait(false);
-            rawOutput = prReviewAssistantDatas.rawOutput;
+            prReviewAssistantDatas = await CFPALLMManager.RunPRReview(prid, path, prompt, diffMode, new Progress<string>(x =>
+            {
+                rawOutput = "正在生成\n\n" + x;
+                InvokeAsync(StateHasChanged);
+            })).ConfigureAwait(false);
+            rawOutput = prReviewAssistantDatas.json;
             confirmDisabled = false;
         }
         catch (Exception e)
@@ -138,6 +142,7 @@ else
                         var segs = replyContent.Split("```")[1].Split('\n');
                         var line = startLine;
                         var endLine = startLine - 3 + segs.Length;
+                        
                         if (line == endLine)
                         {
                             await GitHub.AddPRReviewCommentSingleLine(prid, new GitHub.PRReviewCommentSingleLine() { body = replyContent, commit_id = pr.Head.Sha, path = path, line = startLine }).ConfigureAwait(false);

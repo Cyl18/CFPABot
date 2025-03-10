@@ -7,6 +7,8 @@ using System;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Serilog;
@@ -16,20 +18,24 @@ public record PRReviewAssistantData(string Key, long InReplyToId, string ReplyCo
 
 public static class CFPALLMManager
 {
-    public static async Task<(PRReviewAssistantData[] data, string rawOutput)> RunPRReview(int prid, string path, string prompt, bool diffMode)
+    public static async Task<(PRReviewAssistantData[] data, string rawOutput, string indentedjson)> RunPRReview(int prid, string path, string prompt, bool diffMode, IProgress<string> progress)
     {
         var openAiClient = new OpenAIClient(clientSettings: new OpenAIClientSettings("https://ark.cn-beijing.volces.com/api", apiVersion: "v3"),
             openAIAuthentication: Environment.GetEnvironmentVariable("HUOSHAN_API_KEY"), client: new HttpClient() { Timeout = TimeSpan.FromMinutes(1000) });
-        var response = await openAiClient.ChatEndpoint.GetCompletionAsync(new ChatRequest(new[]
+        var response = await openAiClient.ChatEndpoint.StreamCompletionAsync(new ChatRequest(new[]
         {
             new Message(Role.User, prompt + await ProcessPrReviewInput(prid, path, diffMode))
-        }, "deepseek-r1-250120", responseFormat: ChatResponseFormat.Json));
+        }, "deepseek-r1-250120", responseFormat: ChatResponseFormat.Json), chatResponse => {progress.Report(chatResponse.FirstChoice.Message.ToString());});
         var s = response.FirstChoice.Message.ToString();
         Log.Information($"{prid} 的 LLM 审核结果:");
         Log.Information(s);
         var last = s.Split("</think>").Last();
         var regex = new Regex(@"\[(.|\n)*\]", RegexOptions.Multiline);
-        return (regex.Match(last).Value.JsonDeserialize<PRReviewAssistantData[]>(), s);
+        var rawJson = regex.Match(last).Value;
+        var prReviewAssistantDatas = rawJson.JsonDeserialize<PRReviewAssistantData[]>();
+        ;
+        return (prReviewAssistantDatas, s, prReviewAssistantDatas.ToJsonString(new JsonSerializerOptions()
+            { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, }));
     }
     public static async Task<string> ProcessPrReviewInput(int prid, string path, bool diffMode)
     {
