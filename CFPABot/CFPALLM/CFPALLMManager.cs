@@ -25,7 +25,14 @@ public static class CFPALLMManager
         var response = await openAiClient.ChatEndpoint.StreamCompletionAsync(new ChatRequest(new[]
         {
             new Message(Role.User, prompt + await ProcessPrReviewInput(prid, path, diffMode))
-        }, "deepseek-r1-250120", responseFormat: ChatResponseFormat.Json), chatResponse => {progress.Report(chatResponse.FirstChoice.Message.ToString());});
+        }, "deepseek-r1-250120", responseFormat: ChatResponseFormat.Json), chatResponse =>
+        {
+            var value = chatResponse.FirstChoice?.Message?.ToString();
+            if (value != null)
+            {
+                progress.Report(value);
+            }
+        });
         var s = response.FirstChoice.Message.ToString();
         Log.Information($"{prid} 的 LLM 审核结果:");
         Log.Information(s);
