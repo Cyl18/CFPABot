@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using CFPABot.Controllers;
 using CFPABot.Exceptions;
@@ -87,11 +89,45 @@ namespace CFPABot.Utils
             return response.Token;
         }
 
+        private static Dictionary<int, (string diffString, string sha)> DiffCache = new ();
+        private static SemaphoreSlim DiffLock = new SemaphoreSlim(1);
         public static async Task<FileDiff[]> Diff(int id)
-            => DiffParserHelper.Parse((await Download.String(Constants.BaseRepoUrl + $"/pull/{id}.diff", true))
+        {
+            var pr = await GetPullRequest(id);
+            var sha = pr.Head.Sha;
+            string diffString;
+            try
+            {
+                await DiffLock.WaitAsync();
+                if (DiffCache.TryGetValue(id, out var obj))
+                {
+                    var (diffStringC, shaC) = obj;
+                    if (shaC != sha)
+                    {
+                        diffString = await Download.String(Constants.BaseRepoUrl + $"/pull/{id}.diff", true);
+                    }
+                    else
+                    {
+                        diffString = diffStringC;
+                    }
+                }
+                else
+                {
+                    diffString = await Download.String(Constants.BaseRepoUrl + $"/pull/{id}.diff", true);
+                }
+            }
+            finally
+            {
+                DiffLock.Release();
+            }
+
+            DiffCache[id] = (diffString, sha);
+            return DiffParserHelper.Parse(diffString
                 // workaround https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/1924
-                .Split("\n").Where(line => !line.StartsWith("rename ") && !line.StartsWith("similarity index ")).Connect("\n")
-                ).ToArray();
+                .Split("\n").Where(line => !line.StartsWith("rename ") && !line.StartsWith("similarity index "))
+                .Connect("\n")
+            ).ToArray();
+        }
 
         public static Task<IReadOnlyList<IssueComment>> GetPRComments(int id)
             => Instance.Issue.Comment.GetAllForIssue(Constants.Owner, Constants.RepoName, id);

@@ -71,7 +71,7 @@ namespace CFPABot.Utils
                 {
                     if (e2.StatusCode == HttpStatusCode.TooManyRequests)
                     {
-                        await Task.Delay(TimeSpan.FromSeconds(30));
+                        await Task.Delay(TimeSpan.FromSeconds(60));
                     }
                     await Task.Delay(500);
                     return await hc.GetStringAsync(url);
