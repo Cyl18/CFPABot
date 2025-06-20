@@ -733,6 +733,7 @@ namespace CFPABot.Utils
             }
             catch (Exception e)
             {
+                Log.Error(e, $"UpdateDiffSegment {PullRequestID}");
                 Context.DiffSegment = $"{e}\n";
             }
             finally
