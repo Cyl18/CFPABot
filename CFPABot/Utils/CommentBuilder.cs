@@ -734,7 +734,7 @@ namespace CFPABot.Utils
             catch (Exception e)
             {
                 Log.Error(e, $"UpdateDiffSegment {PullRequestID}");
-                result = $"发生异常，最大可能是此 PR 包含组合文件。请使用网页 Diff。\n";
+                result = $"ℹ 发生异常，最大可能是此 PR 包含组合文件。请使用网页 Diff。\n";
             }
             finally
             {
