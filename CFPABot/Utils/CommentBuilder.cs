@@ -643,7 +643,7 @@ namespace CFPABot.Utils
 
                 foreach (var o in list)
                 {
-                    var diffLines = LangDiffer.Run(o);
+                    var diffLines = LangDiffer.Run(o, true);
 
                     sb.AppendLine($"<details><summary>{o.ModPath}</summary>\n");
                     sb.AppendLine("| 英文 | 中文 |");
@@ -734,7 +734,7 @@ namespace CFPABot.Utils
             catch (Exception e)
             {
                 Log.Error(e, $"UpdateDiffSegment {PullRequestID}");
-                Context.DiffSegment = $"{e}\n";
+                result = $"发生异常，最大可能是此 PR 包含组合文件。请使用网页 Diff。\n";
             }
             finally
             {
