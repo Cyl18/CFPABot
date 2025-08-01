@@ -498,120 +498,23 @@ namespace CFPABot.Utils
             {
                 var pr = await GitHub.GetPullRequest(PullRequestID);
 
-                if (pr.Base.Ref != "main")
-                {
-                    sb.AppendLine(Locale.Artifacts_BranchNotMain);
-                    sb.AppendLine();
-                    sb.AppendLine("---");
-                    sb.AppendLine();
-                }
+                // Check branch and permissions
+                CheckBranchAndPermissions(pr, sb);
 
-                if (pr.MaintainerCanModify == false && pr.Head.Repository.Owner.Login != Constants.Owner && pr.State.Value == ItemState.Open)
-                {
-                    sb.AppendLine(Locale.Artifacts_PREditDisabledWarning);
-                    sb.AppendLine($"![1](https://docs.github.com/assets/cb-44583/images/help/pull_requests/allow-maintainers-to-make-edits-sidebar-checkbox.png)");
-                    sb.AppendLine();
-                    sb.AppendLine("---");
-                    sb.AppendLine();
-                }
-
-
-
-
-                var checkSuites = await GitHub.Instance.Check.Suite.GetAllForReference(Constants.Owner, Constants.RepoName,
-                    pr.Head.Sha);
-                var tasks = checkSuites.CheckSuites
-                    .Where(suite => suite.App.Name == "GitHub Actions")
-                    .Select(suite => GitHub.GetPackerWorkflowRunFromCheckSuiteID(suite.Id)).ToArray();
-                await Task.WhenAll(tasks);
-                var workflowRun = tasks.FirstOrDefault(task => task.Result != null)?.Result;
+                // Get workflow run
+                var workflowRun = await GetWorkflowRun(pr);
                 if (workflowRun == null)
                 {
-                    sb.AppendLine(pr.State.Value switch
-                    {
-                        ItemState.Open => Locale.Artifacts_NoWorkflowYet,
-                        ItemState.Closed => ":milky_way: PR 已经关闭。",
-                        _ => throw new ArgumentOutOfRangeException()
-                    });
+                    HandleNoWorkflow(pr, sb);
                     return;
                 }
 
-                if (workflowRun.Conclusion == "action_required")
-                {
-                    var diff = await GitHub.Diff(pr.Number);
-                    var blacklist = new[] { ".github", "src" };
-                    if (diff.Any(f => blacklist.Any(black => f.To.StartsWith(black) || f.From.StartsWith(black))))
-                    {
-                        sb.AppendLine("ℹ 由于修改了源代码，不能自动批准执行 PR Packer。");
-                        return;
-                    }
+                // Handle workflow status
+                var shouldReturn = await HandleWorkflowStatus(workflowRun, pr, sb);
+                if (shouldReturn) return;
 
-                    await GitHub.ApproveWorkflowRun(workflowRun.Id);
-                    sb.AppendLine("ℹ 已经自动批准打包器执行，可能需要等待一段时间。");
-                    return;
-                }
-
-                if (workflowRun.Status is "queued" or "in_progress")
-                {
-                    sb.AppendLine(pr.State.Value switch
-                    {
-                        ItemState.Open => ":milky_way: 打包器正在执行, 请耐心等待。",
-                        ItemState.Closed => ":milky_way: PR 已经关闭。",
-                        _ => throw new ArgumentOutOfRangeException()
-                    });
-                    return;
-                }
-
-                var artifacts = await GitHub.GetArtifactFromWorkflowRun(workflowRun);
-
-                if (artifacts.TotalCount == 0)
-                {
-                    sb.AppendLine("ℹ 此 PR 没有更改语言文件或者 PR-Packer 出现了问题。");
-                    return;
-                }
-
-                sb.AppendLine(":floppy_disk: 基于此 PR 所打包的资源包：");
-                foreach (var artifact in artifacts.Artifacts)
-                {
-                    sb.AppendLine($"- [{artifact.Name}.zip]({artifact.ArchiveDownloadUrl.Replace("/zip", ".zip").Replace("api.github.com/repos", "nightly.link")})");
-                }
-
-                // v2
-                // sb.AppendLine(string.Format(Locale.Artifacts_Hint, Constants.BaseRepo, PullRequestID));
-
-                // v1
-                //                 switch (checkRun.Status.Value)
-                //                 {
-                //                     case CheckStatus.Queued:
-                //                         sb.AppendLine($"⚠ 正在等待打包器执行.");
-                //                         break;
-                //                     case CheckStatus.InProgress:
-                //                         sb.AppendLine($":milky_way: 打包器正在执行, 请耐心等待.");
-                //                         break;
-                //                     case CheckStatus.Completed:
-                //                         sb.AppendLine($":floppy_disk: 基于此 PR 所打包的完整汉化资源包 ({checkRun.HeadSha}/{DateTimeOffset.UtcNow.AddHours(8):s} UTC+8):");
-                //                         // 修不好了
-                //                         /*
-                //                         try
-                //                         {
-                //                             var artifactsFromWorkflowRunID = await GitHub.GetArtifactsFromWorkflowRunID(checkRun.Id.ToString());
-                //                             if (artifactsFromWorkflowRunID.TotalCount == 0) sb.Append("没有。");
-                //
-                //                             foreach (var ar in artifactsFromWorkflowRunID.Artifacts)
-                //                             {
-                //                                 sb.Append($"{ar.Name.Split("-").Last()} ");
-                //                             }
-                //                         }
-                //                         catch (Exception e)
-                //                         {
-                //
-                //                         }
-                //                         */
-                //                         sb.AppendLine($"    在 [链接]({Constants.BaseRepo}/pull/{PullRequestID}/checks) 处点击 Artifacts 下载。");
-                //                         break;
-                //                 }
-
-
+                // Get and display artifacts
+                await DisplayArtifacts(workflowRun, sb);
             }
             catch (Exception e)
             {
@@ -625,6 +528,104 @@ namespace CFPABot.Utils
             }
         }
 
+        private void CheckBranchAndPermissions(PullRequest pr, StringBuilder sb)
+        {
+            if (pr.Base.Ref != "main")
+            {
+                sb.AppendLine(Locale.Artifacts_BranchNotMain);
+                sb.AppendLine();
+                sb.AppendLine("---");
+                sb.AppendLine();
+            }
+
+            if (pr.MaintainerCanModify == false && pr.Head.Repository.Owner.Login != Constants.Owner && pr.State.Value == ItemState.Open)
+            {
+                sb.AppendLine(Locale.Artifacts_PREditDisabledWarning);
+                sb.AppendLine($"![1](https://docs.github.com/assets/cb-44583/images/help/pull_requests/allow-maintainers-to-make-edits-sidebar-checkbox.png)");
+                sb.AppendLine();
+                sb.AppendLine("---");
+                sb.AppendLine();
+            }
+        }
+
+        private async Task<CFPABot.Models.Workflow.WorkflowRun> GetWorkflowRun(PullRequest pr)
+        {
+            var checkSuites = await GitHub.Instance.Check.Suite.GetAllForReference(Constants.Owner, Constants.RepoName, pr.Head.Sha);
+            var tasks = checkSuites.CheckSuites
+                .Where(suite => suite.App.Name == "GitHub Actions")
+                .Select(suite => GitHub.GetPackerWorkflowRunFromCheckSuiteID(suite.Id)).ToArray();
+            await Task.WhenAll(tasks);
+            return tasks.FirstOrDefault(task => task.Result != null)?.Result;
+        }
+
+        private void HandleNoWorkflow(PullRequest pr, StringBuilder sb)
+        {
+            sb.AppendLine(pr.State.Value switch
+            {
+                ItemState.Open => Locale.Artifacts_NoWorkflowYet,
+                ItemState.Closed => ":milky_way: PR 已经关闭。",
+                _ => throw new ArgumentOutOfRangeException()
+            });
+        }
+
+        private async Task<bool> HandleWorkflowStatus(CFPABot.Models.Workflow.WorkflowRun workflowRun, PullRequest pr, StringBuilder sb)
+        {
+            if (workflowRun.Conclusion == "action_required")
+            {
+                return await HandleActionRequired(workflowRun, pr, sb);
+            }
+
+            if (workflowRun.Status is "queued" or "in_progress")
+            {
+                HandleWorkflowInProgress(pr, sb);
+                return true;
+            }
+
+            return false;
+        }
+
+        private async Task<bool> HandleActionRequired(CFPABot.Models.Workflow.WorkflowRun workflowRun, PullRequest pr, StringBuilder sb)
+        {
+            var diff = await GitHub.Diff(pr.Number);
+            var blacklist = new[] { ".github", "src" };
+            if (diff.Any(f => blacklist.Any(black => f.To.StartsWith(black) || f.From.StartsWith(black))))
+            {
+                sb.AppendLine("ℹ 由于修改了源代码，不能自动批准执行 PR Packer。");
+                return true;
+            }
+
+            await GitHub.ApproveWorkflowRun(workflowRun.Id);
+            sb.AppendLine("ℹ 已经自动批准打包器执行，可能需要等待一段时间。");
+            return true;
+        }
+
+        private void HandleWorkflowInProgress(PullRequest pr, StringBuilder sb)
+        {
+            sb.AppendLine(pr.State.Value switch
+            {
+                ItemState.Open => ":milky_way: 打包器正在执行, 请耐心等待。",
+                ItemState.Closed => ":milky_way: PR 已经关闭。",
+                _ => throw new ArgumentOutOfRangeException()
+            });
+        }
+
+        private async Task DisplayArtifacts(CFPABot.Models.Workflow.WorkflowRun workflowRun, StringBuilder sb)
+        {
+            var artifacts = await GitHub.GetArtifactFromWorkflowRun(workflowRun);
+
+            if (artifacts.TotalCount == 0)
+            {
+                sb.AppendLine("ℹ 此 PR 没有更改语言文件或者 PR-Packer 出现了问题。");
+                return;
+            }
+
+            sb.AppendLine(":floppy_disk: 基于此 PR 所打包的资源包：");
+            foreach (var artifact in artifacts.Artifacts)
+            {
+                sb.AppendLine($"- [{artifact.Name}.zip]({artifact.ArchiveDownloadUrl.Replace("/zip", ".zip").Replace("api.github.com/repos", "nightly.link")})");
+            }
+        }
+
         public async Task UpdateDiffSegment(FileDiff[] fileDiffs)
         {
             logger.Debug($"[{PullRequestID}] 开始更新 UpdateDiffSegment");
@@ -634,7 +635,6 @@ namespace CFPABot.Utils
             string result = null;
             try
             {
-
                 var sb = new StringBuilder();
                 var exceptionList = new List<Exception>();
                 var list = await LangFileFetcher.FromPR(PullRequestID, exceptionList);
@@ -643,140 +643,14 @@ namespace CFPABot.Utils
                 sb.AppendLine("🔛 Diff： ");
                 sb.AppendLine();
 
-                void AddLine(string sourceEn, string currentEn, StringBuilder stringBuilder, string sourceCn,
-                    string currentCn)
-                {
-                    if (sourceEn.IsNullOrWhiteSpace())
-                    {
-                        if (currentEn.IsNullOrWhiteSpace())
-                        {
-                            stringBuilder.Append("⛔");
-                        }
-                        else
-                        {
-                            stringBuilder.Append($"{currentEn}");
-                        }
-                    }
-                    else
-                    {
-                        if (sourceEn.Trim() == currentEn.Trim())
-                        {
-                            stringBuilder.Append($"{currentEn}");
-                        }
-                        else
-                        {
-                            stringBuilder.Append($"{sourceEn}<br>🔽<br>{currentEn}");
-                        }
-                    }
+                // Generate diff content for each mod
+                GenerateDiffContent(list, sb);
 
-                    stringBuilder.Append(" | ");
+                // Add exception information
+                AppendExceptions(exceptionList, sb);
 
-                    if (sourceCn.IsNullOrWhiteSpace())
-                    {
-                        if (currentCn.IsNullOrWhiteSpace())
-                        {
-                            stringBuilder.Append("⛔");
-                        }
-                        else
-                        {
-                            stringBuilder.Append($"{currentCn}");
-                        }
-                    }
-                    else
-                    {
-                        stringBuilder.Append($"{sourceCn}<br>🔽<br>{currentCn}");
-                    }
-                }
-
-                foreach (var o in list)
-                {
-                    var diffLines = LangDiffer.Run(o, true);
-
-                    sb.AppendLine($"<details><summary>{o.ModPath}</summary>\n");
-                    sb.AppendLine("| 英文 | 中文 |");
-                    sb.AppendLine("| --: | :------------- |");
-                    foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
-                    {
-                        if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace())
-                            continue;
-                        sb.Append("| ");
-                        AddLine(sourceEn, currentEn, sb, sourceCn, currentCn);
-
-                        sb.AppendLine(" |");
-                    }
-
-                    sb.AppendLine("\n</details>\n\n");
-
-
-                    sb.AppendLine($"<details><summary>{o.ModPath}-keys</summary>\n");
-                    sb.AppendLine("| Key | 英文 | 中文 |");
-                    sb.AppendLine("| - | --: | :------------- |");
-                    foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
-                    {
-                        if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace())
-                            continue;
-
-                        sb.Append("| ");
-                        sb.Append($" `{key}` |");
-                        AddLine(sourceEn, currentEn, sb, sourceCn, currentCn);
-
-                        sb.AppendLine(" |");
-                    }
-
-                    sb.AppendLine("\n</details>\n");
-
-
-                    sb.AppendLine($"<details><summary>{o.ModPath}-术语检查</summary>\n");
-                    sb.AppendLine("| Key | 英文 | 中文 | 检查结果 |");
-                    sb.AppendLine("| - | --: | :------------- | - |");
-                    foreach (var (key, sourceEn, currentEn, sourceCn, currentCn) in diffLines)
-                    {
-                        if (sourceCn == currentCn || currentEn.IsNullOrWhiteSpace() && currentCn.IsNullOrWhiteSpace())
-                            continue;
-
-                        string termTextResult = "中文或英文为空";
-                        var termResult = currentEn != null && currentCn != null &&
-                                         CommandProcessor.CheckTerms(currentEn.ToLower(), currentCn.ToLower(),
-                                             out termTextResult);
-                        if (!termResult) continue;
-
-                        sb.Append("| ");
-                        sb.Append($" `{key}` |");
-                        AddLine(sourceEn, currentEn, sb, sourceCn, currentCn);
-                        sb.Append($" | {termTextResult.Replace("\n", "<br>")} | ");
-                        sb.AppendLine(" |");
-                    }
-
-                    sb.AppendLine("\n</details>\n");
-
-                }
-
-                if (exceptionList.Any())
-                {
-                    sb.AppendLine($"异常：\n```\n{exceptionList.Select(e => e.ToString()).Connect("\n\n")}\n```");
-                }
-
-                result = sb.ToString() + "\n";
-                if (result.Length > 20000)
-                {
-                    try
-                    {
-                        result = $"PR: <https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/{PullRequestID}>\n\n" + result; // 来自 mamaruo 的请求
-                        var gist = await GitHub.InstancePersonal.Gist.Create(new NewGist()
-                        {
-                            Description = $"pr-{PullRequestID}-diff",
-                            Files = { { $"pr-{PullRequestID}-diff.md", result } },
-                            Public = false
-                        });
-                        result = $"🔛 语言文件 Diff 内容过长，已经上传至 <{gist.HtmlUrl}>。\n";
-
-                    }
-                    catch (Exception e)
-                    {
-                        Log.Error(e, "Upload Gist");
-                    }
-                }
-
+                // Handle long content by uploading to Gist
+                result = await HandleLongContent(sb.ToString());
             }
             catch (Exception e)
             {
@@ -785,13 +659,200 @@ namespace CFPABot.Utils
             }
             finally
             {
-                if (fileDiffs.Any(x => x.To.Split('/').Any(y => y.TrimStart('_').Equals("zh_cn", StringComparison.OrdinalIgnoreCase))))
-                {
-                    result = ($"\n🔛 [转到复杂文件 Diff](https://cfpa.cyan.cafe/Azusa/SpecialDiff/{PullRequestID})\n\n") + result;
-                }
+                // Add special diff link if needed
+                result = AddSpecialDiffLink(fileDiffs, result);
                 Context.DiffSegment = result;
                 logger.Debug($"[{PullRequestID}] 结束更新 UpdateDiffSegment");
             }
+        }
+
+        private void GenerateDiffContent(IEnumerable<dynamic> list, StringBuilder sb)
+        {
+            foreach (var o in list)
+            {
+                var diffLines = LangDiffer.Run(o, true);
+
+                // Generate basic diff table
+                GenerateDiffTable(o, diffLines, sb);
+
+                // Generate keys table
+                GenerateKeysTable(o, diffLines, sb);
+
+                // Generate terms check table
+                GenerateTermsCheckTable(o, diffLines, sb);
+            }
+        }
+
+        private void GenerateDiffTable(dynamic o, IEnumerable<dynamic> diffLines, StringBuilder sb)
+        {
+            sb.AppendLine($"<details><summary>{o.ModPath}</summary>\n");
+            sb.AppendLine("| 英文 | 中文 |");
+            sb.AppendLine("| --: | :------------- |");
+            
+            foreach (dynamic line in diffLines)
+            {
+                var key = line.Item1;
+                var sourceEn = line.Item2;
+                var currentEn = line.Item3;
+                var sourceCn = line.Item4;
+                var currentCn = line.Item5;
+                
+                if (sourceCn == currentCn || (currentEn?.IsNullOrWhiteSpace() ?? true) && (currentCn?.IsNullOrWhiteSpace() ?? true))
+                    continue;
+                sb.Append("| ");
+                FormatDiffLine(sourceEn, currentEn, sb, sourceCn, currentCn);
+                sb.AppendLine(" |");
+            }
+            
+            sb.AppendLine("\n</details>\n\n");
+        }
+
+        private void GenerateKeysTable(dynamic o, IEnumerable<dynamic> diffLines, StringBuilder sb)
+        {
+            sb.AppendLine($"<details><summary>{o.ModPath}-keys</summary>\n");
+            sb.AppendLine("| Key | 英文 | 中文 |");
+            sb.AppendLine("| - | --: | :------------- |");
+            
+            foreach (dynamic line in diffLines)
+            {
+                var key = line.Item1;
+                var sourceEn = line.Item2;
+                var currentEn = line.Item3;
+                var sourceCn = line.Item4;
+                var currentCn = line.Item5;
+                
+                if (sourceCn == currentCn || (currentEn?.IsNullOrWhiteSpace() ?? true) && (currentCn?.IsNullOrWhiteSpace() ?? true))
+                    continue;
+
+                sb.Append("| ");
+                sb.Append($" `{key}` |");
+                FormatDiffLine(sourceEn, currentEn, sb, sourceCn, currentCn);
+                sb.AppendLine(" |");
+            }
+            
+            sb.AppendLine("\n</details>\n");
+        }
+
+        private void GenerateTermsCheckTable(dynamic o, IEnumerable<dynamic> diffLines, StringBuilder sb)
+        {
+            sb.AppendLine($"<details><summary>{o.ModPath}-术语检查</summary>\n");
+            sb.AppendLine("| Key | 英文 | 中文 | 检查结果 |");
+            sb.AppendLine("| - | --: | :------------- | - |");
+            
+            foreach (dynamic line in diffLines)
+            {
+                var key = line.Item1;
+                var sourceEn = line.Item2;
+                var currentEn = line.Item3;
+                var sourceCn = line.Item4;
+                var currentCn = line.Item5;
+                
+                if (sourceCn == currentCn || (currentEn?.IsNullOrWhiteSpace() ?? true) && (currentCn?.IsNullOrWhiteSpace() ?? true))
+                    continue;
+
+                string termTextResult = "中文或英文为空";
+                var termResult = currentEn != null && currentCn != null &&
+                                 CommandProcessor.CheckTerms(currentEn.ToLower(), currentCn.ToLower(),
+                                     out termTextResult);
+                if (!termResult) continue;
+
+                sb.Append("| ");
+                sb.Append($" `{key}` |");
+                FormatDiffLine(sourceEn, currentEn, sb, sourceCn, currentCn);
+                sb.Append($" | {termTextResult.Replace("\n", "<br>")} | ");
+                sb.AppendLine(" |");
+            }
+            
+            sb.AppendLine("\n</details>\n");
+        }
+
+        private void FormatDiffLine(string sourceEn, string currentEn, StringBuilder stringBuilder, string sourceCn, string currentCn)
+        {
+            // Format English column
+            if (sourceEn.IsNullOrWhiteSpace())
+            {
+                if (currentEn.IsNullOrWhiteSpace())
+                {
+                    stringBuilder.Append("⛔");
+                }
+                else
+                {
+                    stringBuilder.Append($"{currentEn}");
+                }
+            }
+            else
+            {
+                if (sourceEn.Trim() == currentEn.Trim())
+                {
+                    stringBuilder.Append($"{currentEn}");
+                }
+                else
+                {
+                    stringBuilder.Append($"{sourceEn}<br>🔽<br>{currentEn}");
+                }
+            }
+
+            stringBuilder.Append(" | ");
+
+            // Format Chinese column
+            if (sourceCn.IsNullOrWhiteSpace())
+            {
+                if (currentCn.IsNullOrWhiteSpace())
+                {
+                    stringBuilder.Append("⛔");
+                }
+                else
+                {
+                    stringBuilder.Append($"{currentCn}");
+                }
+            }
+            else
+            {
+                stringBuilder.Append($"{sourceCn}<br>🔽<br>{currentCn}");
+            }
+        }
+
+        private void AppendExceptions(List<Exception> exceptionList, StringBuilder sb)
+        {
+            if (exceptionList.Any())
+            {
+                sb.AppendLine($"异常：\n```\n{exceptionList.Select(e => e.ToString()).Connect("\n\n")}\n```");
+            }
+        }
+
+        private async Task<string> HandleLongContent(string content)
+        {
+            var result = content + "\n";
+            if (result.Length > 20000)
+            {
+                try
+                {
+                    result = $"PR: <https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/pull/{PullRequestID}>\n\n" + result;
+                    var gist = await GitHub.InstancePersonal.Gist.Create(new NewGist()
+                    {
+                        Description = $"pr-{PullRequestID}-diff",
+                        Files = { { $"pr-{PullRequestID}-diff.md", result } },
+                        Public = false
+                    });
+                    result = $"🔛 语言文件 Diff 内容过长，已经上传至 <{gist.HtmlUrl}>。\n";
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e, "Upload Gist");
+                }
+            }
+            
+            return result;
+        }
+
+        private string AddSpecialDiffLink(FileDiff[] fileDiffs, string result)
+        {
+            if (fileDiffs.Any(x => x.To.Split('/').Any(y => y.TrimStart('_').Equals("zh_cn", StringComparison.OrdinalIgnoreCase))))
+            {
+                result = ($"\n🔛 [转到复杂文件 Diff](https://cfpa.cyan.cafe/Azusa/SpecialDiff/{PullRequestID})\n\n") + result;
+            }
+            
+            return result;
         }
 
         public async Task UpdateCheckSegment(FileDiff[] diffs)
