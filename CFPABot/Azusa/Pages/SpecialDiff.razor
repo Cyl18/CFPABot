@@ -136,10 +136,9 @@
 
     async void Step2()
     {
-        
-        enT = Traverse(en);
         cnT = Traverse(cn);
-        
+        enT = Traverse(cnT.Contains("_zh_cn") ? cnT.Replace("/zh_cn", "") : en); // 不知道为什么要这么写，因为老代码是这么写的
+
         if (cnT == null || enT == null)
         {
             ShowToast($"找不到中文或英文文件夹\nen: {en}\ncn: {cn}");
