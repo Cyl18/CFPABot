@@ -137,7 +137,7 @@
     async void Step2()
     {
         cnT = Traverse(cn);
-        enT = Traverse(cnT.Contains("_zh_cn") ? cnT.Replace("/zh_cn", "") : en); // 不知道为什么要这么写，因为老代码是这么写的
+        enT = Traverse(cnT.Contains("_zh_cn") ? cnT.Replace("/_zh_cn", "") : en); // 不知道为什么要这么写，因为老代码是这么写的
 
         if (cnT == null || enT == null)
         {
