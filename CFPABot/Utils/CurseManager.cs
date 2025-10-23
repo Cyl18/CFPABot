@@ -190,6 +190,16 @@ namespace CFPABot.Utils
         {
             return GetAddon((int) MapModIDToProjectID(modSlug));
         }
+
+        public static void RemoveCache(int modCurseForgeID)
+        {
+            lock (ModCache)
+            {
+                ModCache.Remove(modCurseForgeID);
+                ModCacheWriteTime.Remove(modCurseForgeID);
+            }
+        }
+
         public static async Task<Mod> GetAddon(int modCurseForgeID)
         {
             // https://github.com/CurseForgeCommunity/.NET-APIClient/issues/1

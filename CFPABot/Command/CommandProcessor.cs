@@ -452,8 +452,10 @@ namespace CFPABot.Command
                         // }
                         var slug = args[0];
                         var curseForgeProjectID = args[1];
-                        ModIDMappingMetadata.Instance.Mapping[slug] = curseForgeProjectID.ToInt();
+                        var curseForgeProjectIDInt = curseForgeProjectID.ToInt();
+                        ModIDMappingMetadata.Instance.Mapping[slug] = curseForgeProjectIDInt;
                         ModIDMappingMetadata.Save();
+                        CurseManager.RemoveCache(curseForgeProjectIDInt);
                         try
                         {
                             var addon = await CurseManager.GetAddon(slug);
