@@ -61,7 +61,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ 警告：你所提交的目标分支不是 main 分支，这在 99% 的情况下都是你的问题。请 close 此 PR 并重新提交。.
+        ///   Looks up a localized string similar to ❗ 警告：你所提交的目标分支不是 main 分支，这在 99% 的情况下都是你的问题。请 close 此 PR 并重新提交。.
         /// </summary>
         public static string Artifacts_BranchNotMain {
             get {
@@ -223,7 +223,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ PR 中 {0}-{1} 中英文文件不对应。.
+        ///   Looks up a localized string similar to ⚠ PR 中 {0}-{1} 中英文 Key 不对应。.
         /// </summary>
         public static string Check_Key_NotCorrespond {
             get {
@@ -250,7 +250,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ Domain 验证不通过。文件 Domain 为 `{0}`；而 PR 所提供的 Domain 为 `{1}`。.
+        ///   Looks up a localized string similar to ❗ Domain 验证不通过。文件 Domain 为 `{0}`；而 PR 所提供的 Domain 为 `{1}`。.
         /// </summary>
         public static string Check_ModID_Failed_1 {
             get {
@@ -322,7 +322,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ {0}-{1} 模组内语言文件与 PR 提交。.
+        ///   Looks up a localized string similar to ℹ {0}-{1} 模组内语言文件与 PR 相同。.
         /// </summary>
         public static string Check_ModKey_Success {
             get {

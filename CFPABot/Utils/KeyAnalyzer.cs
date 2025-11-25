@@ -117,16 +117,26 @@ namespace CFPABot.Utils
 
             sb.AppendLine(string.Format(Locale.Check_Key_NotCorrespond, modid, mcVersion.ToVersionString()));
 
+            if (enExcept.Count > 0 || cnExcept.Count > 0)
+            {
+                sb.Append("\n<details><summary>详细报告</summary>\n\n");
+            }
+
             if (enExcept.Count > 0)
             {
-                sb.AppendLine($"- 英文语言文件有 {enExcept.Count} 个 Key 多于中文语言文件。例如：\n{enExcept.Take(4).Select(f => $"  - 行 {(enfile.Split('\n').ToList().FindIndex(l => l.Contains(f)) + 1)}-`{f}`").Connect("\n")}");
+                sb.AppendLine($"- 英文有 {enExcept.Count} 个 Key 多于中文。例如：\n{enExcept.Take(3).Select(f => $"  - 行 {(enfile.Split('\n').ToList().FindIndex(l => l.Contains(f)) + 1)}-`{f}`").Connect("\n")}");
                 reportSb.AppendLine($"英文多于中文的 Key: \n{enExcept.Select(k => $"    {k}\n").Connect("")}");
             }
 
             if (cnExcept.Count > 0)
             {
-                sb.AppendLine($"- 中文语言文件有 {cnExcept.Count} 个 Key 多于英文语言文件。例如：\n{cnExcept.Take(4).Select(f => $"  - 行 {(cnfile.Split('\n').ToList().FindIndex(l => l.Contains(f)) + 1)}-`{f}`").Connect("\n")}");
+                sb.AppendLine($"- 中文有 {cnExcept.Count} 个 Key 多于英文。例如：\n{cnExcept.Take(3).Select(f => $"  - 行 {(cnfile.Split('\n').ToList().FindIndex(l => l.Contains(f)) + 1)}-`{f}`").Connect("\n")}");
                 reportSb.AppendLine($"中文多于英文的 Key: \n{cnExcept.Select(k => $"    {k}\n").Connect("")}");
+            }
+
+            if (enExcept.Count > 0 || cnExcept.Count > 0)
+            {
+                sb.Append("\n\n</details>\n");
             }
 
             reportSb.AppendLine();

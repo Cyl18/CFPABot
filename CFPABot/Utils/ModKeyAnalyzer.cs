@@ -128,16 +128,26 @@ namespace CFPABot.Utils
             // 这可能是由于机器人自动获取的模组不是最新，语言文件中包含扩展模组，或所提交的语言文件来自模组源代码仓库。可以点击上方的对比按钮来进行更加详细的对比。
             sb.AppendLine(string.Format(Locale.Check_ModKey_NotCorrespond, modInfoForCheck.Modid, modInfoForCheck.Version.ToVersionString(), modInfoForCheck.DownloadModName, modInfoForCheck.CurseForgeSlug, modInfoForCheck.Version.ToVersionString()));
 
+            if (enExcept.Count > 0 || cnExcept.Count > 0)
+            {
+                sb.Append("\n<details><summary>详细报告</summary>\n\n");
+            }
+
             if (enExcept.Count > 0)
             {
-                sb.AppendLine($"- 英文语言文件有 {enExcept.Count} 个 Key 多于模组内语言文件。例如：\n{enExcept.Take(2).Select(f => $"  - 行 {(enfile.Split('\n').ToList().FindIndex(l => l.Contains(f)) + 1)}-`{f}`").Connect("\n")}");
+                sb.AppendLine($"- 英文有 {enExcept.Count} 个 Key 多于模组内。例如：\n{enExcept.Take(2).Select(f => $"  - 行 {(enfile.Split('\n').ToList().FindIndex(l => l.Contains(f)) + 1)}-`{f}`").Connect("\n")}");
                 reportSb.AppendLine($"英文多于模组内的 Key: \n{enExcept.Select(k => $"    {k}\n").Connect("")}");
             }
 
             if (cnExcept.Count > 0)
             {
-                sb.AppendLine($"- 模组内语言文件有 {cnExcept.Count} 个 Key 多于英文语言文件。例如：\n{cnExcept.Take(2).Select(f => $"  - 行 {(cnfile.Split('\n').ToList().FindIndex(l => l.Contains(f)) + 1)}-`{f}`").Connect("\n")}");
+                sb.AppendLine($"- 模组内有 {cnExcept.Count} 个 Key 多于英文。例如：\n{cnExcept.Take(2).Select(f => $"  - 行 {(cnfile.Split('\n').ToList().FindIndex(l => l.Contains(f)) + 1)}-`{f}`").Connect("\n")}");
                 reportSb.AppendLine($"模组内多于英文的 Key: \n{cnExcept.Select(k => $"    {k}\n").Connect("")}");
+            }
+
+            if (enExcept.Count > 0 || cnExcept.Count > 0)
+            {
+                sb.Append("\n\n</details>\n");
             }
 
             reportSb.AppendLine();

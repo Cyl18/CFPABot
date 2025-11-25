@@ -158,7 +158,7 @@
     <value>ℹ {0}-{1} 语言文件检查失败：{2}</value>
   </data>
   <data name="Check.ModKey.Success" xml:space="preserve">
-    <value>ℹ {0}-{1} 模组内语言文件与 PR 提交。</value>
+    <value>ℹ {0}-{1} 模组内语言文件与 PR 相同。</value>
   </data>
   <data name="Check.ModKey.NotCorrespond" xml:space="preserve">
     <value>⚠ PR 中 {0}-{1} 英文文件与最新模组 `{2}` 文件不对应。自动获取只能反映多数情况，**可能并不需要更新**。如果你认为**确实**需要更新到**上面的版本**，使用命令 `/update-en {3} {4}`。</value>
@@ -185,7 +185,7 @@
     <value>ℹ {0}-{1} 中英文 Key 相互对应。</value>
   </data>
   <data name="Check.Key.NotCorrespond" xml:space="preserve">
-    <value>⚠ PR 中 {0}-{1} 中英文文件不对应。</value>
+    <value>⚠ PR 中 {0}-{1} 中英文 Key 不对应。</value>
   </data>
   <data name="General.MapModIDToProjectID.Error.1" xml:space="preserve">
     <value>⚠ 无法找到 {0} 的 CurseForge 项目名到 CurseForge ID 的映射。请检查此[链接](https://www.curseforge.com/minecraft/mc-mods/{1})是否可以正常打开，如果不能，或者网页被重定向，请修改你的文件路径。</value>
@@ -215,7 +215,7 @@
     <value>⚠ 你没有启用“维护者可修改 PR 文件”（Allow edits from maintainers）；这会对维护者造成不便，在此页面右方勾选该选项。</value>
   </data>
   <data name="Artifacts.BranchNotMain" xml:space="preserve">
-    <value>⚠ 警告：你所提交的目标分支不是 main 分支，这在 99% 的情况下都是你的问题。请 close 此 PR 并重新提交。</value>
+    <value>❗ 警告：你所提交的目标分支不是 main 分支，这在 99% 的情况下都是你的问题。请 close 此 PR 并重新提交。</value>
   </data>
   <data name="Artifacts.NoWorkflowYet" xml:space="preserve">
     <value>⚠ 暂时没有检测到 workflow.</value>
@@ -236,7 +236,7 @@
     <value>✔ `{0}` Mod Domain 验证通过。</value>
   </data>
   <data name="Check.ModID.Failed.1" xml:space="preserve">
-    <value>⚠ Domain 验证不通过。文件 Domain 为 `{0}`；而 PR 所提供的 Domain 为 `{1}`。</value>
+    <value>❗ Domain 验证不通过。文件 Domain 为 `{0}`；而 PR 所提供的 Domain 为 `{1}`。</value>
   </data>
   <data name="Check.ModID.Failed.2" xml:space="preserve">
     <value>可以使用命令 `/mv "projects/{0}/assets/{1}/{2}/" "projects/{3}/assets/{4}/{5}/"` 来移动目录。</value>
