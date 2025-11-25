@@ -19,7 +19,7 @@ namespace CFPABot.Resources {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "17.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "18.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     public class Locale {
@@ -97,7 +97,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ 警告：你没有启用“维护者可修改 PR 文件”（Allow edits from maintainers）；这可能会对维护者造成不便，请在此页面右方勾选此选项。.
+        ///   Looks up a localized string similar to ⚠ 你没有启用“维护者可修改 PR 文件”（Allow edits from maintainers）；这会对维护者造成不便，在此页面右方勾选该选项。.
         /// </summary>
         public static string Artifacts_PREditDisabledWarning {
             get {
@@ -115,7 +115,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ 获取 PR 中 {0}-{1} 的中文语言文件失败。如果你在提交或更新英文语言文件，请忽略此信息。.
+        ///   Looks up a localized string similar to ⚠ 获取 PR 中 {0}-{1} 中文语言文件失败。如果你在提交/更新英文语言文件，请忽略。.
         /// </summary>
         public static string Check_FileKey_FailedToDownloadCn {
             get {
@@ -124,7 +124,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ❌ 获取 PR 中 {0}-{1} 的英文语言文件失败。你可能没有提交此模组的英文语言文件。使用命令 `/update-en {2} {3}` 来获取模组语言文件。.
+        ///   Looks up a localized string similar to ❌ 获取 PR 中 {0}-{1} 英文语言文件失败。你可能没有提交此模组的英文语言文件。使用命令 `/update-en {2} {3}` 来获取模组语言文件。.
         /// </summary>
         public static string Check_FileKey_FailedToDownloadEn {
             get {
@@ -133,7 +133,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ 获取 {0} 的模组内语言文件失败。.
+        ///   Looks up a localized string similar to ℹ 获取 {0} 模组语言文件失败。.
         /// </summary>
         public static string Check_FileKey_FailedToDownloadMod {
             get {
@@ -142,7 +142,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ 找到了多个 {0}-{1} 的模组内语言文件。将不进行模组语言文件检查。.
+        ///   Looks up a localized string similar to ℹ 找到了多个 {0}-{1} 模组内语言文件。不进行模组语言文件检查。.
         /// </summary>
         public static string Check_FileKey_ModEnFile_Multiple {
             get {
@@ -151,7 +151,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ 没有找到 {0}-{1} 的模组内语言文件。.
+        ///   Looks up a localized string similar to ℹ 没有找到 {0}-{1} 模组内语言文件。.
         /// </summary>
         public static string Check_FileKey_ModEnFile_NotFound {
             get {
@@ -169,7 +169,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ {0}-{1} 的语言文件检查失败：{2}.
+        ///   Looks up a localized string similar to ℹ {0}-{1} 语言文件检查失败：{2}.
         /// </summary>
         public static string Check_Key_Error {
             get {
@@ -178,7 +178,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ {0}-{1} 的中文文件为空。.
+        ///   Looks up a localized string similar to ℹ {0}-{1} 中文文件为空。.
         /// </summary>
         public static string Check_Key_JsonCnFileEmpty {
             get {
@@ -187,7 +187,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ {0}-{1} 的英文文件为空。.
+        ///   Looks up a localized string similar to ℹ {0}-{1} 英文文件为空。.
         /// </summary>
         public static string Check_Key_JsonEnFileEmpty {
             get {
@@ -205,7 +205,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ {0}-{1} 的中文语言文件为空。.
+        ///   Looks up a localized string similar to ℹ {0}-{1} 中文文件为空。.
         /// </summary>
         public static string Check_Key_LangCnFileEmpty {
             get {
@@ -214,7 +214,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ {0}-{1} 的英文语言文件为空。.
+        ///   Looks up a localized string similar to ℹ {0}-{1} 英文文件为空。.
         /// </summary>
         public static string Check_Key_LangEnFileEmpty {
             get {
@@ -223,7 +223,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ 警告：PR 中 {0}-{1} 的中英文语言文件不对应。.
+        ///   Looks up a localized string similar to ⚠ PR 中 {0}-{1} 中英文文件不对应。.
         /// </summary>
         public static string Check_Key_NotCorrespond {
             get {
@@ -232,7 +232,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ {0}-{1} 语言文件验证通过。.
+        ///   Looks up a localized string similar to ℹ {0}-{1} 中英文 Key 相互对应。.
         /// </summary>
         public static string Check_Key_Success {
             get {
@@ -241,7 +241,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ Mod Domain 验证失败：{0}.
+        ///   Looks up a localized string similar to ⚠ Domain 验证失败：{0}.
         /// </summary>
         public static string Check_ModID_Error {
             get {
@@ -250,7 +250,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ 警告：Mod Domain 验证不通过。文件 Mod Domain 为 `{0}`；而 PR 所提供的 Mod Domain 为 `{1}`。.
+        ///   Looks up a localized string similar to ⚠ Domain 验证不通过。文件 Domain 为 `{0}`；而 PR 所提供的 Domain 为 `{1}`。.
         /// </summary>
         public static string Check_ModID_Failed_1 {
             get {
@@ -259,7 +259,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 你可以使用命令 `/mv &quot;projects/{0}/assets/{1}/{2}/&quot; &quot;projects/{3}/assets/{4}/{5}/&quot;` 来移动目录。.
+        ///   Looks up a localized string similar to 可以使用命令 `/mv &quot;projects/{0}/assets/{1}/{2}/&quot; &quot;projects/{3}/assets/{4}/{5}/&quot;` 来移动目录。.
         /// </summary>
         public static string Check_ModID_Failed_2 {
             get {
@@ -268,7 +268,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ 无法找到 `{0}` 的 Mod Domain。这很可能是因为 CurseForge API 没有返回这个模组/此游戏版本的数据。.
+        ///   Looks up a localized string similar to ℹ 无法找到 `{0}` 的 Mod Domain。这不一定代表需要更改。.
         /// </summary>
         public static string Check_ModID_ModIDNotFound {
             get {
@@ -295,7 +295,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ {0}-{1} 的语言文件检查失败：{2}.
+        ///   Looks up a localized string similar to ℹ {0}-{1} 语言文件检查失败：{2}.
         /// </summary>
         public static string Check_ModKey_Error {
             get {
@@ -304,7 +304,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ❌ {0}-{1} 的语言文件中有 JSON 语法错误：{2}.
+        ///   Looks up a localized string similar to ❌ {0}-{1} 语言文件 JSON 语法错误：{2}.
         /// </summary>
         public static string Check_ModKey_JsonSyntaxError {
             get {
@@ -313,7 +313,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ⚠ 警告：PR 中 {0}-{1} 的英文语言文件与最新模组 `{2}` 内的英文语言文件不对应。自动获取的文件只能反映大多数情况，可能并不需要更新文件。如果你认为英文语言文件**确实**需要更新到**上面的版本**，可以使用命令 `/update-en {3} {4}` 来更新。.
+        ///   Looks up a localized string similar to ⚠ PR 中 {0}-{1} 英文文件与最新模组 `{2}` 文件不对应。自动获取只能反映多数情况，**可能并不需要更新**。如果你认为**确实**需要更新到**上面的版本**，使用命令 `/update-en {3} {4}`。.
         /// </summary>
         public static string Check_ModKey_NotCorrespond {
             get {
@@ -322,7 +322,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ {0}-{1} 模组内语言文件验证通过。.
+        ///   Looks up a localized string similar to ℹ {0}-{1} 模组内语言文件与 PR 提交。.
         /// </summary>
         public static string Check_ModKey_Success {
             get {
@@ -331,7 +331,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 更多报告可以在 [这里]({0}) 查看。 在 PR 更新时这里的检查也会自动更新。.
+        ///   Looks up a localized string similar to 更多报告在 [这里]({0}) 查看。 PR 更新也会更新检查。.
         /// </summary>
         public static string Check_Result {
             get {
@@ -340,7 +340,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 报告也可以在 [这里]({0}) 查看。在 PR 更新时这里的检查也会自动更新。.
+        ///   Looks up a localized string similar to 报告在 [这里]({0}) 查看。PR 更新也会更新检查。.
         /// </summary>
         public static string Check_Result1 {
             get {
@@ -349,7 +349,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 上方的译名检测仅有参考价值，可能并没有实际错误。**请在修改前仔细斟酌！**.
+        ///   Looks up a localized string similar to 译名检测仅供参考，可能并没有错误。**请在修改前仔细斟酌！**.
         /// </summary>
         public static string Check_Translate_Hint {
             get {
@@ -358,7 +358,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ 注意：检测到可能的争议译名：`{0}`，{1}。例如行 `{2}`。.
+        ///   Looks up a localized string similar to ℹ 可能争议译名：`{0}`，{1}。例如 `{2}`。.
         /// </summary>
         public static string Check_Translate_PossibleControversial {
             get {
@@ -367,7 +367,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ❌ 警告：检测到可能的错误译名：`{0}`，{1}。例如行 `{2}`。.
+        ///   Looks up a localized string similar to ❌ 可能错误译名：`{0}`，{1}。例如 `{2}`。.
         /// </summary>
         public static string Check_Translate_PossibleWrong {
             get {

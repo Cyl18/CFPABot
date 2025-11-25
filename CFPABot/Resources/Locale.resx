@@ -152,40 +152,40 @@
     <value>⚠ 在执行命令时遇到了问题：{0}</value>
   </data>
   <data name="Check.ModKey.JsonSyntaxError" xml:space="preserve">
-    <value>❌ {0}-{1} 的语言文件中有 JSON 语法错误：{2}</value>
+    <value>❌ {0}-{1} 语言文件 JSON 语法错误：{2}</value>
   </data>
   <data name="Check.ModKey.Error" xml:space="preserve">
-    <value>ℹ {0}-{1} 的语言文件检查失败：{2}</value>
+    <value>ℹ {0}-{1} 语言文件检查失败：{2}</value>
   </data>
   <data name="Check.ModKey.Success" xml:space="preserve">
-    <value>ℹ {0}-{1} 模组内语言文件验证通过。</value>
+    <value>ℹ {0}-{1} 模组内语言文件与 PR 提交。</value>
   </data>
   <data name="Check.ModKey.NotCorrespond" xml:space="preserve">
-    <value>⚠ 警告：PR 中 {0}-{1} 的英文语言文件与最新模组 `{2}` 内的英文语言文件不对应。自动获取的文件只能反映大多数情况，可能并不需要更新文件。如果你认为英文语言文件**确实**需要更新到**上面的版本**，可以使用命令 `/update-en {3} {4}` 来更新。</value>
+    <value>⚠ PR 中 {0}-{1} 英文文件与最新模组 `{2}` 文件不对应。自动获取只能反映多数情况，**可能并不需要更新**。如果你认为**确实**需要更新到**上面的版本**，使用命令 `/update-en {3} {4}`。</value>
   </data>
   <data name="Check.Key.JsonSyntaxError" xml:space="preserve">
     <value>❌ {0}-{1} 的语言文件中有 JSON 语法错误：{2}</value>
   </data>
   <data name="Check.Key.JsonEnFileEmpty" xml:space="preserve">
-    <value>ℹ {0}-{1} 的英文文件为空。</value>
+    <value>ℹ {0}-{1} 英文文件为空。</value>
   </data>
   <data name="Check.Key.JsonCnFileEmpty" xml:space="preserve">
-    <value>ℹ {0}-{1} 的中文文件为空。</value>
+    <value>ℹ {0}-{1} 中文文件为空。</value>
   </data>
   <data name="Check.Key.Error" xml:space="preserve">
-    <value>ℹ {0}-{1} 的语言文件检查失败：{2}</value>
+    <value>ℹ {0}-{1} 语言文件检查失败：{2}</value>
   </data>
   <data name="Check.Key.LangEnFileEmpty" xml:space="preserve">
-    <value>ℹ {0}-{1} 的英文语言文件为空。</value>
+    <value>ℹ {0}-{1} 英文文件为空。</value>
   </data>
   <data name="Check.Key.LangCnFileEmpty" xml:space="preserve">
-    <value>ℹ {0}-{1} 的中文语言文件为空。</value>
+    <value>ℹ {0}-{1} 中文文件为空。</value>
   </data>
   <data name="Check.Key.Success" xml:space="preserve">
-    <value>ℹ {0}-{1} 语言文件验证通过。</value>
+    <value>ℹ {0}-{1} 中英文 Key 相互对应。</value>
   </data>
   <data name="Check.Key.NotCorrespond" xml:space="preserve">
-    <value>⚠ 警告：PR 中 {0}-{1} 的中英文语言文件不对应。</value>
+    <value>⚠ PR 中 {0}-{1} 中英文文件不对应。</value>
   </data>
   <data name="General.MapModIDToProjectID.Error.1" xml:space="preserve">
     <value>⚠ 无法找到 {0} 的 CurseForge 项目名到 CurseForge ID 的映射。请检查此[链接](https://www.curseforge.com/minecraft/mc-mods/{1})是否可以正常打开，如果不能，或者网页被重定向，请修改你的文件路径。</value>
@@ -197,7 +197,7 @@
     <value>此外在项目名中检测到了大写字母，请调整为小写。</value>
   </data>
   <data name="General.MapModIDToProjectID.Error.4" xml:space="preserve">
-    <value>可以在上面的链接中右方找到 About Project -> Project ID 然后使用命令 `/add-mapping {0} [CURSEFORGE_PROJECT_ID]`. 如果路径有误则使用 `/mv "projects/[GAME_VERSION]/assets/{1}/" "projects/[GAME_VERSION]/assets/[NEW_DIR]/"`。</value>
+    <value>可以在上面的链接中右方找到 About Project -&gt; Project ID 然后使用命令 `/add-mapping {0} [CURSEFORGE_PROJECT_ID]`. 如果路径有误则使用 `/mv "projects/[GAME_VERSION]/assets/{1}/" "projects/[GAME_VERSION]/assets/[NEW_DIR]/"`。</value>
   </data>
   <data name="ModLink.TooManyMods" xml:space="preserve">
     <value>模组数量过多，将不显示模组链接。</value>
@@ -212,7 +212,7 @@
     <value>:floppy_disk: 你可以在 [这里]({0}/pull/{1}/checks) 点击 PR Packer\&gt;Artifacts 下载基于此 PR 所打包的最新资源包。</value>
   </data>
   <data name="Artifacts.PREditDisabledWarning" xml:space="preserve">
-    <value>⚠ 警告：你没有启用“维护者可修改 PR 文件”（Allow edits from maintainers）；这可能会对维护者造成不便，请在此页面右方勾选此选项。</value>
+    <value>⚠ 你没有启用“维护者可修改 PR 文件”（Allow edits from maintainers）；这会对维护者造成不便，在此页面右方勾选该选项。</value>
   </data>
   <data name="Artifacts.BranchNotMain" xml:space="preserve">
     <value>⚠ 警告：你所提交的目标分支不是 main 分支，这在 99% 的情况下都是你的问题。请 close 此 PR 并重新提交。</value>
@@ -230,52 +230,52 @@
     <value>⚠ 找不到模组: {0}-{1}。</value>
   </data>
   <data name="Check.ModID.ModIDNotFound" xml:space="preserve">
-    <value>ℹ 无法找到 `{0}` 的 Mod Domain。这很可能是因为 CurseForge API 没有返回这个模组/此游戏版本的数据。</value>
+    <value>ℹ 无法找到 `{0}` 的 Mod Domain。这不一定代表需要更改。</value>
   </data>
   <data name="Check.ModID.Success" xml:space="preserve">
     <value>✔ `{0}` Mod Domain 验证通过。</value>
   </data>
   <data name="Check.ModID.Failed.1" xml:space="preserve">
-    <value>⚠ 警告：Mod Domain 验证不通过。文件 Mod Domain 为 `{0}`；而 PR 所提供的 Mod Domain 为 `{1}`。</value>
+    <value>⚠ Domain 验证不通过。文件 Domain 为 `{0}`；而 PR 所提供的 Domain 为 `{1}`。</value>
   </data>
   <data name="Check.ModID.Failed.2" xml:space="preserve">
-    <value>你可以使用命令 `/mv "projects/{0}/assets/{1}/{2}/" "projects/{3}/assets/{4}/{5}/"` 来移动目录。</value>
+    <value>可以使用命令 `/mv "projects/{0}/assets/{1}/{2}/" "projects/{3}/assets/{4}/{5}/"` 来移动目录。</value>
   </data>
   <data name="Check.ModID.Error" xml:space="preserve">
-    <value>⚠ Mod Domain 验证失败：{0}</value>
+    <value>⚠ Domain 验证失败：{0}</value>
   </data>
   <data name="Check.FileKey.FailedToDownloadCn" xml:space="preserve">
-    <value>⚠ 获取 PR 中 {0}-{1} 的中文语言文件失败。如果你在提交或更新英文语言文件，请忽略此信息。</value>
+    <value>⚠ 获取 PR 中 {0}-{1} 中文语言文件失败。如果你在提交/更新英文语言文件，请忽略。</value>
   </data>
   <data name="Check.FileKey.FailedToDownloadEn" xml:space="preserve">
-    <value>❌ 获取 PR 中 {0}-{1} 的英文语言文件失败。你可能没有提交此模组的英文语言文件。使用命令 `/update-en {2} {3}` 来获取模组语言文件。</value>
+    <value>❌ 获取 PR 中 {0}-{1} 英文语言文件失败。你可能没有提交此模组的英文语言文件。使用命令 `/update-en {2} {3}` 来获取模组语言文件。</value>
   </data>
   <data name="Check.FileKey.FailedToDownloadMod" xml:space="preserve">
-    <value>ℹ 获取 {0} 的模组内语言文件失败。</value>
+    <value>ℹ 获取 {0} 模组语言文件失败。</value>
   </data>
   <data name="Check.FileKey.ModEnFile.NotFound" xml:space="preserve">
-    <value>ℹ 没有找到 {0}-{1} 的模组内语言文件。</value>
+    <value>ℹ 没有找到 {0}-{1} 模组内语言文件。</value>
   </data>
   <data name="Check.FileKey.ModEnFile.Multiple" xml:space="preserve">
-    <value>ℹ 找到了多个 {0}-{1} 的模组内语言文件。将不进行模组语言文件检查。</value>
+    <value>ℹ 找到了多个 {0}-{1} 模组内语言文件。不进行模组语言文件检查。</value>
   </data>
   <data name="Check.Translate.PossibleControversial" xml:space="preserve">
-    <value>ℹ 注意：检测到可能的争议译名：`{0}`，{1}。例如行 `{2}`。</value>
+    <value>ℹ 可能争议译名：`{0}`，{1}。例如 `{2}`。</value>
   </data>
   <data name="Check.Translate.PossibleWrong" xml:space="preserve">
-    <value>❌ 警告：检测到可能的错误译名：`{0}`，{1}。例如行 `{2}`。</value>
+    <value>❌ 可能错误译名：`{0}`，{1}。例如 `{2}`。</value>
   </data>
   <data name="Check.Translate.Hint" xml:space="preserve">
-    <value>上方的译名检测仅有参考价值，可能并没有实际错误。**请在修改前仔细斟酌！**</value>
+    <value>译名检测仅供参考，可能并没有错误。**请在修改前仔细斟酌！**</value>
   </data>
   <data name="Check.Error" xml:space="preserve">
     <value>⚠ 检查出错: {0}</value>
   </data>
   <data name="Check.Result" xml:space="preserve">
-    <value>更多报告可以在 [这里]({0}) 查看。 在 PR 更新时这里的检查也会自动更新。</value>
+    <value>更多报告在 [这里]({0}) 查看。 PR 更新也会更新检查。</value>
   </data>
   <data name="Check.Result1" xml:space="preserve">
-    <value>报告也可以在 [这里]({0}) 查看。在 PR 更新时这里的检查也会自动更新。</value>
+    <value>报告在 [这里]({0}) 查看。PR 更新也会更新检查。</value>
   </data>
   <data name="Command.General.OwnerPermissionDenied" xml:space="preserve">
     <value>⚠ 你是此 PR 的创建者，但是你的 PR 所指向的仓库的所有权并不属于你。由于可能会造成不可预知的错误，拒绝执行此命令。</value>

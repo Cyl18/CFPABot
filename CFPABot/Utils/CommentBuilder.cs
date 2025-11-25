@@ -119,7 +119,7 @@ namespace CFPABot.Utils
             sb2.AppendLine("---");
             sb2.AppendLine(Context.DiffSegment);
             sb2.AppendLine("---");
-            sb2.AppendLine("ℹ [机器人的命令列表](https://cfpa.cyan.cafe/Azusa/CommandList)");
+            sb2.AppendLine("🐖 [命令列表](https://cfpa.cyan.cafe/Azusa/CommandList) | [问题反馈](https://github.com/Cyl18/CFPABot/issues/new)");
             sb2.AppendLine(Context.ReloadSegment);
 
             Interlocked.Increment(ref UpdatingCount);
@@ -167,7 +167,7 @@ namespace CFPABot.Utils
             sb.AppendLine(Context.DiffSegment);
 
             sb.AppendLine("---");
-            sb.AppendLine("ℹ [机器人的命令列表](https://cfpa.cyan.cafe/Azusa/CommandList)");
+            sb.AppendLine("🐖 [命令列表](https://cfpa.cyan.cafe/Azusa/CommandList) | [问题反馈](https://github.com/Cyl18/CFPABot/issues/new)");
             sb.AppendLine(Context.ReloadSegment);
 
             if (UpdatingCount > 0)
@@ -875,13 +875,13 @@ namespace CFPABot.Utils
                     using var iter = names.AsEnumerable().GetEnumerator();
                     if (names.Length == 1)
                     {
-                        sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。请检查你的提交路径：`{diff.To}`");
+                        sb.AppendLine($"⚠ 检测到一个语言文件，但提交路径不正常。请检查提交路径：`{diff.To}`");
                         continue;
                     }
 
                     if (names.Length < 5 && (diff.To.Contains(".lang") || diff.To.Contains(".json")))
                     {
-                        sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。请检查你的提交路径：`{diff.To}`");
+                        sb.AppendLine($"⚠ 检测到一个语言文件，但提交路径不正常。请检查提交路径：`{diff.To}`");
                         continue;
                     }
 
@@ -893,7 +893,7 @@ namespace CFPABot.Utils
                         {
                             // projects/{version}/assets/{curseSlug}/{modDomain}/lang/zh_cn.{}
                             if (names[2] != "assets" || names[3] == "lang") goto fail;
-                            sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。缺少了 {{modDomain}} 和 lang 文件夹。请检查你的提交路径：`{diff.To}`；");
+                            sb.AppendLine($"⚠ 检测到一个语言文件，但是提交路径不正常。缺少了 {{ModDomain}} 和 lang 文件夹。请检查你的提交路径：`{diff.To}`；");
                             try
                             {
                                 var slug = names[3];
@@ -904,7 +904,7 @@ namespace CFPABot.Utils
                                     var modDomain =
                                         await ModrinthManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
                                     var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
-                                    sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。你可以使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                    sb.AppendLine($"  自动找到该模组 Domain 为 `{modDomain}`，可能正确文件夹为 `{rdir}`。使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
                                     sb.AppendLine();
                                 }
                                 else
@@ -913,7 +913,7 @@ namespace CFPABot.Utils
                                     var modDomain =
                                         await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
                                     var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
-                                    sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。你可以使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                    sb.AppendLine($"  自动找到该模组 Domain 为 `{modDomain}`，可能正确文件夹为 `{rdir}`。使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
                                     sb.AppendLine();
                                 }
 
@@ -934,7 +934,7 @@ namespace CFPABot.Utils
                             if (names[4] == "lang")
                             {
                                 // projects/{version}/assets/{curseSlug}/lang/zh_cn.{}
-                                sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。缺少了 {{ModDomain}} 或 {{CurseForge 项目名}} 文件夹。请检查你的提交路径：`{diff.To}`；");
+                                sb.AppendLine($"⚠ 检测到一个语言文件，但提交路径不正常。缺少了 {{ModDomain}} 或 {{CurseForge 项目名}} 文件夹。请检查提交路径：`{diff.To}`；");
                                 try
                                 {
                                     var addon = await CurseManager.GetAddon(names[3]);
@@ -955,20 +955,20 @@ namespace CFPABot.Utils
                             else
                             {
                                 // projects/{version}/assets/{curseSlug}/{modDomain}/zh_cn.{}
-                                sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。缺少了 lang 文件夹。请检查你的提交路径：`{diff.To}`；");
+                                sb.AppendLine($"⚠ 检测到一个语言文件，但提交路径不正常。缺少了 lang 文件夹。请检查提交路径：`{diff.To}`；");
                                 sb.AppendLine();
                             }
                         }
 
                         continue;
                     fail:
-                        sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。请检查你的提交路径：`{diff.To}`");
+                        sb.AppendLine($"⚠ 检测到一个语言文件，但提交路径不正常。请检查提交路径：`{diff.To}`");
                         sb.AppendLine();
                     }
                     catch (Exception e)
                     {
                         Log.Warning(e, "Report invalid dir");
-                        sb.AppendLine($"⚠ 检测到了一个语言文件，但是提交的路径不正常。请检查你的提交路径：`{diff.To}`");
+                        sb.AppendLine($"⚠ 检测到一个语言文件，但提交路径不正常。请检查提交路径：`{diff.To}`");
                         sb.AppendLine();
                     }
                 }
@@ -1098,7 +1098,10 @@ namespace CFPABot.Utils
                                 }
 
                             }
-                            if (filemodid.Any(id => id == modid))
+                            if (filemodid is null)
+                            {
+                            }
+                            else if (filemodid.Any(id => id == modid))
                             {
                                 sb.AppendLine(string.Format(Locale.Check_ModID_Success, modid));
                             }
@@ -1131,7 +1134,7 @@ namespace CFPABot.Utils
                             var filemodid = await ModrinthManager.GetModIDForCheck(z, mcVersion);
                             if (filemodid == null || filemodid.Length == 0)
                             {
-                                sb.AppendLine(string.Format(Locale.Check_ModID_ModIDNotFound, modid));
+                                sb.AppendLine(string.Format(Locale.Check_ModID_ModIDNotFound, "modrinth~" + modid));
 
 
                             }
@@ -1451,7 +1454,7 @@ namespace CFPABot.Utils
                     value = sb.ToString();
                 }
 
-                return key + value;
+                return value;
             }
             catch (ArgumentOutOfRangeException e)
             {
