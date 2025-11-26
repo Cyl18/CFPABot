@@ -64,10 +64,19 @@ namespace CFPABot.Checks
                 }
             }
 
-            currentLabels.SymmetricExceptWith(resultLabels);
-            if (currentLabels.Count != 0)
+            var labelsToAdd = resultLabels.Except(currentLabels).ToArray();
+            if (labelsToAdd.Length > 0)
             {
-                await labelManager.ReplaceAllForIssue(Constants.RepoID, prid, resultLabels.ToArray());
+                await labelManager.AddToIssue(Constants.RepoID, prid, labelsToAdd);
+            }
+
+            var labelsToRemove = currentLabels.Except(resultLabels).ToArray();
+            if (labelsToRemove.Length > 0)
+            {
+                foreach (var se in labelsToRemove)
+                {
+                    await labelManager.RemoveFromIssue(Constants.RepoID, prid, se);
+                }
             }
         }
     }
