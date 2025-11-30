@@ -9,11 +9,15 @@ services:
       - ./logs:/app/logs
       - ./wwwroot:/app/wwwroot
       - ./Packer:/app/Packer
+      - ./libgit2-e632535.so:/app/libgit2-e632535.so
       - ./project-hex:/app/project-hex
     ports:
       - 19003:80
     environment:
-      - GITHUB_WEBHOOK_SECRET=  # webhook 密钥 GitHub App 配置
-      - GITHUB_OAUTH_TOKEN=ghp_ # 用于 gist 上传的个人账号 token
+      - GITHUB_WEBHOOK_SECRET=  # webhook 密钥 GitHub App 配置，可以随便设置，只要保持 GitHub WebHook 端和这里相同即可
+      - GITHUB_OAUTH_TOKEN=ghp_ # 用于 gist 上传的个人账号 token，注册一个 GitHub 号然后 https://github.com/settings/personal-access-tokens 给 gist 权限
       - CURSEFORGE_API_KEY=     # https://console.curseforge.com/?#/login 申请， $需要换成$$
-      - CFPA_HELPER_GITHUB_OAUTH_CLIENT_SECRET=  # CFPA Azusa 网页的 GitHub OAuth Client Secret，如果需要自己部署需要同时改 Constant.cs 中的 ClientId
+      - CFPA_HELPER_GITHUB_OAUTH_CLIENT_SECRET=  # CFPA Azusa 网页的 GitHub OAuth Client Secret，从 https://github.com/settings/apps，如果需要自己部署需要同时改 Constant.cs 中的 ClientId
+      - EMAIL_PASSWORD=         # 自动发邮件连接代理用的 其实挺没用的 具体看代码
+      - CHATGPT_API_KEY=        # 最早实现的 diff 页的 LLM Review，具体看代码，还需要改 API Host
+      - HUOSHAN_API_KEY=        # 第二次实现的 LLM Review 自动 Reply
