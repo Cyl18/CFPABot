@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers.Text;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -738,7 +739,7 @@ namespace CFPABot.Utils
             }
             finally
             {
-                if (fileDiffs.Any(x => x.To.Split('/').Any(y => y.TrimStart('_').Equals("zh_cn", StringComparison.OrdinalIgnoreCase))))
+                if (fileDiffs.Any(x => (x.To?.Split('/') ?? Array.Empty<string>()).Any(y => y.TrimStart('_').Equals("zh_cn", StringComparison.OrdinalIgnoreCase))))
                 {
                     result = ($"\n🔛 [转到复杂文件 Diff](https://cfpa.cyan.cafe/Azusa/SpecialDiff/{PullRequestID})\n\n") + result;
                 }
@@ -778,7 +779,7 @@ namespace CFPABot.Utils
                 var modSlugs = new HashSet<string>();
 
                 // pr 关系检查
-                foreach (var diff in diffs.Where(x => x.To.StartsWith("projects") && x.To.Count(c => c == '/') > 5))
+                foreach (var diff in diffs.Where(x => x.To != null && x.To.StartsWith("projects") && x.To.Count(c => c == '/') > 5))
                 {
                     try
                     {
@@ -845,17 +846,17 @@ namespace CFPABot.Utils
                 }
 
 
-                if (diffs.Any(diff => diff.To.Split('/').Any(s => s == "patchouli_book")))
+                if (diffs.Any(diff => (diff.To?.Split('/') ?? Array.Empty<string>()).Any(s => s == "patchouli_book")))
                 {
                     sb.AppendLine("⚠ 检测到了一个名为 patchouli_book 的文件夹。你可能想说的是 patchouli_books？");
                 }
 
-                // if (diffs.Any(diff => diff.To.Split('/').Any(s => s.Contains(" "))))
+                // if (diffs.Any(diff => diff.To?.Split('/') ?? Array.Empty<string>().Any(s => s.Contains(" "))))
                 // {
-                //     sb.AppendLine($"⚠ 检测到了含有空格的路径。例如： `{(diffs.Any(diff => diff.To.Split('/').Any(s => s.Contains(" "))))}`");
+                //     sb.AppendLine($"⚠ 检测到了含有空格的路径。例如： `{(diffs.Any(diff => diff.To?.Split('/') ?? Array.Empty<string>().Any(s => s.Contains(" "))))}`");
                 // }
 
-                if (diffs.Any(diff => !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || char.IsUpper(x) || x is '_' or '-' or '.' or '/') && diff.To.Contains("lang")))
+                if (diffs.Any(diff => diff.To != null && !diff.To.ToCharArray().All(x => char.IsDigit(x) || char.IsLower(x) || char.IsUpper(x) || x is '_' or '-' or '.' or '/') && diff.To.Contains("lang")))
                 {
                     sb.AppendLine($"⚠⚠⚠ **检测到了可能不合规的路径。**");
                     sb.AppendLine($"⚠⚠⚠ **检测到了可能不合规的路径。**");
@@ -869,9 +870,13 @@ namespace CFPABot.Utils
 
                 #region 检查常见的路径提交错误
 
-                foreach (var diff in diffs.Where(d => d.To.ToLower().Contains("zh_cn")).Where(d => d.To.Split('/').Length < 7).Take(5))
+                foreach (var diff in diffs
+                             .Where(d => d.To != null)
+                             .Where(d => d.To.ToLower().Contains("zh_cn"))
+                             .Where(d => (d.To?.Split('/') ?? Array.Empty<string>()).Length < 7)
+                             .Take(5))
                 {
-                    var names = diff.To.Split('/');
+                    var names = diff.To?.Split('/') ?? Array.Empty<string>();
                     using var iter = names.AsEnumerable().GetEnumerator();
                     if (names.Length == 1)
                     {
@@ -981,7 +986,7 @@ namespace CFPABot.Utils
 
                 foreach (var diff in diffs)
                 {
-                    var names = diff.To.Split('/');
+                    var names = diff.To?.Split('/') ?? Array.Empty<string>();
                     if (names.Length < 7) continue; // 超级硬编码
                     if (names[0] != "projects") continue;
                     if (names[5] != "lang") continue; // 只检查语言文件
@@ -1006,7 +1011,7 @@ namespace CFPABot.Utils
                 await Parallel.ForEachAsync(diffs, new ParallelOptions() { MaxDegreeOfParallelism = 6 },
                     async (diff, token) =>
                     {
-                        var names = diff.To.Split('/');
+                        var names = diff.To?.Split('/') ?? Array.Empty<string>();
                         if (names.Length < 7) return; // 超级硬编码
                         if (names[0] != "projects") return;
                         if (names[5] != "lang") return;
@@ -1047,7 +1052,7 @@ namespace CFPABot.Utils
 
                 foreach (var diff in diffs)
                 {
-                    var names = diff.To.Split('/');
+                    var names = diff.To?.Split('/') ?? Array.Empty<string>();
                     if (names.Length < 7) continue; // 超级硬编码
                     if (names[0] != "projects") continue;
                     if (names[5] != "lang") continue;
@@ -1328,7 +1333,7 @@ namespace CFPABot.Utils
                 var diffCheckedSet = new HashSet<string>();
                 foreach (var diff in diffs)
                 {
-                    var names = diff.To.Split('/');
+                    var names = diff.To?.Split('/') ?? Array.Empty<string>();
                     if (names.Length < 7) continue; // 超级硬编码
                     if (names[0] != "projects") continue;
                     if (!names[6].Contains("zh")) continue; // 只检查中文文件

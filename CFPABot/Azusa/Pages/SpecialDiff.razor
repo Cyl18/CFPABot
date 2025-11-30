@@ -97,7 +97,7 @@
             var dir = Directory.GetFiles(forkRepo.WorkingDirectory, "*.*", SearchOption.AllDirectories).Select(x => Path.GetRelativePath(forkRepo.WorkingDirectory, x)).ToArray();
 
 
-            cndirs = diff.Where(x => x.To.Split('/').Any(y => y.TrimStart('_').Equals("zh_cn", StringComparison.OrdinalIgnoreCase))).Select(x => Traverse(x.To)).Distinct().Order().ToArray();
+            cndirs = diff.Where(x => (x.To?.Split('/') ?? Array.Empty<string>()).Any(y => y.TrimStart('_').Equals("zh_cn", StringComparison.OrdinalIgnoreCase))).Select(x => Traverse(x.To)).Distinct().Order().ToArray();
             var namespaces = cndirs.Select(x => x.Split('/')[3]).ToArray();
 
             endirs = dir.Where(x =>

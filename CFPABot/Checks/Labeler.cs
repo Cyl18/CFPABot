@@ -63,7 +63,7 @@ namespace CFPABot.Checks
                     resultLabels.Add(name);
                 }
             }
-
+            
             var labelsToAdd = resultLabels.Except(currentLabels).ToArray();
             if (labelsToAdd.Length > 0)
             {

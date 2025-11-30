@@ -124,7 +124,7 @@ namespace CFPABot.Controllers
             {
                 foreach (var diff in diffs)
                 {
-                    var names = diff.To.Split('/');
+                    var names = diff.To?.Split('/') ?? Array.Empty<string>();
                     if (names.Length < 7) continue; // 超级硬编码
                     if (names[0] != "projects") continue;
                     if (names[5] != "lang") continue;

@@ -16,7 +16,7 @@ namespace CFPABot.Utils
             var infos = new List<ModInfo>();
             foreach (var fileDiff in diffs)
             {
-                var names = fileDiff.To.Split('/');
+                var names = fileDiff.To?.Split('/') ?? Array.Empty<string>();
                 if (names.Length < 7) continue; // 超级硬编码
                 if (names[0] != "projects") continue;
                 
@@ -40,7 +40,7 @@ namespace CFPABot.Utils
             var paths = new HashSet<ModPath>();
             foreach (var fileDiff in diffs)
             {
-                var names = fileDiff.To.Split('/');
+                var names = fileDiff.To?.Split('/') ?? Array.Empty<string>();
                 if (names.Length < 7) continue;
                 if (names[0] != "projects") continue;
 
