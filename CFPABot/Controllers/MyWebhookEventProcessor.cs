@@ -34,7 +34,7 @@ namespace CFPABot.Controllers
 
             return base.ProcessWebhookAsync(headers, body);
         }
-
+        
         public override Task ProcessWebhookAsync(WebhookHeaders headers, WebhookEvent webhookEvent)
         {
             // workaround

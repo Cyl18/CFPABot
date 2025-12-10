@@ -402,8 +402,10 @@ namespace CFPABot.Utils
             if (version == null) return null;
             try
             {
-                if (addon.LatestFiles.OrderBy(x => version.Value.ToVersionString().Contains("fabric") ? !x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")
-                        : x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")).FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file)
+                if (addon.LatestFiles.OrderBy(x => version.Value.ToVersionString().Contains("fabric") 
+                            ? !x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")
+                            : x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric"))
+                        .FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file)
                 {
                     var fileName = await Download.DownloadFile(GetDownloadUrl(file));
                     await using var fs = FileUtils.OpenFile(fileName);
@@ -418,8 +420,10 @@ namespace CFPABot.Utils
                 else
                 {
                     var allModFiles = await GetAllModFiles(addon);
-                    if (allModFiles.OrderBy(x => version.Value.ToVersionString().Contains("fabric") ? !x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")
-                            : x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")).FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file1)
+                    if (allModFiles.OrderBy(x => version.Value.ToVersionString().Contains("fabric")
+                                ? !x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric")
+                                : x.SortableGameVersions.Any(y => y.GameVersionName == "Fabric"))
+                            .FirstOrDefault(f => f.GetGameVersionString().StartsWith(version.Value.ToStandardVersionString())) is { } file1)
                     {
                         var fileName = await Download.DownloadFile(GetDownloadUrl(file1));
                         await using var fs = FileUtils.OpenFile(fileName);
