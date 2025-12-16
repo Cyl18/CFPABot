@@ -32,11 +32,21 @@ namespace CFPABot.Azusa
             var client = GetGitHubClient(http);
             if (client == null) return false;
             
+            return await IsAdmin(client);
+        }
+
+        public static async Task<bool> IsAdmin(GitHubClient client)
+        {
             var user = await client.User.Current().ConfigureAwait(false);
+            return await IsAdmin(user);
+        }
+
+        public static async Task<bool> IsAdmin(User user)
+        {
             var hasPermission =
                 await GitHub.Instance.Repository.Collaborator
                     .IsCollaborator(Constants.Owner, Constants.RepoName, user.Login).ConfigureAwait(false);
-                
+
             return hasPermission;
         }
 

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
@@ -6,6 +7,8 @@ using CFPABot.Azusa;
 using CFPABot.Utils;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Serilog;
+using Serilog.Core;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -26,10 +29,23 @@ namespace CFPABot.Christina.Backend
         // }
 
         // GET api/Christina
-        [HttpGet("IsAdmin")]
-        public async Task<bool> IsAdmin()
+        [HttpGet("UserStatus")]
+        public async Task<(bool IsError, string UserName, string AvatarUrl, bool? IsAdmin)> UserStatus()
         {
-            return await LoginManager.IsAdmin(new HttpContextAccessor() { HttpContext = HttpContext });
+            try
+            {
+                var client = LoginManager.GetGitHubClient(new HttpContextAccessor() { HttpContext = HttpContext });
+                var user = await client.User.Current();
+                var username = user.Login;
+                var avatarUrl = user.AvatarUrl;
+                var isAdmin = await LoginManager.IsAdmin(user);
+                return (false, username, avatarUrl, isAdmin);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "UserStatus");
+                return (true, null, null, null);
+            }
         } 
         //
         // // GET api/Christina/5
