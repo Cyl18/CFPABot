@@ -55,7 +55,7 @@ namespace CFPABot.Controllers
                 System.IO.File.WriteAllText("config/encrypt_key.txt", Guid.NewGuid().ToString("N"), new UTF8Encoding(false));
             }
             HttpContext.Response.Cookies.Append(Constants.GitHubOAuthTokenCookieName, EncryptProvider.AESEncrypt(clientAccessToken, 
-                System.IO.File.ReadAllText("config/encrypt_key.txt"), "CACTUS&MAMARUO!!"), new CookieOptions() {HttpOnly = true, MaxAge = TimeSpan.FromDays(7)});
+                System.IO.File.ReadAllText("config/encrypt_key.txt"), "CACTUS&MAMARUO!!"), new CookieOptions() {HttpOnly = false, MaxAge = TimeSpan.FromDays(7)});
             return Redirect("/Azusa");
         }
 
