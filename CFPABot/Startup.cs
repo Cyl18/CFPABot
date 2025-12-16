@@ -47,6 +47,13 @@ namespace CFPABot
                 .AddMessagePackProtocol(options => options.SerializerOptions = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block).WithSecurity(MessagePackSecurity.UntrustedData)); ;
             services.AddHttpContextAccessor();
             services.AddSingleton<WebhookEventProcessor, MyWebhookEventProcessor>();
+            services.AddCors(options => options.AddPolicy("AllowSpecificOrigin", // Name of the policy
+                policy =>
+                {
+                    policy.WithOrigins("http://localhost:5500") // Specify the allowed origin
+                        .AllowAnyHeader()
+                        .AllowAnyMethod();
+                }));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

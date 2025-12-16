@@ -31,6 +31,7 @@ namespace CFPABot.Utils
         public static string GitHubWebhookSecret => Environment.GetEnvironmentVariable("GITHUB_WEBHOOK_SECRET");
         public static string CurseForgeApiKey => Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
         public static string ChatGptApiKey => Environment.GetEnvironmentVariable("CHATGPT_API_KEY");
+        public static string OpenRouterApiKey => Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
 #endif
     }
 }
