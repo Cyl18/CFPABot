@@ -28,9 +28,10 @@ namespace CFPABot.Christina.Backend
         //
         // }
 
+        record UserStatusResult(bool IsError, string UserName, string AvatarUrl, bool? IsAdmin);
         // GET api/Christina
         [HttpGet("UserStatus")]
-        public async Task<(bool IsError, string UserName, string AvatarUrl, bool? IsAdmin)> UserStatus()
+        public async Task<JsonResult> UserStatus()
         {
             try
             {
@@ -39,12 +40,12 @@ namespace CFPABot.Christina.Backend
                 var username = user.Login;
                 var avatarUrl = user.AvatarUrl;
                 var isAdmin = await LoginManager.IsAdmin(user);
-                return (false, username, avatarUrl, isAdmin);
+                return new JsonResult(new UserStatusResult(false, username, avatarUrl, isAdmin));
             }
             catch (Exception e)
             {
                 Log.Error(e, "UserStatus");
-                return (true, null, null, null);
+                return new JsonResult(new UserStatusResult(false, null, null, null));
             }
         } 
         //
