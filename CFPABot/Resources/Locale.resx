@@ -134,7 +134,7 @@
     <value>⚠ 添加重定向 {0} -&gt; {1} 失败。提供的 slug 为 {2} 而 API 返回的为 {3}。</value>
   </data>
   <data name="Command.add-mapping.Success" xml:space="preserve">
-    <value>ℹ 添加重定向 {0} -&gt; {1} 成功。请使用强制刷新来刷新数据。</value>
+    <value>ℹ 添加重定向 {0} -&gt; {1} 成功。正在进行强制刷新。</value>
   </data>
   <data name="Command.sort-keys.FileNotExists" xml:space="preserve">
     <value>⚠ 指定的文件不存在。</value>

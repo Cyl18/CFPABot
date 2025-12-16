@@ -404,7 +404,7 @@ namespace CFPABot.Resources {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ℹ 添加重定向 {0} -&gt; {1} 成功。请使用强制刷新来刷新数据。.
+        ///   Looks up a localized string similar to ℹ 添加重定向 {0} -&gt; {1} 成功。正在进行强制刷新。.
         /// </summary>
         public static string Command_add_mapping_Success {
             get {

@@ -60,6 +60,14 @@ namespace CFPABot
 
             app.UseDirectoryBrowser(new DirectoryBrowserOptions() { RequestPath = "/project-hex", FileProvider = new PhysicalFileProvider("/app/project-hex") });
 
+            app.UseStaticFiles(new StaticFileOptions()
+            {
+                RequestPath = "/christina",
+                FileProvider = new ManifestEmbeddedFileProvider(
+                    typeof(Program).Assembly, "Christina"
+                )
+            });
+
             app.UseStaticFiles(new StaticFileOptions
             {
                 RequestPath = "/static",

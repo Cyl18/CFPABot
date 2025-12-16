@@ -15,12 +15,12 @@ using System.Web;
 using CFPABot.Azusa.wwwroot2;
 using CFPABot.Command;
 using CFPABot.CompositionHandler;
+using CFPABot.Controllers;
 using CFPABot.DiffEngine;
 using CFPABot.Exceptions;
 using CFPABot.PRData;
 using CFPABot.Resources;
 using CurseForge.APIClient.Models.Files;
-using CurseForge.APIClient.Models.Mods;
 using DiffPatch.Data;
 using GammaLibrary.Extensions;
 using Microsoft.DotNet.Scaffolding.Shared.CodeModifier.CodeChange;
@@ -31,6 +31,7 @@ using Serilog;
 using Serilog.Core;
 using Serilog.Core.Enrichers;
 using File = System.IO.File;
+using Mod = CurseForge.APIClient.Models.Mods.Mod;
 using Project = Modrinth.Models.Project;
 
 namespace CFPABot.Utils
@@ -60,6 +61,21 @@ namespace CFPABot.Utils
                 Log.Error(e, "new CommentBuilder 失败");
                 Context = new CommentContext() { ID = pullRequestID };
             }
+        }
+
+        public static async Task ForceRefresh(int prid)
+        {
+            var pr = await GitHub.GetPullRequest(prid);
+            var fileName = $"{pr.Number}-{pr.Head.Sha.Substring(0, 7)}.txt";
+            var filePath = "wwwroot/" + fileName;
+            if (File.Exists(filePath)) File.Delete(filePath);
+
+            var builder = MyWebhookEventProcessor.GetOrCreateCommentBuilder(prid);
+            _ = builder.Update(async () =>
+            {
+                await builder.UpdateBuildArtifactsSegment();
+                await builder.UpdateModLinkSegment(await GitHub.Diff(prid));
+            });
         }
 
         public int PullRequestID { get; }

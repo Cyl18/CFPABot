@@ -465,6 +465,7 @@ namespace CFPABot.Command
                             }
                             else
                             {
+                                await CommentBuilder.ForceRefresh(prid);
                                 sb.AppendLine(string.Format(Locale.Command_add_mapping_Success, slug, curseForgeProjectID));
                             }
                         }
