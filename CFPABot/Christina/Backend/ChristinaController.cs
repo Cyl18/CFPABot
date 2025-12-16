@@ -45,7 +45,7 @@ namespace CFPABot.Christina.Backend
             catch (Exception e)
             {
                 Log.Error(e, "UserStatus");
-                return new JsonResult(new UserStatusResult(false, null, null, null));
+                return new JsonResult(new UserStatusResult(true, null, null, null));
             }
         } 
         //
