@@ -366,3 +366,4 @@ PublishProfiles/
 publish.bat
 launchSettings.json
 CFPABot/Properties/launchSettings.json
+CFPABot/Christina/.vscode
