@@ -1,8 +1,6 @@
 ﻿using CFPABot.Exceptions;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
-using OpenAI;
-using OpenAI.Chat;
 using System;
 using System.Linq;
 using System.Net.Http;
@@ -21,33 +19,34 @@ public static class CFPALLMManager
 {
     public static async Task<(PRReviewAssistantData[] data, string rawOutput, string indentedjson)> RunPRReview(int prid, string path, string prompt, bool diffMode, IProgress<string> progress)
     {
-        var delta = "";
-        var openAiClient = new OpenAIClient(clientSettings: new OpenAIClientSettings("https://ark.cn-beijing.volces.com/api", apiVersion: "v3"),
-            openAIAuthentication: Environment.GetEnvironmentVariable("HUOSHAN_API_KEY"), client: new HttpClient() { Timeout = TimeSpan.FromMinutes(1000) });
-        
-        var response = await openAiClient.ChatEndpoint.StreamCompletionAsync(new ChatRequest(new[]
-        {
-            new Message(Role.User, prompt + await ProcessPrReviewInput(prid, path, diffMode))
-        }, "deepseek-r1-250120", responseFormat: ChatResponseFormat.Json), chatResponse =>
-        {
-            var value = chatResponse.FirstChoice?.Delta?.ToString();
-
-            if (value != null)
-            {
-                delta += value;
-                progress.Report(delta);
-            }
-        });
-        var s = response.FirstChoice.Message.ToString();
-        Log.Information($"{prid} 的 LLM 审核结果:");
-        Log.Information(s);
-        var last = s.Split("</think>").Last();
-        var regex = new Regex(@"\[(.|\n)*\]", RegexOptions.Multiline);
-        var rawJson = regex.Match(last).Value;
-        var prReviewAssistantDatas = rawJson.JsonDeserialize<PRReviewAssistantData[]>();
-        ;
-        return (prReviewAssistantDatas, s, prReviewAssistantDatas.ToJsonString(new JsonSerializerOptions()
-            { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, }));
+        throw new NotImplementedException();
+        // var delta = "";
+        // var openAiClient = new OpenAIClient(clientSettings: new OpenAIClientSettings("https://ark.cn-beijing.volces.com/api", apiVersion: "v3"),
+        //     openAIAuthentication: Environment.GetEnvironmentVariable("HUOSHAN_API_KEY"), client: new HttpClient() { Timeout = TimeSpan.FromMinutes(1000) });
+        //
+        // var response = await openAiClient.ChatEndpoint.StreamCompletionAsync(new ChatRequest(new[]
+        // {
+        //     new Message(Role.User, prompt + await ProcessPrReviewInput(prid, path, diffMode))
+        // }, "deepseek-r1-250120", responseFormat: ChatResponseFormat.Json), chatResponse =>
+        // {
+        //     var value = chatResponse.FirstChoice?.Delta?.ToString();
+        //
+        //     if (value != null)
+        //     {
+        //         delta += value;
+        //         progress.Report(delta);
+        //     }
+        // });
+        // var s = response.FirstChoice.Message.ToString();
+        // Log.Information($"{prid} 的 LLM 审核结果:");
+        // Log.Information(s);
+        // var last = s.Split("</think>").Last();
+        // var regex = new Regex(@"\[(.|\n)*\]", RegexOptions.Multiline);
+        // var rawJson = regex.Match(last).Value;
+        // var prReviewAssistantDatas = rawJson.JsonDeserialize<PRReviewAssistantData[]>();
+        // ;
+        // return (prReviewAssistantDatas, s, prReviewAssistantDatas.ToJsonString(new JsonSerializerOptions()
+        //     { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, }));
     }
     public static async Task<string> ProcessPrReviewInput(int prid, string path, bool diffMode)
     {
