@@ -90,6 +90,7 @@ namespace CFPABot.Command
                             throw new CommandException("文件不存在。");
                         }
                         var to = Path.Combine(r.WorkingDirectory, args[1]);
+                        Directory.CreateDirectory(Path.GetDirectoryName(to));
                         File.Move(from, to, true);
                         
                         r.AddAllFiles();
