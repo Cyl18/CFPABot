@@ -30,7 +30,8 @@
                     <span x-show="reviewLoading" class="flex items-center gap-2">
                         <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
                         <span x-show="reviewProgress.total === 0">Starting...</span>
-                        <span x-show="reviewProgress.total > 0" x-text="reviewProgress.completed + '/' + reviewProgress.total + ' batches'"></span>
+                        <span x-show="reviewProgress.total > 0 && !reviewProgress.merging" x-text="reviewProgress.completed + '/' + reviewProgress.total + ' batches'"></span>
+                        <span x-show="reviewProgress.merging">Merging notes...</span>
                     </span>
                 </button>
             </div>
@@ -198,12 +199,12 @@
         </div>
 
         <!-- Global Notes -->
-        <div x-show="reviewData.globalNotes && reviewData.globalNotes.length > 0" class="mt-8 bg-slate-850 border border-slate-700 rounded-lg p-5 border-l-4 border-l-blue-500">
+        <div x-show="reviewData?.globalNotes?.length > 0" class="mt-8 bg-slate-850 border border-slate-700 rounded-lg p-5 border-l-4 border-l-blue-500">
             <h3 class="text-lg font-bold flex items-center gap-2 mb-3">
                 <i data-lucide="info" class="w-5 h-5 text-blue-400"></i> Global Review Notes
             </h3>
             <ul class="list-disc pl-5 space-y-2 text-slate-300 text-sm">
-                <template x-for="note in reviewData.globalNotes">
+                <template x-for="note in (reviewData?.globalNotes || [])">
                     <li x-text="note"></li>
                 </template>
             </ul>
@@ -218,7 +219,7 @@ function prReviewData() {
         prNumber: '',
         loading: false,
         reviewLoading: false,
-        reviewProgress: { completed: 0, total: 0 },
+        reviewProgress: { completed: 0, total: 0, merging: false },
         error: '',
         
         mods: [],
@@ -292,20 +293,20 @@ function prReviewData() {
         async loadReview() {
             if(!this.prNumber || !this.selectedMod) return;
             this.reviewLoading = true;
-            this.reviewProgress = { completed: 0, total: 0 };
+            this.reviewProgress = { completed: 0, total: 0, merging: false };
             this.error = '';
             this.reviewData = null;
             this.expandedRows.clear();
 
             const url = `${window.API_BASE_URL}/PRLLMReviewResult?pr=${this.prNumber}&mod=${encodeURIComponent(this.selectedMod)}`;
-            const es = new EventSource(url);
+            const es = new EventSource(url, { withCredentials: true });
 
             es.onmessage = (event) => {
                 let msg;
                 try { msg = JSON.parse(event.data); } catch { return; }
 
                 if (msg.type === 'progress') {
-                    this.reviewProgress = { completed: msg.completed, total: msg.total };
+                    this.reviewProgress = { completed: msg.completed, total: msg.total, merging: !!msg.merging };
                 } else if (msg.type === 'done') {
                     es.close();
                     this.processReviewData(msg.result);
@@ -320,7 +321,8 @@ function prReviewData() {
                 }
             };
 
-            es.onerror = () => {
+            es.onerror = (event) => {
+                console.error('SSE error event:', event, 'readyState:', es.readyState);
                 es.close();
                 if (this.reviewLoading) {
                     this.error = 'Connection error while loading review result';

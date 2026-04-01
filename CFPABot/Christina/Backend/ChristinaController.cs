@@ -186,7 +186,12 @@ namespace CFPABot.Christina.Backend
                     if (result == null)
                     {
                         var progress = new Progress<(int completed, int total)>(p =>
-                            channel.Writer.TryWrite(Serialize(new { type = "progress", completed = p.completed, total = p.total })));
+                        {
+                            if (p.completed == -1)
+                                channel.Writer.TryWrite(Serialize(new { type = "progress", completed = p.total, total = p.total, merging = true }));
+                            else
+                                channel.Writer.TryWrite(Serialize(new { type = "progress", completed = p.completed, total = p.total }));
+                        });
 
                         result = await LLMAssistantClient.GetLLMReviewResult(
                             en, cn, modPath.CurseForgeSlug, modPath.GameVersionDirectoryName,

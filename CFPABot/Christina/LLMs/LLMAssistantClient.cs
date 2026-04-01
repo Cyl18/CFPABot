@@ -61,7 +61,17 @@ namespace CFPABot.Christina.LLMs
             var allGlobalNotes = results.Select(r => r.notes)
                 .Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
 
-            var mergedNotes = await MergeGlobalNotesAsync(allItems, allGlobalNotes, ct);
+            string mergedNotes;
+            try
+            {
+                progress?.Report((-1, total)); // signal: merging
+                mergedNotes = await MergeGlobalNotesAsync(allItems, allGlobalNotes, ct);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning(ex, "MergeGlobalNotesAsync failed, returning empty notes");
+                mergedNotes = string.Join("\n", allGlobalNotes);
+            }
 
             return new LlmBatchOutput
             {
