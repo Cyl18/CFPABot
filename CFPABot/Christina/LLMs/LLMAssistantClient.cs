@@ -22,6 +22,7 @@ namespace CFPABot.Christina.LLMs
         internal static async Task<LlmBatchOutput> GetLLMReviewResult(
             JsonObjectEx en, JsonObjectEx cn,
             string modId, string mcVersionRange,
+            IProgress<(int completed, int total)>? progress = null,
             CancellationToken ct = default)
         {
             var enDict = en.Lines.ToDictionary(x => x.Key, x => x.Value);
@@ -29,43 +30,36 @@ namespace CFPABot.Christina.LLMs
 
             var batches = SplitIntoBatches(filteredLines, enDict);
 
-            var openRouter = new OpenRouterClient();
-            var allItems = new List<LlmItemOutput>();
-            var allGlobalNotes = new List<string>();
-
-            int globalIdOffset = 0;
-            foreach (var batch in batches)
+            // Pre-calculate global id offsets so batches can run concurrently
+            var offsets = new int[batches.Count];
+            int off = 0;
+            for (int i = 0; i < batches.Count; i++)
             {
-                var entries = batch.Select((line, i) => new ReviewEntry
-                {
-                    Id = i,
-                    Key = line.Key,
-                    Source = enDict.TryGetValue(line.Key, out var enVal) ? enVal : "",
-                    Target = line.Value
-                }).ToList();
-
-                var batchInput = new ReviewBatchInput
-                {
-                    ModId = modId,
-                    McVersionRange = mcVersionRange,
-                    Entries = entries
-                };
-
-                var inputJson = JsonSerializer.Serialize(batchInput, SerializeOptions);
-                var prompt = string.Format(MediumSeverityPrompt, inputJson);
-
-                var responseText = await openRouter.QueryWithSystemPromptAsync(
-                    SystemPrompt, prompt,
-                    new ModelPolicy(OpenRouterReviewModel),
-                    ct);
-
-                var (items, batchNotes) = ParseBatchOutput(responseText, globalIdOffset);
-                allItems.AddRange(items);
-                if (!string.IsNullOrWhiteSpace(batchNotes))
-                    allGlobalNotes.Add(batchNotes);
-
-                globalIdOffset += batch.Count;
+                offsets[i] = off;
+                off += batches[i].Count;
             }
+
+            var openRouter = new OpenRouterClient();
+            int completed = 0;
+            int total = batches.Count;
+
+            var batchTasks = batches.Select((batch, i) =>
+            {
+                var idOffset = offsets[i];
+                return ProcessBatchAsync(openRouter, enDict, batch, idOffset, modId, mcVersionRange, ct)
+                    .ContinueWith(t =>
+                    {
+                        Interlocked.Increment(ref completed);
+                        progress?.Report((Volatile.Read(ref completed), total));
+                        return t.GetAwaiter().GetResult(); // propagate exceptions
+                    }, TaskScheduler.Default);
+            }).ToArray();
+
+            var results = await Task.WhenAll(batchTasks);
+
+            var allItems = results.SelectMany(r => r.items).OrderBy(x => x.Id).ToList();
+            var allGlobalNotes = results.Select(r => r.notes)
+                .Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
 
             var mergedNotes = await MergeGlobalNotesAsync(allItems, allGlobalNotes, ct);
 
@@ -74,6 +68,41 @@ namespace CFPABot.Christina.LLMs
                 Items = allItems,
                 GlobalNotes = mergedNotes
             };
+        }
+
+        private static async Task<(List<LlmItemOutput> items, string notes)> ProcessBatchAsync(
+            OpenRouterClient openRouter,
+            Dictionary<string, string> enDict,
+            List<JsonLine> batch,
+            int globalIdOffset,
+            string modId, string mcVersionRange,
+            CancellationToken ct)
+        {
+            var entries = batch.Select((line, i) => new ReviewEntry
+            {
+                Id = i,
+                Key = line.Key,
+                Source = enDict.TryGetValue(line.Key, out var enVal) ? enVal : "",
+                Target = line.Value
+            }).ToList();
+
+            var batchInput = new ReviewBatchInput
+            {
+                ModId = modId,
+                McVersionRange = mcVersionRange,
+                Entries = entries
+            };
+
+            var inputJson = JsonSerializer.Serialize(batchInput, SerializeOptions);
+            var prompt = string.Format(MediumSeverityPrompt, inputJson);
+
+            var responseText = await openRouter.QueryWithSystemPromptAsync(
+                SystemPrompt, prompt,
+                new ModelPolicy(OpenRouterReviewModel),
+                ct);
+
+            var (items, batchNotes) = ParseBatchOutput(responseText, globalIdOffset);
+            return (items, batchNotes);
         }
 
         // ── Batching ──────────────────────────────────────────────────────────

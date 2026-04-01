@@ -333,7 +333,6 @@ namespace CFPABot.Christina.LLMs
     public sealed class ApiKeyPool
     {
         private readonly List<ApiKeyState> _keys;
-        private int _index;
 
         public ApiKeyPool(IEnumerable<string> keys)
         {
@@ -348,18 +347,12 @@ namespace CFPABot.Christina.LLMs
             {
                 lock (_keys)
                 {
-                    for (int i = 0; i < _keys.Count; i++)
-                    {
-                        var idx = (_index + i) % _keys.Count;
-                        if (_keys[idx].IsAvailable)
-                        {
-                            _index = idx + 1;
-                            return _keys[idx].Key;
-                        }
-                    }
+                    var available = _keys.FindAll(k => k.IsAvailable);
+                    if (available.Count > 0)
+                        return available[Random.Shared.Next(available.Count)].Key;
                 }
 
-                await Task.Delay(1000);
+                await Task.Delay(50);
             }
             throw new InvalidOperationException("No API key available");
         }
@@ -383,7 +376,7 @@ namespace CFPABot.Christina.LLMs
 
             public void Backoff()
             {
-                _cooldownUntil = DateTime.UtcNow.AddSeconds(2);
+                _cooldownUntil = DateTime.UtcNow.AddSeconds(0.2);
             }
         }
     }

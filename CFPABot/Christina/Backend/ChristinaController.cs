@@ -13,6 +13,8 @@ using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
@@ -95,93 +97,142 @@ namespace CFPABot.Christina.Backend
         }
 
         [HttpGet("PRLLMReviewResult")]
-        public async Task<JsonResult> PRLLMReviewResult([FromQuery] int pr, [FromQuery] string mod)
+        public async Task PRLLMReviewResult([FromQuery] int pr, [FromQuery] string mod)
         {
-            if (ChristinaConfig.MockEnabled)
+            Response.Headers.Append("Content-Type", "text/event-stream");
+            Response.Headers.Append("Cache-Control", "no-cache");
+            Response.Headers.Append("X-Accel-Buffering", "no");
+
+            var ct = HttpContext.RequestAborted;
+            var channel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
+
+            string Serialize(object data) => JsonSerializer.Serialize(data, _jsonOpts);
+
+            // Writer task: does all the LLM work and posts SSE messages to the channel
+            _ = Task.Run(async () =>
             {
-                return new JsonResult(new ReviewFrontendDisplay
+                try
                 {
-                    FrontendDisplayItems = new List<ReviewFrontendDisplayItem>
+                    if (ChristinaConfig.MockEnabled)
                     {
-                        new() { Key = "item.copper_ingot", Source = "Copper Ingot", Target = "铜锭" },
-                        new() { Key = "item.iron_plate", Source = "Iron Plate", Target = "铁板" }
-                    },
-                    LlmOutputItems = new List<LlmItemOutput>
-                    {
-                        new() { Id = 0, Status = ReviewStatus.Pass, Issues = new List<LlmIssue>(), SuggestedTarget = "" },
-                        new() { Id = 1, Status = ReviewStatus.Minor, Issues = new List<LlmIssue>
+                        var mockDisplay = new ReviewFrontendDisplay
                         {
-                            new() { Severity = IssueSeverity.Minor, Type = IssueType.Terminology, Message = "建议统一术语", Suggestion = "铁板", Reason = "术语统一" }
-                        }, SuggestedTarget = "铁板" }
-                    },
-                    GlobalNotes = "整体翻译质量良好"
-                }, _jsonOpts);
-            }
-            var diff = await GitHub.Diff(pr);
-            var prInfo = await GitHub.GetPullRequest(pr);
-            var headSha = prInfo.Head.Sha;
-            var baseSha = prInfo.Base.Sha;
+                            FrontendDisplayItems = new List<ReviewFrontendDisplayItem>
+                            {
+                                new() { Key = "item.copper_ingot", Source = "Copper Ingot", Target = "铜锭" },
+                                new() { Key = "item.iron_plate", Source = "Iron Plate", Target = "铁板" }
+                            },
+                            LlmOutputItems = new List<LlmItemOutput>
+                            {
+                                new() { Id = 0, Status = ReviewStatus.Pass, Issues = new List<LlmIssue>(), SuggestedTarget = "" },
+                                new() { Id = 1, Status = ReviewStatus.Minor, Issues = new List<LlmIssue>
+                                {
+                                    new() { Severity = IssueSeverity.Minor, Type = IssueType.Terminology, Message = "建议统一术语", Suggestion = "铁板", Reason = "术语统一" }
+                                }, SuggestedTarget = "铁板" }
+                            },
+                            GlobalNotes = "整体翻译质量良好"
+                        };
+                        channel.Writer.TryWrite(Serialize(new { type = "done", result = mockDisplay }));
+                        channel.Writer.TryComplete();
+                        return;
+                    }
 
-            var modPaths = PRAnalyzer.RunBleedingEdge(diff);
-            var modPath = modPaths.FirstOrDefault(m => m.ToString() == mod);
-            if (modPath == null)
-                return new JsonResult(new { error = "mod not found" }, _jsonOpts);
+                    var diff = await GitHub.Diff(pr);
+                    var prInfo = await GitHub.GetPullRequest(pr);
+                    var headSha = prInfo.Head.Sha;
+                    var baseSha = prInfo.Base.Sha;
 
-            var enTask = new LangFilePath(modPath, LangType.EN).FetchFromCommit(headSha);
-            var cnTask = new LangFilePath(modPath, LangType.CN).FetchFromCommit(headSha);
-            var baseEnTask = new LangFilePath(modPath, LangType.EN).FetchFromCommit(baseSha);
-            var baseCnTask = new LangFilePath(modPath, LangType.CN).FetchFromCommit(baseSha);
-            await Task.WhenAll(enTask, cnTask, baseEnTask, baseCnTask);
-            var enContent = await enTask;
-            var cnContent = await cnTask;
-            var baseEnContent = await baseEnTask;
-            var baseCnContent = await baseCnTask;
+                    var modPaths = PRAnalyzer.RunBleedingEdge(diff);
+                    var modPath = modPaths.FirstOrDefault(m => m.ToString() == mod);
+                    if (modPath == null)
+                    {
+                        channel.Writer.TryWrite(Serialize(new { type = "error", message = "mod not found" }));
+                        channel.Writer.TryComplete();
+                        return;
+                    }
 
-            if (enContent == null || cnContent == null)
-                return new JsonResult(new { error = "lang files not found" }, _jsonOpts);
+                    var enTask = new LangFilePath(modPath, LangType.EN).FetchFromCommit(headSha);
+                    var cnTask = new LangFilePath(modPath, LangType.CN).FetchFromCommit(headSha);
+                    var baseEnTask = new LangFilePath(modPath, LangType.EN).FetchFromCommit(baseSha);
+                    var baseCnTask = new LangFilePath(modPath, LangType.CN).FetchFromCommit(baseSha);
+                    await Task.WhenAll(enTask, cnTask, baseEnTask, baseCnTask);
 
-            var en = JsonObjectEx.CreateFromString(enContent);
-            var cn = JsonObjectEx.CreateFromString(cnContent);
+                    var enContent = await enTask;
+                    var cnContent = await cnTask;
+                    var baseEnContent = await baseEnTask;
+                    var baseCnContent = await baseCnTask;
 
-            var enDict = en.Lines.ToDictionary(x => x.Key, x => x.Value);
-            var filteredLines = cn.Lines.Where(x => enDict.ContainsKey(x.Key)).ToArray();
+                    if (enContent == null || cnContent == null)
+                    {
+                        channel.Writer.TryWrite(Serialize(new { type = "error", message = "lang files not found" }));
+                        channel.Writer.TryComplete();
+                        return;
+                    }
 
-            var baseEnDict = baseEnContent != null
-                ? JsonObjectEx.CreateFromString(baseEnContent).Lines.ToDictionary(x => x.Key, x => x.Value)
-                : null;
-            var baseCnDict = baseCnContent != null
-                ? JsonObjectEx.CreateFromString(baseCnContent).Lines.ToDictionary(x => x.Key, x => x.Value)
-                : null;
+                    var en = JsonObjectEx.CreateFromString(enContent);
+                    var cn = JsonObjectEx.CreateFromString(cnContent);
 
-            var result = await TryLoadReviewCache(pr, mod, headSha);
-            if (result == null)
-            {
-                result = await LLMAssistantClient.GetLLMReviewResult(en, cn, modPath.CurseForgeSlug, modPath.GameVersionDirectoryName);
-                await SaveReviewCache(pr, mod, headSha, result);
-            }
+                    var enDict = en.Lines.ToDictionary(x => x.Key, x => x.Value);
+                    var filteredLines = cn.Lines.Where(x => enDict.ContainsKey(x.Key)).ToArray();
 
-            var displayItems = result.Items.Select(item =>
-            {
-                var line = item.Id < filteredLines.Length ? filteredLines[item.Id] : null;
-                var key = line?.Key ?? "";
-                return new ReviewFrontendDisplayItem
+                    var baseEnDict = baseEnContent != null
+                        ? JsonObjectEx.CreateFromString(baseEnContent).Lines.ToDictionary(x => x.Key, x => x.Value)
+                        : null;
+                    var baseCnDict = baseCnContent != null
+                        ? JsonObjectEx.CreateFromString(baseCnContent).Lines.ToDictionary(x => x.Key, x => x.Value)
+                        : null;
+
+                    var result = await TryLoadReviewCache(pr, mod, headSha);
+                    if (result == null)
+                    {
+                        var progress = new Progress<(int completed, int total)>(p =>
+                            channel.Writer.TryWrite(Serialize(new { type = "progress", completed = p.completed, total = p.total })));
+
+                        result = await LLMAssistantClient.GetLLMReviewResult(
+                            en, cn, modPath.CurseForgeSlug, modPath.GameVersionDirectoryName,
+                            progress, ct);
+                        await SaveReviewCache(pr, mod, headSha, result);
+                    }
+
+                    var displayItems = result.Items.Select(item =>
+                    {
+                        var line = item.Id < filteredLines.Length ? filteredLines[item.Id] : null;
+                        var key = line?.Key ?? "";
+                        return new ReviewFrontendDisplayItem
+                        {
+                            Key = key,
+                            Source = !string.IsNullOrEmpty(key) && enDict.TryGetValue(key, out var s) ? s : "",
+                            Target = line?.Value ?? "",
+                            BaseSource = !string.IsNullOrEmpty(key) && baseEnDict != null && baseEnDict.TryGetValue(key, out var bs) ? bs : null,
+                            BaseTarget = !string.IsNullOrEmpty(key) && baseCnDict != null && baseCnDict.TryGetValue(key, out var bt) ? bt : null,
+                        };
+                    }).ToList();
+
+                    var display = new ReviewFrontendDisplay
+                    {
+                        FrontendDisplayItems = displayItems,
+                        LlmOutputItems = result.Items,
+                        GlobalNotes = result.GlobalNotes ?? ""
+                    };
+
+                    channel.Writer.TryWrite(Serialize(new { type = "done", result = display }));
+                    channel.Writer.TryComplete();
+                }
+                catch (OperationCanceledException) { channel.Writer.TryComplete(); }
+                catch (Exception ex)
                 {
-                    Key = key,
-                    Source = !string.IsNullOrEmpty(key) && enDict.TryGetValue(key, out var s) ? s : "",
-                    Target = line?.Value ?? "",
-                    BaseSource = !string.IsNullOrEmpty(key) && baseEnDict != null && baseEnDict.TryGetValue(key, out var bs) ? bs : null,
-                    BaseTarget = !string.IsNullOrEmpty(key) && baseCnDict != null && baseCnDict.TryGetValue(key, out var bt) ? bt : null,
-                };
-            }).ToList();
+                    Log.Error(ex, "PRLLMReviewResult failed for pr={Pr} mod={Mod}", pr, mod);
+                    channel.Writer.TryWrite(Serialize(new { type = "error", message = ex.Message }));
+                    channel.Writer.TryComplete();
+                }
+            }, CancellationToken.None);
 
-            var display = new ReviewFrontendDisplay
+            // Reader: drain channel and write each SSE event to the response
+            await foreach (var msg in channel.Reader.ReadAllAsync(ct))
             {
-                FrontendDisplayItems = displayItems,
-                LlmOutputItems = result.Items,
-                GlobalNotes = result.GlobalNotes ?? ""
-            };
-
-            return new JsonResult(display, _jsonOpts);
+                await Response.WriteAsync($"data: {msg}\n\n", ct);
+                await Response.Body.FlushAsync(ct);
+            }
         }
 
 

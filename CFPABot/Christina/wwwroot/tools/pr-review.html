@@ -28,7 +28,9 @@
                     class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded transition">
                     <span x-show="!reviewLoading">Review</span>
                     <span x-show="reviewLoading" class="flex items-center gap-2">
-                        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Loading...
+                        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                        <span x-show="reviewProgress.total === 0">Starting...</span>
+                        <span x-show="reviewProgress.total > 0" x-text="reviewProgress.completed + '/' + reviewProgress.total + ' batches'"></span>
                     </span>
                 </button>
             </div>
@@ -216,6 +218,7 @@ function prReviewData() {
         prNumber: '',
         loading: false,
         reviewLoading: false,
+        reviewProgress: { completed: 0, total: 0 },
         error: '',
         
         mods: [],
@@ -271,7 +274,6 @@ function prReviewData() {
                     this.mods = mods;
                     if(this.mods.length === 1) {
                         this.selectedMod = this.mods[0];
-                        // Auto load if single mod?
                     }
                 } else {
                     this.error = 'No mods found for this PR.';
@@ -290,58 +292,68 @@ function prReviewData() {
         async loadReview() {
             if(!this.prNumber || !this.selectedMod) return;
             this.reviewLoading = true;
+            this.reviewProgress = { completed: 0, total: 0 };
             this.error = '';
             this.reviewData = null;
             this.expandedRows.clear();
-            
-            try {
-                const url = `${window.API_BASE_URL}/PRLLMReviewResult?pr=${this.prNumber}&mod=${encodeURIComponent(this.selectedMod)}`;
-                const response = await fetch(url);
-                if (!response.ok) {
-                    const txt = await response.text();
-                    throw new Error(txt || 'Failed to fetch review data');
-                }
-                
-                const data = await response.json();
-                // Combine FrontendDisplayItems + LLMOutputItems based on indices
-                // Because length should match
-                
-                if(!data.frontendDisplayItems || !data.llmOutputItems) {
-                    throw new Error('Invalid response format API');
-                }
-                
-                let combinedItems = [];
-                const len = Math.min(data.frontendDisplayItems.length, data.llmOutputItems.length);
-                for(let i = 0; i < len; i++) {
-                    const fd = data.frontendDisplayItems[i];
-                    const llm = data.llmOutputItems[i];
-                    
-                    combinedItems.push({
-                        index: i,
-                        key: fd.key,
-                        source: fd.source,
-                        target: fd.target,
-                        baseSource: fd.baseSource,
-                        baseTarget: fd.baseTarget,
-                        
-                        status: llm.status,
-                        issues: llm.issues || []
+
+            const url = `${window.API_BASE_URL}/PRLLMReviewResult?pr=${this.prNumber}&mod=${encodeURIComponent(this.selectedMod)}`;
+            const es = new EventSource(url);
+
+            es.onmessage = (event) => {
+                let msg;
+                try { msg = JSON.parse(event.data); } catch { return; }
+
+                if (msg.type === 'progress') {
+                    this.reviewProgress = { completed: msg.completed, total: msg.total };
+                } else if (msg.type === 'done') {
+                    es.close();
+                    this.processReviewData(msg.result);
+                    this.reviewLoading = false;
+                    this.$nextTick(() => {
+                        if(typeof lucide !== 'undefined') lucide.createIcons();
                     });
+                } else if (msg.type === 'error') {
+                    es.close();
+                    this.error = msg.message || 'Error occurred while loading review result';
+                    this.reviewLoading = false;
                 }
-                
-                this.reviewData = {
-                    items: combinedItems,
-                    globalNotes: data.globalNotes || []
-                };
-            } catch (err) {
-                this.error = err.message || 'Error occurred while loading review result';
-                console.error(err);
-            } finally {
-                this.reviewLoading = false;
-                this.$nextTick(() => {
-                    if(typeof lucide !== 'undefined') lucide.createIcons();
+            };
+
+            es.onerror = () => {
+                es.close();
+                if (this.reviewLoading) {
+                    this.error = 'Connection error while loading review result';
+                    this.reviewLoading = false;
+                }
+            };
+        },
+
+        processReviewData(data) {
+            if(!data.frontendDisplayItems || !data.llmOutputItems) {
+                this.error = 'Invalid response format API';
+                return;
+            }
+            let combinedItems = [];
+            const len = Math.min(data.frontendDisplayItems.length, data.llmOutputItems.length);
+            for(let i = 0; i < len; i++) {
+                const fd = data.frontendDisplayItems[i];
+                const llm = data.llmOutputItems[i];
+                combinedItems.push({
+                    index: i,
+                    key: fd.key,
+                    source: fd.source,
+                    target: fd.target,
+                    baseSource: fd.baseSource,
+                    baseTarget: fd.baseTarget,
+                    status: llm.status,
+                    issues: llm.issues || []
                 });
             }
+            this.reviewData = {
+                items: combinedItems,
+                globalNotes: data.globalNotes || []
+            };
         },
 
         get totalFilteredCount() {
