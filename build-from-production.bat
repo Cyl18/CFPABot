@@ -1,6 +1,6 @@
 ﻿:: <#
 @echo off
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~f0"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Expression ((Get-Content '%~f0' -Raw) -replace '(?s)^.*?#>\r?\n','')"
 pause
 exit /b
 #>
