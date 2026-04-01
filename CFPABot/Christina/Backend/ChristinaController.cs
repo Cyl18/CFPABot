@@ -223,7 +223,11 @@ namespace CFPABot.Christina.Backend
                     channel.Writer.TryWrite(Serialize(new { type = "done", result = display }));
                     channel.Writer.TryComplete();
                 }
-                catch (OperationCanceledException) { channel.Writer.TryComplete(); }
+                catch (OperationCanceledException oce)
+                {
+                    Log.Warning(oce, "PRLLMReviewResult cancelled (proxy timeout or client disconnect) for pr={Pr} mod={Mod}", pr, mod);
+                    channel.Writer.TryComplete();
+                }
                 catch (Exception ex)
                 {
                     Log.Error(ex, "PRLLMReviewResult failed for pr={Pr} mod={Mod}", pr, mod);
@@ -232,11 +236,20 @@ namespace CFPABot.Christina.Backend
                 }
             }, CancellationToken.None);
 
-            // Reader: drain channel and write each SSE event to the response
-            await foreach (var msg in channel.Reader.ReadAllAsync(ct))
+            // Reader: drain channel and write each SSE event to the response.
+            // Use CancellationToken.None so queued messages (e.g. "done") are still
+            // delivered even after ct (RequestAborted) fires due to proxy timeout.
+            await foreach (var msg in channel.Reader.ReadAllAsync(CancellationToken.None))
             {
-                await Response.WriteAsync($"data: {msg}\n\n", ct);
-                await Response.Body.FlushAsync(ct);
+                try
+                {
+                    await Response.WriteAsync($"data: {msg}\n\n", CancellationToken.None);
+                    await Response.Body.FlushAsync(CancellationToken.None);
+                }
+                catch
+                {
+                    break; // underlying connection is gone, stop writing
+                }
             }
         }
 

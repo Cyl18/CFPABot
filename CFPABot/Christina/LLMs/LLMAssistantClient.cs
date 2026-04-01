@@ -65,7 +65,9 @@ namespace CFPABot.Christina.LLMs
             try
             {
                 progress?.Report((-1, total)); // signal: merging
-                mergedNotes = await MergeGlobalNotesAsync(allItems, allGlobalNotes, ct);
+                // Use CancellationToken.None: all batch work is done and cached;
+                // we don't want a proxy-level timeout on ct to abort the summary.
+                mergedNotes = await MergeGlobalNotesAsync(allItems, allGlobalNotes, CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -269,8 +271,17 @@ namespace CFPABot.Christina.LLMs
             List<string> allGlobalNotes,
             CancellationToken ct)
         {
-            if (allGlobalNotes.Count == 0) return "";
-            if (allGlobalNotes.Count == 1) return allGlobalNotes[0];
+            if (allGlobalNotes.Count == 0)
+            {
+                Log.Information("MergeGlobalNotesAsync: no global notes, skipping");
+                return "";
+            }
+            if (allGlobalNotes.Count == 1)
+            {
+                Log.Information("MergeGlobalNotesAsync: single batch note, skipping merge");
+                return allGlobalNotes[0];
+            }
+            Log.Information("MergeGlobalNotesAsync: merging {Count} notes via Gemini", allGlobalNotes.Count);
 
             var simplifiedItems = allItems.Select(item => new
             {
