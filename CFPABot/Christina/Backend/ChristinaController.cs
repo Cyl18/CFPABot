@@ -27,6 +27,7 @@ namespace CFPABot.Christina.Backend
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
             IncludeFields = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             Converters = { new JsonStringEnumConverter() }
         };
 
@@ -105,7 +106,7 @@ namespace CFPABot.Christina.Backend
                         new() { Key = "item.copper_ingot", Source = "Copper Ingot", Target = "铜锭" },
                         new() { Key = "item.iron_plate", Source = "Iron Plate", Target = "铁板" }
                     },
-                    LLMOutputItems = new List<LlmItemOutput>
+                    LlmOutputItems = new List<LlmItemOutput>
                     {
                         new() { Id = 0, Status = ReviewStatus.Pass, Issues = new List<LlmIssue>(), SuggestedTarget = "" },
                         new() { Id = 1, Status = ReviewStatus.Minor, Issues = new List<LlmIssue>
@@ -176,7 +177,7 @@ namespace CFPABot.Christina.Backend
             var display = new ReviewFrontendDisplay
             {
                 FrontendDisplayItems = displayItems,
-                LLMOutputItems = result.Items,
+                LlmOutputItems = result.Items,
                 GlobalNotes = result.GlobalNotes ?? ""
             };
 

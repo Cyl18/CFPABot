@@ -67,7 +67,7 @@ namespace CFPABot.Christina.LLMs
     sealed class ReviewFrontendDisplay
     {
         public List<ReviewFrontendDisplayItem> FrontendDisplayItems;
-        public List<LlmItemOutput> LLMOutputItems;
+        public List<LlmItemOutput> LlmOutputItems;
         public string GlobalNotes;
     }
 
