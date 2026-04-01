@@ -1,74 +1,53 @@
-@echo off
-chcp 65001 >nul
+﻿@echo off
 setlocal enabledelayedexpansion
 
 echo ===============================================
-echo 检查本地更改...
+echo Checking local changes...
 echo ===============================================
 
-REM 检查是否有未stage的更改
+REM Check for unstaged changes
 git diff --quiet
 if errorlevel 1 (
-    echo [错误] 本地有未提交的更改
-    echo 请先提交所有更改后再试
+    echo [ERROR] There are uncommitted local changes
+    echo Please commit all changes before retrying
     pause
     exit /b 1
 )
 
-REM 检查是否有未track的文件
+REM Check for untracked files
 git ls-files --others --exclude-standard | findstr . >nul
 if not errorlevel 1 (
-    echo [错误] 本地有未track的文件
-    echo 请先提交所有文件后再试
+    echo [ERROR] There are untracked local files
+    echo Please commit all files before retrying
     pause
     exit /b 1
 )
 
-REM 检查是否有未push的commit
+REM Check for unpushed commits
 for /f %%i in ('git rev-list @{u}..HEAD ^2^>nul') do (
-    echo [错误] 本地有未推送的提交
-    echo 请先推送所有更改后再试
+    echo [ERROR] There are unpushed local commits
+    echo Please push all changes before retrying
     pause
     exit /b 1
 )
 
-echo [✓] 本地更改已全部commit和push
+echo [OK] All local changes have been committed and pushed
 
 echo.
 echo ===============================================
-echo 连接到生产服务器...
+echo Connecting to production server...
 echo ===============================================
 
-ssh hk << 'EOFCOMMAND'
-cd ~/production/cfpa-bot
-
-echo [*] 更新代码...
-cd CFPABot
-git pull
-
-echo [*] 编译镜像...
-docker build -f "CFPABot/Dockerfile" -t docker.cyan.cafe/cfpabot .
-
-echo [*] Push 镜像...
-#docker image push docker.cyan.cafe/cfpabot:latest
-cd ..
-
-echo [*] 重启容器...
-docker-compose pull
-docker-compose down
-docker-compose up -d
-
-echo [✓] 生产环境更新完成！
-EOFCOMMAND
+ssh hk "cd ~/production/cfpa-bot && echo [*] Pulling code... && cd CFPABot && git pull && echo [*] Building image... && docker build -f CFPABot/Dockerfile -t docker.cyan.cafe/cfpabot . && echo [*] Pushing image... && cd .. && echo [*] Restarting containers... && docker-compose pull && docker-compose down && docker-compose up -d && echo [OK] Production update complete!"
 
 if errorlevel 1 (
-    echo [错误] 远程命令执行失败
+    echo [ERROR] Remote command failed
     pause
     exit /b 1
 )
 
 echo.
 echo ===============================================
-echo [✓] 全流程完成！
+echo [OK] All done!
 echo ===============================================
 pause
