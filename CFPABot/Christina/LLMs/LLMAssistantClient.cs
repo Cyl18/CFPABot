@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using CFPABot.Utils;
+using Serilog;
 
 namespace CFPABot.Christina.LLMs
 {
