@@ -240,8 +240,22 @@ namespace CFPABot.Christina.LLMs
                     Encoding.UTF8,
                     "application/json");
 
-                var resp = await _http.SendAsync(msg, ct);
-                var responseBody = await resp.Content.ReadAsStringAsync();
+                string responseBody;
+                bool requestSucceeded;
+                int statusCode;
+                try
+                {
+                    var resp = await _http.SendAsync(msg, ct);
+                    responseBody = await resp.Content.ReadAsStringAsync();
+                    requestSucceeded = resp.IsSuccessStatusCode;
+                    statusCode = (int)resp.StatusCode;
+                }
+                catch (HttpRequestException ex) when (!ct.IsCancellationRequested)
+                {
+                    Log.Warning(ex, "OpenRouter QueryAsync 网络错误, model={Model}, attempt={Attempt}, 继续重试", model, attempt);
+                    continue;
+                }
+
                 await session.WriteAsync(new
                 {
                     timestamp = DateTime.UtcNow,
@@ -249,13 +263,13 @@ namespace CFPABot.Christina.LLMs
                     method = "query",
                     model,
                     attempt,
-                    success = resp.IsSuccessStatusCode,
-                    statusCode = (int)resp.StatusCode,
+                    success = requestSucceeded,
+                    statusCode,
                     prompt = new { user = userPrompt },
                     response = responseBody
                 });
 
-                if (!resp.IsSuccessStatusCode)
+                if (!requestSucceeded)
                     continue;
 
                 var payload = JsonSerializer.Deserialize<ResponseEnvelope>(responseBody, _json)
@@ -301,8 +315,22 @@ namespace CFPABot.Christina.LLMs
                     Encoding.UTF8,
                     "application/json");
 
-                var resp = await _http.SendAsync(msg, ct);
-                var responseBody = await resp.Content.ReadAsStringAsync();
+                string responseBody;
+                bool requestSucceeded;
+                int statusCode;
+                try
+                {
+                    var resp = await _http.SendAsync(msg, ct);
+                    responseBody = await resp.Content.ReadAsStringAsync();
+                    requestSucceeded = resp.IsSuccessStatusCode;
+                    statusCode = (int)resp.StatusCode;
+                }
+                catch (HttpRequestException ex) when (!ct.IsCancellationRequested)
+                {
+                    Log.Warning(ex, "OpenRouter QueryWithSystemPromptAsync 网络错误, model={Model}, attempt={Attempt}, 继续重试", model, attempt);
+                    continue;
+                }
+
                 await session.WriteAsync(new
                 {
                     timestamp = DateTime.UtcNow,
@@ -310,13 +338,13 @@ namespace CFPABot.Christina.LLMs
                     method = "query-with-system",
                     model,
                     attempt,
-                    success = resp.IsSuccessStatusCode,
-                    statusCode = (int)resp.StatusCode,
+                    success = requestSucceeded,
+                    statusCode,
                     prompt = new { system = systemPrompt, user = userPrompt },
                     response = responseBody
                 });
 
-                if (!resp.IsSuccessStatusCode)
+                if (!requestSucceeded)
                     continue;
 
                 var payload = JsonSerializer.Deserialize<ResponseEnvelope>(responseBody, _json)
