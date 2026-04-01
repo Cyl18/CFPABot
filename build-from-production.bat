@@ -38,7 +38,7 @@ echo ===============================================
 echo Connecting to production server...
 echo ===============================================
 
-ssh hk "cd ~/production/cfpa-bot && echo [*] Pulling code... && cd CFPABot && git pull && echo [*] Building image... && docker build -f CFPABot/Dockerfile -t docker.cyan.cafe/cfpabot . && echo [*] Pushing image... && cd .. && echo [*] Restarting containers... && docker-compose pull && docker-compose down && docker-compose up -d && echo [OK] Production update complete!"
+ssh hk "cd ~/production/cfpa-bot && echo '[*] Pulling code...' && cd CFPABot && git pull && echo '[*] Building image...' && docker build -f CFPABot/Dockerfile -t docker.cyan.cafe/cfpabot . && echo '[*] Pushing image...' && cd .. && echo '[*] Restarting containers...' && docker-compose pull && docker-compose down && docker-compose up -d && echo '[OK] Production update complete!'"
 
 if errorlevel 1 (
     echo [ERROR] Remote command failed
