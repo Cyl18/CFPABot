@@ -24,16 +24,22 @@
                         <option :value="mod" x-text="mod" :selected="mod === selectedMod"></option>
                     </template>
                 </select>
-                <button @click="loadReview()" :disabled="reviewLoading || !selectedMod"
-                    class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded transition">
-                    <span x-show="!reviewLoading">Review</span>
-                    <span x-show="reviewLoading" class="flex items-center gap-2">
-                        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
-                        <span x-show="reviewProgress.total === 0">Starting...</span>
-                        <span x-show="reviewProgress.total > 0 && !reviewProgress.merging" x-text="reviewProgress.completed + '/' + reviewProgress.total + ' batches'"></span>
-                        <span x-show="reviewProgress.merging">Merging notes...</span>
-                    </span>
-                </button>
+                <div class="flex items-center">
+                    <button @click="loadReview(false)" :disabled="reviewLoading || !selectedMod"
+                        class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-l border-r border-emerald-800 transition">
+                        <span x-show="!reviewLoading">Review</span>
+                        <span x-show="reviewLoading" class="flex items-center gap-2">
+                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                            <span x-show="reviewProgress.total === 0">...</span>
+                            <span x-show="reviewProgress.total > 0 && !reviewProgress.merging" x-text="reviewProgress.completed + '/' + reviewProgress.total"></span>
+                            <span x-show="reviewProgress.merging">Merging...</span>
+                        </span>
+                    </button>
+                    <button @click="loadReview(true)" :disabled="reviewLoading || !selectedMod" title="Force Re-Review (Clear Cache)"
+                        class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-2 py-1.5 rounded-r transition">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    </button>
+                </div>>
             </div>
         </div>
 
@@ -99,58 +105,43 @@
                      }">
                      
                     <!-- Main Text Row -->
-                    <div class="p-4 grid gap-4 items-start" 
-                         :class="{
-                             'grid-cols-2': !showKey && !showBaseEN && !showBaseCN,
-                             'grid-cols-[1fr_2fr_2fr]': showKey && !showBaseEN && !showBaseCN,
-                             'grid-cols-3': !showKey && (showBaseEN || showBaseCN)
-                         }">
-                         
-                        <!-- Optional Key -->
-                        <div x-show="showKey" class="text-xs text-slate-500 font-mono break-all truncate" title="Key">
-                            <span class="bg-slate-900 px-1 py-0.5 rounded" x-text="item.key"></span>
-                        </div>
+                    <div class="px-3 py-3 flex gap-4 items-start relative">
+                        <!-- Line Number -->
+                        <div class="flex-shrink-0 w-8 text-right text-xs font-mono text-slate-500 pt-1" x-text="'#' + (item.index + 1)"></div>
 
-                        <!-- EN Column(s) -->
-                        <div class="space-y-2">
-                            <div x-show="showBaseEN" class="text-sm text-slate-500 pb-2 border-b border-slate-800 border-dashed">
-                                <div class="text-xs font-semibold uppercase mb-1 opacity-70">Base Source</div>
-                                <div x-text="item.baseSource || '-'" class="opacity-75"></div>
+                        <div class="flex-1 grid gap-4 lg:grid-cols-2" 
+                             :class="{ 'grid-cols-1': !showBaseEN && !showBaseCN }">
+                             
+                            <!-- EN Column -->
+                            <div class="space-y-1">
+                                <div x-show="showBaseEN" class="text-xs text-slate-500 italic pb-1 mb-1 border-b border-slate-700/50" x-text="item.baseSource || '-'"></div>
+                                <div class="text-base text-slate-400" x-text="item.source"></div>
+                                <div x-show="showKey" class="text-xs text-slate-500 font-mono mt-1 opacity-50 break-all" x-text="item.key"></div>
                             </div>
-                            <div class="text-sm text-slate-300">
-                                <div class="text-xs font-semibold uppercase mb-1 opacity-50">Source</div>
-                                <div x-text="item.source"></div>
-                            </div>
-                        </div>
 
-                        <!-- CN Column(s) -->
-                        <div class="space-y-2 relative pr-12">
-                            <div x-show="showBaseCN" class="text-sm text-slate-500 pb-2 border-b border-slate-800 border-dashed">
-                                <div class="text-xs font-semibold uppercase mb-1 opacity-70">Base Target</div>
-                                <div x-text="item.baseTarget || '-'" class="opacity-75"></div>
-                            </div>
-                            <div class="text-sm text-white">
-                                <div class="text-xs font-semibold uppercase mb-1 opacity-50 text-slate-400">Target</div>
-                                <div x-text="item.target"></div>
-                            </div>
-                            
-                            <!-- Badges & Actions placed at end of CN column -->
-                            <div class="absolute top-0 right-0 flex items-center justify-end">
-                                <button x-show="item.issues && item.issues.length > 0"
-                                    @click="toggleExpand(item.index)" 
-                                    class="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-semibold transition"
-                                    :class="{
-                                        'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20': item.status === 'Minor',
-                                        'bg-red-500/10 text-red-500 hover:bg-red-500/20': item.status === 'NeedsFix',
-                                        'bg-violet-500/10 text-violet-500 hover:bg-violet-500/20': item.status === 'NeedsContext'
-                                    }">
-                                    <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
-                                    <span x-text="item.issues.length"></span>
-                                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 transform transition-transform" :class="expandedRows.has(item.index) ? 'rotate-180' : ''"></i>
-                                </button>
-                                <span x-show="!item.issues || item.issues.length === 0" class="text-xs text-slate-500 px-2 py-1 flex flex-col items-center justify-center opacity-50">
-                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500 mb-0.5"></i>
-                                </span>
+                            <!-- CN Column(s) -->
+                            <div class="space-y-1 pr-14 lg:pr-12">
+                                <div x-show="showBaseCN" class="text-xs text-slate-500 italic pb-1 mb-1 border-b border-slate-700/50" x-text="item.baseTarget || '-'"></div>
+                                <div class="text-base text-slate-100" x-text="item.target"></div>
+                                
+                                <!-- Badges & Actions placed at end of CN column -->
+                                <div class="absolute top-3 right-3 flex items-center justify-end">
+                                    <button x-show="item.issues && item.issues.length > 0"
+                                        @click="toggleExpand(item.index)" 
+                                        class="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-semibold transition"
+                                        :class="{
+                                            'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20': item.status === 'Minor',
+                                            'bg-red-500/10 text-red-500 hover:bg-red-500/20': item.status === 'NeedsFix',
+                                            'bg-violet-500/10 text-violet-500 hover:bg-violet-500/20': item.status === 'NeedsContext'
+                                        }">
+                                        <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
+                                        <span x-text="item.issues.length"></span>
+                                        <i data-lucide="chevron-down" class="w-3.5 h-3.5 transform transition-transform" :class="expandedRows.has(item.index) ? 'rotate-180' : ''"></i>
+                                    </button>
+                                    <span x-show="!item.issues || item.issues.length === 0" class="text-xs text-slate-500 px-2 py-1 flex flex-col items-center justify-center opacity-50">
+                                        <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500 mb-0.5"></i>
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -290,7 +281,7 @@ function prReviewData() {
             }
         },
 
-        async loadReview() {
+        async loadReview(force = false) {
             if(!this.prNumber || !this.selectedMod) return;
             this.reviewLoading = true;
             this.reviewProgress = { completed: 0, total: 0, merging: false };
@@ -298,7 +289,8 @@ function prReviewData() {
             this.reviewData = null;
             this.expandedRows.clear();
 
-            const url = `${window.API_BASE_URL}/PRLLMReviewResult?pr=${this.prNumber}&mod=${encodeURIComponent(this.selectedMod)}`;
+            let url = `${window.API_BASE_URL}/PRLLMReviewResult?pr=${this.prNumber}&mod=${encodeURIComponent(this.selectedMod)}`;
+            if (force) url += '&force=true';
             const es = new EventSource(url, { withCredentials: true });
 
             es.onmessage = (event) => {
@@ -354,7 +346,11 @@ function prReviewData() {
             }
             this.reviewData = {
                 items: combinedItems,
-                globalNotes: data.globalNotes || []
+                globalNotes: Array.isArray(data.globalNotes) 
+                    ? data.globalNotes 
+                    : (typeof data.globalNotes === 'string' 
+                        ? data.globalNotes.split('\n').filter(n => n.trim()) 
+                        : [])
             };
         },
 

@@ -40,9 +40,18 @@ namespace CFPABot.Christina.LLMs
                 off += batches[i].Count;
             }
 
-            var openRouter = new OpenRouterClient();
+            // var openRouter = new OpenRouterClient();
+            var openRouter = (OpenRouterClient)null!; // Keep parameter matching but pass null
             int completed = 0;
             int total = batches.Count;
+
+            Log.Information("LLMReview: {Total} batches total", total);
+            for (int i = 0; i < batches.Count; i++)
+            {
+                var batch = batches[i];
+                int chars = batch.Sum(l => (enDict.TryGetValue(l.Key, out var v) ? v.Length : 0) + l.Value.Length + l.Key.Length);
+                Log.Information("LLMReview batch[{Index}]: {Lines} lines, ~{Chars} chars", i, batch.Count, chars);
+            }
 
             var batchTasks = batches.Select((batch, i) =>
             {
@@ -109,9 +118,17 @@ namespace CFPABot.Christina.LLMs
             var inputJson = JsonSerializer.Serialize(batchInput, SerializeOptions);
             var prompt = string.Format(MediumSeverityPrompt, inputJson);
 
-            var responseText = await openRouter.QueryWithSystemPromptAsync(
-                SystemPrompt, prompt,
-                new ModelPolicy(OpenRouterReviewModel),
+            // var responseText = await openRouter.QueryWithSystemPromptAsync(
+            //     SystemPrompt, prompt,
+            //     new ModelPolicy(OpenRouterReviewModel),
+            //     ct);
+
+            var gemini = new GeminiClient(
+                new ApiKeyPool(new[] { Constants.GeminiApiKey }), Constants.GeminiEndpoint);
+
+            var responseText = await gemini.QueryAsync(
+                SystemPrompt + "\n\n" + prompt, 
+                new ModelPolicy(GeminiMergeModel), 
                 ct);
 
             var (items, batchNotes) = ParseBatchOutput(responseText, globalIdOffset);
