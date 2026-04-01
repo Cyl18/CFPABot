@@ -1,0 +1,59 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content="0; url=login.html" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Redirecting to Login...</title>
+    <script>
+        // Immediate redirect in case meta refresh fails
+        window.location.href = 'login.html';
+    </script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #020617;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .redirect-message {
+            text-align: center;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 20px;
+            border: 4px solid #1e293b;
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="redirect-message">
+        <div class="spinner"></div>
+        <p>Redirecting to login page...</p>
+        <p style="font-size: 0.875rem; margin-top: 10px;">
+            If you are not redirected automatically,
+            <a href="login.html" style="color: #6366f1; text-decoration: none;">click here</a>.
+        </p>
+    </div>
+</body>
+
+</html>

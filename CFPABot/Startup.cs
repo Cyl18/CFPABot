@@ -71,7 +71,7 @@ namespace CFPABot
             {
                 RequestPath = "/christina",
                 FileProvider = new ManifestEmbeddedFileProvider(
-                    typeof(Program).Assembly, "Christina"
+                    typeof(Program).Assembly, "Christina/wwwroot"
                 )
             });
 

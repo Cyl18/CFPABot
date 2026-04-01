@@ -1,17 +1,39 @@
 ﻿@page "/Debug"
 @using Microsoft.AspNetCore.Http
+@using CFPABot.Christina.Backend
 <h3>Debug</h3>
 @inject IBlazorStrap _blazorStrap
 @inject NavigationManager _navigationManager
 @inject IHttpContextAccessor _http
 
+@if (authorized)
+{
+    <h4>Christina</h4>
+    <div class="@BS.Form_Check" style="margin-bottom: 1rem;">
+        <BSInputCheckbox id="mockToggle" @bind-Value="ChristinaConfig.MockEnabled" />
+        <BSLabel for="mockToggle" IsCheckLabel="true">
+            Mock 模式（@(ChristinaConfig.MockEnabled ? "已开启" : "已关闭")）
+        </BSLabel>
+    </div>
+}
+
 @code {
-    protected override void OnInitialized()
+    bool authorized = false;
+
+    protected override async Task OnInitializedAsync()
     {
-        if (!LoginManager.IsAdmin(_http).Result)
+        var client = LoginManager.GetGitHubClient(_http);
+        if (client == null)
         {
             _navigationManager.NavigateTo("/");
+            return;
         }
+        var user = await client.User.Current();
+        if (user.Login != "Cyl18")
+        {
+            _navigationManager.NavigateTo("/");
+            return;
+        }
+        authorized = true;
     }
-
 }

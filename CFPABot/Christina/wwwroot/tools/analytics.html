@@ -1,0 +1,28 @@
+<div class="w-full mb-8">
+    <h2 class="text-3xl font-bold text-white mb-2">Analytics</h2>
+    <p class="text-slate-400">HTMX Integration Demonstration</p>
+</div>
+
+<div
+    class="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-sm flex flex-col items-center justify-center max-w-2xl w-full mx-auto">
+    <i data-lucide="bar-chart-2" class="w-16 h-16 mb-4 text-indigo-500 opacity-50"></i>
+    <h3 class="text-xl font-medium text-slate-300 mb-4">Fetch Data via HTMX</h3>
+    <p class="text-sm text-slate-500 text-center mb-6">
+        Click the button below to simulate an HTMX request.
+        <br>(This fetches a sample user JSON from jsonplaceholder.typicode.com)
+    </p>
+
+    <!-- HTMX Trigger -->
+    <button hx-get="https://jsonplaceholder.typicode.com/users/1" hx-trigger="click" hx-target="#htmx-result"
+        hx-swap="innerHTML"
+        class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg shadow-lg shadow-indigo-500/20 transition-all active:scale-95 flex items-center gap-2">
+        <i data-lucide="download-cloud" class="w-4 h-4"></i>
+        Load Data
+    </button>
+
+    <!-- HTMX Target -->
+    <div id="htmx-result"
+        class="mt-6 w-full p-4 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-emerald-400 overflow-x-auto min-h-[100px] flex items-center justify-center">
+        <span class="text-slate-600">Response will appear here...</span>
+    </div>
+</div>

@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PR Review - CFPA Bot</title>
+
+    <!-- Global config (API base URL) -->
+    <script src="scripts/config.js"></script>
+
+    <!-- Auth guard -->
+    <script>
+        (function () {
+            function checkCookie(name) {
+                return document.cookie.split(';').some(cookie => cookie.trim().startsWith(name + '='));
+            }
+
+            if (!checkCookie('oauth-token-enc')) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            window.__AUTH_STATE__ = {
+                isCheckingAuth: true,
+                isLoggedIn: false,
+                isAdmin: false,
+                githubUser: { login: '', avatar_url: '' }
+            };
+
+            fetch(window.API_BASE_URL + '/UserStatus', {
+                credentials: 'include'
+            })
+            .then(res => res.ok ? res.json() : Promise.reject('Not authenticated'))
+            .then(data => {
+                if (data.isError === true) throw new Error('API error');
+                window.__AUTH_STATE__.isLoggedIn = true;
+                window.__AUTH_STATE__.githubUser = {
+                    login: data.userName || 'User',
+                    avatar_url: data.avatarUrl || ''
+                };
+                window.__AUTH_STATE__.isAdmin = data.isAdmin === true;
+                window.__AUTH_STATE__.isCheckingAuth = false;
+                
+                // Update avatar if element exists
+                const avatarImg = document.getElementById('user-avatar');
+                if (avatarImg && data.avatarUrl) {
+                    avatarImg.src = data.avatarUrl;
+                }
+            })
+            .catch(err => {
+                document.cookie = 'oauth-token-enc=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                window.location.href = 'login.html';
+            });
+        })();
+    </script>
+
+    <!-- Libraries CDN -->
+    <script defer src="https://cdn.tailwindcss.com"></script>
+    <!-- We don't really need htmx for the standalone page, but keeping just in case -->
+    <script defer src="https://unpkg.com/alpinejs@latest/dist/cdn.min.js"></script>
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        (function configureTailwind() {
+            if (typeof tailwind !== 'undefined') {
+                tailwind.config = {
+                    darkMode: 'class',
+                    theme: {
+                        extend: {
+                            colors: {
+                                slate: {
+                                    850: '#1e293b', 
+                                    950: '#020617',
+                                }
+                            }
+                        }
+                    }
+                };
+            } else {
+                setTimeout(configureTailwind, 50);
+            }
+        })();
+    </script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+
+<body class="bg-slate-950 text-slate-300 font-sans h-screen flex flex-col overflow-hidden">
+
+    <!-- Top Nav -->
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between shadow-xl z-20 shrink-0">
+        <div class="flex items-center gap-4">
+            <a href="app.html" class="flex items-center gap-2 text-slate-400 hover:text-white transition">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i> Back to App
+            </a>
+            <div class="h-6 w-px bg-slate-700"></div>
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
+                    <i data-lucide="bot" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-white font-bold tracking-tight leading-none text-lg">CFPA Bot</h1>
+                    <div class="text-[10px] text-blue-400 font-medium uppercase tracking-wider mt-0.5">Standalone Review</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <img id="user-avatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='text-slate-400'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E" 
+                 class="w-8 h-8 rounded-full border-2 border-slate-800 object-cover" />
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-hidden p-6 w-full max-w-7xl mx-auto">
+        
+        <!-- Reuse the exact same Alpine component directly here -->
+        <div x-data="prReviewData()" x-init="init()" class="h-full flex flex-col space-y-4">
+            <!-- Header Controls -->
+            <div class="bg-slate-800 rounded-lg p-4 flex flex-wrap items-center justify-between gap-4 shrink-0">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <input type="number" x-model="prNumber" @keyup.enter="loadMods()" placeholder="PR #"
+                            class="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 w-24 focus:outline-none focus:border-blue-500" />
+                        <button @click="loadMods()" :disabled="loading"
+                            class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-3 py-1.5 rounded transition">
+                            <span x-show="!loading">Load PR</span>
+                            <span x-show="loading" class="flex items-center gap-2">
+                                <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Loading...
+                            </span>
+                        </button>
+                    </div>
+                    
+                    <div x-show="mods.length > 0" x-cloak class="flex items-center gap-2">
+                        <select x-model="selectedMod" class="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 max-w-xs truncate">
+                            <option value="" disabled selected>-- Select Mod --</option>
+                            <template x-for="mod in mods" :key="mod">
+                                <option :value="mod" x-text="mod" :selected="mod === selectedMod"></option>
+                            </template>
+                        </select>
+                        <button @click="loadReview()" :disabled="reviewLoading || !selectedMod"
+                            class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded transition">
+                            <span x-show="!reviewLoading">Load Review</span>
+                            <span x-show="reviewLoading" class="flex items-center gap-2">
+                                <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Loading...
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- View Controls -->
+                <div class="flex items-center gap-4 text-sm" x-show="reviewData" x-cloak>
+                    <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition">
+                        <input type="checkbox" x-model="filterPROnly" class="rounded bg-slate-900 border-slate-700 focus:ring-blue-500 flex-shrink-0" />
+                        Only Changed
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition">
+                        <input type="checkbox" x-model="hidePassed" class="rounded bg-slate-900 border-slate-700 focus:ring-blue-500 flex-shrink-0" />
+                        Hide Filtered
+                    </label>
+                    
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" @click.outside="open = false" class="flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-700 rounded border border-slate-700 transition">
+                            <i data-lucide="settings-2" class="w-4 h-4"></i> View Options
+                        </button>
+                        <div x-show="open" x-cloak class="absolute right-0 mt-2 w-48 bg-slate-800 border border-slate-700 rounded shadow-xl z-30 py-2">
+                            <label class="flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-slate-700 transition">
+                                <input type="checkbox" x-model="showKey" class="rounded bg-slate-900 border-slate-700" /> Show Key
+                            </label>
+                            <label class="flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-slate-700 transition">
+                                <input type="checkbox" x-model="showBaseEN" class="rounded bg-slate-900 border-slate-700" /> Show Base Source
+                            </label>
+                            <label class="flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-slate-700 transition">
+                                <input type="checkbox" x-model="showBaseCN" class="rounded bg-slate-900 border-slate-700" /> Show Base Target
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error Details -->
+            <div x-show="error" x-cloak class="bg-red-900/30 border border-red-900/50 text-red-400 p-4 rounded-lg flex items-center gap-3 shrink-0">
+                <i data-lucide="alert-triangle" class="w-5 h-5 flex-shrink-0"></i>
+                <span x-text="error"></span>
+            </div>
+
+            <!-- Main List -->
+            <div x-show="reviewData" x-cloak class="flex-1 overflow-y-auto pr-2 pb-8 space-y-6">
+                <!-- Stats Info -->
+                <div class="flex items-center gap-3 text-xs text-slate-500 border-b border-slate-800 pb-2">
+                    <span class="text-slate-300 font-medium">Review Results Available</span>
+                    <span>&bull;</span>
+                    <span x-text="filteredItems.length + ' Items visible'"></span>
+                    <span x-show="hidePassed && filteredItems.length < totalFilteredCount" class="italic" x-text="'(' + (totalFilteredCount - filteredItems.length) + ' passed items hidden)'"></span>
+                </div>
+
+                <div class="space-y-4">
+                    <template x-for="(item, index) in filteredItems" :key="item.id || item.index">
+                        <div class="bg-slate-850/50 border border-slate-800/80 rounded flex flex-col transition-colors hover:border-slate-600"
+                             :class="{
+                                 'border-l-4': true,
+                                 'border-l-slate-700': item.status === 'Pass',
+                                 'border-l-amber-500/80': item.status === 'Minor',
+                                 'border-l-red-500/80': item.status === 'NeedsFix',
+                                 'border-l-violet-500/80': item.status === 'NeedsContext',
+                                 'bg-slate-850': item.status !== 'Pass'
+                             }">
+                             
+                            <div class="p-4 grid gap-6" 
+                                 :class="{
+                                     'grid-cols-2': !showKey && !showBaseEN && !showBaseCN,
+                                     'grid-cols-[1fr_2fr_2fr]': showKey && !showBaseEN && !showBaseCN,
+                                     'grid-cols-3': !showKey && (showBaseEN || showBaseCN)
+                                 }">
+                                 
+                                <!-- Optional Key -->
+                                <div x-show="showKey" class="text-xs text-slate-500 font-mono break-all self-start">
+                                    <span class="bg-slate-950 px-1 py-0.5 rounded border border-slate-800" x-text="item.key"></span>
+                                </div>
+
+                                <!-- Source (EN) -->
+                                <div class="space-y-3">
+                                    <div x-show="showBaseEN" class="pb-3 border-b border-slate-800/50">
+                                        <div class="text-[10px] font-bold tracking-wider uppercase text-slate-600 mb-1">Base Source</div>
+                                        <div class="text-sm text-slate-400/80 line-through decoration-slate-600/50" x-text="item.baseSource || '—'"></div>
+                                    </div>
+                                    <div>
+                                        <div class="text-[10px] font-bold tracking-wider uppercase text-slate-600 mb-1">Source</div>
+                                        <div class="text-sm text-slate-300 leading-relaxed" x-text="item.source"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Target (CN) -->
+                                <div class="space-y-3 relative group">
+                                    <!-- Badges positioned absolutely -->
+                                    <div class="absolute -top-1 right-0 flex items-center justify-end z-10">
+                                        <button x-show="item.issues && item.issues.length > 0"
+                                            @click="toggleExpand(item.index)" 
+                                            class="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold transition shadow-sm backdrop-blur-md"
+                                            :class="{
+                                                'bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20': item.status === 'Minor',
+                                                'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20': item.status === 'NeedsFix',
+                                                'bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20': item.status === 'NeedsContext'
+                                            }">
+                                            <i data-lucide="message-square-warning" class="w-3.5 h-3.5"></i>
+                                            <span x-text="item.issues.length + ' Issue' + (item.issues.length > 1 ? 's' : '')"></span>
+                                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 transform transition-transform duration-200" :class="expandedRows.has(item.index) ? 'rotate-180' : ''"></i>
+                                        </button>
+                                        <div x-show="!item.issues || item.issues.length === 0" class="text-xs text-emerald-500/50 rounded-full bg-emerald-500/10 p-1 flex items-center justify-center -mr-2">
+                                            <i data-lucide="check" class="w-4 h-4"></i>
+                                        </div>
+                                    </div>
+
+                                    <div x-show="showBaseCN" class="pb-3 border-b border-slate-800/50 pr-24">
+                                        <div class="text-[10px] font-bold tracking-wider uppercase text-slate-600 mb-1">Base Target</div>
+                                        <div class="text-sm text-slate-400/80 line-through decoration-slate-600/50" x-text="item.baseTarget || '—'"></div>
+                                    </div>
+                                    <div class="pr-24">
+                                        <div class="text-[10px] font-bold tracking-wider uppercase text-slate-600 mb-1">Target</div>
+                                        <div class="text-sm text-slate-100 leading-relaxed" x-text="item.target"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Expanded Detail Card -->
+                            <div x-show="expandedRows.has(item.index)" x-collapse class="border-t border-slate-800/80 bg-slate-900/50">
+                                <div class="px-6 py-4 space-y-4">
+                                    <template x-for="(issue, iIndex) in item.issues" :key="iIndex">
+                                        <div class="bg-slate-950/80 border border-slate-800 rounded-md overflow-hidden">
+                                            <div class="px-3 py-2 flex items-center gap-2 border-b border-slate-800/80 bg-slate-900"
+                                                 :class="{
+                                                     'bg-amber-950/30': issue.severity === 'Minor',
+                                                     'bg-red-950/30': issue.severity === 'NeedsFix',
+                                                     'bg-violet-950/30': issue.severity === 'NeedsContext'
+                                                 }">
+                                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded leading-none uppercase tracking-wide border"
+                                                      :class="{
+                                                          'bg-amber-500/10 text-amber-500 border-amber-500/20': issue.severity === 'Minor',
+                                                          'bg-red-500/10 text-red-500 border-red-500/20': issue.severity === 'NeedsFix',
+                                                          'bg-violet-500/10 text-violet-500 border-violet-500/20': issue.severity === 'NeedsContext'
+                                                      }" x-text="issue.severity"></span>
+                                                <span class="text-xs font-mono text-slate-400" x-text="issue.type"></span>
+                                            </div>
+                                            <div class="p-3 space-y-3">
+                                                <div class="text-sm text-slate-300 flex gap-2">
+                                                    <i data-lucide="info" class="w-4 h-4 text-slate-500 shrink-0 mt-0.5"></i>
+                                                    <span x-text="issue.message" class="leading-relaxed"></span>
+                                                </div>
+                                                
+                                                <div x-show="issue.reason" class="flex gap-2 text-xs text-slate-400 pt-2 border-t border-slate-800/50">
+                                                    <i data-lucide="help-circle" class="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5"></i>
+                                                    <span class="leading-relaxed"><span class="font-semibold text-slate-300">Reason:</span> <span x-text="issue.reason"></span></span>
+                                                </div>
+
+                                                <div x-show="issue.suggestedTarget" class="mt-2 bg-emerald-950/30 border border-emerald-900/50 p-3 rounded">
+                                                    <div class="text-xs font-bold text-emerald-500/80 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                                        <i data-lucide="check-square" class="w-3.5 h-3.5"></i> Correction Suggestion
+                                                    </div>
+                                                    <div class="text-sm font-medium text-emerald-400 leading-relaxed" x-text="issue.suggestedTarget"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    
+                    <div x-show="filteredItems.length === 0" class="text-center py-16 text-slate-500 border border-dashed border-slate-800 rounded-lg">
+                        <i data-lucide="check-circle" class="w-12 h-12 mx-auto mb-3 opacity-20 text-slate-400"></i>
+                        <p>No items to display based on current filters.</p>
+                    </div>
+                </div>
+
+                <!-- Global Notes Region -->
+                <div x-show="reviewData.globalNotes && reviewData.globalNotes.length > 0" class="mt-8 border-t border-slate-800 pt-6">
+                    <h3 class="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2 mb-4">
+                        <i data-lucide="list-checks" class="w-4 h-4"></i> Global Review Notes
+                    </h3>
+                    <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+                        <ul class="list-disc pl-5 space-y-2 text-emerald-400/80 text-sm">
+                            <template x-for="note in reviewData.globalNotes">
+                                <li x-text="note" class="leading-relaxed"></li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function prReviewData() {
+            return {
+                prNumber: '',
+                loading: false,
+                reviewLoading: false,
+                error: '',
+                
+                mods: [],
+                selectedMod: '',
+                
+                reviewData: null,
+                expandedRows: new Set(),
+                
+                filterPROnly: true,
+                hidePassed: true,
+                showKey: false,
+                showBaseEN: false,
+                showBaseCN: false,
+
+                init() {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const prParam = urlParams.get('pr');
+                    if (prParam) {
+                        this.prNumber = prParam;
+                        this.loadMods();
+                    }
+                    this.$nextTick(() => { 
+                        if(typeof lucide !== 'undefined') lucide.createIcons(); 
+                    });
+                },
+
+                async loadMods() {
+                    if(!this.prNumber) return;
+                    this.loading = true;
+                    this.error = '';
+                    this.mods = [];
+                    this.selectedMod = '';
+                    this.reviewData = null;
+                    
+                    try {
+                        const response = await fetch(`${window.API_BASE_URL}/PRMods?pr=${this.prNumber}`);
+                        if (!response.ok) throw new Error(await response.text() || 'Failed to fetch mods');
+                        const data = await response.json();
+                        
+                        if (data && data.length > 0) {
+                            this.mods = data;
+                            if(this.mods.length === 1) {
+                                this.selectedMod = this.mods[0];
+                                this.loadReview();
+                            }
+                        } else {
+                            this.error = 'No mods found for this PR.';
+                        }
+                    } catch (err) {
+                        this.error = err.message || 'Error occurred while loading mods';
+                    } finally {
+                        this.loading = false;
+                        this.$nextTick(() => { if(typeof lucide !== 'undefined') lucide.createIcons(); });
+                    }
+                },
+
+                async loadReview() {
+                    if(!this.prNumber || !this.selectedMod) return;
+                    this.reviewLoading = true;
+                    this.error = '';
+                    this.reviewData = null;
+                    this.expandedRows.clear();
+                    
+                    try {
+                        const response = await fetch(`${window.API_BASE_URL}/PRLLMReviewResult?pr=${this.prNumber}&modPath=${encodeURIComponent(this.selectedMod)}`);
+                        if (!response.ok) throw new Error(await response.text() || 'Failed to fetch review data');
+                        
+                        const data = await response.json();
+                        if(!data.frontendDisplayItems || !data.llmOutputItems) throw new Error('Invalid API response format');
+                        
+                        let combinedItems = [];
+                        const len = Math.min(data.frontendDisplayItems.length, data.llmOutputItems.length);
+                        for(let i = 0; i < len; i++) {
+                            const fd = data.frontendDisplayItems[i];
+                            const llm = data.llmOutputItems[i];
+                            combinedItems.push({
+                                index: i,
+                                key: fd.key,
+                                source: fd.source,
+                                target: fd.target,
+                                baseSource: fd.baseSource,
+                                baseTarget: fd.baseTarget,
+                                status: llm.status,
+                                issues: llm.issues || []
+                            });
+                        }
+                        
+                        this.reviewData = {
+                            items: combinedItems,
+                            globalNotes: data.globalNotes || []
+                        };
+                    } catch (err) {
+                        this.error = err.message || 'Error occurred while loading review result';
+                    } finally {
+                        this.reviewLoading = false;
+                        this.$nextTick(() => { if(typeof lucide !== 'undefined') lucide.createIcons(); });
+                    }
+                },
+
+                get totalFilteredCount() {
+                    if(!this.reviewData || !this.reviewData.items) return 0;
+                    return this.reviewData.items.filter(item => {
+                        if (this.filterPROnly) {
+                            const changed = (item.baseSource !== item.source) || (item.baseTarget !== item.target);
+                            const isNew = item.baseSource == null && item.baseTarget == null;
+                            if(!changed && !isNew) return false;
+                        }
+                        return true;
+                    }).length;
+                },
+
+                get filteredItems() {
+                    if(!this.reviewData || !this.reviewData.items) return [];
+                    return this.reviewData.items.filter(item => {
+                        if (this.filterPROnly) {
+                            const changed = (item.baseSource !== item.source) || (item.baseTarget !== item.target);
+                            const isNew = item.baseSource == null && item.baseTarget == null;
+                            if(!changed && !isNew) return false;
+                        }
+                        if (this.hidePassed) {
+                            if (item.status === 'Pass' && (!item.issues || item.issues.length === 0)) return false;
+                        }
+                        return true;
+                    });
+                },
+                
+                toggleExpand(index) {
+                    if(this.expandedRows.has(index)) this.expandedRows.delete(index);
+                    else this.expandedRows.add(index);
+                    this.expandedRows = new Set(this.expandedRows);
+                    this.$nextTick(() => { if(typeof lucide !== 'undefined') lucide.createIcons(); });
+                }
+            }
+        }
+    </script>
+</body>
+</html>

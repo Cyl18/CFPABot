@@ -1,0 +1,399 @@
+<div x-data="prReviewData()" x-init="init()" class="h-full flex flex-col space-y-4">
+    <!-- Header Controls -->
+    <div class="bg-slate-800 rounded-lg p-4 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <h2 class="text-xl font-bold flex items-center gap-2">
+                <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+                PR Review
+            </h2>
+            <div class="flex items-center gap-2">
+                <input type="number" x-model="prNumber" @keyup.enter="loadMods()" placeholder="PR #"
+                    class="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 w-24 focus:outline-none focus:border-blue-500" />
+                <button @click="loadMods()" :disabled="loading"
+                    class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-3 py-1.5 rounded transition">
+                    <span x-show="!loading">Load PR</span>
+                    <span x-show="loading" class="flex items-center gap-2">
+                        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Loading...
+                    </span>
+                </button>
+            </div>
+            
+            <div x-show="mods.length > 0" class="flex items-center gap-2">
+                <select x-model="selectedMod" class="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 max-w-xs truncate">
+                    <template x-for="mod in mods" :key="mod">
+                        <option :value="mod" x-text="mod" :selected="mod === selectedMod"></option>
+                    </template>
+                </select>
+                <button @click="loadReview()" :disabled="reviewLoading || !selectedMod"
+                    class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded transition">
+                    <span x-show="!reviewLoading">Review</span>
+                    <span x-show="reviewLoading" class="flex items-center gap-2">
+                        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Loading...
+                    </span>
+                </button>
+            </div>
+        </div>
+
+        <!-- View Controls (Hidden in dropdown-like or simple toggle buttons) -->
+        <div class="flex items-center gap-3 text-sm">
+            <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition">
+                <input type="checkbox" x-model="filterPROnly" class="rounded bg-slate-900 border-slate-700 flex-shrink-0" />
+                Only Changed
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition">
+                <input type="checkbox" x-model="hidePassed" class="rounded bg-slate-900 border-slate-700 flex-shrink-0" />
+                Hide Passed
+            </label>
+            
+            <!-- More View Options (Toggles) -->
+            <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open" @click.outside="open = false" class="flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-700 rounded border border-slate-700 transition">
+                    <i data-lucide="settings-2" class="w-4 h-4"></i> View
+                </button>
+                <div x-show="open" x-cloak class="absolute right-0 mt-2 w-48 bg-slate-800 border border-slate-700 rounded shadow-xl z-20 py-2">
+                    <label class="flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-slate-700">
+                        <input type="checkbox" x-model="showKey" class="rounded bg-slate-900 border-slate-700" /> Key
+                    </label>
+                    <label class="flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-slate-700">
+                        <input type="checkbox" x-model="showBaseEN" class="rounded bg-slate-900 border-slate-700" /> Base EN
+                    </label>
+                    <label class="flex items-center gap-2 px-4 py-2 cursor-pointer hover:bg-slate-700">
+                        <input type="checkbox" x-model="showBaseCN" class="rounded bg-slate-900 border-slate-700" /> Base CN
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Map -->
+    <div x-show="error" x-cloak class="bg-red-900/30 text-red-400 p-4 rounded-lg flex items-center gap-3">
+        <i data-lucide="alert-triangle" class="w-5 h-5 flex-shrink-0"></i>
+        <span x-text="error"></span>
+    </div>
+
+    <!-- Main Content -->
+    <div x-show="reviewData" x-cloak class="flex-1 overflow-auto space-y-6">
+        
+        <!-- Stats summary -->
+        <div class="flex items-center gap-4 text-sm text-slate-400 pb-2 border-b border-slate-800">
+            <span class="text-white font-medium">Review Complete</span>
+            <span>&bull;</span>
+            <span x-text="filteredItems.length + ' Items Shown'"></span>
+            <span x-show="hidePassed && filteredItems.length < totalFilteredCount" class="italic px-2" x-text="'(' + (totalFilteredCount - filteredItems.length) + ' passed items hidden)'"></span>
+        </div>
+
+        <!-- The List -->
+        <div class="space-y-3">
+            <template x-for="(item, index) in filteredItems" :key="item.id || item.index">
+                <!-- Row Item -->
+                <div class="bg-slate-850 border border-slate-700 rounded hover:border-slate-500 transition-colors flex flex-col"
+                     :class="{
+                         'border-l-4': true,
+                         'border-l-slate-700': item.status === 'Pass',
+                         'border-l-amber-500': item.status === 'Minor',
+                         'border-l-red-500': item.status === 'NeedsFix',
+                         'border-l-violet-500': item.status === 'NeedsContext'
+                     }">
+                     
+                    <!-- Main Text Row -->
+                    <div class="p-4 grid gap-4 items-start" 
+                         :class="{
+                             'grid-cols-2': !showKey && !showBaseEN && !showBaseCN,
+                             'grid-cols-[1fr_2fr_2fr]': showKey && !showBaseEN && !showBaseCN,
+                             'grid-cols-3': !showKey && (showBaseEN || showBaseCN)
+                         }">
+                         
+                        <!-- Optional Key -->
+                        <div x-show="showKey" class="text-xs text-slate-500 font-mono break-all truncate" title="Key">
+                            <span class="bg-slate-900 px-1 py-0.5 rounded" x-text="item.key"></span>
+                        </div>
+
+                        <!-- EN Column(s) -->
+                        <div class="space-y-2">
+                            <div x-show="showBaseEN" class="text-sm text-slate-500 pb-2 border-b border-slate-800 border-dashed">
+                                <div class="text-xs font-semibold uppercase mb-1 opacity-70">Base Source</div>
+                                <div x-text="item.baseSource || '-'" class="opacity-75"></div>
+                            </div>
+                            <div class="text-sm text-slate-300">
+                                <div class="text-xs font-semibold uppercase mb-1 opacity-50">Source</div>
+                                <div x-text="item.source"></div>
+                            </div>
+                        </div>
+
+                        <!-- CN Column(s) -->
+                        <div class="space-y-2 relative pr-12">
+                            <div x-show="showBaseCN" class="text-sm text-slate-500 pb-2 border-b border-slate-800 border-dashed">
+                                <div class="text-xs font-semibold uppercase mb-1 opacity-70">Base Target</div>
+                                <div x-text="item.baseTarget || '-'" class="opacity-75"></div>
+                            </div>
+                            <div class="text-sm text-white">
+                                <div class="text-xs font-semibold uppercase mb-1 opacity-50 text-slate-400">Target</div>
+                                <div x-text="item.target"></div>
+                            </div>
+                            
+                            <!-- Badges & Actions placed at end of CN column -->
+                            <div class="absolute top-0 right-0 flex items-center justify-end">
+                                <button x-show="item.issues && item.issues.length > 0"
+                                    @click="toggleExpand(item.index)" 
+                                    class="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-semibold transition"
+                                    :class="{
+                                        'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20': item.status === 'Minor',
+                                        'bg-red-500/10 text-red-500 hover:bg-red-500/20': item.status === 'NeedsFix',
+                                        'bg-violet-500/10 text-violet-500 hover:bg-violet-500/20': item.status === 'NeedsContext'
+                                    }">
+                                    <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
+                                    <span x-text="item.issues.length"></span>
+                                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 transform transition-transform" :class="expandedRows.has(item.index) ? 'rotate-180' : ''"></i>
+                                </button>
+                                <span x-show="!item.issues || item.issues.length === 0" class="text-xs text-slate-500 px-2 py-1 flex flex-col items-center justify-center opacity-50">
+                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500 mb-0.5"></i>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Issues Expanded Area -->
+                    <div x-show="expandedRows.has(item.index)" x-collapse class="bg-slate-900 border-t border-slate-800 p-4 space-y-3">
+                        <template x-for="(issue, iIndex) in item.issues" :key="iIndex">
+                            <div class="pl-3 border-l-2" 
+                                 :class="{
+                                    'border-amber-500': issue.severity === 'Minor',
+                                    'border-red-500': issue.severity === 'NeedsFix',
+                                    'border-violet-500': issue.severity === 'NeedsContext'
+                                 }">
+                                 
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-xs font-bold px-1.5 py-0.5 rounded leading-none"
+                                          :class="{
+                                              'bg-amber-500/20 text-amber-500': issue.severity === 'Minor',
+                                              'bg-red-500/20 text-red-500': issue.severity === 'NeedsFix',
+                                              'bg-violet-500/20 text-violet-500': issue.severity === 'NeedsContext'
+                                          }" x-text="issue.severity"></span>
+                                    <span class="text-xs font-mono text-slate-400" x-text="issue.type"></span>
+                                </div>
+                                <div class="text-sm text-slate-200 mt-1" x-text="issue.message"></div>
+                                
+                                <div x-show="issue.reason" class="mt-2 text-xs text-slate-400 bg-slate-850 p-2 rounded">
+                                    <span class="font-semibold opacity-70">Reason:</span> <span x-text="issue.reason"></span>
+                                </div>
+
+                                <div x-show="issue.suggestedTarget" class="mt-2 text-sm">
+                                    <div class="text-xs font-semibold text-emerald-500 mb-1 flex items-center gap-1">
+                                        <i data-lucide="sparkles" class="w-3 h-3"></i> Suggested Target
+                                    </div>
+                                    <div class="px-3 py-1.5 bg-emerald-900/20 border border-emerald-900/50 rounded text-emerald-100" x-text="issue.suggestedTarget"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+            
+            <div x-show="filteredItems.length === 0" class="text-center py-12 text-slate-500">
+                <i data-lucide="check-circle" class="w-12 h-12 mx-auto mb-3 opacity-50 text-emerald-500"></i>
+                <p>No items to display based on current filters.</p>
+            </div>
+        </div>
+
+        <!-- Global Notes -->
+        <div x-show="reviewData.globalNotes && reviewData.globalNotes.length > 0" class="mt-8 bg-slate-850 border border-slate-700 rounded-lg p-5 border-l-4 border-l-blue-500">
+            <h3 class="text-lg font-bold flex items-center gap-2 mb-3">
+                <i data-lucide="info" class="w-5 h-5 text-blue-400"></i> Global Review Notes
+            </h3>
+            <ul class="list-disc pl-5 space-y-2 text-slate-300 text-sm">
+                <template x-for="note in reviewData.globalNotes">
+                    <li x-text="note"></li>
+                </template>
+            </ul>
+        </div>
+        
+    </div>
+</div>
+
+<script>
+function prReviewData() {
+    return {
+        prNumber: '',
+        loading: false,
+        reviewLoading: false,
+        error: '',
+        
+        mods: [],
+        selectedMod: '',
+        
+        // Review Results
+        reviewData: null,
+        expandedRows: new Set(),
+        
+        // View Filters
+        filterPROnly: true,
+        hidePassed: true, // "极简": hide passed by default to focus on issues
+        showKey: false,
+        showBaseEN: false,
+        showBaseCN: false,
+
+        // Initialize from URL query params
+        init() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const prParam = urlParams.get('pr');
+            if (prParam) {
+                this.prNumber = prParam;
+                this.loadMods();
+            }
+            
+            // Wait for DOM
+            this.$nextTick(() => {
+                if(typeof lucide !== 'undefined') lucide.createIcons();
+            });
+        },
+
+        async loadMods() {
+            if(!this.prNumber) return;
+            this.loading = true;
+            this.error = '';
+            this.mods = [];
+            this.selectedMod = '';
+            this.reviewData = null;
+            
+            try {
+                // Remove ?pr= to prevent infinite nesting, but wait we are in Hash router generally.
+                // If it's tools/pr-review via hash #/Review/PR-Review, URL params are on main page.
+                
+                const response = await fetch(`${window.API_BASE_URL}/PRMods?pr=${this.prNumber}`);
+                if (!response.ok) {
+                    const txt = await response.text();
+                    throw new Error(txt || 'Failed to fetch mods');
+                }
+                const data = await response.json();
+                
+                if (data && data.length > 0) {
+                    this.mods = data;
+                    if(this.mods.length === 1) {
+                        this.selectedMod = this.mods[0];
+                        // Auto load if single mod?
+                    }
+                } else {
+                    this.error = 'No mods found for this PR.';
+                }
+            } catch (err) {
+                this.error = err.message || 'Error occurred while loading mods';
+                console.error(err);
+            } finally {
+                this.loading = false;
+                this.$nextTick(() => {
+                    if(typeof lucide !== 'undefined') lucide.createIcons();
+                });
+            }
+        },
+
+        async loadReview() {
+            if(!this.prNumber || !this.selectedMod) return;
+            this.reviewLoading = true;
+            this.error = '';
+            this.reviewData = null;
+            this.expandedRows.clear();
+            
+            try {
+                const url = `${window.API_BASE_URL}/PRLLMReviewResult?pr=${this.prNumber}&modPath=${encodeURIComponent(this.selectedMod)}`;
+                const response = await fetch(url);
+                if (!response.ok) {
+                    const txt = await response.text();
+                    throw new Error(txt || 'Failed to fetch review data');
+                }
+                
+                const data = await response.json();
+                // Combine FrontendDisplayItems + LLMOutputItems based on indices
+                // Because length should match
+                
+                if(!data.frontendDisplayItems || !data.llmOutputItems) {
+                    throw new Error('Invalid response format API');
+                }
+                
+                let combinedItems = [];
+                const len = Math.min(data.frontendDisplayItems.length, data.llmOutputItems.length);
+                for(let i = 0; i < len; i++) {
+                    const fd = data.frontendDisplayItems[i];
+                    const llm = data.llmOutputItems[i];
+                    
+                    combinedItems.push({
+                        index: i,
+                        key: fd.key,
+                        source: fd.source,
+                        target: fd.target,
+                        baseSource: fd.baseSource,
+                        baseTarget: fd.baseTarget,
+                        
+                        status: llm.status,
+                        issues: llm.issues || []
+                    });
+                }
+                
+                this.reviewData = {
+                    items: combinedItems,
+                    globalNotes: data.globalNotes || []
+                };
+            } catch (err) {
+                this.error = err.message || 'Error occurred while loading review result';
+                console.error(err);
+            } finally {
+                this.reviewLoading = false;
+                this.$nextTick(() => {
+                    if(typeof lucide !== 'undefined') lucide.createIcons();
+                });
+            }
+        },
+
+        get totalFilteredCount() {
+            if(!this.reviewData || !this.reviewData.items) return 0;
+            return this.reviewData.items.filter(item => {
+                if (this.filterPROnly) {
+                    const changed = (item.baseSource !== item.source) || (item.baseTarget !== item.target);
+                    // if both base are null, consider it a new line so changed=true
+                    const isNew = item.baseSource == null && item.baseTarget == null;
+                    if(!changed && !isNew) {
+                        return false;
+                    }
+                }
+                return true;
+            }).length;
+        },
+
+        get filteredItems() {
+            if(!this.reviewData || !this.reviewData.items) return [];
+            
+            return this.reviewData.items.filter(item => {
+                // Filter 1: PR Only
+                if (this.filterPROnly) {
+                    const changed = (item.baseSource !== item.source) || (item.baseTarget !== item.target);
+                    const isNew = item.baseSource == null && item.baseTarget == null;
+                    if(!changed && !isNew) {
+                        return false;
+                    }
+                }
+                
+                // Filter 2: Hide Passed (only applies if status === 'Pass' AND no issues)
+                if (this.hidePassed) {
+                    if (item.status === 'Pass' && (!item.issues || item.issues.length === 0)) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
+        },
+        
+        toggleExpand(index) {
+            if(this.expandedRows.has(index)) {
+                this.expandedRows.delete(index);
+            } else {
+                this.expandedRows.add(index);
+            }
+            // Trigger react
+            this.expandedRows = new Set(this.expandedRows);
+            this.$nextTick(() => {
+                if(typeof lucide !== 'undefined') lucide.createIcons();
+            });
+        }
+    }
+}
+</script>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - CFPA Bot</title>
+
+    <script defer src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script src="scripts/config.js"></script>
+
+    <script>
+        // Check if already logged in
+        (function () {
+            function checkCookie(name) {
+                return document.cookie.split(';').some(cookie => cookie.trim().startsWith(name + '='));
+            }
+
+            if (checkCookie('oauth-token-enc')) {
+                // Already has token, redirect to app
+                window.location.href = 'app.html';
+            }
+        })();
+
+        // Tailwind config
+        (function configureTailwind() {
+            if (typeof tailwind !== 'undefined') {
+                tailwind.config = {
+                    darkMode: 'class',
+                    theme: {
+                        extend: {
+                            colors: {
+                                slate: {
+                                    850: '#1e293b',
+                                    950: '#020617',
+                                }
+                            },
+                            fontFamily: {
+                                sans: ['Inter', 'sans-serif'],
+                            }
+                        },
+                    },
+                };
+            } else {
+                setTimeout(configureTailwind, 50);
+            }
+        })();
+    </script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center">
+    <div class="w-full max-w-md p-8">
+        <!-- Logo/Title -->
+        <div class="text-center mb-8">
+            <h1
+                class="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">
+                CFPA Bot
+            </h1>
+            <p class="text-slate-400">Sign in to continue</p>
+        </div>
+
+        <!-- Login Card -->
+        <div class="bg-slate-900 rounded-lg border border-slate-800 p-8 shadow-xl">
+            <div class="text-center mb-6">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-800 mb-4">
+                    <i data-lucide="github" class="w-8 h-8 text-slate-300"></i>
+                </div>
+                <h2 class="text-xl font-semibold mb-2">GitHub Login Required</h2>
+                <p class="text-slate-400 text-sm">
+                    This application requires GitHub authentication to access its features.
+                </p>
+            </div>
+
+            <button id="login-button"
+                class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl">
+                <i data-lucide="github" class="w-5 h-5"></i>
+                <span>Continue with GitHub</span>
+            </button>
+
+            <div class="mt-6 pt-6 border-t border-slate-800">
+                <p class="text-xs text-slate-500 text-center">
+                    By continuing, you agree to authorize this application to access your GitHub profile.
+                </p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-8 text-sm text-slate-500">
+            <p>© 2025 CFPA Bot. All rights reserved.</p>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Lucide icons when loaded
+        window.addEventListener('load', function () {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+
+        // Login button handler
+        document.addEventListener('DOMContentLoaded', function () {
+            const loginBtn = document.getElementById('login-button');
+            if (loginBtn) {
+                loginBtn.addEventListener('click', function () {
+                    window.location.href = window.API_BASE_URL + '/Login';
+                });
+            }
+        });
+
+        // Check for OAuth callback
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+
+        if (code) {
+            // Show loading state
+            const loginBtn = document.getElementById('login-button');
+            if (loginBtn) {
+                loginBtn.disabled = true;
+                loginBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>Authenticating...</span>';
+            }
+
+            // Exchange code for token
+            fetch(window.API_BASE_URL + '/GithubCallback?code=' + code, {
+                credentials: 'include'
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.isError === true || !data.isSuccess) {
+                        throw new Error(data.message || 'Authentication failed');
+                    }
+                    // Success - redirect to app
+                    window.location.href = 'app.html';
+                })
+                .catch(err => {
+                    console.error('Login failed:', err);
+                    if (loginBtn) {
+                        loginBtn.disabled = false;
+                        loginBtn.innerHTML = '<i data-lucide="github" class="w-5 h-5"></i><span>Retry Login</span>';
+                        lucide.createIcons();
+                    }
+                    alert('Login failed: ' + err.message);
+                });
+        }
+    </script>
+</body>
+
+</html>

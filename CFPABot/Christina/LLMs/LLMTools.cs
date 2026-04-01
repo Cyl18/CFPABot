@@ -1,8 +1,7 @@
-﻿
-using System;
+﻿using System;
 using System.Collections.Generic;
 
-namespace CFPABot.Utils.LLMs
+namespace CFPABot.Christina.LLMs
 {
     public sealed class ToolRegistry
     {

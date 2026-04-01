@@ -32,6 +32,9 @@ namespace CFPABot.Utils
         public static string CurseForgeApiKey => Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
         public static string ChatGptApiKey => Environment.GetEnvironmentVariable("CHATGPT_API_KEY");
         public static string OpenRouterApiKey => Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
+        public static string OpenRouterApiKey2 => Environment.GetEnvironmentVariable("OPENROUTER_API_KEY2") ;
+        public static string GeminiApiKey => Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+        public static string GeminiEndpoint => Environment.GetEnvironmentVariable("GEMINI_ENDPOINT");
 #endif
     }
 }

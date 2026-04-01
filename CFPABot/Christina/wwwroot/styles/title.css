@@ -1,0 +1,50 @@
+/* Title hover expansion */
+.title-hover {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.app-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.app-title-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    margin-right: 0;
+    transition: margin-right 0.4s ease;
+}
+
+.app-title-extended {
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    display: inline-block;
+    transform: translateX(6px);
+    transition: max-width 0.6s ease, opacity 0.5s ease, transform 0.5s ease;
+}
+
+.title-hover:hover .app-title-extended,
+.title-hover:focus-visible .app-title-extended,
+.title-hover .logo-hover:hover~h1 .app-title-extended {
+    max-width: 520px;
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.title-hover:hover .app-title-group,
+.title-hover:focus-visible .app-title-group,
+.title-hover .logo-hover:hover~h1 .app-title-group {
+    margin-right: 0.35rem;
+}
+
+/* Always keep a fixed gap between the A group and Bot */
+.app-title-group--last {
+    margin-right: 0.35rem;
+}
