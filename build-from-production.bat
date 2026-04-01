@@ -1,53 +1,61 @@
-﻿@echo off
-setlocal enabledelayedexpansion
-
-echo ===============================================
-echo Checking local changes...
-echo ===============================================
-
-REM Check for unstaged changes
-git diff --quiet
-if errorlevel 1 (
-    echo [ERROR] There are uncommitted local changes
-    echo Please commit all changes before retrying
-    pause
-    exit /b 1
-)
-
-REM Check for untracked files
-git ls-files --others --exclude-standard | findstr . >nul
-if not errorlevel 1 (
-    echo [ERROR] There are untracked local files
-    echo Please commit all files before retrying
-    pause
-    exit /b 1
-)
-
-REM Check for unpushed commits
-for /f %%i in ('git rev-list @{u}..HEAD ^2^>nul') do (
-    echo [ERROR] There are unpushed local commits
-    echo Please push all changes before retrying
-    pause
-    exit /b 1
-)
-
-echo [OK] All local changes have been committed and pushed
-
-echo.
-echo ===============================================
-echo Connecting to production server...
-echo ===============================================
-
-ssh hk "cd ~/production/cfpa-bot && echo '[*] Pulling code...' && cd CFPABot && git pull && echo '[*] Building image...' && docker build -f CFPABot/Dockerfile -t docker.cyan.cafe/cfpabot . && echo '[*] Pushing image...' && cd .. && echo '[*] Restarting containers...' && docker-compose pull && docker-compose down && docker-compose up -d && echo '[OK] Production update complete!'"
-
-if errorlevel 1 (
-    echo [ERROR] Remote command failed
-    pause
-    exit /b 1
-)
-
-echo.
-echo ===============================================
-echo [OK] All done!
-echo ===============================================
+﻿:: <#
+@echo off
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~f0"
 pause
+exit /b
+#>
+
+Write-Host "==============================================="
+Write-Host "Checking local changes..."
+Write-Host "==============================================="
+
+# Check for unstaged changes
+git diff --quiet 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[ERROR] There are uncommitted local changes"
+    Write-Host "Please commit all changes before retrying"
+    exit 1
+}
+
+# Check for untracked files
+$untracked = git ls-files --others --exclude-standard
+if ($untracked) {
+    Write-Host "[ERROR] There are untracked local files"
+    Write-Host "Please commit all files before retrying"
+    exit 1
+}
+
+# Check for unpushed commits
+$unpushed = git rev-list "@{u}..HEAD" 2>$null
+if ($unpushed) {
+    Write-Host "[ERROR] There are unpushed local commits"
+    Write-Host "Please push all changes before retrying"
+    exit 1
+}
+
+Write-Host "[OK] All local changes have been committed and pushed"
+
+Write-Host ""
+Write-Host "==============================================="
+Write-Host "Connecting to production server..."
+Write-Host "==============================================="
+
+$remoteCmd = "cd ~/production/cfpa-bot && " +
+             "echo '[*] Pulling code...' && cd CFPABot && git pull && " +
+             "echo '[*] Building image...' && docker build -f CFPABot/Dockerfile -t docker.cyan.cafe/cfpabot . && " +
+             "echo '[*] Pushing image...' && cd .. && " +
+             "echo '[*] Restarting containers...' && docker-compose pull && docker-compose down && docker-compose up -d && " +
+             "echo '[OK] Production update complete!'"
+
+ssh hk $remoteCmd
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[ERROR] Remote command failed"
+    exit 1
+}
+
+Write-Host ""
+Write-Host "==============================================="
+Write-Host "[OK] All done!"
+Write-Host "==============================================="
+
