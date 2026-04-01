@@ -89,15 +89,15 @@ namespace CFPABot.Christina.Backend
 
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, ReviewJob> _activeJobs = new();
 
-        private static string GetCacheFilePath(int pr, string mod, string sha)
+        private static string GetCacheFilePath(int pr, string mod, string sha, string importance)
         {
             var safeMod = mod.Replace('/', '_').Replace('\\', '_');
-            return Path.Combine("caches/llm-review-cache", $"{pr}-{safeMod}-{sha}.json");
+            return Path.Combine("caches/llm-review-cache", $"{pr}-{safeMod}-{sha}-{importance}.json");
         }
 
-        private static async Task<LlmBatchOutput> TryLoadReviewCache(int pr, string mod, string sha)
+        private static async Task<LlmBatchOutput> TryLoadReviewCache(int pr, string mod, string sha, string importance)
         {
-            var path = GetCacheFilePath(pr, mod, sha);
+            var path = GetCacheFilePath(pr, mod, sha, importance);
             if (!System.IO.File.Exists(path)) return null;
             try
             {
@@ -111,9 +111,9 @@ namespace CFPABot.Christina.Backend
             }
         }
 
-        private static async Task SaveReviewCache(int pr, string mod, string sha, LlmBatchOutput result)
+        private static async Task SaveReviewCache(int pr, string mod, string sha, string importance, LlmBatchOutput result)
         {
-            var path = GetCacheFilePath(pr, mod, sha);
+            var path = GetCacheFilePath(pr, mod, sha, importance);
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -153,7 +153,7 @@ namespace CFPABot.Christina.Backend
         }
 
         [HttpGet("PRLLMReviewResult")]
-        public async Task PRLLMReviewResult([FromQuery] int pr, [FromQuery] string mod)
+        public async Task PRLLMReviewResult([FromQuery] int pr, [FromQuery] string mod, [FromQuery] bool force = false, [FromQuery] string importance = "medium")
         {
             Response.Headers.Append("Content-Type", "text/event-stream");
             Response.Headers.Append("Cache-Control", "no-cache");
@@ -185,7 +185,7 @@ namespace CFPABot.Christina.Backend
                 return;
             }
 
-            var jobKey = $"{pr}:{mod}";
+            var jobKey = $"{pr}:{mod}:{importance}";
 
             // GetOrAdd with a factory that also starts the background task
             ReviewJob job;
@@ -246,7 +246,7 @@ namespace CFPABot.Christina.Backend
                             ? JsonObjectEx.CreateFromString(baseCnContent).Lines.ToDictionary(x => x.Key, x => x.Value)
                             : null;
 
-                        var result = await TryLoadReviewCache(pr, mod, headSha);
+                        var result = !force ? await TryLoadReviewCache(pr, mod, headSha, importance) : null;
                         if (result == null)
                         {
                             var progress = new Progress<(int completed, int total)>(p =>
@@ -269,8 +269,8 @@ namespace CFPABot.Christina.Backend
 
                             result = await LLMAssistantClient.GetLLMReviewResult(
                                 en, cn, modPath.CurseForgeSlug, modPath.GameVersionDirectoryName,
-                                progress, CancellationToken.None);
-                            await SaveReviewCache(pr, mod, headSha, result);
+                                importance, progress, CancellationToken.None);
+                            await SaveReviewCache(pr, mod, headSha, importance, result);
                         }
 
                         var displayItems = result.Items.Select(item =>

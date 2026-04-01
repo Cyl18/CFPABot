@@ -23,8 +23,11 @@
                     <template x-for="mod in mods" :key="mod">
                         <option :value="mod" x-text="mod" :selected="mod === selectedMod"></option>
                     </template>
-                </select>
-                    <div class="flex items-center gap-1">
+                </select>                <select x-model="importanceLevel" class="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500">
+                    <option value="low">低重要度 (Low)</option>
+                    <option value="medium">中重要度 (Medium)</option>
+                    <option value="high">高重要度 (High)</option>
+                </select>                    <div class="flex items-center gap-1">
                         <button @click="loadReview(false)" :disabled="reviewLoading || !selectedMod"
                             class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-l border-r border-emerald-800 transition">
                             <span x-show="!reviewLoading">Review</span>
@@ -55,8 +58,8 @@
             </label>
             
             <!-- More View Options (Toggles) -->
-            <div class="relative" x-data="{ open: false }">
-                <button @click="open = !open" @click.outside="open = false" class="flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-700 rounded border border-slate-700 transition">
+            <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                <button @click="open = !open" class="flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-700 rounded border border-slate-700 transition">
                     <i data-lucide="settings-2" class="w-4 h-4"></i> View
                 </button>
                 <div x-show="open" x-cloak class="absolute right-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded shadow-xl z-20 py-2">
@@ -108,7 +111,7 @@
             <template x-for="(item, index) in filteredItems" :key="item.id || item.index">
                 <!-- Row Item -->
                 <div @click="if(item.issues && item.issues.length > 0) toggleExpand(item.index)"
-                     class="bg-slate-850 border border-slate-700 rounded hover:border-slate-500 transition-colors flex flex-col"
+                     class="bg-slate-850 border border-slate-700 rounded hover:border-slate-500 transition-colors flex flex-col relative"
                      :class="{
                          'cursor-pointer': item.issues && item.issues.length > 0,
                          'border-l-4': true,
@@ -118,14 +121,11 @@
                          'border-l-violet-500': item.status === 'NeedsContext'
                      }">
                      
+                    <!-- Optional Line Number -->
+                    <div x-show="showLineNumber" class="absolute -left-1 top-4 text-[10px] font-mono text-slate-500 bg-slate-900 border border-slate-700 px-1 py-0.5 rounded shadow-sm z-10 transform -translate-x-full" x-text="'#' + (item.index + 1)"></div>
+
                     <!-- Main Text Row -->
-                    <div class="px-3 py-3 flex gap-4 items-start relative border-l-4"
-                         :class="{
-                             'border-transparent': !showLineNumber,
-                             'border-slate-800': showLineNumber
-                         }">
-                        <!-- Optional Line Number -->
-                        <div x-show="showLineNumber" class="absolute -left-[30px] top-4 text-xs font-mono text-slate-500 bg-slate-900 px-1 py-0.5 rounded shadow z-10 w-[26px] text-center" x-text="'#' + (item.index + 1)"></div>
+                    <div class="px-3 py-3 flex gap-4 items-start relative">
 
                         <div class="flex-1 grid gap-4 lg:grid-cols-2 relative" 
                              :class="{ 'grid-cols-1': !showBaseEN && !showBaseCN }">
@@ -236,6 +236,7 @@ function prReviewData() {
         
         mods: [],
         selectedMod: '',
+        importanceLevel: 'medium',
         
         // Review Results
         reviewData: null,
@@ -312,7 +313,7 @@ function prReviewData() {
             this.reviewData = null;
             this.expandedRows.clear();
 
-            let url = `${window.API_BASE_URL}/PRLLMReviewResult?pr=${this.prNumber}&mod=${encodeURIComponent(this.selectedMod)}`;
+            let url = `${window.API_BASE_URL}/PRLLMReviewResult?pr=${this.prNumber}&mod=${encodeURIComponent(this.selectedMod)}&importance=${encodeURIComponent(this.importanceLevel)}`;
             if (force) url += '&force=true';
             const es = new EventSource(url, { withCredentials: true });
 

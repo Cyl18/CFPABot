@@ -23,6 +23,7 @@ namespace CFPABot.Christina.LLMs
         internal static async Task<LlmBatchOutput> GetLLMReviewResult(
             JsonObjectEx en, JsonObjectEx cn,
             string modId, string mcVersionRange,
+            string importance = "medium",
             IProgress<(int completed, int total)>? progress = null,
             CancellationToken ct = default)
         {
@@ -56,7 +57,7 @@ namespace CFPABot.Christina.LLMs
             var batchTasks = batches.Select((batch, i) =>
             {
                 var idOffset = offsets[i];
-                return ProcessBatchAsync(openRouter, enDict, batch, idOffset, modId, mcVersionRange, ct)
+                return ProcessBatchAsync(openRouter, enDict, batch, idOffset, modId, mcVersionRange, importance, ct)
                     .ContinueWith(t =>
                     {
                         Interlocked.Increment(ref completed);
@@ -98,6 +99,7 @@ namespace CFPABot.Christina.LLMs
             List<JsonLine> batch,
             int globalIdOffset,
             string modId, string mcVersionRange,
+            string importance,
             CancellationToken ct)
         {
             var entries = batch.Select((line, i) => new ReviewEntry
@@ -116,7 +118,13 @@ namespace CFPABot.Christina.LLMs
             };
 
             var inputJson = JsonSerializer.Serialize(batchInput, SerializeOptions);
-            var prompt = string.Format(MediumSeverityPrompt, inputJson);
+            string promptTemplate = importance.ToLowerInvariant() switch
+            {
+                "low" => LowSeverityPrompt,
+                "high" => HighSeverityPrompt,
+                _ => MediumSeverityPrompt
+            };
+            var prompt = promptTemplate.Replace("{{INPUT_JSON}}", inputJson);
 
             // var responseText = await openRouter.QueryWithSystemPromptAsync(
             //     SystemPrompt, prompt,
@@ -378,14 +386,40 @@ namespace CFPABot.Christina.LLMs
                                             - needs_context：必须拿到上下文才能给出可靠结论
                                             """;
 
-        private const string MediumSeverityPrompt = """
-                                                   你将进行【中重要度】审阅：在保证准确性的前提下，检查术语一致性与上下文连贯性。
+        private const string LowSeverityPrompt = """
+                                                   你将进行【低重要度】快速审阅：优先找出会导致玩家困惑或明显错误的问题；不要对风格过度挑剔。
 
                                                    输入 JSON 如下：
-                                                   {0}
+                                                   {{INPUT_JSON}}
+
+                                                   额外要求：
+                                                   - 若本地 precheck 已标记 placeholder/formatting 错误：直接 needs_fix，并在 issues 中明确指出。
+                                                   - 对术语/风格仅给“minor”级别建议，除非会误导含义。
+                                                   - 尽量减少输出字数，但保持 JSON 合法。
+                                                   """;
+
+        private const string MediumSeverityPrompt = """
+                                                   你将进行【中重要度】审阅：在保证准确性的前提下，检查术语一致性与上下文连贯性。参考 CFPA 风格：准确、统一、自然、避免过度机翻腔；专有名词遵循术语表与项目既有译法。
+
+                                                   输入 JSON 如下：
+                                                   {{INPUT_JSON}}
 
                                                    额外要求：
                                                    - 遇到“可能有多种合理译法”的情况：status 设为 minor 或 needs_context（视是否缺上下文），并在 issues 中给出 2 个候选译法（用“建议A：…；建议B：…”格式），说明各自倾向。
+                                                   - 若需要更多信息，请优先 tool call 获取：key 的使用场景、相似条目既有译法、模板展开样例。
+                                                   """;
+
+        private const string HighSeverityPrompt = """
+                                                   你将进行【高重要度】严格审阅：这些条目下载量高或影响面大。你需要尽量降低误翻风险。
+
+                                                   输入 JSON 如下：
+                                                   {{INPUT_JSON}}
+
+                                                   额外要求：
+                                                   - 对 subtitle / advancement / death message 等“句子型文本”，要求中文读起来自然，语气与场景匹配。
+                                                   - 对 item/block 名称，要求简洁一致，避免冗余修饰。
+                                                   - 遇到不确定的专有名词或机制名：先 tool call 拉取“源码/资源用法摘要”或“同模组相似译法”，再下结论。
+                                                   - 输出的 issues 的 reason 要更明确，便于人工讨论与投票。
                                                    """;
 
         // - 若需要更多信息，请优先 tool call 获取：key 的使用场景、相似条目既有译法、模板展开样例。
