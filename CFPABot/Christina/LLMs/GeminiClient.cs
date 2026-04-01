@@ -78,7 +78,7 @@ namespace CFPABot.Christina.LLMs
         {
             _keyPool = keyPool;
             _endpointTemplate = endpointTemplate;
-            _http = httpClient ?? new HttpClient();
+            _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
             _json = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = SnakeCaseNamingPolicy.Instance,
@@ -242,11 +242,11 @@ namespace CFPABot.Christina.LLMs
             CancellationToken ct = default)
         {
             var session = LlmDebugLogger.StartSession("gemini-query");
-            var retryDelays = new[] { 0, 1, 5, 30, 60 };
+            var retryDelays = new[] { 0, 1, 5, 5, 5, 5, 5, 30, 60 };
 
             foreach (var model in modelPolicy.Enumerate())
             {
-                for (int attempt = 0; attempt < 6; attempt++)
+                for (int attempt = 0; attempt < 9; attempt++)
                 {
                     if (attempt > 0)
                     {
