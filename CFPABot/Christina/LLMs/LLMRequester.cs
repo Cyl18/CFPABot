@@ -71,7 +71,7 @@ namespace CFPABot.Christina.LLMs
         public OpenRouterClient()
         {
             _keyPool = new ApiKeyPool(new []{Constants.OpenRouterApiKey, Constants.OpenRouterApiKey2 });
-            _http = new HttpClient();
+            _http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
             _json = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
