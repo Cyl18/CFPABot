@@ -60,7 +60,7 @@
   </ItemGroup>
 
   <ItemGroup>
-	  <EmbeddedResource Include="Azusa\wwwroot\**" Exclude="Azusa\wwwroot\_framework\**" />
+	  <EmbeddedResource Include="Azusa\wwwroot\**" />
 
 	  <EmbeddedResource Include="Azusa\wwwroot2\**" />
       <EmbeddedResource Include="Christina\wwwroot\**" />
