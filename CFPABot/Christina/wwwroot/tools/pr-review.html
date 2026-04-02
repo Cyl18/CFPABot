@@ -127,21 +127,21 @@
                     <!-- Main Text Row -->
                     <div class="px-3 py-3 flex gap-4 items-start relative" :class="{ 'pl-12': showLineNumber || expandedRows.has(item.index) }">
 
-                        <div class="flex-1 grid gap-4 lg:grid-cols-2 relative" 
+                        <div class="flex-1 grid gap-4 lg:gap-2 lg:grid-cols-2 relative" 
                              :class="{ 'grid-cols-1': !showBaseEN && !showBaseCN }">
                              
                             <!-- Divider (Large Screens) -->
-                            <div class="hidden lg:block absolute left-1/2 top-0 bottom-0 w-px bg-slate-700/30 -ml-2"></div>
+                            <div class="hidden lg:block absolute left-1/2 top-0 bottom-0 w-px bg-slate-700/30 -ml-1"></div>
 
                             <!-- EN Column (Right Aligned) -->
-                            <div class="space-y-1 text-right lg:pr-6">
+                            <div class="space-y-1 text-right lg:pr-3">
                                 <div x-show="showBaseEN" class="text-xs text-slate-500 italic pb-1 mb-1 border-b border-slate-700/50 inline-block" x-text="item.baseSource || '-'"></div>
-                                <div class="text-base text-slate-400" x-text="item.source"></div>
+                                <div class="text-base text-slate-300" x-text="item.source"></div>
                                 <div x-show="showKey || expandedRows.has(item.index)" class="text-xs text-slate-500 font-mono mt-1 opacity-50 break-all inline-block bg-slate-900/50 px-1.5 rounded" x-text="item.key"></div>
                             </div>
 
                             <!-- CN Column (Left Aligned) -->
-                            <div class="space-y-1 lg:pl-6 pr-14 lg:pr-12 text-left">
+                            <div class="space-y-1 lg:pl-3 pr-14 lg:pr-12 text-left">
                                 <div x-show="showBaseCN" class="text-xs text-slate-500 italic pb-1 mb-1 border-b border-slate-700/50 inline-block" x-text="item.baseTarget || '-'"></div>
                                 <div class="text-base text-slate-100" x-text="item.target"></div>
                                 
