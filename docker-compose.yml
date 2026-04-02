@@ -7,7 +7,7 @@ services:
     volumes:
       - ./config:/app/config
       - ./logs:/app/logs
-      - ./wwwroot:/app/wwwroot
+      - ./wwwroot:/app/userdata
       - ./Packer:/app/Packer
       - ./libgit2-e632535.so:/app/libgit2-e632535.so
       - ./project-hex:/app/project-hex

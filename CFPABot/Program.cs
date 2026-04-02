@@ -63,7 +63,7 @@ namespace CFPABot
             }
             //GitHub.Init();
             Directory.CreateDirectory("config");
-            Directory.CreateDirectory("wwwroot");
+            Directory.CreateDirectory("userdata");
             Directory.CreateDirectory("config/pr_context");
             Directory.CreateDirectory("logs");
             Directory.CreateDirectory("config/repo_analyze_results");

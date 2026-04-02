@@ -78,7 +78,7 @@ namespace CFPABot
             app.UseStaticFiles(new StaticFileOptions
             {
                 RequestPath = "/static",
-                FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwroot")),
+                FileProvider = new PhysicalFileProvider(Path.GetFullPath("userdata")),
                 OnPrepareResponse =
                     context =>
                     {
