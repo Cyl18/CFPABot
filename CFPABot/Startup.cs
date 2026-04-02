@@ -134,7 +134,6 @@ namespace CFPABot
 
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapStaticAssets();
                 endpoints.MapGitHubWebhooks("api/WebhookListener", Constants.GitHubWebhookSecret);
                 endpoints.MapControllers(); 
                 endpoints.MapBlazorHub("/Azusa/_blazor");

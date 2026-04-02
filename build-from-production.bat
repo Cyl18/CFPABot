@@ -28,9 +28,11 @@ if ($untracked) {
 # Check for unpushed commits
 $unpushed = git rev-list "@{u}..HEAD" 2>$null
 if ($unpushed) {
-    Write-Host "[ERROR] There are unpushed local commits"
-    Write-Host "Please push all changes before retrying"
-    exit 1
+    git push
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] error while pushing"
+        exit 1
+    }
 }
 
 Write-Host "[OK] All local changes have been committed and pushed"
