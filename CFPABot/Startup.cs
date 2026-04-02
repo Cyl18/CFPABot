@@ -84,15 +84,6 @@ namespace CFPABot
                     {
                     }
             });
-            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
-            {
-                app.UseStaticFiles(new StaticFileOptions
-                {
-                    RequestPath = "/css",
-                    FileProvider = new PhysicalFileProvider(Path.GetFullPath("wwwrootx/css")),
-                    
-                });
-            }
             
             app.UseStaticFiles(new StaticFileOptions()
             {
@@ -146,7 +137,12 @@ namespace CFPABot
                 endpoints.MapGitHubWebhooks("api/WebhookListener", Constants.GitHubWebhookSecret);
                 endpoints.MapControllers(); 
                 endpoints.MapBlazorHub("/Azusa/_blazor");
-                endpoints.MapFallbackToPage("/_Host");
+                endpoints.MapGet("/", context =>
+                {
+                    context.Response.Redirect("/Azusa/");
+                    return Task.CompletedTask;
+                });
+                endpoints.MapFallbackToPage("/Azusa/{**path:nonfile}", "/_Host");
             });
 
 
