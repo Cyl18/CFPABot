@@ -195,9 +195,6 @@ namespace CFPABot
                      webBuilder.ConfigureKestrel(x =>
                          x.ListenAnyIP(8080));
                     webBuilder.UseStartup<Startup>();
-                }).ConfigureWebHost(x =>
-                {
-                    x.UseStaticWebAssets();
                 });
     }
 }
