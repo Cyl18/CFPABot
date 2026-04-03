@@ -1,4 +1,4 @@
-<div x-data="prReviewData()" x-init="init()" class="space-y-6">
+<div x-data="prReviewData()" x-init="init()" class="p-4 space-y-6">
   <div class="flex items-center justify-between">
     <h1 class="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
       <i data-lucide="git-pull-request" class="w-6 h-6"></i>
@@ -11,22 +11,22 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="space-y-1">
         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Target PR Number</label>
-        <input type="number" x-model="prNumber" class="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm">
+        <input type="number" x-model="prNumber" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm h-10">
       </div>
       <div class="space-y-1">
         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Mod</label>
-        <div class="flex gap-2">
+        <div class="flex gap-2 items-center">
           <template x-if="mods.length === 0">
-            <input type="text" x-model="selectedMod" placeholder="Click Find to load mods" class="flex-1 rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm">
+            <input type="text" x-model="selectedMod" placeholder="Click Find to load mods" class="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm h-10">
           </template>
           <template x-if="mods.length > 0">
-            <select x-model="selectedMod" class="flex-1 rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm">
+            <select x-model="selectedMod" class="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm h-10 appearance-none">
               <template x-for="m in mods" :key="m">
                 <option :value="m" x-text="m"></option>
               </template>
             </select>
           </template>
-          <button @click="loadMods()" :disabled="!prNumber || modsLoading" class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50 flex items-center gap-1 text-sm whitespace-nowrap">
+          <button @click="loadMods()" :disabled="!prNumber || modsLoading" class="px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50 flex items-center justify-center gap-1 text-sm whitespace-nowrap h-10">
             <i x-show="!modsLoading" data-lucide="search" class="w-4 h-4"></i>
             <i x-show="modsLoading" data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
             <span x-text="modsLoading ? '...' : 'Find'"></span>
@@ -35,7 +35,7 @@
       </div>
       <div class="space-y-1">
         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Importance Level</label>
-        <select x-model="importanceLevel" class="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm">
+        <select x-model="importanceLevel" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm h-10 appearance-none">
           <option value="low">Low</option>
           <option value="medium">Medium (default)</option>
           <option value="high">High</option>
@@ -60,15 +60,15 @@
     <div class="pt-4 border-t border-slate-200 dark:border-slate-700">
       <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">Consistency Check Settings</h3>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <label class="flex items-center space-x-2">
+        <label class="flex items-center space-x-2 px-3 py-2 h-10">
           <input type="checkbox" x-model="consistencyEnabled" class="rounded text-slate-600 focus:ring-slate-500 border-slate-300 dark:border-slate-600">
           <span class="text-sm text-slate-700 dark:text-slate-300">Enable Consistency Check</span>
         </label>
-        <select x-model="consistencyScope" :disabled="!consistencyEnabled" class="rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm disabled:opacity-50">
+        <select x-model="consistencyScope" :disabled="!consistencyEnabled" class="px-3 py-2 h-10 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm disabled:opacity-50 appearance-none">
           <option value="diff_only">Diff Only</option>
           <option value="full_mod">Full Mod</option>
         </select>
-        <select x-model="consistencyModel" :disabled="!consistencyEnabled" class="rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm disabled:opacity-50">
+        <select x-model="consistencyModel" :disabled="!consistencyEnabled" class="px-3 py-2 h-10 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm disabled:opacity-50 appearance-none">
           <option value="">-- Select Model --</option>
           <template x-for="model in models" :key="model.provider + ':' + model.modelId">
             <option :value="model.provider + ':' + model.modelId" x-text="model.displayName || model.modelId"></option>
@@ -78,21 +78,21 @@
     </div>
 
     <div class="flex justify-end space-x-3 pt-4 border-t border-slate-200 dark:border-slate-700">
-      <button @click="loadReview(false)" :disabled="loading || !selectedMod" class="px-4 py-2 bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 rounded-lg hover:bg-slate-700 dark:hover:bg-slate-300 focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 flex items-center space-x-2">
+      <button @click="loadReview(false)" :disabled="loading || !selectedMod" class="px-4 py-2 h-10 bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 rounded-lg hover:bg-slate-700 dark:hover:bg-slate-300 focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 flex items-center justify-center space-x-2">
         <i x-show="!loading || loadingForce" data-lucide="play" class="w-4 h-4"></i>
         <i x-show="loading && !loadingForce" data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
         <span>Review</span>
       </button>
-      <button x-show="loading" @click="cancelReview()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-offset-2 focus:ring-red-500 flex items-center space-x-2">
+      <button x-show="loading" @click="cancelReview()" class="px-4 py-2 h-10 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-offset-2 focus:ring-red-500 flex items-center justify-center space-x-2">
         <i data-lucide="x" class="w-4 h-4"></i>
         <span>Cancel</span>
       </button>
-      <button @click="loadReview(true)" :disabled="loading || !selectedMod" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 flex items-center space-x-2">
+      <button @click="loadReview(true)" :disabled="loading || !selectedMod" class="px-4 py-2 h-10 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 flex items-center justify-center space-x-2">
         <i x-show="!loading || !loadingForce" data-lucide="refresh-cw" class="w-4 h-4"></i>
         <i x-show="loading && loadingForce" data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
         <span>Force Refresh</span>
       </button>
-      <button @click="historyVisible = !historyVisible" :disabled="!selectedMod" class="relative px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 flex items-center space-x-2">
+      <button @click="historyVisible = !historyVisible" :disabled="!selectedMod" class="relative px-4 py-2 h-10 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 flex items-center justify-center space-x-2">
         <i x-show="!historyLoading" data-lucide="history" class="w-4 h-4"></i>
         <i x-show="historyLoading" data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
         <span>History</span>

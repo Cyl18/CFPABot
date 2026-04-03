@@ -168,10 +168,7 @@
         showAddUser: false,
         newPreset: { provider: 'gemini', modelId: '', displayName: '' },
         newUser: { provider: 'gemini', modelId: '', displayName: '', baseUrl: '' },
-        keyEntries: [
-          { id: 'gemini:*', label: 'Gemini (全局)', uniqueId: 'gemini:*', draft: '', show: false, saved: false },
-          { id: 'openrouter:*', label: 'OpenRouter (全局)', uniqueId: 'openrouter:*', draft: '', show: false, saved: false },
-        ],
+        keyEntries: [],
         errorMsg: '',
         successMsg: '',
 
@@ -194,15 +191,13 @@
             const d = await r.json();
             this.globalPresets = d.globalPresets || [];
             this.userModels = d.userModels || [];
-            // Build key entries: fixed providers + per-user custom model keys
-            const fixed = [
-              { id: 'gemini:*', label: 'Gemini (全局)', uniqueId: 'gemini:*' },
-              { id: 'openrouter:*', label: 'OpenRouter (全局)', uniqueId: 'openrouter:*' },
-            ];
+            
+            // Build key entries: per-user custom model keys
             const custom = (d.userModels || [])
               .filter(m => m.provider === 'custom')
               .map(m => ({ id: m.provider + ':' + m.modelId, label: m.displayName + ' (API Key)', uniqueId: m.provider + ':' + m.modelId }));
-            this.keyEntries = [...fixed, ...custom].map(e => ({
+            
+            this.keyEntries = [...custom].map(e => ({
               ...e, draft: '', show: false, saved: !!window.loadApiKey(e.uniqueId)
             }));
           } catch (e) {

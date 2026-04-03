@@ -45,13 +45,13 @@ namespace CFPABot.Christina.LLMs
                 "gemini" => new GeminiProviderAdapter(
                     new ApiKeyPool(new[]
                     {
-                        spec.ApiKeyOverride ?? Constants.GeminiApiKey ?? throw new InvalidOperationException("GeminiApiKey not set")
+                        !string.IsNullOrWhiteSpace(spec.ApiKeyOverride) ? spec.ApiKeyOverride : (Constants.GeminiApiKey ?? throw new InvalidOperationException("GeminiApiKey not set"))
                     }),
                     Constants.GeminiEndpoint ?? throw new InvalidOperationException("GeminiEndpoint not set"),
                     SharedHttp),
 
                 "openrouter" => new OpenRouterProviderAdapter(
-                    spec.ApiKeyOverride != null
+                    !string.IsNullOrWhiteSpace(spec.ApiKeyOverride)
                         ? new ApiKeyPool(new[] { spec.ApiKeyOverride })
                         : new ApiKeyPool(new[]
                         {
@@ -62,7 +62,7 @@ namespace CFPABot.Christina.LLMs
 
                 "custom" => new OpenAICompatClient(
                     spec.BaseUrl ?? throw new InvalidOperationException($"模型 '{spec.ModelId}' 需要配置 Base URL。请在 Model Config 中设置。"),
-                    spec.ApiKeyOverride ?? throw new InvalidOperationException($"模型 '{spec.ModelId}' 需要 API Key。请在 Model Config > API Key 管理 中配置。"),
+                    !string.IsNullOrWhiteSpace(spec.ApiKeyOverride) ? spec.ApiKeyOverride : throw new InvalidOperationException($"模型 '{spec.ModelId}' 需要 API Key。请在 Model Config > API Key 管理 中配置。"),
                     CustomHttp),
 
                 _ => throw new ArgumentException($"Unknown provider: {spec.Provider}")
