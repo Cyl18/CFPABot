@@ -11,11 +11,13 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using BlazorStrap;
+using CFPABot.Christina.Backend;
 using CFPABot.Controllers;
 using CFPABot.ProjectHex;
 using CFPABot.Utils;
 using MessagePack;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Octokit.Webhooks;
 using Octokit.Webhooks.AspNetCore;
@@ -47,6 +49,8 @@ namespace CFPABot
                 .AddMessagePackProtocol(options => options.SerializerOptions = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block).WithSecurity(MessagePackSecurity.UntrustedData)); ;
             services.AddHttpContextAccessor();
             services.AddSingleton<WebhookEventProcessor, MyWebhookEventProcessor>();
+            Directory.CreateDirectory("db");
+            services.AddDbContext<ChristinaDbContext>(o => o.UseSqlite("Data Source=db/christina.db"));
             services.AddCors(options => options.AddPolicy("AllowSpecificOrigin", // Name of the policy
                 policy =>
                 {
@@ -125,6 +129,8 @@ namespace CFPABot
                 ),
                 RequestPath = new PathString("/Azusa")
             });
+
+            app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 
             app.UseRouting();
 

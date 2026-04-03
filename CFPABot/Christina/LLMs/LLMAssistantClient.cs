@@ -2,15 +2,26 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using CFPABot.Utils;
 using Serilog;
+using GammaLibrary.Extensions;
 
 namespace CFPABot.Christina.LLMs
 {
     public class LLMAssistantClient
     {
+        /// <summary>Strip markdown code fences (```json ... ``` or ``` ... ```) from LLM responses.</summary>
+        private static string StripMarkdownFences(string text)
+        {
+            if (text == null) return text;
+            var trimmed = text.Trim();
+            // Match ```json\n...\n``` or ```\n...\n```
+            var match = Regex.Match(trimmed, @"^```(?:\w*)\s*\n?([\s\S]*?)\n?\s*```$");
+            return match.Success ? match.Groups[1].Value.Trim() : trimmed;
+        }
 
 
         private static readonly JsonSerializerOptions SerializeOptions = new()
@@ -20,11 +31,32 @@ namespace CFPABot.Christina.LLMs
             WriteIndented = false
         };
 
-        internal static async Task<LlmBatchOutput> GetLLMReviewResult(
+        /// <summary>
+        /// 对 en/cn 进行多模型并行审阅。
+        /// </summary>
+        /// <param name="en">英文 lang 文件</param>
+        /// <param name="cn">中文 lang 文件</param>
+        /// <param name="modId">模组 ID（用于 prompt）</param>
+        /// <param name="mcVersionRange">游戏版本范围</param>
+        /// <param name="importance">审阅重要度（low/medium/high）</param>
+        /// <param name="models">
+        ///   要并行审阅的模型列表，至少一个。
+        ///   若为 null 或空，回退到默认 Gemini 模型。
+        /// </param>
+        /// <param name="consistencyModel">
+        ///   如果非 null，先用该模型执行一致性检查，并将结果注入 style rules，再触发审阅批次。
+        /// </param>
+        /// <param name="consistencyScope">diff_only 或 full_mod</param>
+        /// <param name="progress">多模型进度回调，每个模型独立上报。</param>
+        /// <param name="ct">取消令牌</param>
+        internal static async Task<(List<ModelBatchResult> ModelResults, ConsistencyReport? ConsistencyReport)> GetLLMReviewResult(
             JsonObjectEx en, JsonObjectEx cn,
             string modId, string mcVersionRange,
             string importance = "medium",
-            IProgress<(int completed, int total)>? progress = null,
+            IReadOnlyList<ModelSpec>? models = null,
+            ModelSpec? consistencyModel = null,
+            string consistencyScope = "diff_only",
+            IProgress<(string modelId, int completed, int total)>? progress = null,
             CancellationToken ct = default)
         {
             var enDict = en.Lines.ToDictionary(x => x.Key, x => x.Value);
@@ -32,7 +64,6 @@ namespace CFPABot.Christina.LLMs
 
             var batches = SplitIntoBatches(filteredLines, enDict);
 
-            // Pre-calculate global id offsets so batches can run concurrently
             var offsets = new int[batches.Count];
             int off = 0;
             for (int i = 0; i < batches.Count; i++)
@@ -41,65 +72,122 @@ namespace CFPABot.Christina.LLMs
                 off += batches[i].Count;
             }
 
-            // var openRouter = new OpenRouterClient();
-            var openRouter = (OpenRouterClient)null!; // Keep parameter matching but pass null
+            // Effective model list — fall back to default Gemini if none specified
+            var effectiveModels = (models == null || models.Count == 0)
+                ? new List<ModelSpec> { new ModelSpec("gemini", GeminiMergeModel) }
+                : models.ToList();
+
+            // Phase 2: 一致性检查（阻塞，保证 style rules 在 batches 开始前就绪）
+            ConsistencyReport? consistencyReport = null;
+            string? consistencyStyleNote = null;
+            if (consistencyModel != null)
+            {
+                Log.Information("LLMReview: 开始一致性检查, scope={Scope}, model={Model}", consistencyScope, consistencyModel.UniqueId);
+                try
+                {
+                    // diff_only：只检查本次 PR 涉及的行（filteredLines = cn ∩ en，已按 batch 筛选）
+                    // full_mod：检查整个 mod 的所有 cn 条目
+                    var sourceLines = consistencyScope == "full_mod"
+                        ? cn.Lines
+                        : (IEnumerable<JsonLine>)filteredLines;
+                    var entries = sourceLines
+                        .Select(l => (l.Key, EnTerm: enDict.GetValueOrDefault(l.Key, ""), CnTerm: l.Value))
+                        .ToList();
+                    consistencyReport = await GetConsistencyReport(entries, consistencyScope, consistencyModel, ct);
+                    if (consistencyReport?.Inconsistencies?.Count > 0)
+                    {
+                        var lines = consistencyReport.Inconsistencies.Take(20).Select(i =>
+                        {
+                            var variantStr = i.Variants.Select(v =>
+                                "\u300c" + v.Translation + "\u300d(" + v.Keys.Take(3).Connect(separator: ",") + ")").Connect(separator: "\u3001");
+                            return "- " + i.EnTerm + ": " + variantStr;
+                        });
+                        consistencyStyleNote = "检测到以下术语存在不一致译法，请尽量统一：\n" + lines.Connect(separator: "\n");
+                        Log.Information("LLMReview: 一致性检查完成，发现 {Count} 个术语不一致", consistencyReport.Inconsistencies.Count);
+                    }
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "LLMReview: 一致性检查失败，继续审阅");
+                    consistencyReport = new ConsistencyReport
+                    {
+                        Inconsistencies = new List<ConsistencyInconsistency>(),
+                        WasTruncated = false,
+                        Error = $"一致性检查失败: {ex.Message}"
+                    };
+                }
+            }
+
+            Log.Information("LLMReview: {Total} batches x {Models} models", batches.Count, effectiveModels.Count);
+
+            // 对每个模型并行运行所有 batches
+            var modelTasks = effectiveModels.Select(spec =>
+                RunModelReviewAsync(spec, enDict, batches, offsets, filteredLines, modId, mcVersionRange, importance, consistencyStyleNote, progress, ct)
+            ).ToArray();
+
+            var modelResults = await Task.WhenAll(modelTasks);
+            return (modelResults.ToList(), consistencyReport);
+        }
+
+        private static async Task<ModelBatchResult> RunModelReviewAsync(
+            ModelSpec spec,
+            Dictionary<string, string> enDict,
+            List<List<JsonLine>> batches,
+            int[] offsets,
+            JsonLine[] filteredLines,
+            string modId, string mcVersionRange,
+            string importance,
+            string? consistencyStyleNote,
+            IProgress<(string modelId, int completed, int total)>? progress,
+            CancellationToken ct)
+        {
+            var provider = LLMProviderFactory.Create(spec);
             int completed = 0;
             int total = batches.Count;
-
-            Log.Information("LLMReview: {Total} batches total", total);
-            for (int i = 0; i < batches.Count; i++)
-            {
-                var batch = batches[i];
-                int chars = batch.Sum(l => (enDict.TryGetValue(l.Key, out var v) ? v.Length : 0) + l.Value.Length + l.Key.Length);
-                Log.Information("LLMReview batch[{Index}]: {Lines} lines, ~{Chars} chars", i, batch.Count, chars);
-            }
 
             var batchTasks = batches.Select((batch, i) =>
             {
                 var idOffset = offsets[i];
-                return ProcessBatchAsync(openRouter, enDict, batch, idOffset, modId, mcVersionRange, importance, ct)
+                return ProcessBatchAsync(provider, spec.ModelId, enDict, batch, idOffset, modId, mcVersionRange, importance, consistencyStyleNote, ct)
                     .ContinueWith(t =>
                     {
                         Interlocked.Increment(ref completed);
-                        progress?.Report((Volatile.Read(ref completed), total));
-                        return t.GetAwaiter().GetResult(); // propagate exceptions
+                        progress?.Report((spec.UniqueId, Volatile.Read(ref completed), total));
+                        return t.GetAwaiter().GetResult();
                     }, TaskScheduler.Default);
             }).ToArray();
 
             var results = await Task.WhenAll(batchTasks);
 
             var allItems = results.SelectMany(r => r.items).OrderBy(x => x.Id).ToList();
-            var allGlobalNotes = results.Select(r => r.notes)
-                .Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
+            var allGlobalNotes = results.Select(r => r.notes).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
 
             string mergedNotes;
             try
             {
-                progress?.Report((-1, total)); // signal: merging
-                // Use CancellationToken.None: all batch work is done and cached;
-                // we don't want a proxy-level timeout on ct to abort the summary.
-                mergedNotes = await MergeGlobalNotesAsync(allItems, allGlobalNotes, CancellationToken.None);
+                progress?.Report((spec.UniqueId, -1, total)); // signal: merging
+                mergedNotes = await MergeGlobalNotesAsync(provider, spec.ModelId, allItems, allGlobalNotes, ct);
             }
+            catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
-                Serilog.Log.Warning(ex, "MergeGlobalNotesAsync failed, returning empty notes");
-                mergedNotes = string.Join("\n", allGlobalNotes);
+                Log.Warning(ex, "MergeGlobalNotesAsync failed for model={Model}", spec.ModelId);
+                mergedNotes = allGlobalNotes.Connect(separator: "\n");
             }
 
-            return new LlmBatchOutput
-            {
-                Items = allItems,
-                GlobalNotes = mergedNotes
-            };
+            return new ModelBatchResult { Spec = spec, Items = allItems, GlobalNotes = mergedNotes };
         }
 
         private static async Task<(List<LlmItemOutput> items, string notes)> ProcessBatchAsync(
-            OpenRouterClient openRouter,
+            ILLMProvider provider,
+            string model,
             Dictionary<string, string> enDict,
             List<JsonLine> batch,
             int globalIdOffset,
             string modId, string mcVersionRange,
             string importance,
+            string? consistencyStyleNote,
             CancellationToken ct)
         {
             var entries = batch.Select((line, i) => new ReviewEntry
@@ -117,7 +205,7 @@ namespace CFPABot.Christina.LLMs
                 Entries = entries
             };
 
-            var inputJson = JsonSerializer.Serialize(batchInput, SerializeOptions);
+            var inputJson = batchInput.ToJsonString(SerializeOptions);
             string promptTemplate = importance.ToLowerInvariant() switch
             {
                 "low" => LowSeverityPrompt,
@@ -126,18 +214,12 @@ namespace CFPABot.Christina.LLMs
             };
             var prompt = promptTemplate.Replace("{{INPUT_JSON}}", inputJson);
 
-            // var responseText = await openRouter.QueryWithSystemPromptAsync(
-            //     SystemPrompt, prompt,
-            //     new ModelPolicy(OpenRouterReviewModel),
-            //     ct);
+            // 将一致性检查的术语不一致结果注入 style rules
+            var systemPrompt = consistencyStyleNote != null
+                ? SystemPrompt + "\n\n额外术语一致性约束：\n" + consistencyStyleNote
+                : SystemPrompt;
 
-            var gemini = new GeminiClient(
-                new ApiKeyPool(new[] { Constants.GeminiApiKey }), Constants.GeminiEndpoint);
-
-            var responseText = await gemini.QueryAsync(
-                SystemPrompt + "\n\n" + prompt, 
-                new ModelPolicy(GeminiMergeModel), 
-                ct);
+            var responseText = await provider.QueryWithSystemPromptAsync(systemPrompt, prompt, model, ct);
 
             var (items, batchNotes) = ParseBatchOutput(responseText, globalIdOffset);
             return (items, batchNotes);
@@ -206,6 +288,7 @@ namespace CFPABot.Christina.LLMs
 
             try
             {
+                json = StripMarkdownFences(json);
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
 
@@ -245,10 +328,10 @@ namespace CFPABot.Christina.LLMs
                 {
                     if (notesEl.ValueKind == JsonValueKind.Array)
                     {
-                        globalNotes = string.Join("\n", notesEl.EnumerateArray()
+                        globalNotes = notesEl.EnumerateArray()
                             .Where(e => e.ValueKind == JsonValueKind.String)
                             .Select(e => e.GetString() ?? "")
-                            .Where(s => !string.IsNullOrWhiteSpace(s)));
+                            .Where(s => !string.IsNullOrWhiteSpace(s)).Connect(separator: "\n");
                     }
                     else if (notesEl.ValueKind == JsonValueKind.String)
                     {
@@ -256,7 +339,11 @@ namespace CFPABot.Christina.LLMs
                     }
                 }
             }
-            catch (JsonException) { /* return whatever was parsed so far */ }
+            catch (JsonException ex)
+            {
+                Log.Warning(ex, "ParseBatchOutput: JSON parse failed at idOffset={IdOffset}, parsed {Count} items before failure. Raw response length={Len}",
+                    idOffset, items.Count, json?.Length ?? 0);
+            }
 
             return (items, globalNotes);
         }
@@ -290,9 +377,11 @@ namespace CFPABot.Christina.LLMs
             _             => IssueType.Other
         };
 
-        // ── GlobalNotes merge via Gemini ──────────────────────────────────────
+        // ── GlobalNotes merge ──────────────────────────────────────────────────
 
         private static async Task<string> MergeGlobalNotesAsync(
+            ILLMProvider provider,
+            string model,
             List<LlmItemOutput> allItems,
             List<string> allGlobalNotes,
             CancellationToken ct)
@@ -307,7 +396,7 @@ namespace CFPABot.Christina.LLMs
                 Log.Information("MergeGlobalNotesAsync: single batch note, skipping merge");
                 return allGlobalNotes[0];
             }
-            Log.Information("MergeGlobalNotesAsync: merging {Count} notes via Gemini", allGlobalNotes.Count);
+            Log.Information("MergeGlobalNotesAsync: merging {Count} notes via {Model}", allGlobalNotes.Count, model);
 
             var simplifiedItems = allItems.Select(item => new
             {
@@ -323,31 +412,146 @@ namespace CFPABot.Christina.LLMs
             });
 
             var jsonOpts = new JsonSerializerOptions { WriteIndented = false };
-            var itemsJson = JsonSerializer.Serialize(simplifiedItems, jsonOpts);
-            var notesJson = JsonSerializer.Serialize(allGlobalNotes, jsonOpts);
+            var itemsJson = simplifiedItems.ToJsonString(jsonOpts);
+            var notesJson = allGlobalNotes.ToJsonString(jsonOpts);
 
             var prompt = string.Format(GeminiMergePrompt, itemsJson, notesJson);
 
-            var gemini = new GeminiClient(
-                new ApiKeyPool(new[] { Constants.GeminiApiKey }), Constants.GeminiEndpoint);
-
-            var result = await gemini.QueryAsync(prompt, new ModelPolicy(GeminiMergeModel), ct);
+            var result = await provider.QueryAsync(prompt, model, ct);
 
             try
             {
-                using var doc = JsonDocument.Parse(result ?? "[]");
+                var stripped = StripMarkdownFences(result ?? "[]");
+                using var doc = JsonDocument.Parse(stripped);
                 if (doc.RootElement.ValueKind == JsonValueKind.Array)
                 {
-                    return string.Join("\n", doc.RootElement.EnumerateArray()
+                    return doc.RootElement.EnumerateArray()
                         .Where(e => e.ValueKind == JsonValueKind.String)
                         .Select(e => e.GetString() ?? "")
-                        .Where(s => !string.IsNullOrWhiteSpace(s)));
+                        .Where(s => !string.IsNullOrWhiteSpace(s)).Connect(separator: "\n");
                 }
             }
-            catch (JsonException) { }
+            catch (JsonException ex)
+            {
+                Log.Warning(ex, "MergeGlobalNotesAsync: JSON parse failed for merge result, falling back to raw text");
+            }
 
             return result ?? "";
         }
+
+        // ── Consistency check ──────────────────────────────────────────────────
+
+        internal static async Task<ConsistencyReport> GetConsistencyReport(
+            List<(string Key, string EnTerm, string CnTerm)> entries,
+            string scope,
+            ModelSpec consistencyModel,
+            CancellationToken ct)
+        {
+            const int MaxTokenEstimate = 100_000;
+            Log.Information("ConsistencyCheck: scope={Scope}, entries={Count}, model={Model}", scope, entries.Count, consistencyModel.UniqueId);
+            var provider = LLMProviderFactory.Create(consistencyModel);
+
+            // 估算 token 数量（chars/3）
+            int totalChars = entries.Sum(e => e.Key.Length + e.EnTerm.Length + e.CnTerm.Length + 10);
+            bool wasTruncated = false;
+            List<(string Key, string EnTerm, string CnTerm)> effectiveEntries;
+
+            if (totalChars / 3 > MaxTokenEstimate)
+            {
+                wasTruncated = true;
+                // 截断到 token 预算内
+                int budget = MaxTokenEstimate * 3;
+                var limited = new List<(string Key, string EnTerm, string CnTerm)>();
+                int used = 0;
+                foreach (var e in entries)
+                {
+                    var size = e.Key.Length + e.EnTerm.Length + e.CnTerm.Length + 10;
+                    if (used + size > budget) break;
+                    limited.Add(e);
+                    used += size;
+                }
+                effectiveEntries = limited;
+            }
+            else
+            {
+                effectiveEntries = entries;
+            }
+
+            var entriesJson = effectiveEntries.Select(e => new { key = e.Key, en = e.EnTerm, cn = e.CnTerm })
+                .ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+
+            var prompt = ConsistencyPrompt.Replace("{{ENTRIES_JSON}}", entriesJson);
+            var responseText = await provider.QueryAsync(prompt, consistencyModel.ModelId, ct);
+
+            var inconsistencies = ParseConsistencyOutput(responseText);
+            return new ConsistencyReport { Inconsistencies = inconsistencies, WasTruncated = wasTruncated };
+        }
+
+        private static List<ConsistencyInconsistency> ParseConsistencyOutput(string json)
+        {
+            var result = new List<ConsistencyInconsistency>();
+            try
+            {
+                json = StripMarkdownFences(json);
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                JsonElement arr = root.ValueKind == JsonValueKind.Array ? root
+                    : root.TryGetProperty("inconsistencies", out var el) ? el
+                    : default;
+
+                if (arr.ValueKind != JsonValueKind.Array) return result;
+
+                foreach (var item in arr.EnumerateArray())
+                {
+                    var enTerm = item.TryGetProperty("enTerm", out var et) ? et.GetString() ?? "" : "";
+                    var variants = new List<TermVariant>();
+                    if (item.TryGetProperty("variants", out var vArr) && vArr.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var v in vArr.EnumerateArray())
+                        {
+                            var translation = v.TryGetProperty("translation", out var tr) ? tr.GetString() ?? "" : "";
+                            var keys = new List<string>();
+                            if (v.TryGetProperty("keys", out var kArr) && kArr.ValueKind == JsonValueKind.Array)
+                                foreach (var k in kArr.EnumerateArray())
+                                    if (k.ValueKind == JsonValueKind.String) keys.Add(k.GetString() ?? "");
+                            variants.Add(new TermVariant { Translation = translation, Keys = keys });
+                        }
+                    }
+                    if (enTerm.NotNullNorEmpty() && variants.Count >= 2)
+                        result.Add(new ConsistencyInconsistency { EnTerm = enTerm, Variants = variants });
+                }
+            }
+            catch (JsonException ex)
+            {
+                Log.Warning(ex, "ParseConsistencyOutput: JSON parse failed. Raw response length={Len}", json?.Length ?? 0);
+            }
+            return result;
+        }
+
+        private const string ConsistencyPrompt = """
+            你是 Minecraft 模组中文翻译一致性检查助手。你将收到一组翻译条目（key、en 原文、cn 译文）。
+            请找出同一个英文术语/短语在不同条目中被翻译成了不同的中文译法（不一致现象）。
+            只关注名词性短语和固定表达；忽略因语法变化导致的正常差异（如动名词、复数）。
+
+            输入 JSON 如下：
+            {{ENTRIES_JSON}}
+
+            输出 JSON 格式如下（严格输出 JSON，不含任何额外文本或 Markdown 包装）：
+            {
+              "inconsistencies": [
+                {
+                  "enTerm": "英文术语原文",
+                  "variants": [
+                    { "translation": "译法A", "keys": ["key1", "key2"] },
+                    { "translation": "译法B", "keys": ["key3"] }
+                  ]
+                }
+              ]
+            }
+
+            若没有不一致，输出 { "inconsistencies": [] }。
+            """;
+
         private const string SystemPrompt = """
                                             你是 Minecraft 模组中文本地化审阅助手。你将收到一个 JSON 输入，包含若干条翻译条目（key、类型、原文、译文、占位符、格式码、本地预检查结果、少量术语表与相邻条目）。
 
@@ -428,7 +632,8 @@ namespace CFPABot.Christina.LLMs
         private const string OpenRouterReviewModel = "openrouter/free";
 
         // 填入 Gemini 上用于合并 GlobalNotes 的模型名
-        private const string GeminiMergeModel = "gemini-3-flash-preview";
+        public const string DefaultMergeModel = "gemini-3-flash-preview";
+        private const string GeminiMergeModel = DefaultMergeModel;
 
         private const string GeminiMergePrompt = """
                                                  你是翻译审阅汇总助手。你将收到若干批次翻译审阅的批次级总结（globalNotes），以及所有审阅条目的简化上下文（含 id、状态、问题列表，不含 key）。
@@ -442,7 +647,4 @@ namespace CFPABot.Christina.LLMs
                                                  {1}
                                                  """;
     }
-
-
-    }
-    
+}

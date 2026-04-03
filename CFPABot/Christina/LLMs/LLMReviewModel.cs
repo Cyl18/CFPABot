@@ -66,9 +66,11 @@ namespace CFPABot.Christina.LLMs
 
     sealed class ReviewFrontendDisplay
     {
-        public List<ReviewFrontendDisplayItem> FrontendDisplayItems;
-        public List<LlmItemOutput> LlmOutputItems;
-        public string GlobalNotes;
+        public List<ReviewFrontendDisplayItem> FrontendDisplayItems { get; set; }
+        /// <summary>各模型的审阅结果，按模型分组（多模型并行时含多个元素，单模型时含 1 个）。</summary>
+        public List<ModelBatchResult> ModelResults { get; set; }
+        public string GlobalNotes { get; set; }
+        public ConsistencyReport? ConsistencyReport { get; set; }
     }
 
     sealed class ReviewFrontendDisplayItem
@@ -86,6 +88,35 @@ namespace CFPABot.Christina.LLMs
         // public BatchSummary BatchSummary;
         public List<LlmItemOutput> Items;
         public string GlobalNotes;
+    }
+
+    /// <summary>单个模型对一次审阅的完整输出。</summary>
+    sealed class ModelBatchResult
+    {
+        public ModelSpec Spec { get; set; }
+        public List<LlmItemOutput> Items { get; set; }
+        public string GlobalNotes { get; set; }
+    }
+
+    /// <summary>上下文一致性检查报告。</summary>
+    sealed class ConsistencyReport
+    {
+        public List<ConsistencyInconsistency> Inconsistencies { get; set; }
+        public bool WasTruncated { get; set; }
+        /// <summary>如果一致性检查失败，此字段包含错误信息。</summary>
+        public string? Error { get; set; }
+    }
+
+    sealed class ConsistencyInconsistency
+    {
+        public string EnTerm { get; set; }
+        public List<TermVariant> Variants { get; set; }
+    }
+
+    sealed class TermVariant
+    {
+        public string Translation { get; set; }
+        public List<string> Keys { get; set; }
     }
 
     sealed class LlmItemOutput

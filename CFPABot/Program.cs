@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
@@ -69,10 +70,10 @@ namespace CFPABot
             Directory.CreateDirectory("config/repo_analyze_results");
             Directory.CreateDirectory("config/curse_files_cache");
             Directory.CreateDirectory("config/pr_cache");
+            Directory.CreateDirectory("config/repo_cache");
             Directory.CreateDirectory("caches/");
             Directory.CreateDirectory("caches/repos/");
             Directory.CreateDirectory("project-hex");
-            _ = new GlobalGitRepoCache();
             if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
                 _ = Task.Run(async () =>
             {
@@ -131,7 +132,17 @@ namespace CFPABot
             await Init();
             try
             {
-                await CreateHostBuilder(args).Build().RunAsync(cts.Token);
+                var host = CreateHostBuilder(args).Build();
+                // Initialize Christina DB (EnsureCreated is idempotent)
+                using (var scope = host.Services.CreateScope())
+                {
+                    var db = scope.ServiceProvider.GetRequiredService<CFPABot.Christina.Backend.ChristinaDbContext>();
+                    await db.Database.EnsureCreatedAsync();
+                }
+                // Start daily LLM cache cleanup cron (stops when app shuts down)
+                var scopeFactory = host.Services.GetRequiredService<IServiceScopeFactory>();
+                _ = Task.Run(() => CronTask.RunDailyCleanupLoop(scopeFactory, cts.Token));
+                await host.RunAsync(cts.Token);
             }
             catch (Exception e)
             {

@@ -188,7 +188,8 @@ function appData() {
             ],
             'Settings': [
                 { id: 'Profile', label: 'Profile', icon: 'user' },
-                { id: 'Preferences', label: 'Preferences', icon: 'sliders' }
+                { id: 'Preferences', label: 'Preferences', icon: 'sliders' },
+                { id: 'Model Config', label: 'Model Config', icon: 'cpu' }
             ],
         },
 
@@ -294,7 +295,8 @@ function appData() {
                 'Analytics': 'tools/analytics.html',
                 'Text Transformer': 'tools/text-transformer.html',
                 'PR Review': 'tools/pr-review.html',
-                'Zhu Tool': 'tools/zhuzhu.html'
+                'Zhu Tool': 'tools/zhuzhu.html',
+                'Model Config': 'tools/model-config.html'
             };
 
             const toolFile = toolFileMap[toolId] || 'tools/default-placeholder.html';

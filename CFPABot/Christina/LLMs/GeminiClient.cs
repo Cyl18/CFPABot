@@ -1,4 +1,5 @@
 #nullable enable
+using GammaLibrary.Extensions;
 /*
   Usage example:
   
@@ -126,7 +127,7 @@ namespace CFPABot.Christina.LLMs
                     if (!success)
                         break;
 
-                    var payload = JsonSerializer.Deserialize<GeminiResponseEnvelope>(responseBody, _json)
+                    var payload = responseBody.JsonDeserialize<GeminiResponseEnvelope>(_json)
                                   ?? throw new InvalidOperationException("Invalid Gemini response");
                     var toolCalls = payload.ExtractFunctionCalls();
 
@@ -179,7 +180,7 @@ namespace CFPABot.Christina.LLMs
 
             var msg = new HttpRequestMessage(HttpMethod.Post, url);
             msg.Content = new StringContent(
-                JsonSerializer.Serialize(body, _json),
+                body.ToJsonString(_json),
                 Encoding.UTF8,
                 "application/json");
 
@@ -191,6 +192,7 @@ namespace CFPABot.Christina.LLMs
             string apiKey,
             CancellationToken ct)
         {
+            const int maxRetries = 6;
             var attempt = 0;
 
             while (true)
@@ -198,14 +200,14 @@ namespace CFPABot.Christina.LLMs
                 var clone = await CloneRequestAsync(msg);
                 var resp = await _http.SendAsync(clone, ct);
 
-                if (resp.StatusCode != (HttpStatusCode)429)
+                if (resp.StatusCode != (HttpStatusCode)429 || attempt >= maxRetries)
                     return resp;
 
                 _keyPool.Penalize(apiKey);
 
                 attempt++;
                 var delay = RetryPolicy.ComputeDelay(resp, attempt);
-                Log.Warning("Gemini 429 被限流，{Delay}s 后重试 (attempt {Attempt})", delay.TotalSeconds, attempt);
+                Log.Warning("Gemini 429 被限流，{Delay}s 后重试 (attempt {Attempt}/{MaxRetries})", delay.TotalSeconds, attempt, maxRetries);
                 await Task.Delay(delay, ct);
             }
         }
@@ -231,12 +233,27 @@ namespace CFPABot.Christina.LLMs
         private async Task<GeminiResponseEnvelope> ParseAsync(HttpResponseMessage resp)
         {
             var json = await resp.Content.ReadAsStringAsync();
-            return JsonSerializer.Deserialize<GeminiResponseEnvelope>(json, _json)
+            return json.JsonDeserialize<GeminiResponseEnvelope>(_json)
                    ?? throw new InvalidOperationException("Invalid Gemini response");
         }
 
         /// <summary>单次请求，不使用工具，直接返回模型的文本回复。</summary>
         public async Task<string> QueryAsync(
+            string userPrompt,
+            ModelPolicy modelPolicy,
+            CancellationToken ct = default)
+            => await QueryCoreAsync(systemPrompt: null, userPrompt, modelPolicy, ct);
+
+        /// <summary>Query with a separate system instruction sent via Gemini's system_instruction field.</summary>
+        public async Task<string> QueryWithSystemAsync(
+            string systemPrompt,
+            string userPrompt,
+            ModelPolicy modelPolicy,
+            CancellationToken ct = default)
+            => await QueryCoreAsync(systemPrompt, userPrompt, modelPolicy, ct);
+
+        private async Task<string> QueryCoreAsync(
+            string? systemPrompt,
             string userPrompt,
             ModelPolicy modelPolicy,
             CancellationToken ct = default)
@@ -266,13 +283,17 @@ namespace CFPABot.Christina.LLMs
                                 Role = "user",
                                 Parts = new List<GeminiPart> { GeminiPart.FromText(userPrompt) }
                             }
+                        },
+                        SystemInstruction = systemPrompt is null ? null : new GeminiSystemInstruction
+                        {
+                            Parts = new List<GeminiPart> { GeminiPart.FromText(systemPrompt) }
                         }
                     };
 
                     Log.Information("Gemini QueryAsync 发送请求, model={Model}, attempt={Attempt}", model, attempt);
                     using var msg = new HttpRequestMessage(HttpMethod.Post, url);
                     msg.Content = new StringContent(
-                        JsonSerializer.Serialize(body, _json),
+                        body.ToJsonString(_json),
                         Encoding.UTF8,
                         "application/json");
 
@@ -294,7 +315,7 @@ namespace CFPABot.Christina.LLMs
                     if (!resp.IsSuccessStatusCode)
                         continue;
 
-                    var payload = JsonSerializer.Deserialize<GeminiResponseEnvelope>(responseBody, _json)
+                    var payload = responseBody.JsonDeserialize<GeminiResponseEnvelope>(_json)
                                   ?? throw new InvalidOperationException("Invalid Gemini response");
                     var text = payload.GetText();
                     if (text is not null)
@@ -320,6 +341,13 @@ namespace CFPABot.Christina.LLMs
         public List<GeminiContent> Contents { get; set; } = new();
         public GeminiFunctionDeclarations[]? Tools { get; set; }
         public GeminiGenerationConfig? GenerationConfig { get; set; }
+        /// <summary>Gemini system_instruction field — serialised as snake_case by the shared options.</summary>
+        public GeminiSystemInstruction? SystemInstruction { get; set; }
+    }
+
+    internal sealed class GeminiSystemInstruction
+    {
+        public List<GeminiPart> Parts { get; set; } = new();
     }
 
     public sealed class GeminiContent
@@ -348,7 +376,7 @@ namespace CFPABot.Christina.LLMs
                 FunctionCall = new GeminiFunctionCall
                 {
                     Name = name,
-                    Args = JsonSerializer.Deserialize<JsonElement>(argsJson)
+                    Args = argsJson.JsonDeserialize<JsonElement>()
                 }
             };
 
@@ -358,8 +386,7 @@ namespace CFPABot.Christina.LLMs
                 FunctionResponse = new GeminiFunctionResponse
                 {
                     Name = name,
-                    Response = JsonSerializer.Deserialize<JsonElement>(
-                        string.IsNullOrWhiteSpace(outputJson) ? "{}" : outputJson)
+                    Response = (string.IsNullOrWhiteSpace(outputJson) ? "{}" : outputJson).JsonDeserialize<JsonElement>()
                 }
             };
     }
@@ -447,13 +474,30 @@ namespace CFPABot.Christina.LLMs
         public string ArgsJson = "";
     }
 
+    /// <summary>将 GeminiClient 适配为 ILLMProvider。</summary>
+    public sealed class GeminiProviderAdapter : ILLMProvider
+    {
+        private readonly GeminiClient _client;
+
+        public GeminiProviderAdapter(ApiKeyPool keyPool, string endpointTemplate, HttpClient? http = null)
+        {
+            _client = new GeminiClient(keyPool, endpointTemplate, http);
+        }
+
+        public Task<string> QueryAsync(string userPrompt, string model, CancellationToken ct = default)
+            => _client.QueryAsync(userPrompt, new ModelPolicy(model), ct);
+
+        public Task<string> QueryWithSystemPromptAsync(string systemPrompt, string userPrompt, string model, CancellationToken ct = default)
+            => _client.QueryWithSystemAsync(systemPrompt, userPrompt, new ModelPolicy(model), ct);
+    }
+
     internal sealed class SnakeCaseNamingPolicy : JsonNamingPolicy
     {
         public static readonly SnakeCaseNamingPolicy Instance = new();
 
         public override string ConvertName(string name)
         {
-            if (string.IsNullOrEmpty(name)) return name;
+            if (name.IsNullOrEmpty()) return name;
 
             var sb = new System.Text.StringBuilder(name.Length + 4);
             for (var i = 0; i < name.Length; i++)

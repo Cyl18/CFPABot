@@ -1,6 +1,7 @@
 ﻿#nullable enable
 using System;
 using CFPABot.Utils;
+using GammaLibrary.Extensions;
 
 /*
   var keys = new ApiKeyPool(new[]
@@ -78,6 +79,16 @@ namespace CFPABot.Christina.LLMs
             };
         }
 
+        public OpenRouterClient(ApiKeyPool keyPool, HttpClient? http = null)
+        {
+            _keyPool = keyPool;
+            _http = http ?? new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+            _json = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+        }
+
         public async Task<ResponseEnvelope> RunAsync(
             ResponseRequest request,
             ToolRegistry tools,
@@ -119,7 +130,7 @@ namespace CFPABot.Christina.LLMs
                     if (!success)
                         break;
 
-                    var payload = JsonSerializer.Deserialize<ResponseEnvelope>(responseBody, _json)
+var payload = responseBody.JsonDeserialize<ResponseEnvelope>(_json)
                                   ?? throw new InvalidOperationException("Invalid response");
                     var toolCalls = payload.ExtractToolCalls();
 
@@ -153,7 +164,7 @@ namespace CFPABot.Christina.LLMs
             msg.Headers.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
             msg.Content = new StringContent(
-                JsonSerializer.Serialize(body, _json),
+                body.ToJsonString(_json),
                 Encoding.UTF8,
                 "application/json");
 
@@ -188,7 +199,7 @@ namespace CFPABot.Christina.LLMs
         private async Task<ResponseEnvelope> ParseAsync(HttpResponseMessage resp)
         {
             var json = await resp.Content.ReadAsStringAsync();
-            return JsonSerializer.Deserialize<ResponseEnvelope>(json, _json)
+            return json.JsonDeserialize<ResponseEnvelope>(_json)
                    ?? throw new InvalidOperationException("Invalid response");
         }
 
@@ -236,7 +247,7 @@ namespace CFPABot.Christina.LLMs
                 msg.Headers.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
                 msg.Content = new StringContent(
-                    JsonSerializer.Serialize(body, _json),
+                    body.ToJsonString(_json),
                     Encoding.UTF8,
                     "application/json");
 
@@ -272,7 +283,7 @@ namespace CFPABot.Christina.LLMs
                 if (!requestSucceeded)
                     continue;
 
-                var payload = JsonSerializer.Deserialize<ResponseEnvelope>(responseBody, _json)
+                var payload = responseBody.JsonDeserialize<ResponseEnvelope>(_json)
                               ?? throw new InvalidOperationException("Invalid response");
                 var text = payload.GetText();
                 if (text is not null)
@@ -311,7 +322,7 @@ namespace CFPABot.Christina.LLMs
                 msg.Headers.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
                 msg.Content = new StringContent(
-                    JsonSerializer.Serialize(body, _json),
+                    body.ToJsonString(_json),
                     Encoding.UTF8,
                     "application/json");
 
@@ -347,7 +358,7 @@ namespace CFPABot.Christina.LLMs
                 if (!requestSucceeded)
                     continue;
 
-                var payload = JsonSerializer.Deserialize<ResponseEnvelope>(responseBody, _json)
+                var payload = responseBody.JsonDeserialize<ResponseEnvelope>(_json)
                               ?? throw new InvalidOperationException("Invalid response");
                 var text = payload.GetText();
                 if (text is not null)
@@ -360,52 +371,23 @@ namespace CFPABot.Christina.LLMs
 
     public sealed class ApiKeyPool
     {
-        private readonly List<ApiKeyState> _keys;
+        private readonly string[] _keys;
 
         public ApiKeyPool(IEnumerable<string> keys)
         {
-            _keys = new List<ApiKeyState>();
-            foreach (var k in keys)
-                _keys.Add(new ApiKeyState(k));
+            _keys = keys.ToArray();
         }
 
-        public async Task<string> Acquire()
+        public Task<string> Acquire()
         {
-            for (int j = 0; j < 3; j++)
-            {
-                lock (_keys)
-                {
-                    var available = _keys.FindAll(k => k.IsAvailable);
-                    if (available.Count > 0)
-                        return available[Random.Shared.Next(available.Count)].Key;
-                }
-
-                await Task.Delay(50);
-            }
-            throw new InvalidOperationException("No API key available");
+            if (_keys.Length == 0)
+                throw new InvalidOperationException("No API key available");
+            return Task.FromResult(_keys[Random.Shared.Next(_keys.Length)]);
         }
 
         public void Penalize(string key)
         {
-            lock (_keys)
-            {
-                _keys.Find(k => k.Key == key)?.Backoff();
-            }
-        }
-
-        private sealed class ApiKeyState
-        {
-            public string Key { get; }
-            private DateTime _cooldownUntil;
-
-            public bool IsAvailable => DateTime.UtcNow >= _cooldownUntil;
-
-            public ApiKeyState(string key) => Key = key;
-
-            public void Backoff()
-            {
-                _cooldownUntil = DateTime.UtcNow.AddSeconds(0.2);
-            }
+            // No-op: cooldown removed, retry delay is handled by the caller
         }
     }
 
@@ -514,5 +496,22 @@ namespace CFPABot.Christina.LLMs
         public double? TopP { get; set; }
 
         public int? MaxOutputTokens { get; set; }
+    }
+
+    /// <summary>将 OpenRouterClient 适配为 ILLMProvider。</summary>
+    public sealed class OpenRouterProviderAdapter : ILLMProvider
+    {
+        private readonly OpenRouterClient _client;
+
+        public OpenRouterProviderAdapter(ApiKeyPool keyPool, HttpClient? http = null)
+        {
+            _client = new OpenRouterClient(keyPool, http);
+        }
+
+        public Task<string> QueryAsync(string userPrompt, string model, CancellationToken ct = default)
+            => _client.QueryAsync(userPrompt, new ModelPolicy(model), ct);
+
+        public Task<string> QueryWithSystemPromptAsync(string systemPrompt, string userPrompt, string model, CancellationToken ct = default)
+            => _client.QueryWithSystemPromptAsync(systemPrompt, userPrompt, new ModelPolicy(model), ct);
     }
 }

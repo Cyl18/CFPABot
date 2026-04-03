@@ -1,0 +1,291 @@
+<div x-data="modelConfigData()" x-init="init()" class="p-4 space-y-6">
+
+  <!-- Error / Success banners -->
+  <div x-show="errorMsg" class="flex items-center gap-3 p-3 rounded-lg bg-red-900/30 border border-red-700 text-red-300 text-sm">
+    <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0"></i>
+    <span x-text="errorMsg"></span>
+    <button @click="errorMsg=''" class="ml-auto text-red-400 hover:text-red-200"><i data-lucide="x" class="w-4 h-4"></i></button>
+  </div>
+
+  <!-- Global Presets -->
+  <section>
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-lg font-semibold text-slate-100">全局预置模型</h2>
+      <button x-show="isAdmin" @click="showAddPreset=true"
+              class="flex items-center gap-1 px-3 py-1 text-sm rounded bg-indigo-600 hover:bg-indigo-500 text-white">
+        <i data-lucide="plus" class="w-4 h-4"></i> 添加
+      </button>
+    </div>
+    <div x-show="globalPresets.length===0" class="text-slate-400 text-sm">暂无全局预置。</div>
+    <div class="space-y-2">
+      <template x-for="p in globalPresets" :key="p.id">
+        <div class="flex items-center justify-between p-3 rounded-lg bg-slate-800 border border-slate-700">
+          <div>
+            <span class="font-medium text-slate-100" x-text="p.displayName"></span>
+            <span class="ml-2 text-xs text-slate-400" x-text="p.provider+':'+p.modelId"></span>
+          </div>
+          <button x-show="isAdmin" @click="deleteGlobalPreset(p.id)"
+                  class="text-red-400 hover:text-red-300 p-1 rounded">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </template>
+    </div>
+
+    <!-- Add preset modal -->
+    <div x-show="showAddPreset" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div class="bg-slate-800 rounded-xl p-6 w-full max-w-md space-y-4 shadow-xl border border-slate-600">
+        <h3 class="text-lg font-semibold text-slate-100">添加全局预置</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="text-sm text-slate-400 block mb-1">Provider</label>
+            <select x-model="newPreset.provider" class="w-full px-3 py-2 rounded bg-slate-700 text-slate-100 border border-slate-600">
+              <option value="gemini">gemini</option>
+              <option value="openrouter">openrouter</option>
+              <option value="custom">custom</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-slate-400 block mb-1">Model ID</label>
+            <input x-model="newPreset.modelId" type="text" placeholder="e.g. gemini-2.0-flash"
+                   class="w-full px-3 py-2 rounded bg-slate-700 text-slate-100 border border-slate-600"/>
+          </div>
+          <div>
+            <label class="text-sm text-slate-400 block mb-1">Display Name</label>
+            <input x-model="newPreset.displayName" type="text" placeholder="e.g. Gemini 2.0 Flash"
+                   class="w-full px-3 py-2 rounded bg-slate-700 text-slate-100 border border-slate-600"/>
+          </div>
+        </div>
+        <div class="flex gap-2 justify-end">
+          <button @click="showAddPreset=false" class="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-slate-200">取消</button>
+          <button @click="addGlobalPreset()" class="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white">添加</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- User Models -->
+  <section>
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-lg font-semibold text-slate-100">我的自定义模型</h2>
+      <button @click="showAddUser=true"
+              class="flex items-center gap-1 px-3 py-1 text-sm rounded bg-indigo-600 hover:bg-indigo-500 text-white">
+        <i data-lucide="plus" class="w-4 h-4"></i> 添加
+      </button>
+    </div>
+    <div x-show="userModels.length===0" class="text-slate-400 text-sm">暂无自定义模型。</div>
+    <div class="space-y-2">
+      <template x-for="m in userModels" :key="m.id">
+        <div class="flex items-center justify-between p-3 rounded-lg bg-slate-800 border border-slate-700">
+          <div>
+            <span class="font-medium text-slate-100" x-text="m.displayName"></span>
+            <span class="ml-2 text-xs text-slate-400" x-text="m.provider+':'+m.modelId"></span>
+            <span x-show="m.baseUrl" class="ml-2 text-xs text-slate-500" x-text="m.baseUrl"></span>
+          </div>
+          <button @click="deleteUserModel(m.id)"
+                  class="text-red-400 hover:text-red-300 p-1 rounded">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </template>
+    </div>
+
+    <!-- Add user model modal -->
+    <div x-show="showAddUser" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div class="bg-slate-800 rounded-xl p-6 w-full max-w-md space-y-4 shadow-xl border border-slate-600">
+        <h3 class="text-lg font-semibold text-slate-100">添加自定义模型</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="text-sm text-slate-400 block mb-1">Provider</label>
+            <select x-model="newUser.provider" class="w-full px-3 py-2 rounded bg-slate-700 text-slate-100 border border-slate-600">
+              <option value="gemini">gemini</option>
+              <option value="openrouter">openrouter</option>
+              <option value="custom">custom</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-slate-400 block mb-1">Model ID</label>
+            <input x-model="newUser.modelId" type="text" placeholder="e.g. meta-llama/llama-3.3-70b-instruct"
+                   class="w-full px-3 py-2 rounded bg-slate-700 text-slate-100 border border-slate-600"/>
+          </div>
+          <div>
+            <label class="text-sm text-slate-400 block mb-1">Display Name</label>
+            <input x-model="newUser.displayName" type="text" placeholder="e.g. Llama 3.3 70B"
+                   class="w-full px-3 py-2 rounded bg-slate-700 text-slate-100 border border-slate-600"/>
+          </div>
+          <div x-show="newUser.provider==='custom'">
+            <label class="text-sm text-slate-400 block mb-1">Base URL (custom only)</label>
+            <input x-model="newUser.baseUrl" type="text" placeholder="http://localhost:11434/v1"
+                   class="w-full px-3 py-2 rounded bg-slate-700 text-slate-100 border border-slate-600"/>
+          </div>
+        </div>
+        <div class="flex gap-2 justify-end">
+          <button @click="showAddUser=false" class="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-slate-200">取消</button>
+          <button @click="addUserModel()" class="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white">添加</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- API Key Management -->
+  <section>
+    <h2 class="text-lg font-semibold text-slate-100 mb-2">API Key 管理</h2>
+    <p class="text-xs text-slate-500 mb-3">Key 仅混淆存储在浏览器 Cookie 中，不上传至服务器存储。连接时通过 WebSocket 第一帧传输。</p>
+    <div class="space-y-3">
+      <template x-for="entry in keyEntries" :key="entry.id">
+        <div class="p-3 rounded-lg bg-slate-800 border border-slate-700 space-y-2">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="font-medium text-slate-100" x-text="entry.label"></span>
+              <span class="ml-2 text-xs" :class="entry.saved ? 'text-green-400' : 'text-amber-400'"
+                    x-text="entry.saved ? '✓ 已保存' : '⚠ 未配置'"></span>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <input :type="entry.show ? 'text' : 'password'" x-model="entry.draft"
+                   :placeholder="entry.saved ? '（已保存，输入新值可覆盖）' : '输入 API Key...'"
+                   class="flex-1 px-3 py-1.5 rounded bg-slate-700 text-slate-100 border border-slate-600 text-sm"/>
+            <button @click="entry.show=!entry.show" class="px-2 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">
+              <i :data-lucide="entry.show ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+            </button>
+            <button @click="saveKey(entry)" :disabled="!entry.draft"
+                    class="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-sm disabled:opacity-40">保存</button>
+            <button x-show="entry.saved" @click="clearKey(entry)"
+                    class="px-3 py-1.5 rounded bg-red-700 hover:bg-red-600 text-white text-sm">清除</button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <script>
+    function modelConfigData() {
+      return {
+        isAdmin: false,
+        globalPresets: [],
+        userModels: [],
+        showAddPreset: false,
+        showAddUser: false,
+        newPreset: { provider: 'gemini', modelId: '', displayName: '' },
+        newUser: { provider: 'gemini', modelId: '', displayName: '', baseUrl: '' },
+        keyEntries: [
+          { id: 'gemini:*', label: 'Gemini (全局)', uniqueId: 'gemini:*', draft: '', show: false, saved: false },
+          { id: 'openrouter:*', label: 'OpenRouter (全局)', uniqueId: 'openrouter:*', draft: '', show: false, saved: false },
+        ],
+        errorMsg: '',
+        successMsg: '',
+
+        async init() {
+          // Check admin status
+          try {
+            const r = await fetch(window.API_BASE_URL + '/UserStatus', { credentials: 'include' });
+            const d = await r.json();
+            this.isAdmin = !!d.isAdmin;
+          } catch {}
+
+          await this.loadConfigs();
+          this.refreshKeyStatuses();
+          await this.$nextTick(() => lucide.createIcons());
+        },
+
+        async loadConfigs() {
+          try {
+            const r = await fetch(window.API_BASE_URL + '/ModelConfigs', { credentials: 'include' });
+            const d = await r.json();
+            this.globalPresets = d.globalPresets || [];
+            this.userModels = d.userModels || [];
+            // Build key entries: fixed providers + per-user custom model keys
+            const fixed = [
+              { id: 'gemini:*', label: 'Gemini (全局)', uniqueId: 'gemini:*' },
+              { id: 'openrouter:*', label: 'OpenRouter (全局)', uniqueId: 'openrouter:*' },
+            ];
+            const custom = (d.userModels || [])
+              .filter(m => m.provider === 'custom')
+              .map(m => ({ id: m.provider + ':' + m.modelId, label: m.displayName + ' (API Key)', uniqueId: m.provider + ':' + m.modelId }));
+            this.keyEntries = [...fixed, ...custom].map(e => ({
+              ...e, draft: '', show: false, saved: !!window.loadApiKey(e.uniqueId)
+            }));
+          } catch (e) {
+            console.error('loadConfigs failed', e);
+          }
+        },
+
+        refreshKeyStatuses() {
+          for (const e of this.keyEntries) e.saved = !!window.loadApiKey(e.uniqueId);
+        },
+
+        saveKey(entry) {
+          if (!entry.draft) return;
+          window.saveApiKey(entry.uniqueId, entry.draft);
+          entry.draft = '';
+          entry.saved = true;
+        },
+
+        clearKey(entry) {
+          window.clearApiKey(entry.uniqueId);
+          entry.saved = false;
+          entry.draft = '';
+        },
+
+        async addGlobalPreset() {
+          if (!this.newPreset.modelId || !this.newPreset.displayName) return;
+          try {
+            const r = await fetch(window.API_BASE_URL + '/AdminModelPresets', {
+              method: 'POST', credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.newPreset)
+            });
+            if (!r.ok) throw new Error(`添加失败 (${r.status}): ${await r.text()}`);
+            this.showAddPreset = false;
+            this.newPreset = { provider: 'gemini', modelId: '', displayName: '' };
+            await this.loadConfigs();
+          } catch (e) {
+            this.errorMsg = e.message || '添加失败';
+          }
+          await this.$nextTick(() => lucide.createIcons());
+        },
+
+        async deleteGlobalPreset(id) {
+          try {
+            const r = await fetch(window.API_BASE_URL + '/AdminModelPresets/' + id, { method: 'DELETE', credentials: 'include' });
+            if (!r.ok) throw new Error(`删除失败 (${r.status})`);
+            await this.loadConfigs();
+          } catch (e) {
+            this.errorMsg = e.message || '删除失败';
+          }
+          await this.$nextTick(() => lucide.createIcons());
+        },
+
+        async addUserModel() {
+          if (!this.newUser.modelId || !this.newUser.displayName) return;
+          const body = { provider: this.newUser.provider, modelId: this.newUser.modelId, displayName: this.newUser.displayName, baseUrl: this.newUser.baseUrl || null };
+          try {
+            const r = await fetch(window.API_BASE_URL + '/ModelConfigs', {
+              method: 'POST', credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            });
+            if (!r.ok) throw new Error(`添加失败 (${r.status}): ${await r.text()}`);
+            this.showAddUser = false;
+            this.newUser = { provider: 'gemini', modelId: '', displayName: '', baseUrl: '' };
+            await this.loadConfigs();
+          } catch (e) {
+            this.errorMsg = e.message || '添加失败';
+          }
+          await this.$nextTick(() => lucide.createIcons());
+        },
+
+        async deleteUserModel(id) {
+          try {
+            const r = await fetch(window.API_BASE_URL + '/ModelConfigs/' + id, { method: 'DELETE', credentials: 'include' });
+            if (!r.ok) throw new Error(`删除失败 (${r.status})`);
+            await this.loadConfigs();
+          } catch (e) {
+            this.errorMsg = e.message || '删除失败';
+          }
+          await this.$nextTick(() => lucide.createIcons());
+        },
+      };
+    }
+  </script>
+</div>

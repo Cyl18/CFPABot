@@ -1,453 +1,571 @@
-<div x-data="prReviewData()" x-init="init()" class="h-full flex flex-col space-y-4">
-    <!-- Header Controls -->
-    <div class="bg-slate-800 rounded-lg p-4 flex flex-wrap items-center justify-between gap-4">
-        <div class="flex items-center gap-4">
-            <h2 class="text-xl font-bold flex items-center gap-2">
-                <i data-lucide="clipboard-check" class="w-5 h-5"></i>
-                PR Review
-            </h2>
-            <div class="flex items-center gap-2">
-                <input type="number" x-model="prNumber" @keyup.enter="loadMods()" placeholder="PR #"
-                    class="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 w-24 focus:outline-none focus:border-blue-500" />
-                <button @click="loadMods()" :disabled="loading"
-                    class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-3 py-1.5 rounded transition">
-                    <span x-show="!loading">Load PR</span>
-                    <span x-show="loading" class="flex items-center gap-2">
-                        <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Loading...
-                    </span>
-                </button>
-            </div>
-            
-            <div x-show="mods.length > 0" class="flex items-center gap-2">
-                <select x-model="selectedMod" class="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500 max-w-xs truncate">
-                    <template x-for="mod in mods" :key="mod">
-                        <option :value="mod" x-text="mod" :selected="mod === selectedMod"></option>
-                    </template>
-                </select>                <select x-model="importanceLevel" class="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 focus:outline-none focus:border-blue-500">
-                    <option value="low">低重要度 (Low)</option>
-                    <option value="medium">中重要度 (Medium)</option>
-                    <option value="high">高重要度 (High)</option>
-                </select>                    <div class="flex items-center gap-1">
-                        <button @click="loadReview(false)" :disabled="reviewLoading || !selectedMod"
-                            class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-l border-r border-emerald-800 transition">
-                            <span x-show="!reviewLoading">Review</span>
-                            <span x-show="reviewLoading" class="flex items-center gap-2">
-                                <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
-                                <span x-show="reviewProgress.total === 0">...</span>
-                                <span x-show="reviewProgress.total > 0 && !reviewProgress.merging" x-text="reviewProgress.completed + '/' + reviewProgress.total"></span>
-                                <span x-show="reviewProgress.merging">Merging...</span>
-                            </span>
-                        </button>
-                        <button @click="loadReview(true)" :disabled="reviewLoading || !selectedMod" title="Force Re-Review (Clear Cache)"
-                            class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-r transition">
-                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-            </div>
-        </div>
+<div x-data="prReviewData()" x-init="init()" class="space-y-6">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+      <i data-lucide="git-pull-request" class="w-6 h-6"></i>
+      PR Multi-Model Review
+    </h1>
+  </div>
 
-        <!-- View Controls (Hidden in dropdown-like or simple toggle buttons) -->
-        <div class="flex items-center gap-3 text-sm">
-            <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition">
-                <input type="checkbox" x-model="filterPROnly" class="rounded bg-slate-900 border-slate-700 flex-shrink-0" />
-                Only Changed
-            </label>
-            <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white transition">
-                <input type="checkbox" x-model="hidePassed" class="rounded bg-slate-900 border-slate-700 flex-shrink-0" />
-                Hide Passed
-            </label>
-            
-            <!-- More View Options (Toggles) -->
-            <div class="relative" x-data="{ open: false }" @click.outside="open = false">
-                <button @click="open = !open" class="flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-700 rounded border border-slate-700 transition">
-                    <i data-lucide="settings-2" class="w-4 h-4"></i> View
-                </button>
-                <div x-show="open" x-cloak class="absolute right-0 mt-2 w-56 bg-slate-800 border border-slate-700 rounded shadow-xl z-20 py-2">
-                    <label class="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-slate-700">
-                        <span class="flex items-center gap-2"><i data-lucide="hash" class="w-4 h-4 text-slate-400"></i> Line Numbers</span>
-                        <input type="checkbox" x-model="showLineNumber" class="rounded bg-slate-900 border-slate-700" />
-                    </label>
-                    <label class="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-slate-700">
-                        <span class="flex items-center gap-2"><i data-lucide="arrow-down-z-a" class="w-4 h-4 text-slate-400"></i> Sort by Severity</span>
-                        <input type="checkbox" x-model="sortBySeverity" class="rounded bg-slate-900 border-slate-700" />
-                    </label>
-                    <div class="my-1 border-t border-slate-700"></div>
-                    <label class="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-slate-700">
-                        <span class="flex items-center gap-2"><i data-lucide="key" class="w-4 h-4 text-slate-400"></i> Show Key</span>
-                        <input type="checkbox" x-model="showKey" class="rounded bg-slate-900 border-slate-700" />
-                    </label>
-                    <label class="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-slate-700">
-                        <span class="flex items-center gap-2"><i data-lucide="languages" class="w-4 h-4 text-slate-400"></i> Show Base EN</span>
-                        <input type="checkbox" x-model="showBaseEN" class="rounded bg-slate-900 border-slate-700" />
-                    </label>
-                    <label class="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-slate-700">
-                        <span class="flex items-center gap-2"><i data-lucide="languages" class="w-4 h-4 text-slate-400"></i> Show Base CN</span>
-                        <input type="checkbox" x-model="showBaseCN" class="rounded bg-slate-900 border-slate-700" />
-                    </label>
-                </div>
-            </div>
+  <!-- Settings & Models -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="space-y-1">
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Target PR Number</label>
+        <input type="number" x-model="prNumber" class="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm">
+      </div>
+      <div class="space-y-1">
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Mod</label>
+        <div class="flex gap-2">
+          <template x-if="mods.length === 0">
+            <input type="text" x-model="selectedMod" placeholder="Click Find to load mods" class="flex-1 rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm">
+          </template>
+          <template x-if="mods.length > 0">
+            <select x-model="selectedMod" class="flex-1 rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm">
+              <template x-for="m in mods" :key="m">
+                <option :value="m" x-text="m"></option>
+              </template>
+            </select>
+          </template>
+          <button @click="loadMods()" :disabled="!prNumber || modsLoading" class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50 flex items-center gap-1 text-sm whitespace-nowrap">
+            <i x-show="!modsLoading" data-lucide="search" class="w-4 h-4"></i>
+            <i x-show="modsLoading" data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+            <span x-text="modsLoading ? '...' : 'Find'"></span>
+          </button>
         </div>
+      </div>
+      <div class="space-y-1">
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Importance Level</label>
+        <select x-model="importanceLevel" class="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm">
+          <option value="low">Low</option>
+          <option value="medium">Medium (default)</option>
+          <option value="high">High</option>
+        </select>
+      </div>
     </div>
 
-    <!-- Error Map -->
-    <div x-show="error" x-cloak class="bg-red-900/30 text-red-400 p-4 rounded-lg flex items-center gap-3">
-        <i data-lucide="alert-triangle" class="w-5 h-5 flex-shrink-0"></i>
-        <span x-text="error"></span>
+    <!-- Models -->
+    <div class="pt-4 border-t border-slate-200 dark:border-slate-700">
+      <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">Model Selection</h3>
+      <div class="flex flex-wrap gap-3">
+        <template x-for="model in models" :key="model.provider + ':' + model.modelId">
+          <label class="inline-flex items-center space-x-2 bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800">
+            <input type="checkbox" x-model="model.enabled" class="rounded text-slate-600 focus:ring-slate-500 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700">
+            <span class="text-sm text-slate-700 dark:text-slate-300" x-text="model.displayName || model.modelId"></span>
+          </label>
+        </template>
+      </div>
     </div>
 
-    <!-- Main Content -->
-    <div x-show="reviewData" x-cloak class="flex-1 overflow-auto space-y-6">
-        
-        <!-- Stats summary -->
-        <div class="flex items-center gap-4 text-sm text-slate-400 pb-2 border-b border-slate-800">
-            <span class="text-white font-medium">Review Complete</span>
-            <span>&bull;</span>
-            <span x-text="filteredItems.length + ' Items Shown'"></span>
-            <span x-show="hidePassed && filteredItems.length < totalFilteredCount" class="italic px-2" x-text="'(' + (totalFilteredCount - filteredItems.length) + ' passed items hidden)'"></span>
+    <!-- Consistency -->
+    <div class="pt-4 border-t border-slate-200 dark:border-slate-700">
+      <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">Consistency Check Settings</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <label class="flex items-center space-x-2">
+          <input type="checkbox" x-model="consistencyEnabled" class="rounded text-slate-600 focus:ring-slate-500 border-slate-300 dark:border-slate-600">
+          <span class="text-sm text-slate-700 dark:text-slate-300">Enable Consistency Check</span>
+        </label>
+        <select x-model="consistencyScope" :disabled="!consistencyEnabled" class="rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm disabled:opacity-50">
+          <option value="diff_only">Diff Only</option>
+          <option value="full_mod">Full Mod</option>
+        </select>
+        <select x-model="consistencyModel" :disabled="!consistencyEnabled" class="rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm disabled:opacity-50">
+          <option value="">-- Select Model --</option>
+          <template x-for="model in models" :key="model.provider + ':' + model.modelId">
+            <option :value="model.provider + ':' + model.modelId" x-text="model.displayName || model.modelId"></option>
+          </template>
+        </select>
+      </div>
+    </div>
+
+    <div class="flex justify-end space-x-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+      <button @click="loadReview(false)" :disabled="loading || !selectedMod" class="px-4 py-2 bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 rounded-lg hover:bg-slate-700 dark:hover:bg-slate-300 focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 flex items-center space-x-2">
+        <i x-show="!loading || loadingForce" data-lucide="play" class="w-4 h-4"></i>
+        <i x-show="loading && !loadingForce" data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+        <span>Review</span>
+      </button>
+      <button x-show="loading" @click="cancelReview()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-offset-2 focus:ring-red-500 flex items-center space-x-2">
+        <i data-lucide="x" class="w-4 h-4"></i>
+        <span>Cancel</span>
+      </button>
+      <button @click="loadReview(true)" :disabled="loading || !selectedMod" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 flex items-center space-x-2">
+        <i x-show="!loading || !loadingForce" data-lucide="refresh-cw" class="w-4 h-4"></i>
+        <i x-show="loading && loadingForce" data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+        <span>Force Refresh</span>
+      </button>
+      <button @click="historyVisible = !historyVisible" :disabled="!selectedMod" class="relative px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 flex items-center space-x-2">
+        <i x-show="!historyLoading" data-lucide="history" class="w-4 h-4"></i>
+        <i x-show="historyLoading" data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+        <span>History</span>
+        <span x-show="history.length > 0" class="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-slate-500 rounded-full" x-text="history.length"></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- History Panel -->
+  <div x-show="historyVisible && history.length > 0" class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <div class="px-6 py-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+      <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+        <i data-lucide="history" class="w-4 h-4"></i>
+        Cached Review History
+      </h3>
+      <button @click="historyVisible = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div class="divide-y divide-slate-200 dark:divide-slate-700">
+      <template x-for="entry in history" :key="entry.hash">
+        <button @click="loadHistoryCacheEntry(entry.hash)" class="w-full text-left px-6 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-4">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-sm font-medium text-slate-800 dark:text-slate-200" x-text="new Date(entry.cachedAt).toLocaleString()"></span>
+              <span x-show="entry.isStale" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                <i data-lucide="alert-triangle" class="w-3 h-3"></i>
+                Source changed
+              </span>
+            </div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+              <span x-text="entry.models.join(', ') || '(no model info)'"></span>
+              <span class="mx-1">·</span>
+              <span x-text="entry.importance"></span>
+              <template x-if="entry.consistency">
+                <span class="ml-1 inline-flex items-center px-1 py-0.5 rounded text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">consistency</span>
+              </template>
+            </div>
+          </div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
+        </button>
+      </template>
+    </div>
+  </div>
+
+  <!-- Progress Dashboard -->
+  <div x-show="loading || perModelProgress.length > 0" class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
+    <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200">Review Progress</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <template x-for="prog in perModelProgress" :key="prog.modelId">
+        <div class="space-y-1">
+          <div class="flex justify-between text-sm">
+            <span class="font-medium text-slate-700 dark:text-slate-300" x-text="prog.modelId"></span>
+            <span class="text-slate-500 dark:text-slate-400" x-text="(prog.completed || 0) + ' / ' + (prog.total || 0)"></span>
+          </div>
+          <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+            <div class="bg-indigo-600 h-2 rounded-full transition-all duration-300" :style="'width: ' + ((prog.total ? prog.completed / prog.total : 0) * 100) + '%'"></div>
+          </div>
         </div>
+      </template>
+    </div>
+    <div x-show="statusMessage" class="text-sm text-slate-600 dark:text-slate-400 italic" x-text="statusMessage"></div>
+  </div>
 
-        <!-- The List -->
-        <div class="space-y-3">
-            <template x-for="(item, index) in filteredItems" :key="item.id || item.index">
-                <!-- Row Item -->
-                <div @click="if(item.issues && item.issues.length > 0) toggleExpand(item.index)"
-                     class="bg-slate-850 border border-slate-700 rounded hover:border-slate-500 transition-colors flex flex-col relative"
-                     :class="{
-                         'cursor-pointer': item.issues && item.issues.length > 0,
-                         'border-l-4': true,
-                         'border-l-slate-700': item.status === 'Pass',
-                         'border-l-amber-500': item.status === 'Minor',
-                         'border-l-red-500': item.status === 'NeedsFix',
-                         'border-l-violet-500': item.status === 'NeedsContext'
-                     }">
-                     
-                    <!-- Optional Line Number -->
-                    <div x-show="showLineNumber || expandedRows.has(item.index)" class="absolute left-2 top-3 text-[10px] font-mono text-slate-400 bg-slate-900/95 border border-slate-700 px-1.5 py-0.5 rounded shadow-sm z-10" x-text="'#' + (item.index + 1)"></div>
-
-                    <!-- Main Text Row -->
-                    <div class="px-3 py-3 flex gap-4 items-start relative" :class="{ 'pl-12': showLineNumber || expandedRows.has(item.index) }">
-
-                        <div class="flex-1 grid gap-4 lg:gap-2 lg:grid-cols-2 relative" 
-                             :class="{ 'grid-cols-1': !showBaseEN && !showBaseCN }">
-                             
-                            <!-- Divider (Large Screens) -->
-                            <div class="hidden lg:block absolute left-1/2 top-0 bottom-0 w-px bg-slate-700/30 -ml-1"></div>
-
-                            <!-- EN Column (Right Aligned) -->
-                            <div class="space-y-1 text-right lg:pr-3">
-                                <div x-show="showBaseEN" class="text-xs text-slate-500 italic pb-1 mb-1 border-b border-slate-700/50 inline-block" x-text="item.baseSource || '-'"></div>
-                                <div class="text-base text-slate-300" x-text="item.source"></div>
-                                <div x-show="showKey || expandedRows.has(item.index)" class="text-xs text-slate-500 font-mono mt-1 opacity-50 break-all inline-block bg-slate-900/50 px-1.5 rounded" x-text="item.key"></div>
-                            </div>
-
-                            <!-- CN Column (Left Aligned) -->
-                            <div class="space-y-1 lg:pl-3 pr-14 lg:pr-12 text-left">
-                                <div x-show="showBaseCN" class="text-xs text-slate-500 italic pb-1 mb-1 border-b border-slate-700/50 inline-block" x-text="item.baseTarget || '-'"></div>
-                                <div class="text-base text-slate-100" x-text="item.target"></div>
-                                
-                                <!-- Badges & Actions placed at end of CN column -->
-                                <div class="absolute top-1 right-2 flex items-center justify-end">
-                                    <button x-show="item.issues && item.issues.length > 0"
-                                        @click.stop="toggleExpand(item.index)" 
-                                        class="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-semibold transition"
-                                        :class="{
-                                            'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20': item.status === 'Minor',
-                                            'bg-red-500/10 text-red-500 hover:bg-red-500/20': item.status === 'NeedsFix',
-                                            'bg-violet-500/10 text-violet-500 hover:bg-violet-500/20': item.status === 'NeedsContext'
-                                        }">
-                                        <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
-                                        <span x-text="item.issues.length"></span>
-                                        <i data-lucide="chevron-down" class="w-3.5 h-3.5 transform transition-transform" :class="expandedRows.has(item.index) ? 'rotate-180' : ''"></i>
-                                    </button>
-                                    <span x-show="!item.issues || item.issues.length === 0" class="text-xs text-slate-500 px-2 py-1 flex flex-col items-center justify-center opacity-50">
-                                        <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500 mb-0.5"></i>
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Issues Expanded Area -->
-                    <div x-show="expandedRows.has(item.index)" x-collapse class="bg-slate-900 border-t border-slate-800 p-4 space-y-3">
-                        <template x-for="(issue, iIndex) in item.issues" :key="iIndex">
-                            <div class="pl-3 border-l-2" 
-                                 :class="{
-                                    'border-amber-500': issue.severity === 'Minor',
-                                    'border-red-500': issue.severity === 'NeedsFix',
-                                    'border-violet-500': issue.severity === 'NeedsContext'
-                                 }">
-                                 
-                                <div class="flex items-center gap-2 mb-1">
-                                    <span class="text-xs font-bold px-1.5 py-0.5 rounded leading-none"
-                                          :class="{
-                                              'bg-amber-500/20 text-amber-500': issue.severity === 'Minor',
-                                              'bg-red-500/20 text-red-500': issue.severity === 'NeedsFix',
-                                              'bg-violet-500/20 text-violet-500': issue.severity === 'NeedsContext'
-                                          }" x-text="issue.severity"></span>
-                                    <span class="text-xs font-mono text-slate-400" x-text="issue.type"></span>
-                                </div>
-                                <div class="text-sm text-slate-200 mt-1" x-text="issue.message"></div>
-                                
-                                <div x-show="issue.reason" class="mt-2 text-xs text-slate-400 bg-slate-850 p-2 rounded">
-                                    <span class="font-semibold opacity-70">Reason:</span> <span x-text="issue.reason"></span>
-                                </div>
-
-                                <div x-show="issue.suggestion" class="mt-2 text-sm">
-                                    <div class="text-xs font-semibold text-emerald-500 mb-1 flex items-center gap-1">
-                                        <i data-lucide="sparkles" class="w-3 h-3"></i> Suggested
-                                    </div>
-                                    <div class="px-3 py-1.5 bg-emerald-900/20 border border-emerald-900/50 rounded text-emerald-100" x-text="issue.suggestion"></div>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
+  <!-- Results -->
+  <div x-show="result && !loading" class="space-y-6">
+    <!-- Consistency Report -->
+    <div x-show="consistencyEnabled && result?.consistencyReport?.error" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-xl p-6">
+      <h3 class="text-lg font-semibold text-red-800 dark:text-red-300 mb-2 flex items-center gap-2">
+        <i data-lucide="alert-circle" class="w-5 h-5"></i>
+        Consistency Check Failed
+      </h3>
+      <p class="text-sm text-red-700 dark:text-red-300" x-text="result.consistencyReport.error"></p>
+    </div>
+    <div x-show="consistencyEnabled && !result?.consistencyReport?.error && result?.consistencyReport?.inconsistencies?.length > 0" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl p-6">
+      <h3 class="text-lg font-semibold text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-2">
+        <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+        Consistency Report
+        <span x-show="result?.consistencyReport?.wasTruncated" class="text-xs font-normal text-amber-600 dark:text-amber-400">(已截断)</span>
+      </h3>
+      <div class="space-y-2 text-sm text-amber-900 dark:text-amber-200">
+        <template x-for="inc in result.consistencyReport.inconsistencies" :key="inc.enTerm">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <span class="font-semibold" x-text="inc.enTerm"></span>
+            <template x-for="v in inc.variants" :key="v.translation">
+              <span class="bg-amber-100 dark:bg-amber-800/40 px-1.5 py-0.5 rounded text-xs">
+                <span x-text="v.translation"></span>
+                <span class="opacity-60 ml-1" x-text="'(' + (v.keys || []).slice(0,3).join(', ') + ')'"></span>
+              </span>
             </template>
-            
-            <div x-show="filteredItems.length === 0" class="text-center py-12 text-slate-500">
-                <i data-lucide="check-circle" class="w-12 h-12 mx-auto mb-3 opacity-50 text-emerald-500"></i>
-                <p>No items to display based on current filters.</p>
-            </div>
-        </div>
-
-        <!-- Global Notes -->
-        <div x-show="reviewData?.globalNotes?.length > 0" class="mt-8 bg-slate-850 border border-slate-700 rounded-lg p-5 border-l-4 border-l-blue-500">
-            <h3 class="text-lg font-bold flex items-center gap-2 mb-3">
-                <i data-lucide="info" class="w-5 h-5 text-blue-400"></i> Global Review Notes
-            </h3>
-            <ul class="list-disc pl-5 space-y-2 text-slate-300 text-sm">
-                <template x-for="note in (reviewData?.globalNotes || [])">
-                    <li x-text="note"></li>
-                </template>
-            </ul>
-        </div>
-        
+          </div>
+        </template>
+      </div>
     </div>
+
+    <!-- Global Notes -->
+    <div x-show="result?.modelResults?.some(mr => mr.globalNotes)" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 rounded-xl p-6 space-y-4">
+      <h3 class="text-lg font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-2">
+        <i data-lucide="info" class="w-5 h-5"></i>
+        Global Notes
+      </h3>
+      <div class="space-y-3">
+        <template x-for="mr in result.modelResults" :key="mr.spec.uniqueId">
+          <div x-show="mr.globalNotes">
+            <p class="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1" x-text="mr.spec.uniqueId"></p>
+            <div class="prose dark:prose-invert max-w-none text-sm text-blue-900 dark:text-blue-200" x-html="mr.globalNotes"></div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Review Items Table -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm whitespace-nowrap">
+          <thead class="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+            <tr>
+              <th class="px-6 py-3 font-semibold text-slate-800 dark:text-slate-200">Key / Path</th>
+              <th class="px-6 py-3 font-semibold text-slate-800 dark:text-slate-200">Original</th>
+              <th class="px-6 py-3 font-semibold text-slate-800 dark:text-slate-200">Translation</th>
+              <th class="px-6 py-3 font-semibold text-slate-800 dark:text-slate-200 text-center">Status</th>
+              <th class="px-6 py-3 font-semibold text-slate-800 dark:text-slate-200"></th>
+            </tr>
+          </thead>
+          <template x-for="(item, index) in result?.frontendDisplayItems" :key="index">
+            <tbody x-data="{ expanded: false }">
+              <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer border-t border-slate-200 dark:border-slate-700" @click="expanded = !expanded">
+                <td class="px-6 py-4">
+                  <div class="font-medium text-slate-900 dark:text-slate-100 max-w-[200px] truncate" x-text="item.key" :title="item.key"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="max-w-[250px] truncate text-slate-600 dark:text-slate-300" x-text="item.source" :title="item.source"></div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="max-w-[250px] truncate text-slate-600 dark:text-slate-300" x-text="item.target" :title="item.target"></div>
+                </td>
+                <td class="px-6 py-4 text-center">
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                        :class="getAggregatedStatusClass(index)" x-text="getAggregatedStatusText(index)"></span>
+                </td>
+                <td class="px-6 py-4 text-right">
+                  <button type="button" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i data-lucide="chevron-down" class="w-5 h-5 transition-transform" :class="{'rotate-180': expanded}"></i>
+                  </button>
+                </td>
+              </tr>
+              <!-- Expanded detail row — spans full width, no absolute positioning -->
+              <tr x-show="expanded" class="bg-slate-50/50 dark:bg-slate-900/50" @click.stop>
+                <td colspan="5" class="px-6 py-4">
+                  <div class="space-y-4">
+                    <template x-for="mr in result.modelResults" :key="mr.spec.uniqueId">
+                      <div x-data="{ mrItem: mr.items.find(x => x.id === index) }" x-show="mrItem" class="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <div class="flex items-start justify-between mb-2">
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200" x-text="mr.spec.uniqueId"></span>
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold" :class="mrItem ? getStatusClass(getStatusSeverity(mrItem.status)) : ''" x-text="mrItem ? getStatusText(getStatusSeverity(mrItem.status)) : ''"></span>
+                        </div>
+                        <template x-for="(issue, ii) in mrItem?.issues || []" :key="ii">
+                          <div class="pl-3 border-l-2 mb-2" :class="{ 'border-red-400': issue.severity === 'NeedsFix', 'border-amber-400': issue.severity === 'Minor', 'border-violet-400': issue.severity === 'NeedsContext' }">
+                            <div class="flex items-center gap-2 mb-1">
+                              <span class="text-xs font-bold" :class="{ 'text-red-500': issue.severity === 'NeedsFix', 'text-amber-500': issue.severity === 'Minor', 'text-violet-500': issue.severity === 'NeedsContext' }" x-text="issue.severity"></span>
+                              <span class="text-xs text-slate-500 dark:text-slate-400" x-text="issue.type"></span>
+                            </div>
+                            <div class="text-sm text-slate-700 dark:text-slate-300" x-html="issue.message"></div>
+                            <div x-show="issue.reason" class="text-xs text-slate-500 dark:text-slate-400 mt-1" x-html="issue.reason"></div>
+                            <div x-show="issue.suggestion" class="mt-1 bg-emerald-50 dark:bg-emerald-900/20 rounded p-2 text-sm" x-html="issue.suggestion"></div>
+                          </div>
+                        </template>
+                        <div x-show="mrItem && mrItem.suggestedTarget" class="mt-3">
+                          <p class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Suggested Translation:</p>
+                          <pre class="bg-slate-100 dark:bg-slate-900 p-2 rounded text-xs text-slate-800 dark:text-slate-200 overflow-x-auto whitespace-pre-wrap" x-text="mrItem.suggestedTarget"></pre>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </template>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
 function prReviewData() {
-    return {
-        prNumber: '',
-        loading: false,
-        reviewLoading: false,
-        reviewProgress: { completed: 0, total: 0, merging: false },
-        error: '',
+  return {
+    prNumber: '',
+    selectedMod: '',
+    importanceLevel: 'medium',
+    mods: [],
+    modsLoading: false,
+    models: [],
+    consistencyEnabled: false,
+    consistencyScope: 'diff_only',
+    consistencyModel: '',
+    
+    loading: false,
+    loadingForce: false,
+    ws: null,
+    statusMessage: '',
+    perModelProgress: [],
+    result: null,
+    history: [],
+    historyLoading: false,
+    historyVisible: false,
+
+    async init() {
+      try {
+        const res = await fetch(window.API_BASE_URL + '/ModelConfigs', { credentials: 'include' });
+        if(res.ok) {
+          const data = await res.json();
+          let allModels = [];
+          if(data.globalPresets) {
+            allModels = allModels.concat(data.globalPresets.map(x => ({ ...x, isGlobal: true, enabled: true })));
+          }
+          if(data.userModels) {
+            allModels = allModels.concat(data.userModels.map(x => ({ ...x, isGlobal: false, enabled: false })));
+          }
+          this.models = allModels;
+        }
+      } catch (e) {
+        console.error('Failed to load models:', e);
+      }
+      // Restore PR number from URL query param (e.g. ?pr=1234)
+      const urlParams = new URLSearchParams(window.location.search);
+      const prParam = urlParams.get('pr');
+      if (prParam) {
+        this.prNumber = prParam;
+        await this.loadMods();
+      }
+      // Cleanup WS on page unload
+      window.addEventListener('beforeunload', () => {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.close();
+        }
+      });
+      this.$nextTick(() => window.lucide && window.lucide.createIcons());
+    },
+
+    getCookie(name) {
+      const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+      return v ? v[2] : null;
+    },
+
+    async loadMods() {
+      if (!this.prNumber) return;
+      this.modsLoading = true;
+      this.mods = [];
+      this.selectedMod = '';
+      try {
+        const res = await fetch(`${window.API_BASE_URL}/PRMods?pr=${this.prNumber}`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          const list = data.mods || data.Mods || data || [];
+          this.mods = Array.isArray(list) ? list : [];
+          if (this.mods.length === 1) this.selectedMod = this.mods[0];
+          if (this.selectedMod) this.loadHistory();
+        }
+      } catch(e) {
+        console.error('Failed to load mods:', e);
+      } finally {
+        this.modsLoading = false;
+        this.$nextTick(() => window.lucide && window.lucide.createIcons());
+      }
+    },
+
+    async loadHistory() {
+      if (!this.prNumber || !this.selectedMod) return;
+      this.historyLoading = true;
+      this.history = [];
+      try {
+        const res = await fetch(`${window.API_BASE_URL}/PRReviewHistory?pr=${this.prNumber}&mod=${encodeURIComponent(this.selectedMod)}`, { credentials: 'include' });
+        if (res.ok) {
+          this.history = await res.json();
+        }
+      } catch(e) {
+        console.error('Failed to load history:', e);
+      } finally {
+        this.historyLoading = false;
+        this.$nextTick(() => window.lucide && window.lucide.createIcons());
+      }
+    },
+
+    async loadHistoryCacheEntry(hash) {
+      try {
+        const res = await fetch(`${window.API_BASE_URL}/PRReviewCacheEntry?hash=${encodeURIComponent(hash)}`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          this.result = data.result;
+          this.historyVisible = false;
+          this.$nextTick(() => window.lucide && window.lucide.createIcons());
+        } else {
+          console.error('Failed to load cache entry:', res.status);
+        }
+      } catch(e) {
+        console.error('Failed to load cache entry:', e);
+      }
+    },
+
+    loadReview(force) {
+      if(!this.prNumber || !this.selectedMod) return;
+      
+      this.loading = true;
+      this.loadingForce = !!force;
+      this.result = null;
+      this.perModelProgress = [];
+      this.statusMessage = 'Connecting...';
+      this.historyVisible = false;
+
+      if(this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.close();
+      }
+
+      let baseWsUrl = window.API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+      let url = `${baseWsUrl}/ws/PRLLMReviewResult?pr=${this.prNumber}&mod=${encodeURIComponent(this.selectedMod)}&importance=${this.importanceLevel}`;
+      if(force) url += '&force=true';
+
+      this.ws = new WebSocket(url);
+
+      this.ws.onopen = () => {
+        this.statusMessage = 'Connected. Starting review...';
         
-        mods: [],
-        selectedMod: '',
-        importanceLevel: 'medium',
+        let perModelOverrides = {};
+        const enabledModels = this.models.filter(x => x.enabled);
+        const overrideModels = [...enabledModels];
+        if (this.consistencyEnabled && this.consistencyModel) {
+          const consistencySpec = this.models.find(m => (m.provider + ':' + m.modelId) === this.consistencyModel);
+          if (consistencySpec && !overrideModels.some(m => (m.provider + ':' + m.modelId) === this.consistencyModel)) {
+            overrideModels.push(consistencySpec);
+          }
+        }
         
-        // Review Results
-        reviewData: null,
-        expandedRows: new Set(),
-        
-        // View Filters
-        filterPROnly: true,
-        hidePassed: true, // "极简": hide passed by default to focus on issues
-        showLineNumber: true,
-        sortBySeverity: true,
-        showKey: false,
-        showBaseEN: false,
-        showBaseCN: false,
-
-        // Initialize from URL query params
-        init() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const prParam = urlParams.get('pr');
-            if (prParam) {
-                this.prNumber = prParam;
-                this.loadMods();
-            }
-            
-            // Wait for DOM
-            this.$nextTick(() => {
-                if(typeof lucide !== 'undefined') lucide.createIcons();
-            });
-        },
-
-        async loadMods() {
-            if(!this.prNumber) return;
-            this.loading = true;
-            this.error = '';
-            this.mods = [];
-            this.selectedMod = '';
-            this.reviewData = null;
-            
-            try {
-                // Remove ?pr= to prevent infinite nesting, but wait we are in Hash router generally.
-                // If it's tools/pr-review via hash #/Review/PR-Review, URL params are on main page.
-                
-                const response = await fetch(`${window.API_BASE_URL}/PRMods?pr=${this.prNumber}`);
-                if (!response.ok) {
-                    const txt = await response.text();
-                    throw new Error(txt || 'Failed to fetch mods');
+        if (typeof window.loadApiKey === 'function') {
+            overrideModels.forEach(m => {
+                const uniqueId = m.provider + ':' + m.modelId;
+                const key = window.loadApiKey(uniqueId) || window.loadApiKey(m.provider + ':*');
+                // Always include baseUrl for custom models (even if no API key required)
+                const needsEntry = key || (m.provider === 'custom' && m.baseUrl);
+                if (needsEntry) {
+                    perModelOverrides[uniqueId] = {};
+                    if (key) perModelOverrides[uniqueId].apiKey = key;
+                    if (m.baseUrl) perModelOverrides[uniqueId].baseUrl = m.baseUrl;
                 }
-                const data = await response.json();
-                const mods = data && (data.mods || data.Mods) ? (data.mods || data.Mods) : data;
-                
-                if (mods && mods.length > 0) {
-                    this.mods = mods;
-                    if(this.mods.length === 1) {
-                        this.selectedMod = this.mods[0];
-                    }
-                } else {
-                    this.error = 'No mods found for this PR.';
-                }
-            } catch (err) {
-                this.error = err.message || 'Error occurred while loading mods';
-                console.error(err);
-            } finally {
-                this.loading = false;
-                this.$nextTick(() => {
-                    if(typeof lucide !== 'undefined') lucide.createIcons();
-                });
-            }
-        },
-
-        async loadReview(force = false) {
-            if(!this.prNumber || !this.selectedMod) return;
-            this.reviewLoading = true;
-            this.reviewProgress = { completed: 0, total: 0, merging: false };
-            this.error = '';
-            this.reviewData = null;
-            this.expandedRows.clear();
-
-            let url = `${window.API_BASE_URL}/PRLLMReviewResult?pr=${this.prNumber}&mod=${encodeURIComponent(this.selectedMod)}&importance=${encodeURIComponent(this.importanceLevel)}`;
-            if (force) url += '&force=true';
-            const es = new EventSource(url, { withCredentials: true });
-
-            es.onmessage = (event) => {
-                let msg;
-                try { msg = JSON.parse(event.data); } catch { return; }
-
-                if (msg.type === 'progress') {
-                    this.reviewProgress = { completed: msg.completed, total: msg.total, merging: !!msg.merging };
-                } else if (msg.type === 'done') {
-                    es.close();
-                    this.processReviewData(msg.result);
-                    this.reviewLoading = false;
-                    this.$nextTick(() => {
-                        if(typeof lucide !== 'undefined') lucide.createIcons();
-                    });
-                } else if (msg.type === 'error') {
-                    es.close();
-                    this.error = msg.message || 'Error occurred while loading review result';
-                    this.reviewLoading = false;
-                }
-            };
-
-            es.onerror = (event) => {
-                console.error('SSE error event:', event, 'readyState:', es.readyState);
-                es.close();
-                if (this.reviewLoading) {
-                    this.error = 'Connection error while loading review result';
-                    this.reviewLoading = false;
-                }
-            };
-        },
-
-        processReviewData(data) {
-            if(!data.frontendDisplayItems || !data.llmOutputItems) {
-                this.error = 'Invalid response format API';
-                return;
-            }
-            let combinedItems = [];
-            const len = Math.min(data.frontendDisplayItems.length, data.llmOutputItems.length);
-            for(let i = 0; i < len; i++) {
-                const fd = data.frontendDisplayItems[i];
-                const llm = data.llmOutputItems[i];
-                combinedItems.push({
-                    index: i,
-                    key: fd.key,
-                    source: fd.source,
-                    target: fd.target,
-                    baseSource: fd.baseSource,
-                    baseTarget: fd.baseTarget,
-                    status: llm.status,
-                    issues: llm.issues || []
-                });
-            }
-            this.reviewData = {
-                items: combinedItems,
-                globalNotes: Array.isArray(data.globalNotes) 
-                    ? data.globalNotes 
-                    : (typeof data.globalNotes === 'string' 
-                        ? data.globalNotes.split('\n').filter(n => n.trim()) 
-                        : [])
-            };
-        },
-
-        get totalFilteredCount() {
-            if(!this.reviewData || !this.reviewData.items) return 0;
-            return this.reviewData.items.filter(item => {
-                if (this.filterPROnly) {
-                    const changed = (item.baseSource !== item.source) || (item.baseTarget !== item.target);
-                    // if both base are null, consider it a new line so changed=true
-                    const isNew = item.baseSource == null && item.baseTarget == null;
-                    if(!changed && !isNew) {
-                        return false;
-                    }
-                }
-                return true;
-            }).length;
-        },
-
-        get filteredItems() {
-            if(!this.reviewData || !this.reviewData.items) return [];
-            
-            let items = this.reviewData.items.filter(item => {
-                // Filter 1: PR Only
-                if (this.filterPROnly) {
-                    const changed = (item.baseSource !== item.source) || (item.baseTarget !== item.target);
-                    const isNew = item.baseSource == null && item.baseTarget == null;
-                    if(!changed && !isNew) {
-                        return false;
-                    }
-                }
-                
-                // Filter 2: Hide Passed (only applies if status === 'Pass' AND no issues)
-                if (this.hidePassed) {
-                    if (item.status === 'Pass' && (!item.issues || item.issues.length === 0)) {
-                        return false;
-                    }
-                }
-                
-                return true;
-            });
-            
-            if (this.sortBySeverity) {
-                const severityRank = {
-                    'NeedsFix': 4,
-                    'NeedsContext': 3,
-                    'Minor': 2,
-                    'Pass': 1
-                };
-                items = items.sort((a, b) => {
-                    const rankA = severityRank[a.status] || 0;
-                    const rankB = severityRank[b.status] || 0;
-                    if (rankA !== rankB) {
-                        return rankB - rankA; // Higher rank first
-                    }
-                    return a.index - b.index; // Keep original order for same rank
-                });
-            }
-            
-            return items;
-        },
-        
-        toggleExpand(index) {
-            if(this.expandedRows.has(index)) {
-                this.expandedRows.delete(index);
-            } else {
-                this.expandedRows.add(index);
-            }
-            // Trigger react
-            this.expandedRows = new Set(this.expandedRows);
-            this.$nextTick(() => {
-                if(typeof lucide !== 'undefined') lucide.createIcons();
             });
         }
+
+        const msg = {
+          token: this.getCookie('oauth-token-enc') || '',
+          models: enabledModels.map(x => x.provider + ':' + x.modelId),
+          perModelOverrides: perModelOverrides,
+          consistency: this.consistencyEnabled,
+          consistencyScope: this.consistencyScope,
+          consistencyModel: this.consistencyModel
+        };
+        
+        this.ws.send(JSON.stringify(msg));
+      };
+
+      this.ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          
+          if (data.type === 'progress') {
+            if (data.perModel) {
+              this.perModelProgress = data.perModel;
+              const merging = data.perModel.some(p => p.merging);
+              const done  = data.perModel.reduce((s, p) => s + (p.completed || 0), 0);
+              const total = data.perModel.reduce((s, p) => s + (p.total    || 0), 0);
+              this.statusMessage = merging ? 'Merging results...' : `Processing... ${done}/${total}`;
+            }
+          } else if (data.type === 'done') {
+            this.result = data.result;
+            this.statusMessage = 'Done.';
+            this.loading = false;
+            this.loadingForce = false;
+            this.perModelProgress = [];
+            this.ws.close();
+          } else if (data.type === 'error') {
+            console.error('Error from WS:', data.message);
+            this.statusMessage = 'Error: ' + data.message;
+            this.loading = false;
+            this.loadingForce = false;
+            this.perModelProgress = [];
+            this.ws.close();
+          }
+        } catch(err) {
+          console.error('Parse WS message error:', err);
+        }
+        this.$nextTick(() => window.lucide && window.lucide.createIcons());
+      };
+
+      this.ws.onerror = (e) => {
+        console.error('WS Error:', e);
+        this.statusMessage = 'WebSocket Error occurred.';
+        this.loading = false;
+        this.loadingForce = false;
+        this.perModelProgress = [];
+      };
+
+      this.ws.onclose = () => {
+        if(this.loading) { // closed unexpectedly
+            this.statusMessage = 'Connection closed unexpectedly.';
+            this.loading = false;
+            this.loadingForce = false;
+            this.perModelProgress = [];
+        }
+      };
+    },
+
+    cancelReview() {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'cancel' }));
+        this.statusMessage = 'Cancelling...';
+      }
+    },
+
+    getStatusSeverity(statusStr) {
+      switch(statusStr) {
+        case 'Pass': return 0;
+        case 'Minor': return 1;
+        case 'NeedsContext': return 2;
+        case 'NeedsFix': return 3;
+        default: return 0;
+      }
+    },
+
+    getAggregatedStatus(index) {
+      if(!this.result || !this.result.modelResults) return 0;
+      let maxSeverity = 0;
+      this.result.modelResults.forEach(mr => {
+        const item = mr.items?.find(x => x.id === index);
+        if(item) {
+          const s = this.getStatusSeverity(item.status);
+          if(s > maxSeverity) maxSeverity = s;
+        }
+      });
+      return maxSeverity;
+    },
+
+    getAggregatedStatusText(index) {
+      return this.getStatusText(this.getAggregatedStatus(index));
+    },
+
+    getAggregatedStatusClass(index) {
+      return this.getStatusClass(this.getAggregatedStatus(index));
+    },
+
+    getStatusText(severity) {
+      switch(severity) {
+        case 0: return 'Pass';
+        case 1: return 'Minor';
+        case 2: return 'Needs Context';
+        case 3: return 'Needs Fix';
+        default: return 'Unknown';
+      }
+    },
+
+    getStatusClass(severity) {
+      switch(severity) {
+        case 0: return 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
+        case 1: return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300';
+        case 2: return 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300';
+        case 3: return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+        default: return 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
+      }
+    },
+
+    formatMarkdown(text) {
+      if (!text) return '';
+      if (typeof window.marked !== 'undefined') {
+        return window.marked.parse(text);
+      }
+      return text.replace(/\n/g, '<br>');
     }
+  };
 }
 </script>

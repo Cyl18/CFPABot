@@ -3,7 +3,9 @@ using CFPABot.Christina.LLMs;
 using CFPABot.DiffEngine;
 using CFPABot.Utils;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Core;
 using System;
@@ -11,11 +13,18 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using Ganss.Xss;
+using Markdig;
+using System.Net.WebSockets;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
+using GammaLibrary.Extensions;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 namespace CFPABot.Christina.Backend
@@ -25,6 +34,9 @@ namespace CFPABot.Christina.Backend
     public class ChristinaController : ControllerBase
     {
         static HttpClient hc = new HttpClient();
+        private readonly ChristinaDbContext _db;
+        private readonly IServiceScopeFactory _scopeFactory;
+        public ChristinaController(ChristinaDbContext db, IServiceScopeFactory scopeFactory) { _db = db; _scopeFactory = scopeFactory; }
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
@@ -41,14 +53,22 @@ namespace CFPABot.Christina.Backend
             private bool _finished;
             private string _finalMessage;
 
-            public int ProgressCompleted;
-            public int ProgressTotal;
-            public bool Merging;
+            /// <summary>Last per-model progress message JSON for WS replay.</summary>
+            public volatile string LastProgressMessage;
+
+            private int _started = 0;
+            /// <summary>Returns true only for the first caller — used to start the background task exactly once.</summary>
+            public bool TryAcquireStart() => Interlocked.CompareExchange(ref _started, 1, 0) == 0;
 
             /// <summary>Subscribe a new per-request channel. If job already finished, replay final message immediately.</summary>
             public Channel<string> Subscribe(string progressReplay)
             {
-                var ch = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
+                // Bounded channel: drop oldest progress messages if reader falls behind
+                var ch = Channel.CreateBounded<string>(new BoundedChannelOptions(64)
+                {
+                    SingleReader = true,
+                    FullMode = BoundedChannelFullMode.DropOldest
+                });
                 lock (_lock)
                 {
                     if (_finished)
@@ -63,6 +83,16 @@ namespace CFPABot.Christina.Backend
                     }
                 }
                 return ch;
+            }
+
+            /// <summary>Remove a channel when client disconnects, preventing message accumulation.</summary>
+            public void Unsubscribe(Channel<string> ch)
+            {
+                lock (_lock)
+                {
+                    _channels.Remove(ch);
+                    ch.Writer.TryComplete();
+                }
             }
 
             public void Broadcast(string message)
@@ -87,42 +117,86 @@ namespace CFPABot.Christina.Backend
             }
         }
 
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, ReviewJob> _activeJobs = new();
+        private static readonly ConcurrentDictionary<string, ReviewJob> _wsJobs = new();
+        private static readonly ConcurrentDictionary<string, CancellationTokenSource> _wsJobCts = new();
 
-        private static string GetCacheFilePath(int pr, string mod, string sha, string importance)
+        // ── In-memory cache for PR content hashes (avoids hitting GitHub API on every history request) ──
+        private static readonly ConcurrentDictionary<string, (string? hash, DateTime expiry)> _contentHashCache = new();
+
+        // ── WebSocket config frame models ──
+        private sealed record WsConfigFrame(
+            string? Token,
+            List<string>? Models,
+            Dictionary<string, WsModelOverride>? PerModelOverrides,
+            bool Consistency,
+            string? ConsistencyScope,
+            string? ConsistencyModel);
+
+        private sealed record WsModelOverride(string? BaseUrl, string? ApiKey);
+
+        private static List<ModelSpec> BuildModelSpecs(WsConfigFrame frame)
         {
-            var safeMod = mod.Replace('/', '_').Replace('\\', '_');
-            return Path.Combine("caches/llm-review-cache", $"{pr}-{safeMod}-{sha}-{importance}.json");
+            if (frame.Models == null || frame.Models.Count == 0)
+                return new List<ModelSpec> { new ModelSpec("gemini", LLMAssistantClient.DefaultMergeModel) };
+
+            var result = new List<ModelSpec>();
+            foreach (var modelKey in frame.Models)
+            {
+                var sep = modelKey.IndexOf(':');
+                if (sep < 1) continue;
+                var provider = modelKey[..sep];
+                var modelId  = modelKey[(sep + 1)..];
+                var ov = frame.PerModelOverrides?.GetValueOrDefault(modelKey);
+                result.Add(new ModelSpec(provider, modelId, ov?.BaseUrl, ov?.ApiKey));
+            }
+            return result.Count > 0 ? result : new List<ModelSpec> { new ModelSpec("gemini", LLMAssistantClient.DefaultMergeModel) };
         }
 
-        private static async Task<LlmBatchOutput> TryLoadReviewCache(int pr, string mod, string sha, string importance)
+        private static string ComputeModelsHash(List<ModelSpec> models)
         {
-            var path = GetCacheFilePath(pr, mod, sha, importance);
-            if (!System.IO.File.Exists(path)) return null;
-            try
-            {
-                var json = await System.IO.File.ReadAllTextAsync(path);
-                return JsonSerializer.Deserialize<LlmBatchOutput>(json, _jsonOpts);
-            }
-            catch (Exception e)
-            {
-                Log.Warning(e, "Failed to read review cache {Path}", path);
-                return null;
-            }
+            var sorted = models.Select(m => m.UniqueId).OrderBy(x => x).Connect(separator: "|");
+            var bytes  = SHA256.HashData(sorted.ToUTF8Bytes());
+            return Convert.ToHexString(bytes)[..12].ToLowerInvariant();
         }
 
-        private static async Task SaveReviewCache(int pr, string mod, string sha, string importance, LlmBatchOutput result)
+        private static string? DecryptAuthToken(string encryptedToken)
         {
-            var path = GetCacheFilePath(pr, mod, sha, importance);
-            try
+            try { return NETCore.Encrypt.EncryptProvider.AESDecrypt(encryptedToken, System.IO.File.ReadAllText("config/encrypt_key.txt"), "CACTUS&MAMARUO!!"); }
+            catch { return null; }
+        }
+
+        private static readonly MarkdownPipeline _mdPipeline =
+            new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+
+        private static string RenderMarkdownSafe(string? markdown)
+        {
+            if (markdown.IsNullOrEmpty()) return "";
+            var html = Markdown.ToHtml(markdown, _mdPipeline);
+            return new HtmlSanitizer().Sanitize(html);
+        }
+
+        private static ReviewFrontendDisplay CloneDisplay(ReviewFrontendDisplay display)
+        {
+            var json = display.ToJsonString(_jsonOpts);
+            return json.JsonDeserialize<ReviewFrontendDisplay>(_jsonOpts)!;
+        }
+
+        private static void SanitizeDisplayMarkdown(ReviewFrontendDisplay display)
+        {
+            display.GlobalNotes = RenderMarkdownSafe(display.GlobalNotes);
+            foreach (var mr in display.ModelResults ?? Enumerable.Empty<ModelBatchResult>())
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                var json = JsonSerializer.Serialize(result, _jsonOpts);
-                await System.IO.File.WriteAllTextAsync(path, json);
-            }
-            catch (Exception e)
-            {
-                Log.Warning(e, "Failed to write review cache {Path}", path);
+                mr.GlobalNotes = RenderMarkdownSafe(mr.GlobalNotes);
+                foreach (var item in mr.Items ?? Enumerable.Empty<LlmItemOutput>())
+                {
+                    // SuggestedTarget is shown with x-text (not x-html), so no markdown rendering needed
+                    foreach (var issue in item.Issues ?? Enumerable.Empty<LlmIssue>())
+                    {
+                        issue.Message    = RenderMarkdownSafe(issue.Message);
+                        issue.Suggestion = RenderMarkdownSafe(issue.Suggestion);
+                        issue.Reason     = RenderMarkdownSafe(issue.Reason);
+                    }
+                }
             }
         }
 
@@ -152,64 +226,123 @@ namespace CFPABot.Christina.Backend
             return new JsonResult(new PRModsResult(mods), _jsonOpts);
         }
 
-        [HttpGet("PRLLMReviewResult")]
-        public async Task PRLLMReviewResult([FromQuery] int pr, [FromQuery] string mod, [FromQuery] bool force = false, [FromQuery] string importance = "medium")
+        [HttpGet("ws/PRLLMReviewResult")]
+        public async Task PRLLMReviewResultWs(
+            [FromQuery] int pr,
+            [FromQuery] string mod,
+            [FromQuery] bool force = false,
+            [FromQuery] string importance = "medium")
         {
-            Response.Headers.Append("Content-Type", "text/event-stream");
-            Response.Headers.Append("Cache-Control", "no-cache");
-            Response.Headers.Append("X-Accel-Buffering", "no");
-
-            string Serialize(object data) => JsonSerializer.Serialize(data, _jsonOpts);
-
-            if (ChristinaConfig.MockEnabled)
+            if (!HttpContext.WebSockets.IsWebSocketRequest)
             {
-                var mockDisplay = new ReviewFrontendDisplay
-                {
-                    FrontendDisplayItems = new List<ReviewFrontendDisplayItem>
-                    {
-                        new() { Key = "item.copper_ingot", Source = "Copper Ingot", Target = "铜锭" },
-                        new() { Key = "item.iron_plate",   Source = "Iron Plate",   Target = "铁板" }
-                    },
-                    LlmOutputItems = new List<LlmItemOutput>
-                    {
-                        new() { Id = 0, Status = ReviewStatus.Pass, Issues = new List<LlmIssue>(), SuggestedTarget = "" },
-                        new() { Id = 1, Status = ReviewStatus.Minor, Issues = new List<LlmIssue>
-                        {
-                            new() { Severity = IssueSeverity.Minor, Type = IssueType.Terminology, Message = "建议统一术语", Suggestion = "铁板", Reason = "术语统一" }
-                        }, SuggestedTarget = "铁板" }
-                    },
-                    GlobalNotes = "整体翻译质量良好"
-                };
-                await Response.WriteAsync($"data: {Serialize(new { type = "done", result = mockDisplay })}\n\n");
-                await Response.Body.FlushAsync();
+                HttpContext.Response.StatusCode = 400;
                 return;
             }
 
-            var jobKey = $"{pr}:{mod}:{importance}";
+            var ws = await HttpContext.WebSockets.AcceptWebSocketAsync();
 
-            // GetOrAdd with a factory that also starts the background task
+            string Serialize(object data) => data.ToJsonString(_jsonOpts);
+
+            async Task SendWs(string json)
+            {
+                var bytes = json.ToUTF8Bytes();
+                try { await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None); }
+                catch { /* client disconnected */ }
+            }
+
+            async Task<bool> RejectWs(string reason)
+            {
+                await SendWs(Serialize(new { type = "error", message = reason }));
+                try { await ws.CloseAsync(WebSocketCloseStatus.PolicyViolation, "", CancellationToken.None); } catch { }
+                return false;
+            }
+
+            // ── Read first config frame (contains auth token + review config) ──
+            WsConfigFrame configFrame;
+            try
+            {
+                using var ms = new MemoryStream();
+                var buf = new byte[65536];
+                WebSocketReceiveResult wsRes;
+                do
+                {
+                    wsRes = await ws.ReceiveAsync(new ArraySegment<byte>(buf), CancellationToken.None);
+                    if (wsRes.MessageType == WebSocketMessageType.Close)
+                    {
+                        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+                        return;
+                    }
+                    ms.Write(buf, 0, wsRes.Count);
+                } while (!wsRes.EndOfMessage);
+
+                configFrame = ms.ToArray().ToUTF8String().JsonDeserialize<WsConfigFrame>(_jsonOpts)
+                              ?? throw new InvalidOperationException("null config frame");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "WS PRLLMReviewResult: bad config frame");
+                await SendWs(Serialize(new { type = "error", message = "invalid config frame" }));
+                try { await ws.CloseAsync(WebSocketCloseStatus.InvalidPayloadData, "", CancellationToken.None); } catch { }
+                return;
+            }
+
+            // ── Auth: token travels in config frame, not URL query string ──
+            var rawToken = configFrame.Token;
+            if (rawToken.IsNullOrEmpty()) { await RejectWs("unauthorized"); return; }
+            var accessToken = DecryptAuthToken(rawToken);
+            if (accessToken == null) { await RejectWs("unauthorized"); return; }
+            try
+            {
+                var ghClient = LoginManager.GetGitHubClient(accessToken);
+                await ghClient.User.Current();
+            }
+            catch { await RejectWs("unauthorized"); return; }
+
+            var models = BuildModelSpecs(configFrame);
+
+            ModelSpec? consistencyModel = null;
+            if (configFrame.Consistency && configFrame.ConsistencyModel.NotNullNorEmpty())
+            {
+                var sep = configFrame.ConsistencyModel.IndexOf(':');
+                if (sep > 0)
+                {
+                    var cmProvider = configFrame.ConsistencyModel[..sep];
+                    var cmModelId  = configFrame.ConsistencyModel[(sep + 1)..];
+                    var cmOv = configFrame.PerModelOverrides?.GetValueOrDefault(configFrame.ConsistencyModel);
+                    consistencyModel = new ModelSpec(cmProvider, cmModelId, cmOv?.BaseUrl, cmOv?.ApiKey);
+                }
+            }
+
+            var consistencyScope = configFrame.ConsistencyScope ?? "diff_only";
+            var modelsHash = ComputeModelsHash(models);
+            // force=true requests never share a job — each gets its own unique key
+            var jobKey = force
+                ? $"{pr}:{mod}:{importance}:{modelsHash}:force:{Guid.NewGuid():N}"
+                : $"{pr}:{mod}:{importance}:{modelsHash}:{(configFrame.Consistency ? 1 : 0)}:{consistencyScope}:{consistencyModel?.UniqueId}";
+
             ReviewJob job;
-            bool isNewJob = false;
-            job = _activeJobs.GetOrAdd(jobKey, _ =>
-            {
-                isNewJob = true;
-                return new ReviewJob();
-            });
+            job = _wsJobs.GetOrAdd(jobKey, _ => new ReviewJob());
 
-            if (isNewJob)
+            if (job.TryAcquireStart())
             {
-                // Start background task — never cancelled, runs to completion regardless of clients
+                var capturedModels           = models;
+                var capturedConsistencyModel = consistencyModel;
+                var capturedScope            = consistencyScope;
+                var capturedScopeFactory     = _scopeFactory;
+                var cts = new CancellationTokenSource();
+                _wsJobCts[jobKey] = cts;
+
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        var diff = await GitHub.Diff(pr);
-                        var prInfo = await GitHub.GetPullRequest(pr);
+                        var diff    = await GitHub.Diff(pr);
+                        var prInfo  = await GitHub.GetPullRequest(pr);
                         var headSha = prInfo.Head.Sha;
                         var baseSha = prInfo.Base.Sha;
 
                         var modPaths = PRAnalyzer.RunBleedingEdge(diff);
-                        var modPath = modPaths.FirstOrDefault(m => m.ToString() == mod);
+                        var modPath  = modPaths.FirstOrDefault(m => m.ToString() == mod);
                         if (modPath == null)
                         {
                             job.Finish(Serialize(new { type = "error", message = "mod not found" }));
@@ -233,10 +366,9 @@ namespace CFPABot.Christina.Backend
                             return;
                         }
 
-                        var en = JsonObjectEx.CreateFromString(enContent);
-                        var cn = JsonObjectEx.CreateFromString(cnContent);
-
-                        var enDict        = en.Lines.ToDictionary(x => x.Key, x => x.Value);
+                        var en     = JsonObjectEx.CreateFromString(enContent);
+                        var cn     = JsonObjectEx.CreateFromString(cnContent);
+                        var enDict = en.Lines.ToDictionary(x => x.Key, x => x.Value);
                         var filteredLines = cn.Lines.Where(x => enDict.ContainsKey(x.Key)).ToArray();
 
                         var baseEnDict = baseEnContent != null
@@ -246,102 +378,372 @@ namespace CFPABot.Christina.Backend
                             ? JsonObjectEx.CreateFromString(baseCnContent).Lines.ToDictionary(x => x.Key, x => x.Value)
                             : null;
 
-                        var result = !force ? await TryLoadReviewCache(pr, mod, headSha, importance) : null;
-                        if (result == null)
+                        // Try new hash-based cache
+                        var cacheEntries = filteredLines.Select(l => (l.Key, enDict.GetValueOrDefault(l.Key, ""), l.Value));
+                        var cacheHash = LlmReviewCache.ComputeHash(capturedModels, importance, configFrame.Consistency, capturedScope, capturedConsistencyModel?.UniqueId, cacheEntries);
+                        var display = force ? null : await LlmReviewCache.TryLoad(cacheHash);
+
+                        ReviewFrontendDisplay wssDisplay;
+                        if (display != null)
                         {
-                            var progress = new Progress<(int completed, int total)>(p =>
+                            Log.Information("WS cache hit hash={Hash}", cacheHash);
+                            wssDisplay = CloneDisplay(display);
+                            SanitizeDisplayMarkdown(wssDisplay); // ensure sanitization even if cache was written by an older build
+                        }
+                        else
+                        {
+                            // Per-model progress state
+                            var perModelState = new ConcurrentDictionary<string, (int completed, int total, bool merging)>();
+                            var wsProgress = new Progress<(string modelId, int completed, int total)>(p =>
                             {
-                                string msg;
-                                if (p.completed == -1)
+                                bool merging = p.completed == -1;
+                                perModelState[p.modelId] = merging
+                                    ? (p.total, p.total, true)
+                                    : (p.completed, p.total, false);
+
+                                var perModel = perModelState.Select(kv => new
                                 {
-                                    job.ProgressCompleted = job.ProgressTotal;
-                                    job.Merging = true;
-                                    msg = Serialize(new { type = "progress", completed = job.ProgressTotal, total = job.ProgressTotal, merging = true });
-                                }
-                                else
-                                {
-                                    job.ProgressCompleted = p.completed;
-                                    job.ProgressTotal     = p.total;
-                                    msg = Serialize(new { type = "progress", completed = p.completed, total = p.total });
-                                }
+                                    modelId   = kv.Key,
+                                    completed = kv.Value.completed,
+                                    total     = kv.Value.total,
+                                    merging   = kv.Value.merging
+                                }).ToList();
+
+                                var msg = Serialize(new { type = "progress", perModel });
+                                job.LastProgressMessage = msg;
                                 job.Broadcast(msg);
                             });
 
-                            result = await LLMAssistantClient.GetLLMReviewResult(
+                            var (modelResults, consistencyReport) = await LLMAssistantClient.GetLLMReviewResult(
                                 en, cn, modPath.CurseForgeSlug, modPath.GameVersionDirectoryName,
-                                importance, progress, CancellationToken.None);
-                            await SaveReviewCache(pr, mod, headSha, importance, result);
+                                importance,
+                                models:             capturedModels,
+                                consistencyModel:   capturedConsistencyModel,
+                                consistencyScope:   capturedScope,
+                                progress:           wsProgress,
+                                ct:                 cts.Token);
+
+                            // Build display items from first model's item IDs (all models review same filtered lines)
+                            var primaryItems = modelResults.Count > 0 ? modelResults[0].Items : new List<LlmItemOutput>();
+                            var displayItems = primaryItems.Select(item =>
+                            {
+                                var line = item.Id < filteredLines.Length ? filteredLines[item.Id] : null;
+                                var key  = line?.Key ?? "";
+                                return new ReviewFrontendDisplayItem
+                                {
+                                    Key        = key,
+                                    Source     = key.NotNullNorEmpty() && enDict.TryGetValue(key, out var s) ? s : "",
+                                    Target     = line?.Value ?? "",
+                                    BaseSource = key.NotNullNorEmpty() && baseEnDict != null && baseEnDict.TryGetValue(key, out var bs) ? bs : null,
+                                    BaseTarget = key.NotNullNorEmpty() && baseCnDict != null && baseCnDict.TryGetValue(key, out var bt) ? bt : null,
+                                };
+                            }).ToList();
+
+                            display = new ReviewFrontendDisplay
+                            {
+                                FrontendDisplayItems = displayItems,
+                                ModelResults         = modelResults,
+                                GlobalNotes          = modelResults.Count > 0 ? modelResults[0].GlobalNotes ?? "" : "",
+                                ConsistencyReport    = consistencyReport
+                            };
+                            // Save raw markdown to cache BEFORE sanitizing so reload doesn't double-render
+                            var contentHash = LlmReviewCache.ComputeContentHash(cacheEntries);
+                            using (var scope = capturedScopeFactory.CreateScope())
+                            {
+                                var scopedDb = scope.ServiceProvider.GetRequiredService<ChristinaDbContext>();
+                                await LlmReviewCache.Save(scopedDb, cacheHash, display, pr, mod, capturedModels, importance, configFrame.Consistency, contentHash);
+                            }
+                            wssDisplay = CloneDisplay(display);
+                            SanitizeDisplayMarkdown(wssDisplay);
                         }
 
-                        var displayItems = result.Items.Select(item =>
-                        {
-                            var line = item.Id < filteredLines.Length ? filteredLines[item.Id] : null;
-                            var key  = line?.Key ?? "";
-                            return new ReviewFrontendDisplayItem
-                            {
-                                Key        = key,
-                                Source     = !string.IsNullOrEmpty(key) && enDict.TryGetValue(key, out var s) ? s : "",
-                                Target     = line?.Value ?? "",
-                                BaseSource = !string.IsNullOrEmpty(key) && baseEnDict != null && baseEnDict.TryGetValue(key, out var bs) ? bs : null,
-                                BaseTarget = !string.IsNullOrEmpty(key) && baseCnDict != null && baseCnDict.TryGetValue(key, out var bt) ? bt : null,
-                            };
-                        }).ToList();
-
-                        var display = new ReviewFrontendDisplay
-                        {
-                            FrontendDisplayItems = displayItems,
-                            LlmOutputItems       = result.Items,
-                            GlobalNotes          = result.GlobalNotes ?? ""
-                        };
-
-                        job.Finish(Serialize(new { type = "done", result = display }));
+                        job.Finish(Serialize(new { type = "done", result = wssDisplay }));
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Log.Information("WS PRLLMReviewResult cancelled for pr={Pr} mod={Mod}", pr, mod);
+                        job.Finish(Serialize(new { type = "error", message = "Review cancelled" }));
                     }
                     catch (Exception ex)
                     {
-                        Log.Error(ex, "PRLLMReviewResult failed for pr={Pr} mod={Mod}", pr, mod);
+                        Log.Error(ex, "WS PRLLMReviewResult failed for pr={Pr} mod={Mod}", pr, mod);
                         job.Finish(Serialize(new { type = "error", message = ex.Message }));
                     }
                     finally
                     {
-                        _activeJobs.TryRemove(jobKey, out _);
+                        _wsJobCts.TryRemove(jobKey, out var removedCts);
+                        removedCts?.Dispose();
+                        // Delay removal so late-joining clients within 60 s get the replay instead of restarting
+                        _ = Task.Delay(TimeSpan.FromSeconds(60))
+                            .ContinueWith(_t => _wsJobs.TryRemove(jobKey, out _), TaskScheduler.Default);
                     }
                 });
             }
 
-            // Build replay message so late joiners see current progress immediately
-            string replayMsg = null;
-            if (job.ProgressTotal > 0)
-                replayMsg = job.Merging
-                    ? Serialize(new { type = "progress", completed = job.ProgressTotal, total = job.ProgressTotal, merging = true })
-                    : Serialize(new { type = "progress", completed = job.ProgressCompleted, total = job.ProgressTotal });
+            var channel = job.Subscribe(job.LastProgressMessage);
 
-            var channel = job.Subscribe(replayMsg);
-
-            // Stream from per-request channel to HTTP response; stop if client disconnects
-            await foreach (var msg in channel.Reader.ReadAllAsync(CancellationToken.None))
+            // Listen for cancel messages from client in background
+            _ = Task.Run(async () =>
             {
                 try
                 {
-                    await Response.WriteAsync($"data: {msg}\n\n", CancellationToken.None);
-                    await Response.Body.FlushAsync(CancellationToken.None);
+                    var buf = new byte[4096];
+                    var msgBuilder = new System.Text.StringBuilder();
+                    while (ws.State == WebSocketState.Open)
+                    {
+                        var res = await ws.ReceiveAsync(new ArraySegment<byte>(buf), HttpContext.RequestAborted);
+                        if (res.MessageType == WebSocketMessageType.Close) break;
+                        msgBuilder.Append(Encoding.UTF8.GetString(buf, 0, res.Count));
+                        if (!res.EndOfMessage) continue;
+                        var msg = msgBuilder.ToString();
+                        msgBuilder.Clear();
+                        try
+                        {
+                            var el = msg.JsonDeserialize<System.Text.Json.JsonElement>();
+                            if (el.TryGetProperty("type", out var tp) && tp.GetString() == "cancel"
+                                && _wsJobCts.TryGetValue(jobKey, out var jobCts))
+                            {
+                                Log.Information("WS PRLLMReviewResult: client requested cancel for job={JobKey}", jobKey);
+                                jobCts.Cancel();
+                            }
+                        }
+                        catch { /* ignore malformed frames */ }
+                    }
                 }
-                catch
-                {
-                    break; // client disconnected — background task keeps running
-                }
+                catch { /* client disconnected */ }
+            });
+
+            try
+            {
+                await foreach (var msg in channel.Reader.ReadAllAsync(HttpContext.RequestAborted))
+                    await SendWs(msg);
+            }
+            catch (OperationCanceledException) { }
+            finally
+            {
+                job.Unsubscribe(channel);
+            }
+
+            if (ws.State == WebSocketState.Open)
+                try { await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None); } catch { }
+        }
+
+        // ── Model config endpoints ──────────────────────────────────────────────────
+        public sealed record AddUserModelRequest(string Provider, string ModelId, string DisplayName, string? BaseUrl);
+        public sealed record AddPresetRequest(string Provider, string ModelId, string DisplayName);
+
+        [HttpGet("ModelConfigs")]
+        [RequireLogin]
+        public async Task<IActionResult> GetModelConfigs()
+        {
+            var user   = HttpContext.GetGhUser();
+            var userId = user.Id.ToString();
+            try
+            {
+                var globalPresets = await _db.GlobalModelPresets
+                    .Where(p => p.IsActive)
+                    .OrderBy(p => p.Id)
+                    .Select(p => new { p.Id, p.Provider, p.ModelId, p.DisplayName })
+                    .ToListAsync();
+                var userModels = await _db.UserModelConfigs
+                    .Where(m => m.GithubUserId == userId)
+                    .OrderBy(m => m.Id)
+                    .Select(m => new { m.Id, m.Provider, m.ModelId, m.DisplayName, m.BaseUrl })
+                    .ToListAsync();
+                return new JsonResult(new { globalPresets, userModels }, _jsonOpts);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "GetModelConfigs");
+                return StatusCode(500);
             }
         }
 
+        [HttpPost("ModelConfigs")]
+        [RequireLogin]
+        public async Task<IActionResult> AddUserModel([FromBody] AddUserModelRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(req.ModelId) || string.IsNullOrWhiteSpace(req.DisplayName) || string.IsNullOrWhiteSpace(req.Provider))
+                return BadRequest("Missing required fields");
+            // Only admin can add custom-provider models
+            if (req.Provider == "custom" && !await LoginManager.IsAdmin(HttpContext.GetGhUser()).ConfigureAwait(false))
+                return Forbid();
+            var user = HttpContext.GetGhUser();
+            try
+            {
+                var config = new UserModelConfig
+                {
+                    GithubUserId = user.Id.ToString(),
+                    Provider     = req.Provider,
+                    ModelId      = req.ModelId,
+                    DisplayName  = req.DisplayName,
+                    BaseUrl      = req.BaseUrl,
+                    CreatedAt    = DateTime.UtcNow
+                };
+                _db.UserModelConfigs.Add(config);
+                await _db.SaveChangesAsync();
+                return new JsonResult(new { id = config.Id }, _jsonOpts);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "AddUserModel");
+                return StatusCode(500);
+            }
+        }
+
+        [HttpDelete("ModelConfigs/{id:int}")]
+        [RequireLogin]
+        public async Task<IActionResult> DeleteUserModel(int id)
+        {
+            var user   = HttpContext.GetGhUser();
+            var userId = user.Id.ToString();
+            try
+            {
+                var model = await _db.UserModelConfigs.FindAsync(id);
+                if (model == null) return NotFound();
+                if (model.GithubUserId != userId) return Forbid();
+                _db.UserModelConfigs.Remove(model);
+                await _db.SaveChangesAsync();
+                return Ok();
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "DeleteUserModel");
+                return StatusCode(500);
+            }
+        }
+
+        [HttpPost("AdminModelPresets")]
+        [RequireAdmin]
+        public async Task<IActionResult> AddGlobalPreset([FromBody] AddPresetRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(req.ModelId) || string.IsNullOrWhiteSpace(req.DisplayName) || string.IsNullOrWhiteSpace(req.Provider))
+                return BadRequest("Missing required fields");
+            try
+            {
+                var preset = new GlobalModelPreset
+                {
+                    Provider    = req.Provider,
+                    ModelId     = req.ModelId,
+                    DisplayName = req.DisplayName,
+                    IsActive    = true
+                };
+                _db.GlobalModelPresets.Add(preset);
+                await _db.SaveChangesAsync();
+                return new JsonResult(new { id = preset.Id }, _jsonOpts);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "AddGlobalPreset");
+                return StatusCode(500);
+            }
+        }
+
+        [HttpDelete("AdminModelPresets/{id:int}")]
+        [RequireAdmin]
+        public async Task<IActionResult> DeleteGlobalPreset(int id)
+        {
+            try
+            {
+                var preset = await _db.GlobalModelPresets.FindAsync(id);
+                if (preset == null) return NotFound();
+                _db.GlobalModelPresets.Remove(preset);
+                await _db.SaveChangesAsync();
+                return Ok();
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "DeleteGlobalPreset");
+                return StatusCode(500);
+            }
+        }
+
+        // ── Review history endpoints ────────────────────────────────────────────────
+        [HttpGet("PRReviewHistory")]
+        [RequireLogin]
+        public async Task<IActionResult> PRReviewHistory([FromQuery] int pr, [FromQuery] string mod)
+        {
+            try
+            {
+                // Compute current content hash (cached for 60s to avoid hitting GitHub API on every request)
+                string? currentContentHash = null;
+                var cacheKey = $"{pr}:{mod}";
+                if (_contentHashCache.TryGetValue(cacheKey, out var cached) && cached.expiry > DateTime.UtcNow)
+                {
+                    currentContentHash = cached.hash;
+                }
+                else
+                {
+                    try
+                    {
+                        var prInfo  = await GitHub.GetPullRequest(pr);
+                        var headSha = prInfo.Head.Sha;
+                        var diff     = await GitHub.Diff(pr);
+                        var modPaths = PRAnalyzer.RunBleedingEdge(diff);
+                        var modPath  = modPaths.FirstOrDefault(m => m.ToString() == mod);
+                        if (modPath != null)
+                        {
+                            var enContent = await new LangFilePath(modPath, LangType.EN).FetchFromCommit(headSha);
+                            var cnContent = await new LangFilePath(modPath, LangType.CN).FetchFromCommit(headSha);
+                            if (enContent != null && cnContent != null)
+                            {
+                                var en           = JsonObjectEx.CreateFromString(enContent);
+                                var cn           = JsonObjectEx.CreateFromString(cnContent);
+                                var enDict       = en.Lines.ToDictionary(x => x.Key, x => x.Value);
+                                var entries      = cn.Lines.Where(x => enDict.ContainsKey(x.Key))
+                                                           .Select(l => (l.Key, enDict.GetValueOrDefault(l.Key, ""), l.Value));
+                                currentContentHash = LlmReviewCache.ComputeContentHash(entries);
+                            }
+                        }
+                        _contentHashCache[cacheKey] = (currentContentHash, DateTime.UtcNow.AddSeconds(60));
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "PRReviewHistory: failed to compute currentContentHash for pr={Pr} mod={Mod}", pr, mod);
+                    }
+                }
+
+                var entries2 = await LlmReviewCache.ListHistory(_db, pr, mod, currentContentHash);
+                return new JsonResult(entries2, _jsonOpts);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "PRReviewHistory");
+                return StatusCode(500);
+            }
+        }
+
+        [HttpGet("PRReviewCacheEntry")]
+        [RequireLogin]
+        public async Task<IActionResult> PRReviewCacheEntry([FromQuery] string hash)
+        {
+            // Validate hash format to prevent path traversal
+            if (hash.IsNullOrEmpty() || !System.Text.RegularExpressions.Regex.IsMatch(hash, @"^[a-f0-9]{24}$"))
+                return BadRequest("invalid hash");
+            try
+            {
+                var display = await LlmReviewCache.LoadByHash(hash);
+                if (display == null) return NotFound();
+                var clone = CloneDisplay(display);
+                SanitizeDisplayMarkdown(clone);
+                return new JsonResult(new { result = clone }, _jsonOpts);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "PRReviewCacheEntry hash={Hash}", hash);
+                return StatusCode(500);
+            }
+        }
 
         record UserStatusResult(bool IsError, string UserName, string AvatarUrl, bool? IsAdmin);
         // GET api/Christina
         [HttpGet("UserStatus")]
+        [RequireLogin]
         public async Task<JsonResult> UserStatus()
         {
             try
             {
-                var client = LoginManager.GetGitHubClient(new HttpContextAccessor() { HttpContext = HttpContext });
-                var user = await client.User.Current();
+                var user = HttpContext.GetGhUser();
                 var username = user.Login;
                 var avatarUrl = user.AvatarUrl;
                 var isAdmin = await LoginManager.IsAdmin(user);

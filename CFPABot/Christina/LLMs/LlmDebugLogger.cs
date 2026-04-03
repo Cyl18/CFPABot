@@ -2,8 +2,10 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using GammaLibrary.Extensions;
 
 namespace CFPABot.Christina.LLMs
 {
@@ -20,6 +22,21 @@ namespace CFPABot.Christina.LLMs
         {
             WriteIndented = true
         };
+
+        // Masks values of sensitive JSON fields (Authorization, apiKey, api_key)
+        private static readonly Regex SensitiveFieldRegex = new(
+            @"""(authorization|apiKey|api_key)\s*"":\s*""([^""\\]|\\.)*""",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static string MaskSensitiveFields(string json)
+            => SensitiveFieldRegex.Replace(json, m =>
+            {
+                // Preserve original field name (with quotes) up to the ':' separator
+                var colon = m.Value.IndexOf(':');
+                return m.Value[..colon] + ": \"***\"";
+            });
+
+        internal static string MaskJson(string json) => MaskSensitiveFields(json);
 
         public static LlmRequestSession StartSession(string label)
         {
@@ -50,7 +67,7 @@ namespace CFPABot.Christina.LLMs
             var path = Path.Combine(_dir, $"{n}.json");
             try
             {
-                var json = JsonSerializer.Serialize(record, _options);
+                var json = LlmDebugLogger.MaskJson(record.ToJsonString(_options));
                 await File.WriteAllTextAsync(path, json);
             }
             catch { /* best effort */ }
