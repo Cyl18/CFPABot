@@ -163,7 +163,7 @@
         <i data-lucide="alert-circle" class="w-5 h-5"></i>
         Consistency Check Failed
       </h3>
-      <p class="text-sm text-red-700 dark:text-red-300" x-text="result.consistencyReport.error"></p>
+      <p class="text-sm text-red-700 dark:text-red-300" x-text="result?.consistencyReport?.error"></p>
     </div>
     <div x-show="consistencyEnabled && !result?.consistencyReport?.error && result?.consistencyReport?.inconsistencies?.length > 0" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl p-6">
       <h3 class="text-lg font-semibold text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-2">
@@ -172,7 +172,7 @@
         <span x-show="result?.consistencyReport?.wasTruncated" class="text-xs font-normal text-amber-600 dark:text-amber-400">(已截断)</span>
       </h3>
       <div class="space-y-2 text-sm text-amber-900 dark:text-amber-200">
-        <template x-for="inc in result.consistencyReport.inconsistencies" :key="inc.enTerm">
+        <template x-for="inc in result?.consistencyReport?.inconsistencies || []" :key="inc.enTerm">
           <div class="flex flex-wrap items-baseline gap-2">
             <span class="font-semibold" x-text="inc.enTerm"></span>
             <template x-for="v in inc.variants" :key="v.translation">
@@ -193,7 +193,7 @@
         Global Notes
       </h3>
       <div class="space-y-3">
-        <template x-for="mr in result.modelResults" :key="mr.spec.uniqueId">
+        <template x-for="mr in result?.modelResults || []" :key="mr.spec.uniqueId">
           <div x-show="mr.globalNotes">
             <p class="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1" x-text="mr.spec.uniqueId"></p>
             <div class="prose dark:prose-invert max-w-none text-sm text-blue-900 dark:text-blue-200" x-html="mr.globalNotes"></div>
@@ -241,7 +241,7 @@
               <tr x-show="expanded" class="bg-slate-50/50 dark:bg-slate-900/50" @click.stop>
                 <td colspan="5" class="px-6 py-4">
                   <div class="space-y-4">
-                    <template x-for="mr in result.modelResults" :key="mr.spec.uniqueId">
+                    <template x-for="mr in result?.modelResults || []" :key="mr.spec.uniqueId">
                       <div x-data="{ mrItem: mr.items.find(x => x.id === index) }" x-show="mrItem" class="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
                         <div class="flex items-start justify-between mb-2">
                           <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200" x-text="mr.spec.uniqueId"></span>
@@ -333,7 +333,7 @@ function prReviewData() {
 
     getCookie(name) {
       const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
-      return v ? v[2] : null;
+      return v ? decodeURIComponent(v[2]) : null;
     },
 
     async loadMods() {

@@ -286,10 +286,15 @@ namespace CFPABot.Christina.Backend
                 return;
             }
 
-            // ── Auth: token travels in config frame, not URL query string ──
-            var rawToken = configFrame.Token;
-            if (rawToken.IsNullOrEmpty()) { await RejectWs("unauthorized"); return; }
-            var accessToken = DecryptAuthToken(rawToken);
+            // ── Auth: try HTTP cookie first (works in cross-origin dev), fall back to frame token ──
+            var cookieToken = LoginManager.GetToken(new Microsoft.AspNetCore.Http.HttpContextAccessor { HttpContext = HttpContext });
+            var accessToken = cookieToken;
+            if (accessToken == null)
+            {
+                var rawToken = configFrame.Token;
+                if (!rawToken.IsNullOrEmpty())
+                    accessToken = DecryptAuthToken(rawToken);
+            }
             if (accessToken == null) { await RejectWs("unauthorized"); return; }
             try
             {
