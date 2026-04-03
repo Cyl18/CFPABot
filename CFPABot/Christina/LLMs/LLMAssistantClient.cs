@@ -31,6 +31,94 @@ namespace CFPABot.Christina.LLMs
             WriteIndented = false
         };
 
+        // JSON Schema for the review batch output (used with OpenRouter structured outputs)
+        private static readonly JsonElement ReviewBatchSchema = JsonDocument.Parse("""
+            {
+              "type": "object",
+              "properties": {
+                "batchSummary": {
+                  "type": "object",
+                  "properties": {
+                    "pass": { "type": "integer" },
+                    "minor": { "type": "integer" },
+                    "needs_fix": { "type": "integer" },
+                    "needs_context": { "type": "integer" }
+                  },
+                  "required": ["pass", "minor", "needs_fix", "needs_context"],
+                  "additionalProperties": false
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "integer" },
+                      "status": { "type": "string", "enum": ["pass", "minor", "needs_fix", "needs_context"] },
+                      "issues": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "severity": { "type": "string", "enum": ["blocker", "major", "minor"] },
+                            "type": { "type": "string", "enum": ["meaning", "terminology", "fluency", "style", "consistency", "placeholder", "formatting", "punctuation", "other"] },
+                            "message": { "type": "string" },
+                            "suggestion": { "type": "string" },
+                            "reason": { "type": "string" }
+                          },
+                          "required": ["severity", "type", "message", "suggestion", "reason"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "suggestedTarget": { "type": "string" }
+                    },
+                    "required": ["id", "status", "issues", "suggestedTarget"],
+                    "additionalProperties": false
+                  }
+                },
+                "globalNotes": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              },
+              "required": ["batchSummary", "items", "globalNotes"],
+              "additionalProperties": false
+            }
+            """).RootElement.Clone();
+
+        // JSON Schema for the consistency check output
+        private static readonly JsonElement ConsistencyReportSchema = JsonDocument.Parse("""
+            {
+              "type": "object",
+              "properties": {
+                "inconsistencies": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "enTerm": { "type": "string" },
+                      "variants": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "translation": { "type": "string" },
+                            "keys": { "type": "array", "items": { "type": "string" } }
+                          },
+                          "required": ["translation", "keys"],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": ["enTerm", "variants"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["inconsistencies"],
+              "additionalProperties": false
+            }
+            """).RootElement.Clone();
+
         /// <summary>
         /// 对 en/cn 进行多模型并行审阅。
         /// </summary>
@@ -56,7 +144,7 @@ namespace CFPABot.Christina.LLMs
             IReadOnlyList<ModelSpec>? models = null,
             ModelSpec? consistencyModel = null,
             string consistencyScope = "diff_only",
-            IProgress<(string modelId, int completed, int total)>? progress = null,
+            IProgress<ReviewProgressUpdate>? progress = null,
             CancellationToken ct = default)
         {
             var enDict = en.Lines.ToDictionary(x => x.Key, x => x.Value);
@@ -93,7 +181,32 @@ namespace CFPABot.Christina.LLMs
                     var entries = sourceLines
                         .Select(l => (l.Key, EnTerm: enDict.GetValueOrDefault(l.Key, ""), CnTerm: l.Value))
                         .ToList();
+                    var consistencyLabel = $"Consistency · {consistencyModel.UniqueId}";
+                    var consistencySummary = consistencyScope == "full_mod"
+                        ? $"Running full-mod consistency check... ({entries.Count} entries)"
+                        : $"Running consistency check... ({entries.Count} entries)";
+                    progress?.Report(new ReviewProgressUpdate
+                    {
+                        Key = $"consistency:{consistencyModel.UniqueId}",
+                        Label = consistencyLabel,
+                        Completed = 0,
+                        Total = 1,
+                        Stage = "consistency",
+                        Indeterminate = true,
+                        StatusText = consistencySummary
+                    });
                     consistencyReport = await GetConsistencyReport(entries, consistencyScope, consistencyModel, ct);
+                    progress?.Report(new ReviewProgressUpdate
+                    {
+                        Key = $"consistency:{consistencyModel.UniqueId}",
+                        Label = consistencyLabel,
+                        Completed = 1,
+                        Total = 1,
+                        Stage = "consistency",
+                        StatusText = consistencyReport?.Inconsistencies?.Count > 0
+                            ? $"Consistency check complete. Found {consistencyReport.Inconsistencies.Count} inconsistencies."
+                            : "Consistency check complete."
+                    });
                     if (consistencyReport?.Inconsistencies?.Count > 0)
                     {
                         var lines = consistencyReport.Inconsistencies.Take(20).Select(i =>
@@ -110,6 +223,15 @@ namespace CFPABot.Christina.LLMs
                 catch (Exception ex)
                 {
                     Log.Warning(ex, "LLMReview: 一致性检查失败，继续审阅");
+                    progress?.Report(new ReviewProgressUpdate
+                    {
+                        Key = $"consistency:{consistencyModel.UniqueId}",
+                        Label = $"Consistency · {consistencyModel.UniqueId}",
+                        Completed = 1,
+                        Total = 1,
+                        Stage = "consistency",
+                        StatusText = $"Consistency check failed: {ex.Message}"
+                    });
                     consistencyReport = new ConsistencyReport
                     {
                         Inconsistencies = new List<ConsistencyInconsistency>(),
@@ -139,34 +261,58 @@ namespace CFPABot.Christina.LLMs
             string modId, string mcVersionRange,
             string importance,
             string? consistencyStyleNote,
-            IProgress<(string modelId, int completed, int total)>? progress,
+            IProgress<ReviewProgressUpdate>? progress,
             CancellationToken ct)
         {
             var provider = LLMProviderFactory.Create(spec);
             int completed = 0;
             int total = batches.Count;
+            progress?.Report(new ReviewProgressUpdate
+            {
+                Key = spec.UniqueId,
+                Label = spec.UniqueId,
+                Completed = 0,
+                Total = total,
+                Stage = "review",
+                StatusText = total > 0 ? $"Reviewing batches 0/{total}" : "Preparing review..."
+            });
 
-            var batchTasks = batches.Select((batch, i) =>
+            var batchTasks = batches.Select(async (batch, i) =>
             {
                 var idOffset = offsets[i];
-                return ProcessBatchAsync(provider, spec.ModelId, enDict, batch, idOffset, modId, mcVersionRange, importance, consistencyStyleNote, ct)
-                    .ContinueWith(t =>
-                    {
-                        Interlocked.Increment(ref completed);
-                        progress?.Report((spec.UniqueId, Volatile.Read(ref completed), total));
-                        return t.GetAwaiter().GetResult();
-                    }, TaskScheduler.Default);
+                var result = await ProcessBatchAsync(provider, spec.ModelId, enDict, batch, idOffset, modId, mcVersionRange, importance, consistencyStyleNote, ct);
+                var done = Interlocked.Increment(ref completed);
+                progress?.Report(new ReviewProgressUpdate
+                {
+                    Key = spec.UniqueId,
+                    Label = spec.UniqueId,
+                    Completed = done,
+                    Total = total,
+                    Stage = "review",
+                    StatusText = $"Reviewing batches {done}/{total}"
+                });
+                return result;
             }).ToArray();
 
             var results = await Task.WhenAll(batchTasks);
 
             var allItems = results.SelectMany(r => r.items).OrderBy(x => x.Id).ToList();
             var allGlobalNotes = results.Select(r => r.notes).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
+            var batchErrors = results.Select(r => r.batchError).Where(e => e != null).ToList();
 
             string mergedNotes;
             try
             {
-                progress?.Report((spec.UniqueId, -1, total)); // signal: merging
+                progress?.Report(new ReviewProgressUpdate
+                {
+                    Key = spec.UniqueId,
+                    Label = spec.UniqueId,
+                    Completed = total,
+                    Total = total,
+                    Merging = true,
+                    Stage = "merge",
+                    StatusText = "Merging results..."
+                });
                 mergedNotes = await MergeGlobalNotesAsync(provider, spec.ModelId, allItems, allGlobalNotes, ct);
             }
             catch (OperationCanceledException) { throw; }
@@ -176,10 +322,10 @@ namespace CFPABot.Christina.LLMs
                 mergedNotes = allGlobalNotes.Connect(separator: "\n");
             }
 
-            return new ModelBatchResult { Spec = spec, Items = allItems, GlobalNotes = mergedNotes };
+            return new ModelBatchResult { Spec = spec, Items = allItems, GlobalNotes = mergedNotes, BatchErrors = batchErrors.Count > 0 ? batchErrors : null };
         }
 
-        private static async Task<(List<LlmItemOutput> items, string notes)> ProcessBatchAsync(
+        private static async Task<(List<LlmItemOutput> items, string notes, string? batchError)> ProcessBatchAsync(
             ILLMProvider provider,
             string model,
             Dictionary<string, string> enDict,
@@ -215,14 +361,40 @@ namespace CFPABot.Christina.LLMs
             var prompt = promptTemplate.Replace("{{INPUT_JSON}}", inputJson);
 
             // 将一致性检查的术语不一致结果注入 style rules
-            var systemPrompt = consistencyStyleNote != null
+            var baseSystemPrompt = consistencyStyleNote != null
                 ? SystemPrompt + "\n\n额外术语一致性约束：\n" + consistencyStyleNote
                 : SystemPrompt;
 
-            var responseText = await provider.QueryWithSystemPromptAsync(systemPrompt, prompt, model, ct);
+            try
+            {
+                var responseText = await provider.QueryWithSystemPromptStructuredAsync(baseSystemPrompt, prompt, model, ReviewBatchSchema, ct);
+                var (items, batchNotes) = ParseBatchOutput(responseText, globalIdOffset);
 
-            var (items, batchNotes) = ParseBatchOutput(responseText, globalIdOffset);
-            return (items, batchNotes);
+                if (items.Count == 0 && entries.Count > 0)
+                {
+                    Log.Warning("ProcessBatchAsync: 首次解析返回空结果，idOffset={IdOffset}，model={Model}，进行重试", globalIdOffset, model);
+                    var retryResponse = await provider.QueryWithSystemPromptStructuredAsync(baseSystemPrompt, prompt, model, ReviewBatchSchema, ct);
+                    var (retryItems, retryNotes) = ParseBatchOutput(retryResponse, globalIdOffset);
+
+                    if (retryItems.Count == 0)
+                    {
+                        var errMsg = $"batch@offset={globalIdOffset}: 两次解析均失败，原始响应长度={responseText?.Length ?? 0}，重试响应长度={retryResponse?.Length ?? 0}";
+                        Log.Warning("ProcessBatchAsync: 重试后仍为空，{Msg}", errMsg);
+                        return (BuildBatchFailureItems(entries, globalIdOffset, errMsg), retryNotes, errMsg);
+                    }
+
+                    return (retryItems, retryNotes, null);
+                }
+
+                return (items, batchNotes, null);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                var errMsg = $"batch@offset={globalIdOffset}: {ex.Message}";
+                Log.Warning(ex, "ProcessBatchAsync: 请求失败，{Msg}", errMsg);
+                return (BuildBatchFailureItems(entries, globalIdOffset, errMsg), "", errMsg);
+            }
         }
 
         // ── Batching ──────────────────────────────────────────────────────────
@@ -354,7 +526,7 @@ namespace CFPABot.Christina.LLMs
             "minor"         => ReviewStatus.Minor,
             "needs_fix"     => ReviewStatus.NeedsFix,
             "needs_context" => ReviewStatus.NeedsContext,
-            _               => ReviewStatus.Pass
+            _               => ReviewStatus.NotReviewed
         };
 
         private static IssueSeverity ParseIssueSeverity(string? s) => s switch
@@ -376,6 +548,27 @@ namespace CFPABot.Christina.LLMs
             "punctuation" => IssueType.Punctuation,
             _             => IssueType.Other
         };
+
+        private static List<LlmItemOutput> BuildBatchFailureItems(List<ReviewEntry> entries, int idOffset, string message)
+        {
+            return entries.Select(entry => new LlmItemOutput
+            {
+                Id = idOffset + entry.Id,
+                Status = ReviewStatus.NotReviewed,
+                SuggestedTarget = entry.Target,
+                Issues = new List<LlmIssue>
+                {
+                    new()
+                    {
+                        Severity = IssueSeverity.Major,
+                        Type = IssueType.Other,
+                        Message = "This entry was not reviewed because the batch failed.",
+                        Suggestion = "",
+                        Reason = message
+                    }
+                }
+            }).ToList();
+        }
 
         // ── GlobalNotes merge ──────────────────────────────────────────────────
 
@@ -481,7 +674,7 @@ namespace CFPABot.Christina.LLMs
                 .ToJsonString(new JsonSerializerOptions { WriteIndented = false });
 
             var prompt = ConsistencyPrompt.Replace("{{ENTRIES_JSON}}", entriesJson);
-            var responseText = await provider.QueryAsync(prompt, consistencyModel.ModelId, ct);
+            var responseText = await provider.QueryWithSystemPromptStructuredAsync(string.Empty, prompt, consistencyModel.ModelId, ConsistencyReportSchema, ct);
 
             var inconsistencies = ParseConsistencyOutput(responseText);
             return new ConsistencyReport { Inconsistencies = inconsistencies, WasTruncated = wasTruncated };
@@ -628,11 +821,14 @@ namespace CFPABot.Christina.LLMs
 
         // - 若需要更多信息，请优先 tool call 获取：key 的使用场景、相似条目既有译法、模板展开样例。
 
+        /// <summary>当首次响应无法解析时附加到 system prompt 末尾的重试提示。</summary>
+        private const string RetryJsonOnlyHint = "\n\n重要：你的上次响应不是合法 JSON 或无法解析。请只返回合法 JSON 对象，不要包含任何说明文字、Markdown 代码块（```）或其他额外内容。";
+
         // 填入 OpenRouter 上用于批次审阅的模型名
         private const string OpenRouterReviewModel = "openrouter/free";
 
         // 填入 Gemini 上用于合并 GlobalNotes 的模型名
-        public const string DefaultMergeModel = "gemini-3-flash-preview";
+        public const string DefaultMergeModel = "gemini-3.1-flash-lite-preview";
         private const string GeminiMergeModel = DefaultMergeModel;
 
         private const string GeminiMergePrompt = """

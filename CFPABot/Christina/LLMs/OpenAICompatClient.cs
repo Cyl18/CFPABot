@@ -42,7 +42,10 @@ namespace CFPABot.Christina.LLMs
         public Task<string> QueryWithSystemPromptAsync(string systemPrompt, string userPrompt, string model, CancellationToken ct = default)
             => SendAsync(systemPrompt, userPrompt, model, ct);
 
-        private async Task<string> SendAsync(string? systemPrompt, string userPrompt, string model, CancellationToken ct)
+        public Task<string> QueryWithSystemPromptStructuredAsync(string systemPrompt, string userPrompt, string model, JsonElement responseSchema, CancellationToken ct = default)
+            => SendAsync(systemPrompt, userPrompt, model, ct, responseSchema);
+
+        private async Task<string> SendAsync(string? systemPrompt, string userPrompt, string model, CancellationToken ct, JsonElement? responseSchema = null)
         {
             var retryDelays = new[] { 0, 1, 5, 5, 10, 30 };
 
@@ -54,7 +57,7 @@ namespace CFPABot.Christina.LLMs
                     await Task.Delay(TimeSpan.FromSeconds(retryDelays[attempt]), ct);
                 }
 
-                using var request = BuildRequest(systemPrompt, userPrompt, model);
+                using var request = BuildRequest(systemPrompt, userPrompt, model, responseSchema);
                 HttpResponseMessage resp;
                 string responseBody;
 
@@ -90,17 +93,35 @@ namespace CFPABot.Christina.LLMs
             throw new InvalidOperationException($"OpenAICompat: model={model} all retries exhausted");
         }
 
-        private HttpRequestMessage BuildRequest(string? systemPrompt, string userPrompt, string model)
+        private HttpRequestMessage BuildRequest(string? systemPrompt, string userPrompt, string model, JsonElement? responseSchema = null)
         {
             var messages = systemPrompt is null
                 ? new object[] { new { role = "user", content = userPrompt } }
                 : new object[] { new { role = "system", content = systemPrompt }, new { role = "user", content = userPrompt } };
 
-            var body = new { model, messages };
+            string bodyJson;
+            if (responseSchema.HasValue)
+            {
+                var body = new
+                {
+                    model,
+                    messages,
+                    responseFormat = new
+                    {
+                        type = "json_schema",
+                        jsonSchema = new { name = "output", strict = true, schema = responseSchema.Value }
+                    }
+                };
+                bodyJson = body.ToJsonString(JsonOpts);
+            }
+            else
+            {
+                bodyJson = new { model, messages }.ToJsonString(JsonOpts);
+            }
 
             var msg = new HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/chat/completions");
             msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
-            msg.Content = new StringContent(body.ToJsonString(JsonOpts), Encoding.UTF8, "application/json");
+            msg.Content = new StringContent(bodyJson, Encoding.UTF8, "application/json");
             return msg;
         }
 

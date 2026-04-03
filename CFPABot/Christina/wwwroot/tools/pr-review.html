@@ -140,14 +140,16 @@
   <div x-show="loading || perModelProgress.length > 0" class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
     <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200">Review Progress</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <template x-for="prog in perModelProgress" :key="prog.modelId">
+      <template x-for="prog in perModelProgress" :key="prog.key || prog.modelId">
         <div class="space-y-1">
           <div class="flex justify-between text-sm">
-            <span class="font-medium text-slate-700 dark:text-slate-300" x-text="prog.modelId"></span>
-            <span class="text-slate-500 dark:text-slate-400" x-text="(prog.completed || 0) + ' / ' + (prog.total || 0)"></span>
+            <span class="font-medium text-slate-700 dark:text-slate-300" x-text="prog.label || prog.modelId"></span>
+            <span class="text-slate-500 dark:text-slate-400" x-text="prog.statusText || ((prog.completed || 0) + ' / ' + (prog.total || 0))"></span>
           </div>
           <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-            <div class="bg-indigo-600 h-2 rounded-full transition-all duration-300" :style="'width: ' + ((prog.total ? prog.completed / prog.total : 0) * 100) + '%'"></div>
+            <div class="h-2 rounded-full transition-all duration-300"
+                 :class="prog.indeterminate ? 'bg-sky-500 animate-pulse' : (prog.stage === 'consistency' ? 'bg-sky-600' : 'bg-indigo-600')"
+                 :style="prog.indeterminate ? 'width: 35%' : ('width: ' + ((prog.total ? prog.completed / prog.total : 0) * 100) + '%')"></div>
           </div>
         </div>
       </template>
@@ -215,8 +217,8 @@
               <th class="px-6 py-3 font-semibold text-slate-800 dark:text-slate-200"></th>
             </tr>
           </thead>
-          <template x-for="(item, index) in result?.frontendDisplayItems" :key="index">
-            <tbody x-data="{ expanded: false }">
+          <template x-for="(item, index) in result?.frontendDisplayItems" :key="item.id ?? index">
+            <tbody x-data="{ expanded: false, rowId: item.id ?? index }">
               <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer border-t border-slate-200 dark:border-slate-700" @click="expanded = !expanded">
                 <td class="px-6 py-4">
                   <div class="font-medium text-slate-900 dark:text-slate-100 max-w-[200px] truncate" x-text="item.key" :title="item.key"></div>
@@ -229,7 +231,7 @@
                 </td>
                 <td class="px-6 py-4 text-center">
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                        :class="getAggregatedStatusClass(index)" x-text="getAggregatedStatusText(index)"></span>
+                        :class="getAggregatedStatusClass(rowId)" x-text="getAggregatedStatusText(rowId)"></span>
                 </td>
                 <td class="px-6 py-4 text-right">
                   <button type="button" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
@@ -242,10 +244,13 @@
                 <td colspan="5" class="px-6 py-4">
                   <div class="space-y-4">
                     <template x-for="mr in result?.modelResults || []" :key="mr.spec.uniqueId">
-                      <div x-data="{ mrItem: mr.items.find(x => x.id === index) }" x-show="mrItem" class="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <div x-data="{ mrItem: mr.items.find(x => x.id === rowId) }" class="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
                         <div class="flex items-start justify-between mb-2">
                           <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200" x-text="mr.spec.uniqueId"></span>
-                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold" :class="mrItem ? getStatusClass(getStatusSeverity(mrItem.status)) : ''" x-text="mrItem ? getStatusText(getStatusSeverity(mrItem.status)) : ''"></span>
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold" :class="getStatusClass(getStatusSeverity(mrItem?.status || 'NotReviewed'))" x-text="getStatusText(getStatusSeverity(mrItem?.status || 'NotReviewed'))"></span>
+                        </div>
+                        <div x-show="!mrItem" class="text-sm text-slate-500 dark:text-slate-400">
+                          This entry does not have a review result for this model.
                         </div>
                         <template x-for="(issue, ii) in mrItem?.issues || []" :key="ii">
                           <div class="pl-3 border-l-2 mb-2" :class="{ 'border-red-400': issue.severity === 'NeedsFix', 'border-amber-400': issue.severity === 'Minor', 'border-violet-400': issue.severity === 'NeedsContext' }">
@@ -412,7 +417,7 @@ function prReviewData() {
       this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
-        this.statusMessage = 'Connected. Starting review...';
+        this.statusMessage = this.consistencyEnabled ? 'Connected. Preparing consistency check...' : 'Connected. Starting review...';
         
         let perModelOverrides = {};
         const enabledModels = this.models.filter(x => x.enabled);
@@ -457,10 +462,25 @@ function prReviewData() {
           if (data.type === 'progress') {
             if (data.perModel) {
               this.perModelProgress = data.perModel;
+              const activeConsistency = data.perModel.find(p =>
+                p.stage === 'consistency' && (p.indeterminate || (p.completed || 0) < (p.total || 0))
+              );
               const merging = data.perModel.some(p => p.merging);
-              const done  = data.perModel.reduce((s, p) => s + (p.completed || 0), 0);
-              const total = data.perModel.reduce((s, p) => s + (p.total    || 0), 0);
-              this.statusMessage = merging ? 'Merging results...' : `Processing... ${done}/${total}`;
+              const reviewProgress = data.perModel.filter(p => p.stage !== 'consistency');
+              const done = reviewProgress.reduce((s, p) => s + (p.completed || 0), 0);
+              const total = reviewProgress.reduce((s, p) => s + (p.total || 0), 0);
+
+              if (activeConsistency) {
+                this.statusMessage = activeConsistency.statusText || 'Running consistency check...';
+              } else if (merging) {
+                this.statusMessage = 'Merging results...';
+              } else if (reviewProgress.length > 0) {
+                this.statusMessage = `Processing... ${done}/${total}`;
+              } else if (data.perModel.some(p => p.stage === 'consistency')) {
+                this.statusMessage = 'Consistency check complete. Starting review...';
+              } else {
+                this.statusMessage = 'Preparing review...';
+              }
             }
           } else if (data.type === 'done') {
             this.result = data.result;
@@ -510,6 +530,7 @@ function prReviewData() {
 
     getStatusSeverity(statusStr) {
       switch(statusStr) {
+        case 'NotReviewed': return -1;
         case 'Pass': return 0;
         case 'Minor': return 1;
         case 'NeedsContext': return 2;
@@ -518,29 +539,35 @@ function prReviewData() {
       }
     },
 
-    getAggregatedStatus(index) {
+    getAggregatedStatus(rowId) {
       if(!this.result || !this.result.modelResults) return 0;
       let maxSeverity = 0;
+      let hasUnreviewed = false;
       this.result.modelResults.forEach(mr => {
-        const item = mr.items?.find(x => x.id === index);
-        if(item) {
+        const item = mr.items?.find(x => x.id === rowId);
+        if(!item) {
+          hasUnreviewed = true;
+        } else if(item.status === 'NotReviewed') {
+          hasUnreviewed = true;
+        } else {
           const s = this.getStatusSeverity(item.status);
           if(s > maxSeverity) maxSeverity = s;
         }
       });
-      return maxSeverity;
+      return maxSeverity === 0 && hasUnreviewed ? -1 : maxSeverity;
     },
 
-    getAggregatedStatusText(index) {
-      return this.getStatusText(this.getAggregatedStatus(index));
+    getAggregatedStatusText(rowId) {
+      return this.getStatusText(this.getAggregatedStatus(rowId));
     },
 
-    getAggregatedStatusClass(index) {
-      return this.getStatusClass(this.getAggregatedStatus(index));
+    getAggregatedStatusClass(rowId) {
+      return this.getStatusClass(this.getAggregatedStatus(rowId));
     },
 
     getStatusText(severity) {
       switch(severity) {
+        case -1: return 'Not Reviewed';
         case 0: return 'Pass';
         case 1: return 'Minor';
         case 2: return 'Needs Context';
@@ -551,6 +578,7 @@ function prReviewData() {
 
     getStatusClass(severity) {
       switch(severity) {
+        case -1: return 'bg-slate-200 text-slate-900 dark:bg-slate-600 dark:text-slate-100';
         case 0: return 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
         case 1: return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300';
         case 2: return 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300';

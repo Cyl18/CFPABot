@@ -398,20 +398,25 @@ namespace CFPABot.Christina.Backend
                         else
                         {
                             // Per-model progress state
-                            var perModelState = new ConcurrentDictionary<string, (int completed, int total, bool merging)>();
-                            var wsProgress = new Progress<(string modelId, int completed, int total)>(p =>
+                            var perModelState = new ConcurrentDictionary<string, ReviewProgressUpdate>();
+                            var wsProgress = new Progress<ReviewProgressUpdate>(p =>
                             {
-                                bool merging = p.completed == -1;
-                                perModelState[p.modelId] = merging
-                                    ? (p.total, p.total, true)
-                                    : (p.completed, p.total, false);
+                                perModelState[p.Key] = p;
 
-                                var perModel = perModelState.Select(kv => new
+                                var perModel = perModelState.Values
+                                    .OrderBy(v => v.Stage == "consistency" ? 0 : 1)
+                                    .ThenBy(v => v.Label, StringComparer.Ordinal)
+                                    .Select(v => new
                                 {
-                                    modelId   = kv.Key,
-                                    completed = kv.Value.completed,
-                                    total     = kv.Value.total,
-                                    merging   = kv.Value.merging
+                                    key           = v.Key,
+                                    modelId       = v.Key,
+                                    label         = v.Label,
+                                    completed     = v.Completed,
+                                    total         = v.Total,
+                                    merging       = v.Merging,
+                                    indeterminate = v.Indeterminate,
+                                    stage         = v.Stage,
+                                    statusText    = v.StatusText
                                 }).ToList();
 
                                 var msg = Serialize(new { type = "progress", perModel });
@@ -428,14 +433,14 @@ namespace CFPABot.Christina.Backend
                                 progress:           wsProgress,
                                 ct:                 cts.Token);
 
-                            // Build display items from first model's item IDs (all models review same filtered lines)
-                            var primaryItems = modelResults.Count > 0 ? modelResults[0].Items : new List<LlmItemOutput>();
-                            var displayItems = primaryItems.Select(item =>
+                            // Build display rows from the full filtered line set so partial batch failures
+                            // do not drop rows or shift item ids in the frontend.
+                            var displayItems = filteredLines.Select((line, index) =>
                             {
-                                var line = item.Id < filteredLines.Length ? filteredLines[item.Id] : null;
-                                var key  = line?.Key ?? "";
+                                var key = line.Key;
                                 return new ReviewFrontendDisplayItem
                                 {
+                                    Id         = index,
                                     Key        = key,
                                     Source     = key.NotNullNorEmpty() && enDict.TryGetValue(key, out var s) ? s : "",
                                     Target     = line?.Value ?? "",

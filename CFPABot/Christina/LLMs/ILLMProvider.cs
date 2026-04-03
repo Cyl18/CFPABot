@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Net.Http;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,6 +30,14 @@ namespace CFPABot.Christina.LLMs
 
         /// <summary>带 system prompt 的单轮请求，返回模型文本回复。</summary>
         Task<string> QueryWithSystemPromptAsync(string systemPrompt, string userPrompt, string model, CancellationToken ct = default);
+
+        /// <summary>
+        /// 带 system prompt 的单轮请求，并附带 JSON Schema 结构化输出约束。
+        /// 默认实现退回到 <see cref="QueryWithSystemPromptAsync"/>（忽略 schema）。
+        /// 支持 structured outputs 的 Provider（如 OpenRouter）应覆盖此方法。
+        /// </summary>
+        Task<string> QueryWithSystemPromptStructuredAsync(string systemPrompt, string userPrompt, string model, JsonElement responseSchema, CancellationToken ct = default)
+            => QueryWithSystemPromptAsync(systemPrompt, userPrompt, model, ct);
     }
 
     /// <summary>根据 ModelSpec 创建对应的 ILLMProvider 实例。</summary>

@@ -57,17 +57,26 @@ namespace CFPABot.Christina.LLMs
     using System.Net.Http;
     using System.Text;
     using System.Text.Json;
+    using System.Text.Json.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
     using Serilog;
 
     public sealed class OpenRouterClient
     {
+        private const int MaxGlobalConcurrentRequests = 20;
+        private static readonly SemaphoreSlim GlobalRequestGate = new(MaxGlobalConcurrentRequests, MaxGlobalConcurrentRequests);
+        private static readonly JsonSerializerOptions StructuredChatJson = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
         private readonly HttpClient _http;
         private readonly ApiKeyPool _keyPool;
         private readonly JsonSerializerOptions _json;
 
         private const string Endpoint = "https://openrouter.ai/api/v1/responses";
+        private const string ChatCompletionsEndpoint = "https://openrouter.ai/api/v1/chat/completions";
 
         public OpenRouterClient()
         {
@@ -182,7 +191,7 @@ var payload = responseBody.JsonDeserialize<ResponseEnvelope>(_json)
             while (true)
             {
                 var clone = await CloneRequestAsync(msg);
-                var resp = await _http.SendAsync(clone, ct);
+                var resp = await SendAsyncWithGlobalLimit(clone, ct);
 
                 if (resp.StatusCode != (HttpStatusCode)429 || attempt >= maxRetries)
                     return resp;
@@ -203,6 +212,19 @@ var payload = responseBody.JsonDeserialize<ResponseEnvelope>(_json)
                    ?? throw new InvalidOperationException("Invalid response");
         }
 
+        private async Task<HttpResponseMessage> SendAsyncWithGlobalLimit(HttpRequestMessage request, CancellationToken ct)
+        {
+            await GlobalRequestGate.WaitAsync(ct);
+            try
+            {
+                return await _http.SendAsync(request, ct);
+            }
+            finally
+            {
+                GlobalRequestGate.Release();
+            }
+        }
+
         private static async Task<HttpRequestMessage> CloneRequestAsync(HttpRequestMessage original)
         {
             var clone = new HttpRequestMessage(original.Method, original.RequestUri);
@@ -218,6 +240,60 @@ var payload = responseBody.JsonDeserialize<ResponseEnvelope>(_json)
             }
 
             return clone;
+        }
+
+        private HttpRequestMessage BuildStructuredChatRequest(
+            string apiKey,
+            string systemPrompt,
+            string userPrompt,
+            string model,
+            JsonElement responseSchema)
+        {
+            var messages = systemPrompt is null
+                ? new object[] { new { role = "user", content = userPrompt } }
+                : new object[] { new { role = "system", content = systemPrompt }, new { role = "user", content = userPrompt } };
+
+            var body = new
+            {
+                model,
+                messages,
+                responseFormat = new
+                {
+                    type = "json_schema",
+                    jsonSchema = new { name = "output", strict = true, schema = responseSchema }
+                }
+            };
+
+            var msg = new HttpRequestMessage(HttpMethod.Post, ChatCompletionsEndpoint);
+            msg.Headers.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+            msg.Content = new StringContent(
+                body.ToJsonString(StructuredChatJson),
+                Encoding.UTF8,
+                "application/json");
+            return msg;
+        }
+
+        private static string? ExtractChatCompletionText(string responseBody)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(responseBody);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
+                {
+                    var first = choices[0];
+                    if (first.TryGetProperty("message", out var msg) &&
+                        msg.TryGetProperty("content", out var content) &&
+                        content.ValueKind == JsonValueKind.String)
+                    {
+                        return content.GetString();
+                    }
+                }
+            }
+            catch (JsonException) { }
+
+            return null;
         }
 
         /// <summary>单次请求，不使用工具，直接返回模型的文本回复。</summary>
@@ -256,7 +332,7 @@ var payload = responseBody.JsonDeserialize<ResponseEnvelope>(_json)
                 int statusCode;
                 try
                 {
-                    var resp = await _http.SendAsync(msg, ct);
+                    var resp = await SendAsyncWithGlobalLimit(msg, ct);
                     responseBody = await resp.Content.ReadAsStringAsync();
                     requestSucceeded = resp.IsSuccessStatusCode;
                     statusCode = (int)resp.StatusCode;
@@ -331,7 +407,7 @@ var payload = responseBody.JsonDeserialize<ResponseEnvelope>(_json)
                 int statusCode;
                 try
                 {
-                    var resp = await _http.SendAsync(msg, ct);
+                    var resp = await SendAsyncWithGlobalLimit(msg, ct);
                     responseBody = await resp.Content.ReadAsStringAsync();
                     requestSucceeded = resp.IsSuccessStatusCode;
                     statusCode = (int)resp.StatusCode;
@@ -363,6 +439,80 @@ var payload = responseBody.JsonDeserialize<ResponseEnvelope>(_json)
                 var text = payload.GetText();
                 if (text is not null)
                     return text;
+            }
+
+            throw new InvalidOperationException("All models exhausted");
+        }
+
+        public async Task<string> QueryWithSystemPromptStructuredAsync(
+            string systemPrompt,
+            string userPrompt,
+            ModelPolicy modelPolicy,
+            JsonElement responseSchema,
+            CancellationToken ct = default)
+        {
+            var session = LlmDebugLogger.StartSession("openrouter-query-structured");
+            var retryDelays = new[] { 0, 1, 5, 5, 10, 30 };
+
+            foreach (var model in modelPolicy.Enumerate())
+            {
+                for (int attempt = 0; attempt < retryDelays.Length; attempt++)
+                {
+                    if (attempt > 0)
+                    {
+                        Log.Warning("OpenRouter QueryWithSystemPromptStructuredAsync 重试, model={Model}, attempt={Attempt}", model, attempt);
+                        await Task.Delay(TimeSpan.FromSeconds(retryDelays[attempt]), ct);
+                    }
+
+                    var apiKey = await _keyPool.Acquire();
+                    using var msg = BuildStructuredChatRequest(apiKey, systemPrompt, userPrompt, model, responseSchema);
+
+                    string responseBody;
+                    bool requestSucceeded;
+                    int statusCode;
+                    HttpResponseMessage resp;
+                    try
+                    {
+                        resp = await SendAsyncWithGlobalLimit(msg, ct);
+                        responseBody = await resp.Content.ReadAsStringAsync(ct);
+                        requestSucceeded = resp.IsSuccessStatusCode;
+                        statusCode = (int)resp.StatusCode;
+                    }
+                    catch (HttpRequestException ex) when (!ct.IsCancellationRequested)
+                    {
+                        Log.Warning(ex, "OpenRouter QueryWithSystemPromptStructuredAsync 网络错误, model={Model}, attempt={Attempt}", model, attempt);
+                        continue;
+                    }
+
+                    await session.WriteAsync(new
+                    {
+                        timestamp = DateTime.UtcNow,
+                        client = "openrouter",
+                        method = "query-structured",
+                        model,
+                        attempt,
+                        success = requestSucceeded,
+                        statusCode,
+                        prompt = new { system = systemPrompt, user = userPrompt, schema = responseSchema },
+                        response = responseBody
+                    });
+
+                    if (resp.StatusCode == (HttpStatusCode)429)
+                    {
+                        _keyPool.Penalize(apiKey);
+                        var retryAfter = RetryPolicy.ComputeDelay(resp, attempt + 1);
+                        Log.Warning("OpenRouter structured 429, 等待 {Delay}s", retryAfter.TotalSeconds);
+                        await Task.Delay(retryAfter, ct);
+                        continue;
+                    }
+
+                    if (!requestSucceeded)
+                        continue;
+
+                    var text = ExtractChatCompletionText(responseBody);
+                    if (text is not null)
+                        return text;
+                }
             }
 
             throw new InvalidOperationException("All models exhausted");
@@ -513,5 +663,8 @@ var payload = responseBody.JsonDeserialize<ResponseEnvelope>(_json)
 
         public Task<string> QueryWithSystemPromptAsync(string systemPrompt, string userPrompt, string model, CancellationToken ct = default)
             => _client.QueryWithSystemPromptAsync(systemPrompt, userPrompt, new ModelPolicy(model), ct);
+
+        public Task<string> QueryWithSystemPromptStructuredAsync(string systemPrompt, string userPrompt, string model, System.Text.Json.JsonElement responseSchema, CancellationToken ct = default)
+            => _client.QueryWithSystemPromptStructuredAsync(systemPrompt, userPrompt, new ModelPolicy(model), responseSchema, ct);
     }
 }

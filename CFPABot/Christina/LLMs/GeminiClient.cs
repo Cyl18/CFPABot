@@ -260,15 +260,24 @@ namespace CFPABot.Christina.LLMs
         {
             var session = LlmDebugLogger.StartSession("gemini-query");
             var retryDelays = new[] { 0, 1, 5, 5, 5, 5, 5, 30, 60 };
+            const int maxAttempts = 9;
 
             foreach (var model in modelPolicy.Enumerate())
             {
-                for (int attempt = 0; attempt < 9; attempt++)
+                string retryReason = "initial attempt";
+                for (int attempt = 0; attempt < maxAttempts; attempt++)
                 {
                     if (attempt > 0)
                     {
-                        Log.Warning("Gemini QueryAsync 重试, model={Model}, attempt={Attempt}", model, attempt);
-                        await Task.Delay(TimeSpan.FromSeconds(retryDelays[attempt - 1]), ct);
+                        var delay = TimeSpan.FromSeconds(retryDelays[attempt - 1]);
+                        Log.Warning(
+                            "Gemini QueryAsync 重试, model={Model}, attempt={Attempt}/{MaxAttempts}, reason={Reason}, delay={DelaySeconds}s",
+                            model,
+                            attempt + 1,
+                            maxAttempts,
+                            retryReason,
+                            delay.TotalSeconds);
+                        await Task.Delay(delay, ct);
                     }
 
                     var apiKey = await _keyPool.Acquire();
@@ -290,15 +299,33 @@ namespace CFPABot.Christina.LLMs
                         }
                     };
 
-                    Log.Information("Gemini QueryAsync 发送请求, model={Model}, attempt={Attempt}", model, attempt);
+                    Log.Information("Gemini QueryAsync 发送请求, model={Model}, attempt={Attempt}/{MaxAttempts}", model, attempt + 1, maxAttempts);
                     using var msg = new HttpRequestMessage(HttpMethod.Post, url);
                     msg.Content = new StringContent(
                         body.ToJsonString(_json),
                         Encoding.UTF8,
                         "application/json");
 
-                    var resp = await _http.SendAsync(msg, ct);
-                    var responseBody = await resp.Content.ReadAsStringAsync();
+                    HttpResponseMessage resp;
+                    string responseBody;
+                    try
+                    {
+                        resp = await _http.SendAsync(msg, ct);
+                        responseBody = await resp.Content.ReadAsStringAsync();
+                    }
+                    catch (HttpRequestException ex) when (!ct.IsCancellationRequested)
+                    {
+                        retryReason = ex.InnerException?.Message ?? ex.Message;
+                        Log.Warning(
+                            ex,
+                            "Gemini QueryAsync 网络错误, model={Model}, attempt={Attempt}/{MaxAttempts}, willRetry={WillRetry}",
+                            model,
+                            attempt + 1,
+                            maxAttempts,
+                            attempt + 1 < maxAttempts);
+                        continue;
+                    }
+
                     await session.WriteAsync(new
                     {
                         timestamp = DateTime.UtcNow,
@@ -313,7 +340,10 @@ namespace CFPABot.Christina.LLMs
                     });
 
                     if (!resp.IsSuccessStatusCode)
+                    {
+                        retryReason = $"HTTP {(int)resp.StatusCode}";
                         continue;
+                    }
 
                     var payload = responseBody.JsonDeserialize<GeminiResponseEnvelope>(_json)
                                   ?? throw new InvalidOperationException("Invalid Gemini response");

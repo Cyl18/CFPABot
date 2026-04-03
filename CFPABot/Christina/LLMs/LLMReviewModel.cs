@@ -7,7 +7,7 @@ namespace CFPABot.Christina.LLMs
     // 条目类型（本地分类，不让 LLM 猜）
     enum EntryKind { Block, Item, Entity, Subtitle, Tooltip, Ui, Advancement, Config, Command, Misc }
 
-    enum ReviewStatus { Pass, Minor, NeedsFix, NeedsContext }
+    enum ReviewStatus { Pass, Minor, NeedsFix, NeedsContext, NotReviewed }
 
     enum IssueSeverity { Blocker, Major, Minor }
 
@@ -73,8 +73,21 @@ namespace CFPABot.Christina.LLMs
         public ConsistencyReport? ConsistencyReport { get; set; }
     }
 
+    sealed class ReviewProgressUpdate
+    {
+        public string Key { get; set; } = "";
+        public string Label { get; set; } = "";
+        public int Completed { get; set; }
+        public int Total { get; set; }
+        public bool Merging { get; set; }
+        public bool Indeterminate { get; set; }
+        public string Stage { get; set; } = "review";
+        public string? StatusText { get; set; }
+    }
+
     sealed class ReviewFrontendDisplayItem
     {
+        public int? Id;
         public string Key;
         public string Source; // en (head)
         public string Target; // cn (head)
@@ -96,6 +109,8 @@ namespace CFPABot.Christina.LLMs
         public ModelSpec Spec { get; set; }
         public List<LlmItemOutput> Items { get; set; }
         public string GlobalNotes { get; set; }
+        /// <summary>各批次解析/请求失败的错误信息，为空则全部成功。</summary>
+        public List<string>? BatchErrors { get; set; }
     }
 
     /// <summary>上下文一致性检查报告。</summary>
