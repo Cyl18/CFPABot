@@ -30,7 +30,7 @@ namespace CFPABot.Controllers
             hc.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         }
         [HttpGet]
-        public async Task<IActionResult> OAuth([FromQuery] string code)
+        public async Task<IActionResult> OAuth([FromQuery] string code, [FromQuery] string state = null)
         {
             var p = await hc.PostAsync("https://github.com/login/oauth/access_token", new FormUrlEncodedContent(new []
             {
@@ -56,6 +56,11 @@ namespace CFPABot.Controllers
             }
             HttpContext.Response.Cookies.Append(Constants.GitHubOAuthTokenCookieName, EncryptProvider.AESEncrypt(clientAccessToken, 
                 System.IO.File.ReadAllText("config/encrypt_key.txt"), "CACTUS&MAMARUO!!"), new CookieOptions() {HttpOnly = false, MaxAge = TimeSpan.FromDays(7)});
+            if (string.Equals(state, "christina", StringComparison.OrdinalIgnoreCase))
+            {
+                return Redirect("/christina/app.html");
+            }
+
             return Redirect("/Azusa");
         }
 

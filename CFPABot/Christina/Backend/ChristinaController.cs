@@ -209,6 +209,14 @@ namespace CFPABot.Christina.Backend
         // }
 
         record PRModsResult(string[] Mods);
+        [HttpGet("Login")]
+        public IActionResult Login()
+        {
+            var loginUrl =
+                $"https://github.com/login/oauth/authorize?client_id={CFPABot.Utils.Constants.GitHubOAuthClientId}&scope=user:email%20public_repo%20workflow&state=christina";
+            return Redirect(loginUrl);
+        }
+
         [HttpGet("PRMods")]
         public async Task<JsonResult> PRMods([FromQuery] int pr)
         {
