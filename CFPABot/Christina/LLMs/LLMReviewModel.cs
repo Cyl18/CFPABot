@@ -1,5 +1,8 @@
 ﻿using System.Collections.Generic;
 
+using System.Linq;
+using System.Text.Json.Serialization;
+
 namespace CFPABot.Christina.LLMs
 {
     enum ImportanceLevel { Low, Medium, High }
@@ -131,7 +134,25 @@ namespace CFPABot.Christina.LLMs
     sealed class TermVariant
     {
         public string Translation { get; set; }
-        public List<string> Keys { get; set; }
+        public List<int> EntryIds { get; set; } = new();
+
+        [JsonPropertyName("keys")]
+        public List<string>? LegacyKeys
+        {
+            set
+            {
+                if (value == null || value.Count == 0)
+                {
+                    return;
+                }
+
+                EntryIds = value
+                    .Select(x => int.TryParse(x, out var id) ? (int?)id : null)
+                    .Where(x => x.HasValue)
+                    .Select(x => x!.Value)
+                    .ToList();
+            }
+        }
     }
 
     sealed class LlmItemOutput

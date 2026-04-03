@@ -11,6 +11,7 @@ namespace CFPABot.Christina.Backend
         public string ModelId { get; set; } = "";
         public string DisplayName { get; set; } = "";
         public bool IsActive { get; set; } = true;
+        public int SortOrder { get; set; }
     }
 
     /// <summary>用户自定义模型（用户管理，custom provider 需填 BaseUrl）</summary>
@@ -23,6 +24,7 @@ namespace CFPABot.Christina.Backend
         public string DisplayName { get; set; } = "";
         public string? BaseUrl { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public int SortOrder { get; set; }
     }
 
     /// <summary>LLM review cache 索引行，用于快速按 PR+mod 查询历史。</summary>
@@ -55,6 +57,7 @@ namespace CFPABot.Christina.Backend
                 e.Property(x => x.Provider).IsRequired().HasMaxLength(32);
                 e.Property(x => x.ModelId).IsRequired().HasMaxLength(128);
                 e.Property(x => x.DisplayName).IsRequired().HasMaxLength(128);
+                e.Property(x => x.SortOrder).HasDefaultValue(0);
             });
 
             modelBuilder.Entity<UserModelConfig>(e =>
@@ -65,6 +68,7 @@ namespace CFPABot.Christina.Backend
                 e.Property(x => x.ModelId).IsRequired().HasMaxLength(128);
                 e.Property(x => x.DisplayName).IsRequired().HasMaxLength(128);
                 e.Property(x => x.BaseUrl).HasMaxLength(256);
+                e.Property(x => x.SortOrder).HasDefaultValue(0);
             });
 
             modelBuilder.Entity<LlmReviewCacheIndex>(e =>

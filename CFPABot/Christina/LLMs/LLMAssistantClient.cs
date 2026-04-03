@@ -102,9 +102,9 @@ namespace CFPABot.Christina.LLMs
                           "type": "object",
                           "properties": {
                             "translation": { "type": "string" },
-                            "keys": { "type": "array", "items": { "type": "string" } }
+                            "entryIds": { "type": "array", "items": { "type": "integer" } }
                           },
-                          "required": ["translation", "keys"],
+                          "required": ["translation", "entryIds"],
                           "additionalProperties": false
                         }
                       }
@@ -212,7 +212,12 @@ namespace CFPABot.Christina.LLMs
                         var lines = consistencyReport.Inconsistencies.Take(20).Select(i =>
                         {
                             var variantStr = i.Variants.Select(v =>
-                                "\u300c" + v.Translation + "\u300d(" + v.Keys.Take(3).Connect(separator: ",") + ")").Connect(separator: "\u3001");
+                            {
+                                var refs = v.EntryIds.Take(3).Select(id => "#" + id).Connect(separator: ",");
+                                return refs.NotNullNorEmpty()
+                                    ? "\u300c" + v.Translation + "\u300d(" + refs + ")"
+                                    : "\u300c" + v.Translation + "\u300d";
+                            }).Connect(separator: "\u3001");
                             return "- " + i.EnTerm + ": " + variantStr;
                         });
                         consistencyStyleNote = "检测到以下术语存在不一致译法，请尽量统一：\n" + lines.Connect(separator: "\n");
@@ -645,32 +650,34 @@ namespace CFPABot.Christina.LLMs
             var provider = LLMProviderFactory.Create(consistencyModel);
 
             // 估算 token 数量（chars/3）
-            int totalChars = entries.Sum(e => e.Key.Length + e.EnTerm.Length + e.CnTerm.Length + 10);
+            int totalChars = entries.Sum(e => e.EnTerm.Length + e.CnTerm.Length + 10);
             bool wasTruncated = false;
-            List<(string Key, string EnTerm, string CnTerm)> effectiveEntries;
+            List<(int Id, string EnTerm, string CnTerm)> effectiveEntries;
 
             if (totalChars / 3 > MaxTokenEstimate)
             {
                 wasTruncated = true;
                 // 截断到 token 预算内
                 int budget = MaxTokenEstimate * 3;
-                var limited = new List<(string Key, string EnTerm, string CnTerm)>();
+                var limited = new List<(int Id, string EnTerm, string CnTerm)>();
                 int used = 0;
-                foreach (var e in entries)
+                foreach (var (entry, index) in entries.Select((entry, index) => (entry, index)))
                 {
-                    var size = e.Key.Length + e.EnTerm.Length + e.CnTerm.Length + 10;
+                    var size = entry.EnTerm.Length + entry.CnTerm.Length + 10;
                     if (used + size > budget) break;
-                    limited.Add(e);
+                    limited.Add((index + 1, entry.EnTerm, entry.CnTerm));
                     used += size;
                 }
                 effectiveEntries = limited;
             }
             else
             {
-                effectiveEntries = entries;
+                effectiveEntries = entries
+                    .Select((entry, index) => (index + 1, entry.EnTerm, entry.CnTerm))
+                    .ToList();
             }
 
-            var entriesJson = effectiveEntries.Select(e => new { key = e.Key, en = e.EnTerm, cn = e.CnTerm })
+            var entriesJson = effectiveEntries.Select(e => new { id = e.Id, en = e.EnTerm, cn = e.CnTerm })
                 .ToJsonString(new JsonSerializerOptions { WriteIndented = false });
 
             var prompt = ConsistencyPrompt.Replace("{{ENTRIES_JSON}}", entriesJson);
@@ -703,11 +710,36 @@ namespace CFPABot.Christina.LLMs
                         foreach (var v in vArr.EnumerateArray())
                         {
                             var translation = v.TryGetProperty("translation", out var tr) ? tr.GetString() ?? "" : "";
-                            var keys = new List<string>();
-                            if (v.TryGetProperty("keys", out var kArr) && kArr.ValueKind == JsonValueKind.Array)
+                            var entryIds = new List<int>();
+                            if (v.TryGetProperty("entryIds", out var idArr) && idArr.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var id in idArr.EnumerateArray())
+                                {
+                                    if (id.ValueKind == JsonValueKind.Number && id.TryGetInt32(out var entryId))
+                                    {
+                                        entryIds.Add(entryId);
+                                    }
+                                    else if (id.ValueKind == JsonValueKind.String && int.TryParse(id.GetString(), out entryId))
+                                    {
+                                        entryIds.Add(entryId);
+                                    }
+                                }
+                            }
+                            else if (v.TryGetProperty("keys", out var kArr) && kArr.ValueKind == JsonValueKind.Array)
+                            {
                                 foreach (var k in kArr.EnumerateArray())
-                                    if (k.ValueKind == JsonValueKind.String) keys.Add(k.GetString() ?? "");
-                            variants.Add(new TermVariant { Translation = translation, Keys = keys });
+                                {
+                                    if (k.ValueKind == JsonValueKind.Number && k.TryGetInt32(out var entryId))
+                                    {
+                                        entryIds.Add(entryId);
+                                    }
+                                    else if (k.ValueKind == JsonValueKind.String && int.TryParse(k.GetString(), out entryId))
+                                    {
+                                        entryIds.Add(entryId);
+                                    }
+                                }
+                            }
+                            variants.Add(new TermVariant { Translation = translation, EntryIds = entryIds });
                         }
                     }
                     if (enTerm.NotNullNorEmpty() && variants.Count >= 2)
@@ -722,7 +754,7 @@ namespace CFPABot.Christina.LLMs
         }
 
         private const string ConsistencyPrompt = """
-            你是 Minecraft 模组中文翻译一致性检查助手。你将收到一组翻译条目（key、en 原文、cn 译文）。
+            你是 Minecraft 模组中文翻译一致性检查助手。你将收到一组翻译条目（id、en 原文、cn 译文）。
             请找出同一个英文术语/短语在不同条目中被翻译成了不同的中文译法（不一致现象）。
             只关注名词性短语和固定表达；忽略因语法变化导致的正常差异（如动名词、复数）。
 
@@ -735,8 +767,8 @@ namespace CFPABot.Christina.LLMs
                 {
                   "enTerm": "英文术语原文",
                   "variants": [
-                    { "translation": "译法A", "keys": ["key1", "key2"] },
-                    { "translation": "译法B", "keys": ["key3"] }
+                    { "translation": "译法A", "entryIds": [1, 2] },
+                    { "translation": "译法B", "entryIds": [3] }
                   ]
                 }
               ]

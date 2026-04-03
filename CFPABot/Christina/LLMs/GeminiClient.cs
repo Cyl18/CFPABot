@@ -259,8 +259,8 @@ namespace CFPABot.Christina.LLMs
             CancellationToken ct = default)
         {
             var session = LlmDebugLogger.StartSession("gemini-query");
-            var retryDelays = new[] { 0, 1, 5, 5, 5, 5, 5, 30, 60 };
-            const int maxAttempts = 9;
+            var retryDelays = new[] { 0, 1, 5, 5, 5, 5, 5, 30, 60, 5, 5, 5 };
+            var maxAttempts = retryDelays.Length;
 
             foreach (var model in modelPolicy.Enumerate())
             {

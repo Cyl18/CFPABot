@@ -19,9 +19,11 @@ using CFPABot.ProjectHex;
 using CFPABot.Utils;
 using GammaLibrary.Extensions;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.EntityFrameworkCore;
 using Octokit;
 using Serilog;
 using Serilog.Events;
+using System.Data;
 
 namespace CFPABot
 {
@@ -133,11 +135,10 @@ namespace CFPABot
             try
             {
                 var host = CreateHostBuilder(args).Build();
-                // Initialize Christina DB (EnsureCreated is idempotent)
                 using (var scope = host.Services.CreateScope())
                 {
                     var db = scope.ServiceProvider.GetRequiredService<CFPABot.Christina.Backend.ChristinaDbContext>();
-                    await db.Database.EnsureCreatedAsync();
+                    await EnsureChristinaDbSchemaAsync(db);
                 }
                 // Start daily LLM cache cleanup cron (stops when app shuts down)
                 var scopeFactory = host.Services.GetRequiredService<IServiceScopeFactory>();
@@ -197,6 +198,52 @@ namespace CFPABot
         {
             if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Development")
                 await PRDataManager.Init();
+        }
+
+        static async Task EnsureChristinaDbSchemaAsync(CFPABot.Christina.Backend.ChristinaDbContext db)
+        {
+            await db.Database.EnsureCreatedAsync();
+            await AddColumnIfMissingAsync(db, "GlobalModelPresets", "SortOrder", "INTEGER NOT NULL DEFAULT 0");
+            await AddColumnIfMissingAsync(db, "UserModelConfigs", "SortOrder", "INTEGER NOT NULL DEFAULT 0");
+            await db.Database.ExecuteSqlRawAsync("UPDATE \"GlobalModelPresets\" SET \"SortOrder\" = \"Id\" WHERE \"SortOrder\" = 0;");
+            await db.Database.ExecuteSqlRawAsync("UPDATE \"UserModelConfigs\" SET \"SortOrder\" = \"Id\" WHERE \"SortOrder\" = 0;");
+        }
+
+        static async Task AddColumnIfMissingAsync(CFPABot.Christina.Backend.ChristinaDbContext db, string tableName, string columnName, string columnDefinition)
+        {
+            if (columnName != "SortOrder" || columnDefinition != "INTEGER NOT NULL DEFAULT 0")
+                throw new InvalidOperationException("Unsupported Christina schema update.");
+
+            var connection = db.Database.GetDbConnection();
+            var shouldClose = connection.State != ConnectionState.Open;
+            if (shouldClose)
+                await connection.OpenAsync();
+
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = $"PRAGMA table_info(\"{tableName}\");";
+                await using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    if (string.Equals(reader["name"]?.ToString(), columnName, StringComparison.OrdinalIgnoreCase))
+                        return;
+                }
+            }
+            finally
+            {
+                if (shouldClose)
+                    await connection.CloseAsync();
+            }
+
+            var sql = tableName switch
+            {
+                "GlobalModelPresets" => "ALTER TABLE \"GlobalModelPresets\" ADD COLUMN \"SortOrder\" INTEGER NOT NULL DEFAULT 0;",
+                "UserModelConfigs" => "ALTER TABLE \"UserModelConfigs\" ADD COLUMN \"SortOrder\" INTEGER NOT NULL DEFAULT 0;",
+                _ => throw new InvalidOperationException("Unsupported Christina schema update.")
+            };
+
+            await db.Database.ExecuteSqlRawAsync(sql);
         }
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>

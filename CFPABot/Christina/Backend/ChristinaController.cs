@@ -467,7 +467,7 @@ namespace CFPABot.Christina.Backend
                             SanitizeDisplayMarkdown(wssDisplay);
                         }
 
-                        job.Finish(Serialize(new { type = "done", result = wssDisplay }));
+                        job.Finish(Serialize(new { type = "done", result = wssDisplay, hash = cacheHash }));
                     }
                     catch (OperationCanceledException)
                     {
@@ -541,6 +541,7 @@ namespace CFPABot.Christina.Backend
         // ── Model config endpoints ──────────────────────────────────────────────────
         public sealed record AddUserModelRequest(string Provider, string ModelId, string DisplayName, string? BaseUrl);
         public sealed record AddPresetRequest(string Provider, string ModelId, string DisplayName);
+        public sealed record ReorderRequest(List<int> Ids);
 
         [HttpGet("ModelConfigs")]
         [RequireLogin]
@@ -552,13 +553,15 @@ namespace CFPABot.Christina.Backend
             {
                 var globalPresets = await _db.GlobalModelPresets
                     .Where(p => p.IsActive)
-                    .OrderBy(p => p.Id)
-                    .Select(p => new { p.Id, p.Provider, p.ModelId, p.DisplayName })
+                    .OrderBy(p => p.SortOrder)
+                    .ThenBy(p => p.Id)
+                    .Select(p => new { p.Id, p.Provider, p.ModelId, p.DisplayName, p.SortOrder })
                     .ToListAsync();
                 var userModels = await _db.UserModelConfigs
                     .Where(m => m.GithubUserId == userId)
-                    .OrderBy(m => m.Id)
-                    .Select(m => new { m.Id, m.Provider, m.ModelId, m.DisplayName, m.BaseUrl })
+                    .OrderBy(m => m.SortOrder)
+                    .ThenBy(m => m.Id)
+                    .Select(m => new { m.Id, m.Provider, m.ModelId, m.DisplayName, m.BaseUrl, m.SortOrder })
                     .ToListAsync();
                 return new JsonResult(new { globalPresets, userModels }, _jsonOpts);
             }
@@ -581,14 +584,20 @@ namespace CFPABot.Christina.Backend
             var user = HttpContext.GetGhUser();
             try
             {
+                var userId = user.Id.ToString();
+                var nextSortOrder = (await _db.UserModelConfigs
+                    .Where(m => m.GithubUserId == userId)
+                    .Select(m => (int?)m.SortOrder)
+                    .MaxAsync()) ?? 0;
                 var config = new UserModelConfig
                 {
-                    GithubUserId = user.Id.ToString(),
+                    GithubUserId = userId,
                     Provider     = req.Provider,
                     ModelId      = req.ModelId,
                     DisplayName  = req.DisplayName,
                     BaseUrl      = req.BaseUrl,
-                    CreatedAt    = DateTime.UtcNow
+                    CreatedAt    = DateTime.UtcNow,
+                    SortOrder    = nextSortOrder + 1
                 };
                 _db.UserModelConfigs.Add(config);
                 await _db.SaveChangesAsync();
@@ -597,6 +606,68 @@ namespace CFPABot.Christina.Backend
             catch (Exception e)
             {
                 Log.Error(e, "AddUserModel");
+                return StatusCode(500);
+            }
+        }
+
+        [HttpPut("ModelConfigs/{id:int}")]
+        [RequireLogin]
+        public async Task<IActionResult> UpdateUserModel(int id, [FromBody] AddUserModelRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(req.ModelId) || string.IsNullOrWhiteSpace(req.DisplayName) || string.IsNullOrWhiteSpace(req.Provider))
+                return BadRequest("Missing required fields");
+            if (req.Provider == "custom" && !await LoginManager.IsAdmin(HttpContext.GetGhUser()).ConfigureAwait(false))
+                return Forbid();
+
+            var userId = HttpContext.GetGhUser().Id.ToString();
+            try
+            {
+                var model = await _db.UserModelConfigs.FindAsync(id);
+                if (model == null) return NotFound();
+                if (model.GithubUserId != userId) return Forbid();
+
+                model.Provider = req.Provider;
+                model.ModelId = req.ModelId;
+                model.DisplayName = req.DisplayName;
+                model.BaseUrl = req.BaseUrl;
+
+                await _db.SaveChangesAsync();
+                return Ok();
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "UpdateUserModel");
+                return StatusCode(500);
+            }
+        }
+
+        [HttpPost("ModelConfigs/reorder")]
+        [RequireLogin]
+        public async Task<IActionResult> ReorderUserModels([FromBody] ReorderRequest req)
+        {
+            var userId = HttpContext.GetGhUser().Id.ToString();
+            try
+            {
+                var models = await _db.UserModelConfigs
+                    .Where(m => m.GithubUserId == userId)
+                    .ToListAsync();
+
+                if (req.Ids == null || req.Ids.Count != models.Count || req.Ids.Distinct().Count() != models.Count)
+                    return BadRequest("Invalid ids");
+
+                var map = models.ToDictionary(m => m.Id);
+                if (req.Ids.Any(id => !map.ContainsKey(id)))
+                    return BadRequest("Invalid ids");
+
+                for (var i = 0; i < req.Ids.Count; i++)
+                    map[req.Ids[i]].SortOrder = i + 1;
+
+                await _db.SaveChangesAsync();
+                return Ok();
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "ReorderUserModels");
                 return StatusCode(500);
             }
         }
@@ -631,12 +702,17 @@ namespace CFPABot.Christina.Backend
                 return BadRequest("Missing required fields");
             try
             {
+                var nextSortOrder = (await _db.GlobalModelPresets
+                    .Where(p => p.IsActive)
+                    .Select(p => (int?)p.SortOrder)
+                    .MaxAsync()) ?? 0;
                 var preset = new GlobalModelPreset
                 {
                     Provider    = req.Provider,
                     ModelId     = req.ModelId,
                     DisplayName = req.DisplayName,
-                    IsActive    = true
+                    IsActive    = true,
+                    SortOrder   = nextSortOrder + 1
                 };
                 _db.GlobalModelPresets.Add(preset);
                 await _db.SaveChangesAsync();
@@ -645,6 +721,61 @@ namespace CFPABot.Christina.Backend
             catch (Exception e)
             {
                 Log.Error(e, "AddGlobalPreset");
+                return StatusCode(500);
+            }
+        }
+
+        [HttpPut("AdminModelPresets/{id:int}")]
+        [RequireAdmin]
+        public async Task<IActionResult> UpdateGlobalPreset(int id, [FromBody] AddPresetRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(req.ModelId) || string.IsNullOrWhiteSpace(req.DisplayName) || string.IsNullOrWhiteSpace(req.Provider))
+                return BadRequest("Missing required fields");
+            try
+            {
+                var preset = await _db.GlobalModelPresets.FindAsync(id);
+                if (preset == null) return NotFound();
+
+                preset.Provider = req.Provider;
+                preset.ModelId = req.ModelId;
+                preset.DisplayName = req.DisplayName;
+
+                await _db.SaveChangesAsync();
+                return Ok();
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "UpdateGlobalPreset");
+                return StatusCode(500);
+            }
+        }
+
+        [HttpPost("AdminModelPresets/reorder")]
+        [RequireAdmin]
+        public async Task<IActionResult> ReorderGlobalPresets([FromBody] ReorderRequest req)
+        {
+            try
+            {
+                var presets = await _db.GlobalModelPresets
+                    .Where(p => p.IsActive)
+                    .ToListAsync();
+
+                if (req.Ids == null || req.Ids.Count != presets.Count || req.Ids.Distinct().Count() != presets.Count)
+                    return BadRequest("Invalid ids");
+
+                var map = presets.ToDictionary(p => p.Id);
+                if (req.Ids.Any(id => !map.ContainsKey(id)))
+                    return BadRequest("Invalid ids");
+
+                for (var i = 0; i < req.Ids.Count; i++)
+                    map[req.Ids[i]].SortOrder = i + 1;
+
+                await _db.SaveChangesAsync();
+                return Ok();
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "ReorderGlobalPresets");
                 return StatusCode(500);
             }
         }
