@@ -5,6 +5,12 @@ pause
 exit /b
 #>
 
+$answer = Read-Host "Deploy to production? [Y/n]"
+if ($answer -eq 'n' -or $answer -eq 'N') {
+    Write-Host "Aborted."
+    exit 0
+}
+
 Write-Host "==============================================="
 Write-Host "Checking local changes..."
 Write-Host "==============================================="
