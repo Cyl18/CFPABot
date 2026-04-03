@@ -9,7 +9,7 @@
   </div>
 
   <div x-show="successMsg" class="flex items-center gap-3 p-3 rounded-lg bg-emerald-900/30 border border-emerald-700 text-emerald-300 text-sm">
-    <i data-lucide="check-circle-2" class="w-4 h-4 flex-shrink-0"></i>
+    <i data-lucide="check-circle" class="w-4 h-4 flex-shrink-0"></i>
     <span x-text="successMsg"></span>
     <button @click="successMsg=''" class="ml-auto text-emerald-400 hover:text-emerald-200">
       <i data-lucide="x" class="w-4 h-4"></i>
@@ -28,29 +28,29 @@
       </button>
     </div>
 
-    <div x-show="globalPresets.length===0" class="text-slate-400 text-sm">暂无全局预置。</div>
+    <div x-show="globalPresets.length === 0" class="text-slate-400 text-sm">暂无全局预置。</div>
 
     <div class="space-y-2" @dragover.prevent @drop.prevent="dropOnListEnd('global')">
-      <template x-for="p in globalPresets" :key="'global-'+p.id">
+      <template x-for="preset in globalPresets" :key="'global-' + preset.id">
         <div :draggable="isAdmin"
-             @dragstart="startDrag('global', p.id)"
+             @dragstart="startDrag('global', preset.id)"
              @dragend="endDrag()"
              @dragover.prevent.stop
-             @drop.prevent.stop="dropOnItem('global', p.id)"
+             @drop.prevent.stop="dropOnItem('global', preset.id)"
              class="flex items-center justify-between gap-3 p-3 rounded-lg bg-slate-800 border border-slate-700 transition"
-             :class="dragging && dragging.section==='global' && dragging.id===p.id ? 'opacity-50 ring-1 ring-indigo-400' : (isAdmin ? 'cursor-grab hover:border-slate-500' : '')">
+             :class="dragging && dragging.section === 'global' && dragging.id === preset.id ? 'opacity-50 ring-1 ring-indigo-400' : (isAdmin ? 'cursor-grab hover:border-slate-500' : '')">
           <div class="min-w-0">
             <div class="flex items-center gap-2">
               <i x-show="isAdmin" data-lucide="grip-vertical" class="w-4 h-4 text-slate-500 flex-shrink-0"></i>
-              <span class="font-medium text-slate-100 truncate" x-text="p.displayName"></span>
+              <span class="font-medium text-slate-100 truncate" x-text="preset.displayName"></span>
             </div>
-            <div class="mt-1 text-xs text-slate-400 break-all" x-text="p.provider + ':' + p.modelId"></div>
+            <div class="mt-1 text-xs text-slate-400 break-all" x-text="preset.provider + ':' + preset.modelId"></div>
           </div>
           <div x-show="isAdmin" class="flex items-center gap-1 flex-shrink-0">
-            <button @click="openDialog('global', 'edit', p)" class="text-slate-300 hover:text-white p-1.5 rounded hover:bg-slate-700" title="编辑">
+            <button @click="openDialog('global', 'edit', preset)" class="text-slate-300 hover:text-white p-1.5 rounded hover:bg-slate-700" title="编辑">
               <i data-lucide="pencil" class="w-4 h-4"></i>
             </button>
-            <button @click="deleteItem('global', p.id)" class="text-red-400 hover:text-red-300 p-1.5 rounded hover:bg-slate-700" title="删除">
+            <button @click="deleteItem('global', preset.id)" class="text-red-400 hover:text-red-300 p-1.5 rounded hover:bg-slate-700" title="删除">
               <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
           </div>
@@ -65,67 +65,36 @@
         <h2 class="text-lg font-semibold text-slate-100">我的自定义模型</h2>
         <p class="text-xs text-slate-500 mt-1">支持编辑和拖动排序，顺序会立即保存。</p>
       </div>
-      <button @click="openAddUserDialog()"
+      <button @click="openDialog('user', 'add')"
               class="flex items-center gap-1 px-3 py-1 text-sm rounded bg-indigo-600 hover:bg-indigo-500 text-white">
         <i data-lucide="plus" class="w-4 h-4"></i> 添加
       </button>
     </div>
 
-    <div x-show="userModels.length===0" class="text-slate-400 text-sm">暂无自定义模型。</div>
+    <div x-show="userModels.length === 0" class="text-slate-400 text-sm">暂无自定义模型。</div>
 
     <div class="space-y-2" @dragover.prevent @drop.prevent="dropOnListEnd('user')">
-      <template x-for="m in userModels" :key="'user-'+m.id">
+      <template x-for="model in userModels" :key="'user-' + model.id">
         <div draggable="true"
-             @dragstart="startDrag('user', m.id)"
+             @dragstart="startDrag('user', model.id)"
              @dragend="endDrag()"
              @dragover.prevent.stop
-             @drop.prevent.stop="dropOnItem('user', m.id)"
+             @drop.prevent.stop="dropOnItem('user', model.id)"
              class="flex items-center justify-between gap-3 p-3 rounded-lg bg-slate-800 border border-slate-700 transition cursor-grab hover:border-slate-500"
-             :class="dragging && dragging.section==='user' && dragging.id===m.id ? 'opacity-50 ring-1 ring-indigo-400' : ''">
+             :class="dragging && dragging.section === 'user' && dragging.id === model.id ? 'opacity-50 ring-1 ring-indigo-400' : ''">
           <div class="min-w-0">
             <div class="flex items-center gap-2">
               <i data-lucide="grip-vertical" class="w-4 h-4 text-slate-500 flex-shrink-0"></i>
-              <span class="font-medium text-slate-100 truncate" x-text="m.displayName"></span>
+              <span class="font-medium text-slate-100 truncate" x-text="model.displayName"></span>
             </div>
-            <div class="mt-1 text-xs text-slate-400 break-all" x-text="m.provider + ':' + m.modelId"></div>
-            <div x-show="m.baseUrl" class="mt-1 text-xs text-slate-500 break-all" x-text="m.baseUrl"></div>
+            <div class="mt-1 text-xs text-slate-400 break-all" x-text="model.provider + ':' + model.modelId"></div>
+            <div x-show="model.baseUrl" class="mt-1 text-xs text-slate-500 break-all" x-text="model.baseUrl"></div>
           </div>
           <div class="flex items-center gap-1 flex-shrink-0">
-            <button @click="openEditUserDialog(m)" class="text-slate-300 hover:text-white p-1.5 rounded hover:bg-slate-700" title="编辑">
+            <button @click="openDialog('user', 'edit', model)" class="text-slate-300 hover:text-white p-1.5 rounded hover:bg-slate-700" title="编辑">
               <i data-lucide="pencil" class="w-4 h-4"></i>
             </button>
-            <button @click="deleteUserModel(m.id)" class="text-red-400 hover:text-red-300 p-1.5 rounded hover:bg-slate-700" title="删除">
-              <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>Dialog('user', 'add')"
-              class="flex items-center gap-1 px-3 py-1 text-sm rounded bg-indigo-600 hover:bg-indigo-500 text-white">
-        <i data-lucide="plus" class="w-4 h-4"></i> 添加
-      </button>
-    </div>
-
-    <div x-show="userModels.length===0" class="text-slate-400 text-sm">暂无自定义模型。</div>
-
-    <div class="space-y-2" @dragover.prevent @drop.prevent="dropOnListEnd('user')">
-      <template x-for="m in userModels" :key="'user-'+m.id">
-        <div draggable="true"
-             @dragstart="startDrag('user', m.id)"
-             @dragend="endDrag()"
-             @dragover.prevent.stop
-             @drop.prevent.stop="dropOnItem('user', m.id)"
-             class="flex items-center justify-between gap-3 p-3 rounded-lg bg-slate-800 border border-slate-700 transition cursor-grab hover:border-slate-500"
-             :class="dragging && dragging.section==='user' && dragging.id===m.id ? 'opacity-50 ring-1 ring-indigo-400' : ''">
-          <div class="min-w-0">
-            <div class="flex items-center gap-2">
-              <i data-lucide="grip-vertical" class="w-4 h-4 text-slate-500 flex-shrink-0"></i>
-              <span class="font-medium text-slate-100 truncate" x-text="m.displayName"></span>
-            </div>
-            <div class="mt-1 text-xs text-slate-400 break-all" x-text="m.provider + ':' + m.modelId"></div>
-            <div x-show="m.baseUrl" class="mt-1 text-xs text-slate-500 break-all" x-text="m.baseUrl"></div>
-          </div>
-          <div class="flex items-center gap-1 flex-shrink-0">
-            <button @click="openDialog('user', 'edit', m)" class="text-slate-300 hover:text-white p-1.5 rounded hover:bg-slate-700" title="编辑">
-              <i data-lucide="pencil" class="w-4 h-4"></i>
-            </button>
-            <button @click="deleteItem('user', m.id)" class="text-red-400 hover:text-red-300 p-1.5 rounded hover:bg-slate-700" title="删除">
+            <button @click="deleteItem('user', model.id)" class="text-red-400 hover:text-red-300 p-1.5 rounded hover:bg-slate-700" title="删除">
               <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
           </div>
@@ -134,10 +103,9 @@
     </div>
   </section>
 
-  <!-- 提取出的公共 Dialog -->
   <div x-show="dialog.open" x-cloak class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
     <div @click.outside="closeDialog()" class="bg-slate-800 rounded-xl p-6 w-full max-w-md space-y-4 shadow-xl border border-slate-600">
-      <h3 class="text-lg font-semibold text-slate-100" 
+      <h3 class="text-lg font-semibold text-slate-100"
           x-text="(dialog.mode === 'edit' ? '编辑' : '添加') + (dialog.target === 'global' ? '全局预置' : '自定义模型')"></h3>
       <div class="space-y-3">
         <div>
@@ -158,7 +126,7 @@
           <input x-model.trim="dialog.form.displayName" type="text" placeholder="e.g. Llama 3.3 70B"
                  class="w-full px-3 py-2 rounded bg-slate-700 text-slate-100 border border-slate-600"/>
         </div>
-        <div x-show="dialog.target==='user' && dialog.form.provider==='custom'">
+        <div x-show="dialog.target === 'user' && dialog.form.provider === 'custom'">
           <label class="text-sm text-slate-400 block mb-1">Base URL (custom only)</label>
           <input x-model.trim="dialog.form.baseUrl" type="text" placeholder="http://localhost:11434/v1"
                  class="w-full px-3 py-2 rounded bg-slate-700 text-slate-100 border border-slate-600"/>
@@ -170,243 +138,35 @@
                 x-text="dialog.mode === 'edit' ? '保存' : '添加'"></button>
       </div>
     </div>
-  </div
-  <script>
-    function modelConfigData() {
-      return {
-        isAdmin: false,
-        globalPresets: [],
-        userModels: [],
-        // 合并后的弹窗状态
-        dialog: { open: false, mode: 'add', target: 'global', form: { id: null, provider: 'gemini', modelId: '', displayName: '', baseUrl: '' } },
-        keyEntries: [],
-        dragging: null,
-        errorMsg: '',
-        successMsg: '',
-        successTimer: null,
+  </div>
 
-        async init() {
-          try {
-            const r = await fetch(window.API_BASE_URL + '/UserStatus', { credentials: 'include' });
-            const d = await r.json();
-            this.isAdmin = !!d.isAdmin;
-          } catch {}
-
-          await this.loadConfigs();
-          this.refreshKeyStatuses();
-          await this.refreshIcons();
-        },
-
-        emptyForm() {
-          return { id: null, provider: 'gemini', modelId: '', displayName: '', baseUrl: '' };
-        },
-
-        async refreshIcons() {
-          await this.$nextTick();
-          if (typeof lucide !== 'undefined' && lucide.createIcons) {
-            lucide.createIcons();
-          }
-        },
-
-        showSuccess(message) {
-          this.successMsg = message;
-          if (window.addToast) window.addToast(message, 'SUCCESS', 2500);
-          if (this.successTimer) clearTimeout(this.successTimer);
-          this.successTimer = setTimeout(() => {
-            this.successMsg = '';
-          }, 2500);
-        },
-
-        showError(message) {
-          this.errorMsg = message || '操作失败';
-          if (window.addToast) window.addToast(this.errorMsg, 'ERROR', 3000);
-        },
-
-        async loadConfigs() {
-          try {
-            const r = await fetch(window.API_BASE_URL + '/ModelConfigs', { credentials: 'include' });
-            if (!r.ok) throw new Error(`加载失败 (${r.status})`);
-            const d = await r.json();
-            this.globalPresets = d.globalPresets || [];
-            this.userModels = d.userModels || [];
-            this.rebuildKeyEntries();
-          } catch (e) {
-            console.error('loadConfigs failed', e);
-            this.showError(e.message || '加载失败');
-          }
-          await this.refreshIcons();
-        },
-
-        rebuildKeyEntries() {
-          const custom = this.userModels
-            .filter(m => m.provider === 'custom')
-            .map(m => ({
-              id: m.provider + ':' + m.modelId,
-              label: m.displayName + ' (API Key)',
-              uniqueId: m.provider + ':' + m.modelId
-            }));
-
-          this.keyEntries = custom.map(e => ({
-            ...e,
-            draft: '',
-            show: false,
-            saved: !!window.loadApiKey(e.uniqueId)
-          }));
-        },
-
-        refreshKeyStatuses() {
-          for (const e of this.keyEntries) e.saved = !!window.loadApiKey(e.uniqueId);
-        },
-
-        saveKey(entry) {
-          if (!entry.draft) return;
-          window.saveApiKey(entry.uniqueId, entry.draft);
-          entry.draft = '';
-          entry.saved = true;
-          this.showSuccess('API Key 已保存');
-        },
-
-        clearKey(entry) {
-          window.clearApiKey(entry.uniqueId);
-          entry.saved = false;
-          entry.draft = '';
-          this.showSuccess('API Key 已清除');
-        },
-
-        // --- 统一的增删改查逻辑 ---
-        openDialog(target, mode, item = null) {
-          this.dialog = {
-            open: true,
-            mode,
-            target,
-            form: item ? { ...item, baseUrl: item.baseUrl || '' } : this.emptyForm()
-          };
-          this.errorMsg = '';
-          this.refreshIcons();
-        },
-
-        closeDialog() {
-          this.dialog.open = false;
-        },
-
-        async saveConfig() {
-          const { form, target, mode } = this.dialog;
-          if (!form.modelId || !form.displayName || !form.provider) return;
-
-          const isGlobal = target === 'global';
-          const isEdit = mode === 'edit';
-          const endpoint = isGlobal ? '/AdminModelPresets' : '/ModelConfigs';
-          const url = window.API_BASE_URL + (isEdit ? `${endpoint}/${form.id}` : endpoint);
-
-          try {
-            const body = { provider: form.provider, modelId: form.modelId, displayName: form.displayName };
-            if (!isGlobal) body.baseUrl = form.baseUrl || null;
-
-            const r = await fetch(url, {
-              method: isEdit ? 'PUT' : 'POST',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body)
-            });
-            if (!r.ok) throw new Error(`${isEdit ? '保存' : '添加'}失败 (${r.status}): ${await r.text()}`);
-
-            this.closeDialog();
-            await this.loadConfigs();
-            this.showSuccess((isGlobal ? '全局预置' : '自定义模型') + (isEdit ? '已更新' : '已添加'));
-          } catch (e) {
-            this.showError(e.message || '保存失败');
-          }
-        },
-
-        async deleteItem(target, id) {
-          const endpoint = target === 'global' ? '/AdminModelPresets' : '/ModelConfigs';
-          try {
-            const r = await fetch(window.API_BASE_URL + `${endpoint}/${id}`, {
-              method: 'DELETE',
-              credentials: 'include'
-            });
-            if (!r.ok) throw new Error(`删除失败 (${r.status})`);
-            await this.loadConfigs();
-            this.showSuccess((target === 'global' ? '全局预置' : '自定义模型') + '已删除');
-          } catch (e) {
-            this.showError(e.message || '删除失败');
-          }
-        },
-
-        // --- 拖拽排序逻辑 ---
-        getList(section) {
-          return section === 'global' ? this.globalPresets : this.userModels;
-        },
-
-        setList(section, list) {
-          if (section === 'global') this.globalPresets = list;
-          else this.userModels = list;
-        },
-
-        startDrag(section, id) {
-          if (section === 'global' && !this.isAdmin) return;
-          this.dragging = { section, id };
-          this.errorMsg = '';
-        },
-
-        endDrag() {
-          this.dragging = null;
-        },
-
-        async dropOnItem(section, targetId) {
-          if (!this.dragging || this.dragging.section !== section || this.dragging.id === targetId) return;
-          await this.reorderSection(section, targetId);
-        },
-
-        async dropOnListEnd(section) {
-          if (!this.dragging || this.dragging.section !== section) return;
-          await this.reorderSection(section, null);
-        },
-
-        async reorderSection(section, targetId) {
-          const source = this.dragging;
-          const current = this.getList(section);
-          const next = current.slice();
-          const fromIndex = next.findIndex(item => item.id === source.id);
-          if (fromIndex < 0) return this.endDrag();
-
-          const moved = next.splice(fromIndex, 1)[0];
-          if (targetId === null) {
-            next.push(moved);
-          } else {
-            const targetIndex = next.findIndex(item => item.id === targetId);
-            if (targetIndex < 0) return this.endDrag();
-            next.splice(targetIndex, 0, moved);
-          }
-
-          if (current.length === next.length && current.every((item, idx) => item.id === next[idx].id)) {
-            return this.endDrag();
-          }
-
-          this.setList(section, next);
-          this.endDrag();
-
-          try {
-            await this.persistOrder(section);
-            this.showSuccess((section === 'global' ? '全局预置' : '自定义模型') + '顺序已更新');
-          } catch (e) {
-            this.setList(section, current);
-            this.showError(e.message || '排序保存失败');
-          }
-        },
-
-        async persistOrder(section) {
-          const list = this.getList(section);
-          const endpoint = section === 'global' ? '/AdminModelPresets/reorder' : '/ModelConfigs/reorder';
-          const r = await fetch(window.API_BASE_URL + endpoint, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids: list.map(item => item.id) })
-          });
-          if (!r.ok) throw new Error(`排序保存失败 (${r.status}): ${await r.text()}`);
-        }
-      };
-    }
-  </script>
+  <section>
+    <h2 class="text-lg font-semibold text-slate-100 mb-2">API Key 管理</h2>
+    <p class="text-xs text-slate-500 mb-3">Key 仅混淆存储在浏览器 Cookie 中，不上传至服务器存储。连接时通过 WebSocket 第一帧传输。</p>
+    <div class="space-y-3">
+      <template x-for="entry in keyEntries" :key="entry.id">
+        <div class="p-3 rounded-lg bg-slate-800 border border-slate-700 space-y-2">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="font-medium text-slate-100" x-text="entry.label"></span>
+              <span class="ml-2 text-xs" :class="entry.saved ? 'text-green-400' : 'text-amber-400'"
+                    x-text="entry.saved ? '✓ 已保存' : '⚠ 未配置'"></span>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <input :type="entry.show ? 'text' : 'password'" x-model="entry.draft"
+                   :placeholder="entry.saved ? '（已保存，输入新值可覆盖）' : '输入 API Key...'"
+                   class="flex-1 px-3 py-1.5 rounded bg-slate-700 text-slate-100 border border-slate-600 text-sm"/>
+            <button @click="entry.show = !entry.show" class="px-2 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">
+              <i :data-lucide="entry.show ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+            </button>
+            <button @click="saveKey(entry)" :disabled="!entry.draft"
+                    class="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-sm disabled:opacity-40">保存</button>
+            <button x-show="entry.saved" @click="clearKey(entry)"
+                    class="px-3 py-1.5 rounded bg-red-700 hover:bg-red-600 text-white text-sm">清除</button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </section>
 </div>

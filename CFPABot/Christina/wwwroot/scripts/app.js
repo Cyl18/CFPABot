@@ -9,6 +9,259 @@ window.openCriticalModal = function () {
     window.dispatchEvent(new CustomEvent('open-critical-modal'));
 };
 
+function modelConfigData() {
+    return {
+        isAdmin: false,
+        globalPresets: [],
+        userModels: [],
+        dialog: {
+            open: false,
+            mode: 'add',
+            target: 'global',
+            form: { id: null, provider: 'gemini', modelId: '', displayName: '', baseUrl: '' }
+        },
+        keyEntries: [],
+        dragging: null,
+        errorMsg: '',
+        successMsg: '',
+        successTimer: null,
+
+        async init() {
+            try {
+                const r = await fetch(window.API_BASE_URL + '/UserStatus', { credentials: 'include' });
+                const d = await r.json();
+                this.isAdmin = !!d.isAdmin;
+            } catch { }
+
+            await this.loadConfigs();
+            this.refreshKeyStatuses();
+            await this.refreshIcons();
+        },
+
+        emptyForm() {
+            return { id: null, provider: 'gemini', modelId: '', displayName: '', baseUrl: '' };
+        },
+
+        async refreshIcons() {
+            await this.$nextTick();
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                lucide.createIcons();
+            }
+        },
+
+        showSuccess(message) {
+            this.successMsg = message;
+            if (window.addToast) window.addToast(message, 'SUCCESS', 2500);
+            if (this.successTimer) clearTimeout(this.successTimer);
+            this.successTimer = setTimeout(() => {
+                this.successMsg = '';
+            }, 2500);
+        },
+
+        showError(message) {
+            this.errorMsg = message || '操作失败';
+            if (window.addToast) window.addToast(this.errorMsg, 'ERROR', 3000);
+        },
+
+        async loadConfigs() {
+            try {
+                const r = await fetch(window.API_BASE_URL + '/ModelConfigs', { credentials: 'include' });
+                if (!r.ok) throw new Error(`加载失败 (${r.status})`);
+                const d = await r.json();
+                this.globalPresets = d.globalPresets || [];
+                this.userModels = d.userModels || [];
+                this.rebuildKeyEntries();
+            } catch (e) {
+                console.error('loadConfigs failed', e);
+                this.showError(e.message || '加载失败');
+            }
+            await this.refreshIcons();
+        },
+
+        rebuildKeyEntries() {
+            const custom = this.userModels
+                .filter(m => m.provider === 'custom')
+                .map(m => ({
+                    id: m.provider + ':' + m.modelId,
+                    label: m.displayName + ' (API Key)',
+                    uniqueId: m.provider + ':' + m.modelId
+                }));
+
+            this.keyEntries = custom.map(e => ({
+                ...e,
+                draft: '',
+                show: false,
+                saved: !!window.loadApiKey(e.uniqueId)
+            }));
+        },
+
+        refreshKeyStatuses() {
+            for (const entry of this.keyEntries) entry.saved = !!window.loadApiKey(entry.uniqueId);
+        },
+
+        saveKey(entry) {
+            if (!entry.draft) return;
+            window.saveApiKey(entry.uniqueId, entry.draft);
+            entry.draft = '';
+            entry.saved = true;
+            this.showSuccess('API Key 已保存');
+        },
+
+        clearKey(entry) {
+            window.clearApiKey(entry.uniqueId);
+            entry.saved = false;
+            entry.draft = '';
+            this.showSuccess('API Key 已清除');
+        },
+
+        openDialog(target, mode, item = null) {
+            this.dialog = {
+                open: true,
+                mode,
+                target,
+                form: item ? { ...item, baseUrl: item.baseUrl || '' } : this.emptyForm()
+            };
+            this.errorMsg = '';
+            this.refreshIcons();
+        },
+
+        closeDialog() {
+            this.dialog.open = false;
+        },
+
+        async saveConfig() {
+            const { form, target, mode } = this.dialog;
+            if (!form.modelId || !form.displayName || !form.provider) return;
+
+            const isGlobal = target === 'global';
+            const isEdit = mode === 'edit';
+            const endpoint = isGlobal ? '/AdminModelPresets' : '/ModelConfigs';
+            const url = window.API_BASE_URL + (isEdit ? `${endpoint}/${form.id}` : endpoint);
+
+            try {
+                const body = {
+                    provider: form.provider,
+                    modelId: form.modelId,
+                    displayName: form.displayName
+                };
+                if (!isGlobal) body.baseUrl = form.baseUrl || null;
+
+                const r = await fetch(url, {
+                    method: isEdit ? 'PUT' : 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (!r.ok) throw new Error(`${isEdit ? '保存' : '添加'}失败 (${r.status}): ${await r.text()}`);
+
+                this.closeDialog();
+                await this.loadConfigs();
+                this.showSuccess((isGlobal ? '全局预置' : '自定义模型') + (isEdit ? '已更新' : '已添加'));
+            } catch (e) {
+                this.showError(e.message || '保存失败');
+            }
+        },
+
+        async deleteItem(target, id) {
+            const endpoint = target === 'global' ? '/AdminModelPresets' : '/ModelConfigs';
+            try {
+                const r = await fetch(window.API_BASE_URL + `${endpoint}/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                if (!r.ok) throw new Error(`删除失败 (${r.status})`);
+                await this.loadConfigs();
+                this.showSuccess((target === 'global' ? '全局预置' : '自定义模型') + '已删除');
+            } catch (e) {
+                this.showError(e.message || '删除失败');
+            }
+        },
+
+        getList(section) {
+            return section === 'global' ? this.globalPresets : this.userModels;
+        },
+
+        setList(section, list) {
+            if (section === 'global') this.globalPresets = list;
+            else this.userModels = list;
+        },
+
+        startDrag(section, id) {
+            if (section === 'global' && !this.isAdmin) return;
+            this.dragging = { section, id };
+            this.errorMsg = '';
+        },
+
+        endDrag() {
+            this.dragging = null;
+        },
+
+        async dropOnItem(section, targetId) {
+            if (!this.dragging || this.dragging.section !== section || this.dragging.id === targetId) return;
+            await this.reorderSection(section, targetId);
+        },
+
+        async dropOnListEnd(section) {
+            if (!this.dragging || this.dragging.section !== section) return;
+            await this.reorderSection(section, null);
+        },
+
+        async reorderSection(section, targetId) {
+            const source = this.dragging;
+            const current = this.getList(section);
+            const next = current.slice();
+            const fromIndex = next.findIndex(item => item.id === source.id);
+            if (fromIndex < 0) {
+                this.endDrag();
+                return;
+            }
+
+            const moved = next.splice(fromIndex, 1)[0];
+            if (targetId === null) {
+                next.push(moved);
+            } else {
+                const targetIndex = next.findIndex(item => item.id === targetId);
+                if (targetIndex < 0) {
+                    this.endDrag();
+                    return;
+                }
+                next.splice(targetIndex, 0, moved);
+            }
+
+            const unchanged = current.length === next.length && current.every((item, index) => item.id === next[index].id);
+            if (unchanged) {
+                this.endDrag();
+                return;
+            }
+
+            this.setList(section, next);
+            this.endDrag();
+
+            try {
+                await this.persistOrder(section);
+                this.showSuccess((section === 'global' ? '全局预置' : '自定义模型') + '顺序已更新');
+            } catch (e) {
+                this.setList(section, current);
+                this.showError(e.message || '排序保存失败');
+            }
+        },
+
+        async persistOrder(section) {
+            const list = this.getList(section);
+            const endpoint = section === 'global' ? '/AdminModelPresets/reorder' : '/ModelConfigs/reorder';
+            const r = await fetch(window.API_BASE_URL + endpoint, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: list.map(item => item.id) })
+            });
+            if (!r.ok) throw new Error(`排序保存失败 (${r.status}): ${await r.text()}`);
+        }
+    };
+}
+
+window.modelConfigData = modelConfigData;
+
 // Main App State
 function appData() {
     // Pre-check cookie to set initial state - prevents login screen flash
