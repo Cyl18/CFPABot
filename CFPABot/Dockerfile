@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 #See https://aka.ms/containerfastmode to understand how Visual Studio uses this Dockerfile to build your images for faster debugging.
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
@@ -8,14 +9,16 @@ WORKDIR /app
 EXPOSE 80
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS publish
-WORKDIR /src
+WORKDIR /root/src
 COPY ["CFPABot/CFPABot.csproj", "CFPABot/"]
-RUN dotnet restore "CFPABot/CFPABot.csproj" 
+RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
+    dotnet restore "CFPABot/CFPABot.csproj" 
 COPY . .
-RUN dotnet clean CFPABot.sln --configuration "Debug"
-WORKDIR "/src/CFPABot"
-RUN rm -rf bin && rm -rf obj
-RUN dotnet publish "CFPABot.csproj" -r linux-x64 --no-self-contained -c Debug -o /app/publish
+WORKDIR "/root/src/CFPABot"
+RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
+    --mount=type=cache,id=obj,target=/root/src/CFPABot/obj \
+    --mount=type=cache,id=bin,target=/root/src/CFPABot/bin \
+    dotnet publish "CFPABot.csproj" -c Debug -o /app/publish --no-restore
 
 FROM base AS final
 WORKDIR /app
