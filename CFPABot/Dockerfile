@@ -10,15 +10,12 @@ EXPOSE 80
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS publish
 WORKDIR /root/src
-COPY ["CFPABot/CFPABot.csproj", "CFPABot/"]
-RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
-    dotnet restore "CFPABot/CFPABot.csproj" 
 COPY . .
 WORKDIR "/root/src/CFPABot"
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
     --mount=type=cache,id=obj,target=/root/src/CFPABot/obj \
     --mount=type=cache,id=bin,target=/root/src/CFPABot/bin \
-    dotnet publish "CFPABot.csproj" -c Debug -o /app/publish --no-restore
+    dotnet publish "CFPABot.csproj" -c Debug -o /app/publish
 
 FROM base AS final
 WORKDIR /app
