@@ -560,7 +560,7 @@ namespace CFPABot.Christina.LLMs
             {
                 Id = idOffset + entry.Id,
                 Status = ReviewStatus.NotReviewed,
-                SuggestedTarget = entry.Target,
+                SuggestedTarget = "",
                 Issues = new List<LlmIssue>
                 {
                     new()

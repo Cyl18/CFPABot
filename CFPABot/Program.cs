@@ -164,6 +164,11 @@ namespace CFPABot
                 if (!Directory.GetFiles("project-hex").Any() ||
                     (DateTime.Now - ProjectHexConfig.Instance.LastTime).TotalDays > 0.25 || force)
                 {
+                    if (Environment.GetEnvironmentVariable("DISABLE_PROJECT_HEX").NotNullNorWhiteSpace())
+                    {
+                        Log.Information("project-hex disabled by environment.");
+                        return;
+                    }
                     try
                     {
                         await new ProjectHexRunner().Run(force);

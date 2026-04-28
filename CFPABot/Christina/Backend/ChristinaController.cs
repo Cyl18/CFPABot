@@ -248,6 +248,7 @@ namespace CFPABot.Christina.Backend
             }
 
             var ws = await HttpContext.WebSockets.AcceptWebSocketAsync();
+            Log.Information("WS PRLLMReviewResult accepted for pr={Pr} mod={Mod} force={Force} importance={Importance}", pr, mod, force, importance);
 
             string Serialize(object data) => data.ToJsonString(_jsonOpts);
 
@@ -303,13 +304,23 @@ namespace CFPABot.Christina.Backend
                 if (!rawToken.IsNullOrEmpty())
                     accessToken = DecryptAuthToken(rawToken);
             }
-            if (accessToken == null) { await RejectWs("unauthorized"); return; }
+            if (accessToken == null)
+            {
+                Log.Warning("WS PRLLMReviewResult unauthorized: missing token for pr={Pr} mod={Mod}", pr, mod);
+                await RejectWs("unauthorized");
+                return;
+            }
             try
             {
                 var ghClient = LoginManager.GetGitHubClient(accessToken);
                 await ghClient.User.Current();
             }
-            catch { await RejectWs("unauthorized"); return; }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "WS PRLLMReviewResult unauthorized: token rejected for pr={Pr} mod={Mod}", pr, mod);
+                await RejectWs("unauthorized");
+                return;
+            }
 
             var models = BuildModelSpecs(configFrame);
 
@@ -349,6 +360,7 @@ namespace CFPABot.Christina.Backend
                 {
                     try
                     {
+                        Log.Information("WS PRLLMReviewResult job started for pr={Pr} mod={Mod} force={Force} models={Models}", pr, mod, force, capturedModels.Select(x => x.UniqueId).Connect(","));
                         var diff    = await GitHub.Diff(pr);
                         var prInfo  = await GitHub.GetPullRequest(pr);
                         var headSha = prInfo.Head.Sha;

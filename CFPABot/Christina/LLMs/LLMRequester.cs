@@ -64,7 +64,7 @@ namespace CFPABot.Christina.LLMs
 
     public sealed class OpenRouterClient
     {
-        private const int MaxGlobalConcurrentRequests = 20;
+        private const int MaxGlobalConcurrentRequests = 15;
         private static readonly SemaphoreSlim GlobalRequestGate = new(MaxGlobalConcurrentRequests, MaxGlobalConcurrentRequests);
         private static readonly JsonSerializerOptions StructuredChatJson = new()
         {

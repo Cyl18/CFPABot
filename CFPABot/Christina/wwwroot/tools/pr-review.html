@@ -317,9 +317,9 @@ function prReviewData() {
     consistencyModel: '',
     
     // View Filters
-    hidePassed: false,
+    hidePassed: true,
     hideNotReviewed: false,
-    sortBy: 'original',
+    sortBy: 'severity_desc',
 
     get filteredAndSortedItems() {
       if(!this.result || !this.result.frontendDisplayItems) return [];

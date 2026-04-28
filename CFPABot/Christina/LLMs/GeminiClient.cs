@@ -63,6 +63,8 @@ namespace CFPABot.Christina.LLMs
 
     public sealed class GeminiClient
     {
+        private const int MaxGlobalConcurrentRequests = 5;
+        private static readonly SemaphoreSlim GlobalRequestGate = new(MaxGlobalConcurrentRequests, MaxGlobalConcurrentRequests);
         private readonly HttpClient _http;
         private readonly ApiKeyPool _keyPool;
         private readonly string _endpointTemplate;
@@ -198,7 +200,7 @@ namespace CFPABot.Christina.LLMs
             while (true)
             {
                 var clone = await CloneRequestAsync(msg);
-                var resp = await _http.SendAsync(clone, ct);
+                var resp = await SendAsyncWithGlobalLimit(clone, ct);
 
                 if (resp.StatusCode != (HttpStatusCode)429 || attempt >= maxRetries)
                     return resp;
@@ -235,6 +237,19 @@ namespace CFPABot.Christina.LLMs
             var json = await resp.Content.ReadAsStringAsync();
             return json.JsonDeserialize<GeminiResponseEnvelope>(_json)
                    ?? throw new InvalidOperationException("Invalid Gemini response");
+        }
+
+        private async Task<HttpResponseMessage> SendAsyncWithGlobalLimit(HttpRequestMessage request, CancellationToken ct)
+        {
+            await GlobalRequestGate.WaitAsync(ct);
+            try
+            {
+                return await _http.SendAsync(request, ct);
+            }
+            finally
+            {
+                GlobalRequestGate.Release();
+            }
         }
 
         /// <summary>单次请求，不使用工具，直接返回模型的文本回复。</summary>
@@ -310,7 +325,7 @@ namespace CFPABot.Christina.LLMs
                     string responseBody;
                     try
                     {
-                        resp = await _http.SendAsync(msg, ct);
+                        resp = await SendAsyncWithGlobalLimit(msg, ct);
                         responseBody = await resp.Content.ReadAsStringAsync();
                     }
                     catch (HttpRequestException ex) when (!ct.IsCancellationRequested)
