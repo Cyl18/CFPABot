@@ -1359,7 +1359,7 @@ namespace CFPABot.Utils
                         {
                             var content = lineDiff.Content;
 
-                            var mcVersion = names[1].ToMCVersion();
+                            var mcVersion = names[3].ToMCVersion();
                             foreach (var (checkname, message, customCheck) in warnings)
                             {
                                 if (content.Contains(checkname) && (customCheck == null || customCheck((lineDiff, mcVersion))))
