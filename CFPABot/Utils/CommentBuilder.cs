@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers.Text;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -913,27 +913,27 @@ namespace CFPABot.Utils
                         if (names.Length == 5)
                         {
                             // projects/{version}/assets/{curseSlug}/{modDomain}/lang/zh_cn.{}
-                            if (names[2] != "assets" || names[3] == "lang") goto fail;
+                            if (names[1] != "assets" || names[2] == "lang") goto fail;
                             sb.AppendLine($"⚠ 检测到一个语言文件，但是提交路径不正常。缺少了 {{ModDomain}} 和 lang 文件夹。请检查你的提交路径：`{diff.To}`；");
                             try
                             {
-                                var slug = names[3];
+                                var slug = names[2];
                                 if (slug.StartsWith("modrinth-"))
                                 {
                                     slug = slug["modrinth-".Length..];
                                     var addon = await ModrinthManager.GetMod(slug);
                                     var modDomain =
-                                        await ModrinthManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
-                                    var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
+                                        await ModrinthManager.GetModID(addon, names[3].ToMCStandardVersion(), true, false);
+                                    var rdir = $"projects/assets/{names[2]}/{names[3]}/{modDomain}/lang/";
                                     sb.AppendLine($"  自动找到该模组 Domain 为 `{modDomain}`，可能正确文件夹为 `{rdir}`。使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
                                     sb.AppendLine();
                                 }
                                 else
                                 {
-                                    var addon = await CurseManager.GetAddon(names[3]);
+                                    var addon = await CurseManager.GetAddon(names[2]);
                                     var modDomain =
-                                        await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
-                                    var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
+                                        await CurseManager.GetModID(addon, names[3].ToMCStandardVersion(), true, false);
+                                    var rdir = $"projects/assets/{names[2]}/{names[3]}/{modDomain}/lang/";
                                     sb.AppendLine($"  自动找到该模组 Domain 为 `{modDomain}`，可能正确文件夹为 `{rdir}`。使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
                                     sb.AppendLine();
                                 }
@@ -950,7 +950,7 @@ namespace CFPABot.Utils
 
                         if (names.Length == 6)
                         {
-                            if (names[2] != "assets" || names[3] == "lang") goto fail;
+                            if (names[1] != "assets" || names[2] == "lang") goto fail;
 
                             if (names[4] == "lang")
                             {
@@ -958,10 +958,10 @@ namespace CFPABot.Utils
                                 sb.AppendLine($"⚠ 检测到一个语言文件，但提交路径不正常。缺少了 {{ModDomain}} 或 {{CurseForge 项目名}} 文件夹。请检查提交路径：`{diff.To}`；");
                                 try
                                 {
-                                    var addon = await CurseManager.GetAddon(names[3]);
+                                    var addon = await CurseManager.GetAddon(names[2]);
                                     var modDomain =
-                                        await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
-                                    var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
+                                        await CurseManager.GetModID(addon, names[3].ToMCStandardVersion(), true, false);
+                                    var rdir = $"projects/assets/{names[2]}/{names[3]}/{modDomain}/lang/";
                                     sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。 你可以使用命令 `/mv \"{names.Take(5).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
                                     sb.AppendLine();
                                 }
@@ -1032,8 +1032,8 @@ namespace CFPABot.Utils
                         if (names[0] != "projects") return;
                         if (names[5] != "lang") return;
 
-                        var versionString = names[1];
-                        var curseID = names[3];
+                        var curseID = names[2];
+                        var versionString = names[3];
                         var modid = names[4];
                         var check = (versionString, curseID);
                         lock (cbag)
@@ -1052,7 +1052,7 @@ namespace CFPABot.Utils
                         catch (Exception)
                         {
                         }
-                        if (addon != null && names[3] != "1UNKNOWN")
+                        if (addon != null && names[2] != "1UNKNOWN")
                         {
                             try
                             {
@@ -1073,8 +1073,8 @@ namespace CFPABot.Utils
                     if (names[0] != "projects") continue;
                     if (names[5] != "lang") continue;
 
-                    var versionString = names[1];
-                    var curseID = names[3];
+                    var curseID = names[2];
+                    var versionString = names[3];
                     var modid = names[4];
                     var check = (versionString, curseID);
                     var mcVersion = versionString.ToMCVersion();
@@ -1097,7 +1097,7 @@ namespace CFPABot.Utils
                     {
                         sb.AppendLine("❌ 检测到此模组作者更改了 Slug 名，请使用以下命令进行路径移动：");
                         sb.AppendLine("```");
-                        sb.AppendLine($"/mv projects/{versionString}/assets/{curseID}/ projects/{versionString}/assets/{addon.Slug}/");
+                        sb.AppendLine($"/mv projects/assets/{curseID}/{versionString}/ projects/assets/{addon.Slug}/{versionString}/");
                         sb.AppendLine($"/add-mapping {addon.Slug} {addon.Id}");
                         sb.AppendLine("```");
                         sb.AppendLine();
@@ -1192,8 +1192,8 @@ namespace CFPABot.Utils
                     // 检查文件
                     reportSb.AppendLine($"开始检查 {modid} {versionString}");
                     var headSha = pr.Head.Sha;
-                    var enlink = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/lang/{mcVersion.ToENLangFile()}";
-                    var cnlink = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/lang/{mcVersion.ToCNLangFile()}";
+                    var enlink = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/assets/{curseID}/{versionString}/{modid}/lang/{mcVersion.ToENLangFile()}";
+                    var cnlink = $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/assets/{curseID}/{versionString}/{modid}/lang/{mcVersion.ToCNLangFile()}";
 
                     string cnfile = null, enfile = null;
                     string[] modENFile = null;
@@ -1203,7 +1203,7 @@ namespace CFPABot.Utils
                     try
                     {
 
-                        if (await Download.LinkExists($"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/{versionString}/assets/{curseID}/{modid}/packer-policy.json"))
+                        if (await Download.LinkExists($"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{headSha}/projects/assets/{curseID}/{versionString}/{modid}/packer-policy.json"))
                         {
                             try
                             {
@@ -1261,7 +1261,7 @@ namespace CFPABot.Utils
 
                     try
                     {
-                        if (addon != null && names[3] != "1UNKNOWN")
+                        if (addon != null && names[2] != "1UNKNOWN")
                         {
                             (modENFile, downloadModName) = await CurseManager.GetModEnFile(addon, mcVersion, LangType.EN);
                         }

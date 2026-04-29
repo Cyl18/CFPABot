@@ -1,4 +1,4 @@
-﻿@page "/Diff/{pprid?}/{pcfslug?}"
+@page "/Diff/{pprid?}/{pcfslug?}"
 @using Markdig
 @using System.IO
 @using System.Text
@@ -582,7 +582,7 @@
                 {
                     var s = $"#{pr} {pCfSlug} {modPath.ModVersion} PR 的 cn 组合文件";
                     tested ??= await Download.LinkExists(
-                        $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{pullRequest.Head.Sha}/projects/{modPath.ModVersion.ToVersionDirectory()}/assets/{pCfSlug}/{modPath.ModDomain}/packer-policy.json");
+                        $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/{pullRequest.Head.Sha}/projects/assets/{pCfSlug}/{modPath.ModVersion.ToVersionDirectory()}/{modPath.ModDomain}/packer-policy.json");
                     if (tested == true)
                     {
                         var file = compositionFileHandler.AcquireLangFile(pCfSlug, modPath.ModDomain, modPath.ModVersion.ToVersionDirectory());

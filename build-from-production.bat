@@ -43,13 +43,15 @@ if ($unpushed) {
 
 Write-Host "[OK] All local changes have been committed and pushed"
 
+$currentBranch = git branch --show-current
+
 Write-Host ""
 Write-Host "==============================================="
-Write-Host "Connecting to production server..."
+Write-Host "Connecting to production server (Branch: $currentBranch)..."
 Write-Host "==============================================="
 
 $remoteCmd = "cd ~/production/cfpa-bot && " +
-             "echo '[*] Pulling code...' && cd CFPABot && git pull && " +
+             "echo '[*] Pulling code...' && cd CFPABot && git fetch && git checkout $currentBranch && git pull && " +
              "echo '[*] Building image...' && docker build -f CFPABot/Dockerfile -t docker.cyan.cafe/cfpabot . && " +
              "echo '[*] Pushing image...' && cd .. && " +
              "echo '[*] Restarting containers...' && docker-compose down && docker-compose up -d && " +

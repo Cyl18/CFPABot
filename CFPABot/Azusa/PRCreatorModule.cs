@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -85,7 +85,7 @@ namespace CFPABot.Azusa
             localRepo.Run("fetch upstream main");
             _updateAction("Creating branch...");
             localRepo.Run($"switch -c {BranchName} upstream/main");
-            var baseLocation = $"{localRepo.WorkingDirectory}/projects/{_versionString}/assets/{_slug}/{_domain}/lang";
+            var baseLocation = $"{localRepo.WorkingDirectory}/projects/assets/{_slug}/{_versionString}/{_domain}/lang";
             _updateAction("Placing files...");
             Directory.CreateDirectory(baseLocation);
             File.WriteAllText(baseLocation+$"/{_enCache.FileName}", File.ReadAllText(_enCache.FilePath), new UTF8Encoding(false));

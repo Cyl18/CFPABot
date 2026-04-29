@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -21,8 +21,8 @@ namespace CFPABot.Utils
                 if (names.Length < 7) continue; // 超级硬编码
                 if (names[0] != "projects") continue;
                 
-                var version = names[1].ToMCStandardVersion();
-                var cfid = names[3];
+                var cfid = names[2];
+                var version = names[3].ToMCStandardVersion();
                 var domain = names[4]; // 这里不需要管是不是改的是语言文件 只需要看涉及了啥mod
                 if (cfid == "1UNKNOWN") continue;
                 if (langOnly && names[5] != "lang") continue;

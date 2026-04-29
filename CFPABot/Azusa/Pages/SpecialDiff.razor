@@ -1,4 +1,4 @@
-﻿@page "/SpecialDiff/{PPrid?}"
+@page "/SpecialDiff/{PPrid?}"
 @using CFPABot.Utils
 @using DiffPatch.Data
 @using Microsoft.AspNetCore.Http
@@ -98,7 +98,7 @@
 
 
             cndirs = diff.Where(x => (x.To?.Split('/') ?? Array.Empty<string>()).Any(y => y.TrimStart('_').Equals("zh_cn", StringComparison.OrdinalIgnoreCase))).Select(x => Traverse(x.To)).Distinct().Order().ToArray();
-            var namespaces = cndirs.Select(x => x.Split('/')[3]).ToArray();
+            var namespaces = cndirs.Select(x => x.Split('/')[2]).ToArray();
 
             endirs = dir.Where(x =>
                 x.Split('/').Any(y => y.TrimStart('_').Equals("en_us", StringComparison.OrdinalIgnoreCase)) &&

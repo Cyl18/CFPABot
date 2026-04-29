@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Concurrent;
@@ -129,8 +129,8 @@ namespace CFPABot.Controllers
                     if (names[0] != "projects") continue;
                     if (names[5] != "lang") continue;
 
-                    var versionString = names[1];
-                    var curseID = names[3];
+                    var curseID = names[2];
+                    var versionString = names[3];
                     //var check = (versionString, curseID);
                     //var mcVersion = versionString.ToMCVersion();
                     if (curseID != modid) continue;
@@ -149,14 +149,14 @@ namespace CFPABot.Controllers
                 foreach (var s in versionName == "1.12.2" ? new [] {"zh_cn.lang", "zh_CN.lang", "en_us.lang", "en_US.lang"} : new [] {"zh_cn.json", "zh_CN.json", "en_us.json", "en_US.json"})
                 {
                     var link =
-                        $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/main/projects/{versionName}/assets/{modid}/{modDomain}/lang/{s}";
+                        $"https://raw.githubusercontent.com/CFPAOrg/Minecraft-Mod-Language-Package/main/projects/assets/{modid}/{versionName}/{modDomain}/lang/{s}";
                     
                     tasks.Add(R(link));
                     async Task R(string l)
                     {
                         if (await LinkExists(l))
                         {
-                            AddRadio($"<a href=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/projects/{versionName}/assets/{modid}/{modDomain}/lang/{s}\">仓库中的</a> {versionName}/{modid}/{modDomain}/{s}", $"link`{l}");
+                            AddRadio($"<a href=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/blob/main/projects/assets/{modid}/{versionName}/{modDomain}/lang/{s}\">仓库中的</a> {versionName}/{modid}/{modDomain}/{s}", $"link`{l}");
                         }
                     }
                 }

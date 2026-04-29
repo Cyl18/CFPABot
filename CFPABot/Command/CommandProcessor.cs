@@ -172,7 +172,7 @@ namespace CFPABot.Command
                             using var sr = new MemoryStream(f.ToUTF8Bytes()).CreateStreamReader(Encoding.UTF8);
                             using var sw = File.Open(
                                 Path.Combine(r.WorkingDirectory,
-                                    $"projects/{versionString}/assets/{curseForgeID}/{modID}/lang/{versionFile}"),
+                                    $"projects/assets/{curseForgeID}/{versionString}/{modID}/lang/{versionFile}"),
                                 FileMode.Create).CreateStreamWriter(new UTF8Encoding(false));
 
                             switch (version)
@@ -205,7 +205,7 @@ namespace CFPABot.Command
                             using var sr = new MemoryStream(f.ToUTF8Bytes()).CreateStreamReader(Encoding.UTF8);
                             using var sw = File.Open(
                                 Path.Combine(r.WorkingDirectory,
-                                    $"projects/{versionString}/assets/{curseForgeID}/{modID}/lang/{versionFile}"),
+                                    $"projects/assets/{curseForgeID}/{versionString}/{modID}/lang/{versionFile}"),
                                 FileMode.Create).CreateStreamWriter(new UTF8Encoding(false));
 
                             switch (version)
@@ -315,7 +315,7 @@ namespace CFPABot.Command
                             }
                             else
                             {
-                                switch (filePath.Split("/")[1].ToMCVersion())
+                                switch (filePath.Split("/")[3].ToMCVersion())
                                 {
                                     case MCVersion.v1122:
                                         File.WriteAllText(repoPath, ExFormatter.Format(File.ReadAllText(repoPath), LangFileType.Lang));
