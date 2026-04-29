@@ -126,15 +126,15 @@ namespace CFPABot.Utils
             var sb2 = new StringBuilder();
             var pic = """
                         <br/>
+                        <div align="center">
                         <a href="https://github.com/Cyl18/CFPABot">
-                        <div align="center" style="margin-bottom: 1px;">
                           <picture>
                             <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Cyl18/CFPABot/refs/heads/dev/docs/2.svg?">
                             <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Cyl18/CFPABot/refs/heads/dev/docs/1.svg?">
                             <img src="https://raw.githubusercontent.com/Cyl18/CFPABot/refs/heads/dev/docs/1.svg?" width="600">
                           </picture>
-                        </div>
                         </a>
+                        </div>
                         
                         ---
 
