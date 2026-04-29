@@ -124,7 +124,23 @@ namespace CFPABot.Utils
 
             logger.Debug($"[{PullRequestID}] 构建内容...");
             var sb2 = new StringBuilder();
-            sb2.AppendLine("<a href=\"https://github.com/Cyl18/CFPABot\"><image src=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/assets/14993992/5f597afc-ee3d-4285-addc-9f9561b4a252\"></a>\n---\n");
+            var pic = """
+                        <br/>
+                        <a href="https://github.com/Cyl18/CFPABot">
+                        <div align="center" style="margin-bottom: 1px;">
+                          <picture>
+                            <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Cyl18/CFPABot/refs/heads/dev/2.svg?">
+                            <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Cyl18/CFPABot/refs/heads/dev/1.svg?">
+                            <img src="https://raw.githubusercontent.com/Cyl18/CFPABot/refs/heads/dev/1.svg?" width="600">
+                          </picture>
+                        </div>
+                        </a>
+                        
+                        ---
+
+                      """;
+
+            sb2.AppendLine(pic);
             sb2.AppendLine(Context.ModLinkSegment);
             sb2.AppendLine("---");
             sb2.AppendLine(Context.BuildArtifactsSegment);
@@ -173,7 +189,7 @@ namespace CFPABot.Utils
 
             Interlocked.Decrement(ref UpdatingCount);
             var sb = new StringBuilder();
-            sb.AppendLine("<a href=\"https://github.com/Cyl18/CFPABot\"><image src=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/assets/14993992/5f597afc-ee3d-4285-addc-9f9561b4a252\"></a>\n---\n");
+            sb.AppendLine(pic);
             sb.AppendLine(Context.ModLinkSegment);
             sb.AppendLine("---");
             sb.AppendLine(Context.BuildArtifactsSegment);
@@ -207,7 +223,7 @@ namespace CFPABot.Utils
                         Files = { { $"pr-{PullRequestID}-bot.md", sb.ToString() } },
                         Public = false
                     });
-                    await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->\n<a href=\"https://github.com/Cyl18/CFPABot\"><image src=\"https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/assets/14993992/5f597afc-ee3d-4285-addc-9f9561b4a252\"></a>\n---\n" +
+                    await GitHub.Instance.Issue.Comment.Update(Constants.Owner, Constants.RepoName, comment.Id, "<!--CYBOT-->\n" + pic +
                         $"嘻嘻，内容过长！已经上传到了 <{gist.HtmlUrl}>\n\n{Context.ReloadSegment}");
 
                 }
