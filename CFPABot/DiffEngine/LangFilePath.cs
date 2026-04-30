@@ -112,8 +112,18 @@ namespace CFPABot.DiffEngine
         public ModPath(string path)
         {
             var s = path.Split('/');
-            GameVersionDirectoryName = s[3];
-            CurseForgeSlug = s[2];
+            
+            if (s[1] == "assets")
+            {
+                GameVersionDirectoryName = s[3];
+                CurseForgeSlug = s[2];
+            }
+            else
+            {
+                GameVersionDirectoryName = s[1];
+                CurseForgeSlug = s[3];
+            }
+            
             ModDomain = s[4];
             var modVersion = ModVersion.FromGameVersionDirectory(GameVersionDirectoryName);
             ModVersion = modVersion;
