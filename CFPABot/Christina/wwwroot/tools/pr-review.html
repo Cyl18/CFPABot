@@ -2,37 +2,60 @@
   <div class="flex items-center justify-between">
     <h1 class="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
       <i data-lucide="git-pull-request" class="w-6 h-6"></i>
-      PR Multi-Model Review
+      Multi-Model Review
     </h1>
+    
+    <div class="flex bg-slate-200 dark:bg-slate-700 rounded-lg p-1">
+      <button @click="mode = 'pr'" :class="mode === 'pr' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'" class="px-4 py-1.5 rounded-md text-sm font-medium transition-all">PR Mode</button>
+      <button @click="mode = 'local'" :class="mode === 'local' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'" class="px-4 py-1.5 rounded-md text-sm font-medium transition-all">Local Mode</button>
+    </div>
   </div>
 
   <!-- Settings & Models -->
   <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="space-y-1">
-        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Target PR Number</label>
-        <input type="number" x-model="prNumber" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm h-10">
-      </div>
-      <div class="space-y-1 lg:col-span-2">
-        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Mod</label>
-        <div class="flex gap-2 items-center">
-          <template x-if="mods.length === 0">
-            <input type="text" x-model="selectedMod" placeholder="Click Find to load mods" class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm h-10">
-          </template>
-          <template x-if="mods.length > 0">
-            <select x-model="selectedMod" class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm h-10 appearance-none">
-              <template x-for="m in mods" :key="m">
-                <option :value="m" x-text="m"></option>
-              </template>
-            </select>
-          </template>
-          <button @click="loadMods()" :disabled="!prNumber || modsLoading" class="flex-shrink-0 px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50 flex items-center justify-center gap-1 text-sm whitespace-nowrap h-10">
-            <i x-show="!modsLoading" data-lucide="search" class="w-4 h-4"></i>
-            <i x-show="modsLoading" data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
-            <span x-text="modsLoading ? '...' : 'Find'"></span>
-          </button>
+      <template x-if="mode === 'pr'">
+        <div class="space-y-1">
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Target PR Number</label>
+          <input type="number" x-model="prNumber" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm h-10">
         </div>
-      </div>
+      </template>
+      <template x-if="mode === 'pr'">
+        <div class="space-y-1 lg:col-span-2">
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Mod</label>
+          <div class="flex gap-2 items-center">
+            <template x-if="mods.length === 0">
+              <input type="text" x-model="selectedMod" placeholder="Click Find to load mods" class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm h-10">
+            </template>
+            <template x-if="mods.length > 0">
+              <select x-model="selectedMod" class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm h-10 appearance-none">
+                <template x-for="m in mods" :key="m">
+                  <option :value="m" x-text="m"></option>
+                </template>
+              </select>
+            </template>
+            <button @click="loadMods()" :disabled="!prNumber || modsLoading" class="flex-shrink-0 px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50 flex items-center justify-center gap-1 text-sm whitespace-nowrap h-10">
+              <i x-show="!modsLoading" data-lucide="search" class="w-4 h-4"></i>
+              <i x-show="modsLoading" data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+              <span x-text="modsLoading ? '...' : 'Find'"></span>
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <template x-if="mode === 'local'">
+        <div class="space-y-1 lg:col-span-3">
+          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Target Mod (Searchable)</label>
+          <div class="flex gap-2 items-center">
+            <input type="text" x-model="selectedMod" list="all-mods-list" placeholder="Search or type a mod (e.g. create/1.20)" class="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm h-10">
+            <datalist id="all-mods-list">
+              <template x-for="m in allMods" :key="m">
+                <option :value="m"></option>
+              </template>
+            </datalist>
+          </div>
+        </div>
+      </template>
       <div class="space-y-1">
         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Importance Level</label>
         <select x-model="importanceLevel" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm focus:ring-slate-500 focus:border-slate-500 sm:text-sm h-10 appearance-none">
@@ -76,9 +99,18 @@
         </select>
       </div>
     </div>
-
+    <!-- Local JSON Input -->
+    <template x-if="mode === 'local'">
+      <div class="pt-4 border-t border-slate-200 dark:border-slate-700">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-200">Local zh_cn.json Content</h3>
+          <span class="text-xs text-slate-500">Paste your updated JSON here</span>
+        </div>
+        <textarea x-model="localJson" rows="6" placeholder="{&#10;  &#34;item.example.name&#34;: &#34;Example&#34;&#10;}" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono text-sm shadow-sm focus:ring-slate-500 focus:border-slate-500"></textarea>
+      </div>
+    </template>
     <div class="flex justify-end space-x-3 pt-4 border-t border-slate-200 dark:border-slate-700">
-      <button @click="loadReview(false)" :disabled="loading || !selectedMod" class="px-4 py-2 h-10 bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 rounded-lg hover:bg-slate-700 dark:hover:bg-slate-300 focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 flex items-center justify-center space-x-2">
+      <button @click="loadReview(false)" :disabled="loading || !selectedMod || (mode==='local' && !localJson)" class="px-4 py-2 h-10 bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 rounded-lg hover:bg-slate-700 dark:hover:bg-slate-300 focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 flex items-center justify-center space-x-2">
         <i x-show="!loading || loadingForce" data-lucide="play" class="w-4 h-4"></i>
         <i x-show="loading && !loadingForce" data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
         <span>Review</span>
@@ -87,7 +119,7 @@
         <i data-lucide="x" class="w-4 h-4"></i>
         <span>Cancel</span>
       </button>
-      <button @click="loadReview(true)" :disabled="loading || !selectedMod" class="px-4 py-2 h-10 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 flex items-center justify-center space-x-2">
+      <button @click="loadReview(true)" :disabled="loading || !selectedMod || (mode==='local' && !localJson)" class="px-4 py-2 h-10 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 flex items-center justify-center space-x-2">
         <i x-show="!loading || !loadingForce" data-lucide="refresh-cw" class="w-4 h-4"></i>
         <i x-show="loading && loadingForce" data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
         <span>Force Refresh</span>
@@ -140,15 +172,20 @@
   <div x-show="loading || perModelProgress.length > 0" class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
     <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200">Review Progress</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <template x-for="prog in perModelProgress" :key="prog.key || prog.modelId">
-        <div class="space-y-1">
-          <div class="flex justify-between text-sm">
-            <span class="font-medium text-slate-700 dark:text-slate-300" x-text="prog.label || prog.modelId"></span>
-            <span class="text-slate-500 dark:text-slate-400" x-text="prog.statusText || ((prog.completed || 0) + ' / ' + (prog.total || 0))"></span>
+      <template x-for="prog in displayedPerModelProgress" :key="prog.key || prog.modelId">
+        <div class="space-y-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+          <div class="flex justify-between gap-3 text-sm items-start">
+            <span class="font-medium text-slate-700 dark:text-slate-300 break-all" x-text="prog.label || prog.modelId"></span>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <span class="text-slate-500 dark:text-slate-400" x-text="prog.statusText || ((prog.completed || 0) + ' / ' + (prog.total || 0))"></span>
+              <button x-show="canCancelProgressModel(prog)" @click.stop="cancelModelReview(prog)" class="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50">
+                Cancel
+              </button>
+            </div>
           </div>
           <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
             <div class="h-2 rounded-full transition-all duration-300"
-                 :class="prog.indeterminate ? 'bg-sky-500 animate-pulse' : (prog.stage === 'consistency' ? 'bg-sky-600' : 'bg-indigo-600')"
+                 :class="prog.indeterminate ? 'bg-sky-500 animate-pulse' : (prog.stage === 'consistency' ? 'bg-sky-600' : (prog.stage === 'cancelled' ? 'bg-red-500' : 'bg-indigo-600'))"
                  :style="prog.indeterminate ? 'width: 35%' : ('width: ' + ((prog.total ? prog.completed / prog.total : 0) * 100) + '%')"></div>
           </div>
         </div>
@@ -189,13 +226,13 @@
     </div>
 
     <!-- Global Notes -->
-    <div x-show="result?.modelResults?.some(mr => mr.globalNotes)" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 rounded-xl p-6 space-y-4">
+    <div x-show="visibleModelResults().some(mr => mr.globalNotes)" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 rounded-xl p-6 space-y-4">
       <h3 class="text-lg font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-2">
         <i data-lucide="info" class="w-5 h-5"></i>
         Global Notes
       </h3>
       <div class="space-y-3">
-        <template x-for="mr in result?.modelResults || []" :key="mr.spec.uniqueId">
+        <template x-for="mr in visibleModelResults()" :key="mr.spec.uniqueId">
           <div x-show="mr.globalNotes">
             <p class="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1" x-text="mr.spec.uniqueId"></p>
             <div class="prose dark:prose-invert max-w-none text-sm text-blue-900 dark:text-blue-200" x-html="mr.globalNotes"></div>
@@ -206,7 +243,7 @@
 
     <!-- View Controls -->
     <div class="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4">
-      <div class="flex items-center gap-4">
+      <div class="flex items-center gap-4 flex-wrap">
         <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-700 dark:text-slate-300">
           <input type="checkbox" x-model="hidePassed" class="rounded border-slate-300 dark:border-slate-600 text-slate-600 focus:ring-slate-500 bg-white dark:bg-slate-700">
           Hide Passed
@@ -215,6 +252,12 @@
           <input type="checkbox" x-model="hideNotReviewed" class="rounded border-slate-300 dark:border-slate-600 text-slate-600 focus:ring-slate-500 bg-white dark:bg-slate-700">
           Hide Not Reviewed
         </label>
+        <template x-for="mr in result?.modelResults || []" :key="mr.spec.uniqueId">
+          <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-700 dark:text-slate-300">
+            <input type="checkbox" :checked="!hiddenResultModels.includes(mr.spec.uniqueId)" @change="toggleResultModelVisibility(mr.spec.uniqueId, $event.target.checked)" class="rounded border-slate-300 dark:border-slate-600 text-slate-600 focus:ring-slate-500 bg-white dark:bg-slate-700">
+            <span x-text="mr.spec.uniqueId"></span>
+          </label>
+        </template>
       </div>
       <div class="flex items-center gap-2 text-sm">
         <span class="text-slate-500 dark:text-slate-400">Sort by:</span>
@@ -266,7 +309,7 @@
               <tr x-show="expanded" class="bg-slate-50/50 dark:bg-slate-900/50" @click.stop>
                 <td colspan="5" class="px-6 py-4">
                   <div class="space-y-4">
-                    <template x-for="mr in result?.modelResults || []" :key="mr.spec.uniqueId">
+                    <template x-for="mr in visibleModelResults()" :key="mr.spec.uniqueId">
                       <div x-data="{ mrItem: mr.items.find(x => x.id === rowId) }" class="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
                         <div class="flex items-start justify-between mb-2">
                           <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200" x-text="mr.spec.uniqueId"></span>
@@ -306,6 +349,9 @@
 <script>
 function prReviewData() {
   return {
+    mode: 'pr',
+    allMods: [],
+    localJson: '',
     prNumber: '',
     selectedMod: '',
     importanceLevel: 'medium',
@@ -315,6 +361,8 @@ function prReviewData() {
     consistencyEnabled: false,
     consistencyScope: 'diff_only',
     consistencyModel: '',
+    hiddenResultModels: [],
+    cancelledProgressModels: [],
     
     // View Filters
     hidePassed: true,
@@ -376,6 +424,14 @@ function prReviewData() {
       const savedConsistencyModel = localStorage.getItem('prReview_consistencyModel');
       if (savedConsistencyModel) this.consistencyModel = savedConsistencyModel;
 
+      const savedHiddenResultModels = localStorage.getItem('prReview_hiddenResultModels');
+      if (savedHiddenResultModels) this.hiddenResultModels = JSON.parse(savedHiddenResultModels);
+      
+      const savedMode = localStorage.getItem('prReview_mode');
+      if (savedMode) this.mode = savedMode;
+      
+      this.loadAllMods();
+
       try {
         const res = await fetch(window.API_BASE_URL + '/ModelConfigs', { credentials: 'include' });
         if(res.ok) {
@@ -411,6 +467,8 @@ function prReviewData() {
       this.$watch('consistencyEnabled', val => localStorage.setItem('prReview_consistencyEnabled', val));
       this.$watch('consistencyScope', val => localStorage.setItem('prReview_consistencyScope', val));
       this.$watch('consistencyModel', val => localStorage.setItem('prReview_consistencyModel', val));
+      this.$watch('mode', val => localStorage.setItem('prReview_mode', val));
+      this.$watch('hiddenResultModels', val => localStorage.setItem('prReview_hiddenResultModels', JSON.stringify(val)));
       this.$watch('models', val => {
         const enabledModels = val.filter(m => m.enabled).map(m => m.provider + ':' + m.modelId);
         localStorage.setItem('prReview_enabledModels', JSON.stringify(enabledModels));
@@ -446,7 +504,7 @@ function prReviewData() {
     updateShareUrl(reviewHash = null) {
       const url = new URL(window.location.href);
 
-      if (this.prNumber) url.searchParams.set('pr', this.prNumber);
+      if (this.prNumber && this.mode === 'pr') url.searchParams.set('pr', this.prNumber);
       else url.searchParams.delete('pr');
 
       if (this.selectedMod) url.searchParams.set('mod', this.selectedMod);
@@ -459,6 +517,18 @@ function prReviewData() {
       const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
       if (nextUrl !== currentUrl) {
         window.history.replaceState({}, '', nextUrl);
+      }
+    },
+
+    async loadAllMods() {
+      try {
+        const res = await fetch(`${window.API_BASE_URL}/Utils/GetAllModFilesInRepo`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          this.allMods = data.flatMap(mod => mod.versions.map(v => `${mod.slug}/${v}`)).sort();
+        }
+      } catch (e) {
+        console.error('Failed to load all mods:', e);
       }
     },
 
@@ -525,12 +595,15 @@ function prReviewData() {
     },
 
     loadReview(force) {
-      if(!this.prNumber || !this.selectedMod) return;
+      if(!this.selectedMod) return;
+      if(this.mode === 'pr' && !this.prNumber) return;
+      if(this.mode === 'local' && !this.localJson) return;
       
       this.loading = true;
       this.loadingForce = !!force;
       this.result = null;
       this.perModelProgress = [];
+      this.cancelledProgressModels = [];
       this.statusMessage = 'Connecting...';
       this.historyVisible = false;
       this.updateShareUrl();
@@ -540,7 +613,8 @@ function prReviewData() {
       }
 
       let baseWsUrl = window.API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
-      let url = `${baseWsUrl}/ws/PRLLMReviewResult?pr=${this.prNumber}&mod=${encodeURIComponent(this.selectedMod)}&importance=${this.importanceLevel}`;
+      let url = `${baseWsUrl}/ws/PRLLMReviewResult?mod=${encodeURIComponent(this.selectedMod)}&importance=${this.importanceLevel}`;
+      if (this.mode === 'pr') url += `&pr=${this.prNumber}`;
       if(force) url += '&force=true';
 
       this.ws = new WebSocket(url);
@@ -578,7 +652,9 @@ function prReviewData() {
           perModelOverrides: perModelOverrides,
           consistency: this.consistencyEnabled,
           consistencyScope: this.consistencyScope,
-          consistencyModel: this.consistencyModel
+          consistencyModel: this.consistencyModel,
+          isLocal: this.mode === 'local',
+          localJson: this.mode === 'local' ? this.localJson : null
         };
         
         this.ws.send(JSON.stringify(msg));
@@ -591,11 +667,12 @@ function prReviewData() {
           if (data.type === 'progress') {
             if (data.perModel) {
               this.perModelProgress = data.perModel;
-              const activeConsistency = data.perModel.find(p =>
+              const visibleProgress = this.displayedPerModelProgress;
+              const activeConsistency = visibleProgress.find(p =>
                 p.stage === 'consistency' && (p.indeterminate || (p.completed || 0) < (p.total || 0))
               );
-              const merging = data.perModel.some(p => p.merging);
-              const reviewProgress = data.perModel.filter(p => p.stage !== 'consistency');
+              const merging = visibleProgress.some(p => p.merging);
+              const reviewProgress = visibleProgress.filter(p => p.stage !== 'consistency' && p.stage !== 'cancelled');
               const done = reviewProgress.reduce((s, p) => s + (p.completed || 0), 0);
               const total = reviewProgress.reduce((s, p) => s + (p.total || 0), 0);
 
@@ -605,8 +682,10 @@ function prReviewData() {
                 this.statusMessage = 'Merging results...';
               } else if (reviewProgress.length > 0) {
                 this.statusMessage = `Processing... ${done}/${total}`;
-              } else if (data.perModel.some(p => p.stage === 'consistency')) {
+              } else if (visibleProgress.some(p => p.stage === 'consistency')) {
                 this.statusMessage = 'Consistency check complete. Starting review...';
+              } else if (this.cancelledProgressModels.length > 0) {
+                this.statusMessage = 'Selected model cancelled.';
               } else {
                 this.statusMessage = 'Preparing review...';
               }
@@ -658,6 +737,48 @@ function prReviewData() {
       }
     },
 
+    cancelModelReview(prog) {
+      const modelKey = prog?.key || prog?.modelId;
+      if (!modelKey || modelKey.startsWith('consistency:')) return;
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'cancelModel', modelKey }));
+        if (!this.cancelledProgressModels.includes(modelKey)) {
+          this.cancelledProgressModels.push(modelKey);
+        }
+        this.statusMessage = `Cancelling ${modelKey}...`;
+      }
+    },
+
+    canCancelProgressModel(prog) {
+      const modelKey = prog?.key || prog?.modelId;
+      return !!modelKey
+        && !modelKey.startsWith('consistency:')
+        && prog.stage !== 'cancelled'
+        && !this.cancelledProgressModels.includes(modelKey);
+    },
+
+    toggleResultModelVisibility(modelKey, visible) {
+      if (!modelKey) return;
+      if (visible) {
+        this.hiddenResultModels = this.hiddenResultModels.filter(x => x !== modelKey);
+      } else if (!this.hiddenResultModels.includes(modelKey)) {
+        this.hiddenResultModels = [...this.hiddenResultModels, modelKey];
+      }
+    },
+
+    visibleModelResults() {
+      return (this.result?.modelResults || []).filter(mr =>
+        !mr.cancelled && !this.hiddenResultModels.includes(mr.spec.uniqueId)
+      );
+    },
+
+    get displayedPerModelProgress() {
+      return this.perModelProgress.filter(p => {
+        const modelKey = p.key || p.modelId;
+        return !modelKey || !this.cancelledProgressModels.includes(modelKey);
+      });
+    },
+
     getStatusSeverity(statusStr) {
       switch(statusStr) {
         case 'NotReviewed': return -1;
@@ -670,10 +791,11 @@ function prReviewData() {
     },
 
     getAggregatedStatus(rowId) {
-      if(!this.result || !this.result.modelResults || this.result.modelResults.length === 0) return -1;
+      const modelResults = this.visibleModelResults();
+      if(!this.result || !modelResults || modelResults.length === 0) return -1;
       let maxSeverity = -1;
       let allUnreviewed = true;
-      this.result.modelResults.forEach(mr => {
+      modelResults.forEach(mr => {
         const item = mr.items?.find(x => x.id === rowId);
         const s = item ? this.getStatusSeverity(item.status) : -1;
         if(s !== -1) {

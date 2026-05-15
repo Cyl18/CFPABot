@@ -112,6 +112,7 @@ namespace CFPABot.Christina.LLMs
         public ModelSpec Spec { get; set; }
         public List<LlmItemOutput> Items { get; set; }
         public string GlobalNotes { get; set; }
+        public bool Cancelled { get; set; }
         /// <summary>各批次解析/请求失败的错误信息，为空则全部成功。</summary>
         public List<string>? BatchErrors { get; set; }
     }

@@ -144,6 +144,7 @@ namespace CFPABot.Christina.LLMs
             IReadOnlyList<ModelSpec>? models = null,
             ModelSpec? consistencyModel = null,
             string consistencyScope = "diff_only",
+            Func<ModelSpec, CancellationToken>? modelCancellationTokenFactory = null,
             IProgress<ReviewProgressUpdate>? progress = null,
             CancellationToken ct = default)
         {
@@ -250,7 +251,18 @@ namespace CFPABot.Christina.LLMs
 
             // 对每个模型并行运行所有 batches
             var modelTasks = effectiveModels.Select(spec =>
-                RunModelReviewAsync(spec, enDict, batches, offsets, filteredLines, modId, mcVersionRange, importance, consistencyStyleNote, progress, ct)
+                RunModelReviewAsync(
+                    spec,
+                    enDict,
+                    batches,
+                    offsets,
+                    filteredLines,
+                    modId,
+                    mcVersionRange,
+                    importance,
+                    consistencyStyleNote,
+                    progress,
+                    modelCancellationTokenFactory?.Invoke(spec) ?? ct)
             ).ToArray();
 
             var modelResults = await Task.WhenAll(modelTasks);
@@ -282,52 +294,75 @@ namespace CFPABot.Christina.LLMs
                 StatusText = total > 0 ? $"Reviewing batches 0/{total}" : "Preparing review..."
             });
 
-            var batchTasks = batches.Select(async (batch, i) =>
-            {
-                var idOffset = offsets[i];
-                var result = await ProcessBatchAsync(provider, spec.ModelId, enDict, batch, idOffset, modId, mcVersionRange, importance, consistencyStyleNote, ct);
-                var done = Interlocked.Increment(ref completed);
-                progress?.Report(new ReviewProgressUpdate
-                {
-                    Key = spec.UniqueId,
-                    Label = spec.UniqueId,
-                    Completed = done,
-                    Total = total,
-                    Stage = "review",
-                    StatusText = $"Reviewing batches {done}/{total}"
-                });
-                return result;
-            }).ToArray();
-
-            var results = await Task.WhenAll(batchTasks);
-
-            var allItems = results.SelectMany(r => r.items).OrderBy(x => x.Id).ToList();
-            var allGlobalNotes = results.Select(r => r.notes).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
-            var batchErrors = results.Select(r => r.batchError).Where(e => e != null).ToList();
-
-            string mergedNotes;
             try
             {
+                var batchTasks = batches.Select(async (batch, i) =>
+                {
+                    var idOffset = offsets[i];
+                    var result = await ProcessBatchAsync(provider, spec.ModelId, enDict, batch, idOffset, modId, mcVersionRange, importance, consistencyStyleNote, ct);
+                    var done = Interlocked.Increment(ref completed);
+                    progress?.Report(new ReviewProgressUpdate
+                    {
+                        Key = spec.UniqueId,
+                        Label = spec.UniqueId,
+                        Completed = done,
+                        Total = total,
+                        Stage = "review",
+                        StatusText = $"Reviewing batches {done}/{total}"
+                    });
+                    return result;
+                }).ToArray();
+
+                var results = await Task.WhenAll(batchTasks);
+
+                var allItems = results.SelectMany(r => r.items).OrderBy(x => x.Id).ToList();
+                var allGlobalNotes = results.Select(r => r.notes).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
+                var batchErrors = results.Select(r => r.batchError).Where(e => e != null).ToList();
+
+                string mergedNotes;
+                try
+                {
+                    progress?.Report(new ReviewProgressUpdate
+                    {
+                        Key = spec.UniqueId,
+                        Label = spec.UniqueId,
+                        Completed = total,
+                        Total = total,
+                        Merging = true,
+                        Stage = "merge",
+                        StatusText = "Merging results..."
+                    });
+                    mergedNotes = await MergeGlobalNotesAsync(provider, spec.ModelId, allItems, allGlobalNotes, ct);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "MergeGlobalNotesAsync failed for model={Model}", spec.ModelId);
+                    mergedNotes = allGlobalNotes.Connect(separator: "\n");
+                }
+
+                return new ModelBatchResult { Spec = spec, Items = allItems, GlobalNotes = mergedNotes, BatchErrors = batchErrors.Count > 0 ? batchErrors : null };
+            }
+            catch (OperationCanceledException)
+            {
                 progress?.Report(new ReviewProgressUpdate
                 {
                     Key = spec.UniqueId,
                     Label = spec.UniqueId,
-                    Completed = total,
+                    Completed = completed,
                     Total = total,
-                    Merging = true,
-                    Stage = "merge",
-                    StatusText = "Merging results..."
+                    Stage = "cancelled",
+                    StatusText = "Cancelled"
                 });
-                mergedNotes = await MergeGlobalNotesAsync(provider, spec.ModelId, allItems, allGlobalNotes, ct);
+                return new ModelBatchResult
+                {
+                    Spec = spec,
+                    Items = new List<LlmItemOutput>(),
+                    GlobalNotes = "",
+                    Cancelled = true,
+                    BatchErrors = new List<string> { "Cancelled" }
+                };
             }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "MergeGlobalNotesAsync failed for model={Model}", spec.ModelId);
-                mergedNotes = allGlobalNotes.Connect(separator: "\n");
-            }
-
-            return new ModelBatchResult { Spec = spec, Items = allItems, GlobalNotes = mergedNotes, BatchErrors = batchErrors.Count > 0 ? batchErrors : null };
         }
 
         private static async Task<(List<LlmItemOutput> items, string notes, string? batchError)> ProcessBatchAsync(
@@ -374,12 +409,14 @@ namespace CFPABot.Christina.LLMs
             {
                 var responseText = await provider.QueryWithSystemPromptStructuredAsync(baseSystemPrompt, prompt, model, ReviewBatchSchema, ct);
                 var (items, batchNotes) = ParseBatchOutput(responseText, globalIdOffset);
+                NormalizeRedundantSuggestions(items, entries, globalIdOffset);
 
                 if (items.Count == 0 && entries.Count > 0)
                 {
                     Log.Warning("ProcessBatchAsync: 首次解析返回空结果，idOffset={IdOffset}，model={Model}，进行重试", globalIdOffset, model);
                     var retryResponse = await provider.QueryWithSystemPromptStructuredAsync(baseSystemPrompt, prompt, model, ReviewBatchSchema, ct);
                     var (retryItems, retryNotes) = ParseBatchOutput(retryResponse, globalIdOffset);
+                    NormalizeRedundantSuggestions(retryItems, entries, globalIdOffset);
 
                     if (retryItems.Count == 0)
                     {
@@ -524,6 +561,29 @@ namespace CFPABot.Christina.LLMs
 
             return (items, globalNotes);
         }
+
+        private static void NormalizeRedundantSuggestions(List<LlmItemOutput> items, List<ReviewEntry> entries, int globalIdOffset)
+        {
+            if (items.Count == 0 || entries.Count == 0)
+                return;
+
+            var targetById = entries.ToDictionary(x => x.Id + globalIdOffset, x => x.Target ?? "");
+            foreach (var item in items)
+            {
+                if (!targetById.TryGetValue(item.Id, out var currentTarget))
+                    continue;
+
+                if (!string.Equals(NormalizeComparableText(item.SuggestedTarget), NormalizeComparableText(currentTarget), StringComparison.Ordinal))
+                    continue;
+
+                item.Status = ReviewStatus.Pass;
+                item.SuggestedTarget = "";
+                item.Issues = new List<LlmIssue>();
+            }
+        }
+
+        private static string NormalizeComparableText(string? text)
+            => (text ?? "").Replace("\r\n", "\n").Trim();
 
         private static ReviewStatus ParseReviewStatus(string? s) => s switch
         {

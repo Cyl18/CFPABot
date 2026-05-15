@@ -119,6 +119,7 @@ namespace CFPABot.Christina.Backend
 
         private static readonly ConcurrentDictionary<string, ReviewJob> _wsJobs = new();
         private static readonly ConcurrentDictionary<string, CancellationTokenSource> _wsJobCts = new();
+        private static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, CancellationTokenSource>> _wsJobModelCts = new();
 
         // ── In-memory cache for PR content hashes (avoids hitting GitHub API on every history request) ──
         private static readonly ConcurrentDictionary<string, (string? hash, DateTime expiry)> _contentHashCache = new();
@@ -130,7 +131,9 @@ namespace CFPABot.Christina.Backend
             Dictionary<string, WsModelOverride>? PerModelOverrides,
             bool Consistency,
             string? ConsistencyScope,
-            string? ConsistencyModel);
+            string? ConsistencyModel,
+            bool IsLocal,
+            string? LocalJson);
 
         private sealed record WsModelOverride(string? BaseUrl, string? ApiKey);
 
@@ -236,7 +239,7 @@ namespace CFPABot.Christina.Backend
 
         [HttpGet("ws/PRLLMReviewResult")]
         public async Task PRLLMReviewResultWs(
-            [FromQuery] int pr,
+            [FromQuery] int? pr,
             [FromQuery] string mod,
             [FromQuery] bool force = false,
             [FromQuery] string importance = "medium")
@@ -354,47 +357,72 @@ namespace CFPABot.Christina.Backend
                 var capturedScope            = consistencyScope;
                 var capturedScopeFactory     = _scopeFactory;
                 var cts = new CancellationTokenSource();
+                var modelCts = new ConcurrentDictionary<string, CancellationTokenSource>();
+                foreach (var model in capturedModels)
+                    modelCts[model.UniqueId] = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
                 _wsJobCts[jobKey] = cts;
+                _wsJobModelCts[jobKey] = modelCts;
 
                 _ = Task.Run(async () =>
                 {
                     try
                     {
                         Log.Information("WS PRLLMReviewResult job started for pr={Pr} mod={Mod} force={Force} models={Models}", pr, mod, force, capturedModels.Select(x => x.UniqueId).Connect(","));
-                        var diff    = await GitHub.Diff(pr);
-                        var prInfo  = await GitHub.GetPullRequest(pr);
-                        var headSha = prInfo.Head.Sha;
-                        var baseSha = prInfo.Base.Sha;
-
-                        var modPaths = PRAnalyzer.RunBleedingEdge(diff);
-                        var modPath  = modPaths.FirstOrDefault(m => m.ToString() == mod);
-                        if (modPath == null)
+                        var modPath = new ModPath(mod);
+                        string? enContent;
+                        string? cnContent;
+                        string? baseEnContent;
+                        string? baseCnContent;
+                        
+                        if (configFrame.IsLocal)
                         {
-                            job.Finish(Serialize(new { type = "error", message = "mod not found" }));
-                            return;
+                            enContent = await new LangFilePath(modPath, LangType.EN).FetchFromCommit("main");
+                            cnContent = configFrame.LocalJson;
+                            baseEnContent = null;
+                            baseCnContent = null;
                         }
+                        else
+                        {
+                            if (!pr.HasValue)
+                            {
+                                job.Finish(Serialize(new { type = "error", message = "pr is required" }));
+                                return;
+                            }
+                            var diff    = await GitHub.Diff(pr.Value);
+                            var prInfo  = await GitHub.GetPullRequest(pr.Value);
+                            var headSha = prInfo.Head.Sha;
+                            var baseSha = prInfo.Base.Sha;
 
-                        var enTask     = new LangFilePath(modPath, LangType.EN).FetchFromCommit(headSha);
-                        var cnTask     = new LangFilePath(modPath, LangType.CN).FetchFromCommit(headSha);
-                        var baseEnTask = new LangFilePath(modPath, LangType.EN).FetchFromCommit(baseSha);
-                        var baseCnTask = new LangFilePath(modPath, LangType.CN).FetchFromCommit(baseSha);
-                        await Task.WhenAll(enTask, cnTask, baseEnTask, baseCnTask);
+                            var modPaths = PRAnalyzer.RunBleedingEdge(diff);
+                            var matchedModPath = modPaths.FirstOrDefault(m => m.ToString() == mod);
+                            if (matchedModPath == null)
+                            {
+                                job.Finish(Serialize(new { type = "error", message = "mod not found" }));
+                                return;
+                            }
+                            modPath = matchedModPath;
 
-                        var enContent     = await enTask;
-                        var cnContent     = await cnTask;
-                        var baseEnContent = await baseEnTask;
-                        var baseCnContent = await baseCnTask;
+                            var enTask     = new LangFilePath(modPath, LangType.EN).FetchFromCommit(headSha);
+                            var cnTask     = new LangFilePath(modPath, LangType.CN).FetchFromCommit(headSha);
+                            var baseEnTask = new LangFilePath(modPath, LangType.EN).FetchFromCommit(baseSha);
+                            var baseCnTask = new LangFilePath(modPath, LangType.CN).FetchFromCommit(baseSha);
+                            await Task.WhenAll(enTask, cnTask, baseEnTask, baseCnTask);
+
+                            enContent     = await enTask;
+                            cnContent     = await cnTask;
+                            baseEnContent = await baseEnTask;
+                            baseCnContent = await baseCnTask;
+                        }
 
                         if (enContent == null || cnContent == null)
                         {
-                            job.Finish(Serialize(new { type = "error", message = "lang files not found" }));
+                            job.Finish(Serialize(new { type = "error", message = "lang files not found or empty" }));
                             return;
                         }
 
                         var en     = JsonObjectEx.CreateFromString(enContent);
                         var cn     = JsonObjectEx.CreateFromString(cnContent);
                         var enDict = en.Lines.ToDictionary(x => x.Key, x => x.Value);
-                        var filteredLines = cn.Lines.Where(x => enDict.ContainsKey(x.Key)).ToArray();
 
                         var baseEnDict = baseEnContent != null
                             ? JsonObjectEx.CreateFromString(baseEnContent).Lines.ToDictionary(x => x.Key, x => x.Value)
@@ -402,6 +430,20 @@ namespace CFPABot.Christina.Backend
                         var baseCnDict = baseCnContent != null
                             ? JsonObjectEx.CreateFromString(baseCnContent).Lines.ToDictionary(x => x.Key, x => x.Value)
                             : null;
+
+                        JsonLine[] filteredLines;
+                        if (configFrame.IsLocal)
+                        {
+                            var baseCnDictFixed = baseCnDict ?? new Dictionary<string, string>();
+                            filteredLines = cn.Lines
+                                .Where(x => enDict.ContainsKey(x.Key))
+                                .Where(x => !baseCnDictFixed.TryGetValue(x.Key, out var oldVal) || oldVal != x.Value)
+                                .ToArray();
+                        }
+                        else
+                        {
+                            filteredLines = cn.Lines.Where(x => enDict.ContainsKey(x.Key)).ToArray();
+                        }
 
                         // Try new hash-based cache
                         var cacheEntries = filteredLines.Select(l => (l.Key, enDict.GetValueOrDefault(l.Key, ""), l.Value));
@@ -450,6 +492,7 @@ namespace CFPABot.Christina.Backend
                                 models:             capturedModels,
                                 consistencyModel:   capturedConsistencyModel,
                                 consistencyScope:   capturedScope,
+                                modelCancellationTokenFactory: spec => modelCts.TryGetValue(spec.UniqueId, out var modelCtsItem) ? modelCtsItem.Token : cts.Token,
                                 progress:           wsProgress,
                                 ct:                 cts.Token);
 
@@ -481,7 +524,7 @@ namespace CFPABot.Christina.Backend
                             using (var scope = capturedScopeFactory.CreateScope())
                             {
                                 var scopedDb = scope.ServiceProvider.GetRequiredService<ChristinaDbContext>();
-                                await LlmReviewCache.Save(scopedDb, cacheHash, display, pr, mod, capturedModels, importance, configFrame.Consistency, contentHash);
+                                await LlmReviewCache.Save(scopedDb, cacheHash, display, pr ?? 0, mod, capturedModels, importance, configFrame.Consistency, contentHash);
                             }
                             wssDisplay = CloneDisplay(display);
                             SanitizeDisplayMarkdown(wssDisplay);
@@ -503,6 +546,8 @@ namespace CFPABot.Christina.Backend
                     {
                         _wsJobCts.TryRemove(jobKey, out var removedCts);
                         removedCts?.Dispose();
+                        if (_wsJobModelCts.TryRemove(jobKey, out var removedModelCts))
+                            foreach (var item in removedModelCts.Values) item.Dispose();
                         // Delay removal so late-joining clients within 60 s get the replay instead of restarting
                         _ = Task.Delay(TimeSpan.FromSeconds(60))
                             .ContinueWith(_t => _wsJobs.TryRemove(jobKey, out _), TaskScheduler.Default);
@@ -535,6 +580,15 @@ namespace CFPABot.Christina.Backend
                             {
                                 Log.Information("WS PRLLMReviewResult: client requested cancel for job={JobKey}", jobKey);
                                 jobCts.Cancel();
+                            }
+                            else if (el.TryGetProperty("type", out tp) && tp.GetString() == "cancelModel"
+                                     && el.TryGetProperty("modelKey", out var mk)
+                                     && mk.GetString().NotNullNorEmpty()
+                                     && _wsJobModelCts.TryGetValue(jobKey, out var modelCtsMap)
+                                     && modelCtsMap.TryGetValue(mk.GetString()!, out var modelJobCts))
+                            {
+                                Log.Information("WS PRLLMReviewResult: client requested cancel for model={Model} job={JobKey}", mk.GetString(), jobKey);
+                                modelJobCts.Cancel();
                             }
                         }
                         catch { /* ignore malformed frames */ }
