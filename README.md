@@ -95,7 +95,7 @@ CFPABot/
 ├── DiffEngine/          # 语言文件差异引擎
 ├── LanguageCore/        # JSON/.lang 文件格式化
 ├── ProjectHex/          # PR 合并 + 资源包构建
-├── Utils/               # 工具类 (GitHub API, CurseForge, Modrinth 等)
+├── Utils/               # 工具类 (GitHub API, CurseForge, Modrinth 等)，还包含最重要的 CommentsBuiler.cs，用于构建 GitHub 回复
 ├── Models/              # 数据模型
 └── Exceptions/          # 自定义异常类型
 ```
