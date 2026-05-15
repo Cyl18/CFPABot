@@ -57,10 +57,30 @@ $remoteCmd = "cd ~/production/cfpa-bot && " +
              "echo '[*] Restarting containers...' && docker-compose down && docker-compose up -d && " +
              "echo '[OK] Production update complete!'"
 
-ssh hk $remoteCmd
+$maxRetries = 5
+$attempt = 1
+$success = $false
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "[ERROR] Remote command failed"
+while ($attempt -le $maxRetries) {
+    Write-Host "[*] Remote command attempt $attempt/$maxRetries..."
+    ssh hk $remoteCmd
+
+    if ($LASTEXITCODE -eq 0) {
+        $success = $true
+        break
+    }
+
+    Write-Host "[WARN] Remote command failed on attempt $attempt/$maxRetries"
+    if ($attempt -lt $maxRetries) {
+        Write-Host "[*] Retrying in 3 seconds..."
+        Start-Sleep -Seconds 3
+    }
+
+    $attempt++
+}
+
+if (-not $success) {
+    Write-Host "[ERROR] Remote command failed after $maxRetries attempts"
     exit 1
 }
 
