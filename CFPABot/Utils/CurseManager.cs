@@ -550,7 +550,7 @@ namespace CFPABot.Utils
 
         static void AddMapping(List<Mod> addons)
         {
-            foreach (var addon in addons.Where(s => s.GameId == 432 && s.Links.WebsiteUrl.StartsWith("https://www.curseforge.com/minecraft/mc-mods/")))
+            foreach (var addon in addons.Where(s => s.GameId == 432 && (s.Links.WebsiteUrl.StartsWith("https://www.curseforge.com/minecraft/mc-mods/") || s.Links.WebsiteUrl.StartsWith("https://www.curseforge.com/minecraft/texture-packs/"))))
                 lock (ModIDMappingMetadata.Instance)
                 {
                     ModIDMappingMetadata.Instance.Mapping[addon.Slug] = (int)addon.Id;

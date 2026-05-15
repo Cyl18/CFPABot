@@ -740,6 +740,34 @@
 
         try
         {
+            if (slug.StartsWith("modrinth-datapack-"))
+            {
+                slug = slug["modrinth-datapack-".Length..];
+                var addon = await ModrinthManager.GetMod(slug);
+                foreach (var modVersion in versions)
+                {
+                    var loaders = new[] { "datapack" };
+                    var modEnFile = await ModrinthManager.GetModEnFile(addon, modVersion.ToVersionDirectory().ToMCVersion(), loaders, LangType.EN);
+                    var modCnFile = await ModrinthManager.GetModEnFile(addon, modVersion.ToVersionDirectory().ToMCVersion(), loaders, LangType.CN);
+
+                    if (modEnFile.files != null && modEnFile.files.FirstOrDefault() is { } f2)
+                    {
+                        var s = $"{modCnFile.downloadFileName} 的英文语言文件";
+
+                        textsV.Add(s);
+                        langV.Add(LangFileWrapper.FromContent(f2));
+                    }
+
+                    if (modCnFile.files != null && modCnFile.files.FirstOrDefault() is { } f)
+                    {
+                        var s = $"{modCnFile.downloadFileName} 的中文语言文件";
+
+                        textsV.Add(s);
+                        langV.Add(LangFileWrapper.FromContent(f));
+                    }
+                }
+                return;
+            }
             if (slug.StartsWith("modrinth-"))
             {
                 slug = slug["modrinth-".Length..];
@@ -766,6 +794,32 @@
                     }
                 }
                 return;
+            }
+            else if (slug.StartsWith("texture-packs-"))
+            {
+                slug = slug["texture-packs-".Length..];
+                var addon = await CurseManager.GetAddon(slug);
+                foreach (var modVersion in versions)
+                {
+                    var modEnFile = await CurseManager.GetModEnFile(addon, modVersion.ToVersionDirectory().ToMCVersion(), LangType.EN);
+                    var modCnFile = await CurseManager.GetModEnFile(addon, modVersion.ToVersionDirectory().ToMCVersion(), LangType.CN);
+
+                    if (modEnFile.files != null && modEnFile.files.FirstOrDefault() is { } f2)
+                    {
+                        var s = $"{modCnFile.downloadFileName} 的英文语言文件";
+
+                        textsV.Add(s);
+                        langV.Add(LangFileWrapper.FromContent(f2));
+                    }
+
+                    if (modCnFile.files != null && modCnFile.files.FirstOrDefault() is { } f)
+                    {
+                        var s = $"{modCnFile.downloadFileName} 的中文语言文件";
+
+                        textsV.Add(s);
+                        langV.Add(LangFileWrapper.FromContent(f));
+                    }
+                }
             }
             else
             {

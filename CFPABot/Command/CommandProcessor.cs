@@ -154,7 +154,42 @@ namespace CFPABot.Command
                             MCVersion.v1122 => "en_us.lang",
                             _ => "en_us.json"
                         };
-                        if (curseForgeID.StartsWith("modrinth-"))
+                        if (curseForgeID.StartsWith("modrinth-datapack-"))
+                        {
+                            var originalID = curseForgeID;
+                            curseForgeID = curseForgeID["modrinth-datapack-".Length..];
+                            var addon = await ModrinthManager.GetMod(curseForgeID);
+
+                            var modID = await ModrinthManager.GetModID(addon, version, new[] { "datapack" }, true, false);
+                            var (files, downloadFileName) = await ModrinthManager.GetModEnFile(addon, version, new[] { "datapack" }, LangType.EN);
+                            if (files.Length != 1)
+                            {
+                                sb.AppendLine(Locale.Command_update_en_MultipleLangFiles);
+                                continue;
+                            }
+
+                            sb.AppendLine(string.Format(Locale.Command_update_en_Success, downloadFileName));
+                            var f = files[0];
+                            using var sr = new MemoryStream(f.ToUTF8Bytes()).CreateStreamReader(Encoding.UTF8);
+                            using var sw = File.Open(
+                                Path.Combine(r.WorkingDirectory,
+                                    $"projects/assets/{curseForgeID}/{versionString}/{modID}/lang/{versionFile}"),
+                                FileMode.Create).CreateStreamWriter(new UTF8Encoding(false));
+
+                            switch (version)
+                            {
+                                case MCVersion.v1122:
+                                    new LangFormatter(sr, sw).Format();
+                                    break;
+                                default:
+                                    new JsonFormatter(sr, sw).Format();
+                                    break;
+                            }
+
+                            r.AddAllFiles();
+                            r.Commit($"Update en_us file for {(curseForgeID.Replace("\"", "\\\""))}", user);
+                        }
+                        else if (curseForgeID.StartsWith("modrinth-"))
                         {
                             curseForgeID = curseForgeID["modrinth-".Length..];
                             var addon = await ModrinthManager.GetMod(curseForgeID);
@@ -221,7 +256,7 @@ namespace CFPABot.Command
                             r.AddAllFiles();
                             r.Commit($"Update en_us file for {(curseForgeID.Replace("\"", "\\\""))}", user);
                         }
-                        
+
                     }
 
                     if (line.StartsWith("/add-co-author "))

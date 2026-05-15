@@ -21,13 +21,20 @@ namespace CFPABot.Utils
             return Instance.Project.GetAsync(slug);
         }
 
-        public static async Task<string> GetModID(Project addon, MCVersion? version, bool enforcedLang = false,
+        static string[] DefaultLoaders(MCVersion? version) =>
+            version?.ToString().Contains("fabric") == true ? new[] { "fabric" } : new[] { "fabric", "forge" };
+
+        public static Task<string> GetModID(Project addon, MCVersion? version, bool enforcedLang = false,
+    bool connect = true)
+            => GetModID(addon, version, DefaultLoaders(version), enforcedLang, connect);
+
+        public static async Task<string> GetModID(Project addon, MCVersion? version, string[] loaders, bool enforcedLang = false,
     bool connect = true)
         {
             if (version == null) return "未知";
             try
             {
-                var versions = await Instance.Version.GetProjectVersionListAsync(addon.Slug, new []{ version.ToString().Contains("fabric") ? "fabric": "forge"});
+                var versions = await Instance.Version.GetProjectVersionListAsync(addon.Slug, loaders);
                 if (versions.FirstOrDefault(f => f.GameVersions.Any(x=> x.StartsWith(version.Value.ToStandardVersionString()))) is { } file)
                 {
                     var fileName = await Download.DownloadFile(file.Files.First().Url); // 我好累
@@ -51,12 +58,15 @@ namespace CFPABot.Utils
             return "未知";
         }
 
-        public static async Task<string[]> GetModIDForCheck(Project addon, MCVersion? version)
+        public static Task<string[]> GetModIDForCheck(Project addon, MCVersion? version)
+            => GetModIDForCheck(addon, version, DefaultLoaders(version));
+
+        public static async Task<string[]> GetModIDForCheck(Project addon, MCVersion? version, string[] loaders)
         {
             if (version == null) return null;
             try
             {
-                var versions = await Instance.Version.GetProjectVersionListAsync(addon.Slug, new []{ version.ToString().Contains("fabric") ? "fabric": "forge"});
+                var versions = await Instance.Version.GetProjectVersionListAsync(addon.Slug, loaders);
                 if (versions.Where(x => x.GameVersions.Any(y => y.StartsWith(version.Value.ToStandardVersionString()))).FirstOrDefault() is {} file)
                 {
                     var fileName = await Download.DownloadFile(file.Files.Any(x => x.FileName.ToLower().Contains("fabric") && version.ToString().Contains("fabric"))?file.Files.First(x => x.FileName.ToLower().Contains("fabric")).Url: file.Files.First().Url);
@@ -79,12 +89,15 @@ namespace CFPABot.Utils
             return null;
         }
 
-        public static async Task<(string[] files, string downloadFileName)> GetModEnFile(Project addon, MCVersion? version, LangType type)
+        public static Task<(string[] files, string downloadFileName)> GetModEnFile(Project addon, MCVersion? version, LangType type)
+            => GetModEnFile(addon, version, DefaultLoaders(version), type);
+
+        public static async Task<(string[] files, string downloadFileName)> GetModEnFile(Project addon, MCVersion? version, string[] loaders, LangType type)
         {
             if (version == null) return (null, null);
             try
             {
-                var versions = await Instance.Version.GetProjectVersionListAsync(addon.Slug, new[] { version.ToString().Contains("fabric") ? "fabric" : "forge" });
+                var versions = await Instance.Version.GetProjectVersionListAsync(addon.Slug, loaders);
                 if (versions.Where(x => x.GameVersions.Any(y => y.StartsWith(version.Value.ToStandardVersionString()))).FirstOrDefault() is { } file)
                 {
                     var d = file.Files.Any(x => x.FileName.ToLower().Contains("fabric") && version.ToString().Contains("fabric")) ? file.Files.First(x => x.FileName.ToLower().Contains("fabric")) : file.Files.First();
