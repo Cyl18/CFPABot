@@ -93,11 +93,23 @@ namespace CFPABot.Controllers
         {
             try
             {
-                if (slug.StartsWith("modrinth-"))
+                if (slug.StartsWith("modrinth-datapack-"))
+                {
+                    slug = slug["modrinth-datapack-".Length..];
+                    var mod = await ModrinthManager.GetMod(slug);
+                    return Content(mod.Title);
+                }
+                else if (slug.StartsWith("modrinth-"))
                 {
                     slug = slug["modrinth-".Length..];
                     var mod = await ModrinthManager.GetMod(slug);
                     return Content(mod.Title);
+                }
+                else if (slug.StartsWith("texture-packs-"))
+                {
+                    slug = slug["texture-packs-".Length..];
+                    var mod = await CurseManager.GetAddon(slug);
+                    return Content(mod.Name);
                 }
                 else
                 {

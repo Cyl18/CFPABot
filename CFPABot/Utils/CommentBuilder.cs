@@ -225,7 +225,7 @@ namespace CFPABot.Utils
 
                 var addons = new List<Mod>();
                 var tasks = new List<Task>();
-                foreach (var modid in modids.Where(x => x != "1UNKNOWN" && x != "0-modrinth-mod" && !x.StartsWith("modrinth-")))
+                foreach (var modid in modids.Where(x => x != "1UNKNOWN" && x != "0-modrinth-mod" && !x.StartsWith("modrinth-") && !x.StartsWith("texture-packs-") && !x.StartsWith("modrinth-datapack-")))
                 {
                     tasks.Add(Task.Run(async () =>
                     {
@@ -248,7 +248,7 @@ namespace CFPABot.Utils
                 var client = new ModrinthClient();
 
 
-                var modrinthMods = modInfos.Where(x => x.CurseForgeID.StartsWith("modrinth-")).Select(m => m.CurseForgeID.Substring("modrinth-".Length)).Distinct().ToArray();
+                var modrinthMods = modInfos.Where(x => x.CurseForgeID.StartsWith("modrinth-") && !x.CurseForgeID.StartsWith("modrinth-datapack-")).Select(m => m.CurseForgeID.Substring("modrinth-".Length)).Distinct().ToArray();
 
                 var sbModrinthError = new StringBuilder();
                 var modrinthList = new List<(string slug, string url, string iconUrl, string name)>();
@@ -314,7 +314,41 @@ namespace CFPABot.Utils
                     sb.AppendLine();
                 }
 
-                if (addons.Count == 0 && modrinthList.Count == 0)
+                // texture-packs (CurseForge 材质包)
+                var texturePackSlugs = modInfos.Where(x => x.CurseForgeID.StartsWith("texture-packs-"))
+                    .Select(m => m.CurseForgeID.Substring("texture-packs-".Length)).Distinct().ToArray();
+                var texturePackList = new List<(string prefixedSlug, Mod addon)>();
+                foreach (var realSlug in texturePackSlugs)
+                {
+                    try
+                    {
+                        var addon = await CurseManager.GetAddon(realSlug);
+                        texturePackList.Add(($"texture-packs-{realSlug}", addon));
+                    }
+                    catch (CheckException e)
+                    {
+                        lock (sb) { sb.AppendLine(e.Message); }
+                    }
+                }
+
+                // modrinth-datapack (Modrinth 数据包)
+                var datapackMods = modInfos.Where(x => x.CurseForgeID.StartsWith("modrinth-datapack-"))
+                    .Select(m => m.CurseForgeID.Substring("modrinth-datapack-".Length)).Distinct().ToArray();
+                var datapackList = new List<(string prefixedSlug, string url, string iconUrl, string name)>();
+                foreach (var realSlug in datapackMods)
+                {
+                    try
+                    {
+                        var project = await client.Project.GetAsync(realSlug);
+                        datapackList.Add(($"modrinth-datapack-{realSlug}", project.Url, project.IconUrl, project.Title));
+                    }
+                    catch (ModrinthApiException e)
+                    {
+                        sb.AppendLine($"Modrinth Datapack 检索遇到问题：{e.Message}");
+                    }
+                }
+
+                if (addons.Count == 0 && modrinthList.Count == 0 && texturePackList.Count == 0 && datapackList.Count == 0)
                 {
                     sb.AppendLine("ℹ 此 PR 没有检测到 CurseForge/Modrinth 模组修改。");
                     return;
@@ -338,6 +372,35 @@ namespace CFPABot.Utils
                                    ""
                     );
                     modCount++;
+                }
+
+                foreach (var (prefixedSlug, url, iconUrl, name) in datapackList)
+                {
+                    sb1.AppendLine($"| " +
+                    /* Thumbnail*/ $"<image src=\"{iconUrl}\" width=\"32\"/> |" +
+                                   /* Mod Name */ $" [**{name.Trim().Replace("[", "\\[").Replace("]", "\\]").Replace("|", "\\|")}**]({url}) |" +
+                                   /* Source   */ $" " +
+                                   /* Mcmod    */ $" [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20{HttpUtility.UrlEncode(name)}) \\|" +
+                                   /* Compare  */ $" [:file_folder: 对比(Azusa)](https://cfpa.cyan.cafe/Azusa/Diff/{PullRequestID}/{prefixedSlug}) |" +
+                                   /* Mod DL   */ $" Modrinth Datapack |" +
+                                   ""
+                    );
+                    modCount++;
+                }
+
+                foreach (var (prefixedSlug, addon) in texturePackList)
+                {
+                    Interlocked.Increment(ref modCount);
+                    var infos = modInfos.Where(i => i.CurseForgeID == prefixedSlug).ToArray();
+                    var versions = infos.Select(i => i.Version).ToArray();
+                    sb1.AppendLine($"| " +
+                        /* Thumbnail*/ $"{await CurseManager.GetThumbnailText(addon).ConfigureAwait(false)} |" +
+                        /* Mod Name */ $" [**{addon.Name.Trim().Replace("[", "\\[").Replace("]", "\\]").Replace("|", "\\|")}**]({addon.Links.WebsiteUrl}) |" +
+                        /* Source   */ $" {CurseManager.GetRepoText(addon)} \\|" +
+                        /* Mcmod    */ $" [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20{HttpUtility.UrlEncode(addon.Name)}) \\|" +
+                        /* Compare  */ $" [:file_folder: 对比(Azusa)](https://cfpa.cyan.cafe/Azusa/Diff/{PullRequestID}/{prefixedSlug}) |" +
+                        /* Mod DL   */ $" {await CurseManager.GetModRepoLinkText(addon, infos).ConfigureAwait(false)} |" +
+                    "");
                 }
 
                 foreach (var addon in addons.AsParallel().AsSequential().Select(async d1 =>
@@ -902,13 +965,33 @@ namespace CFPABot.Utils
                             try
                             {
                                 var slug = names[3];
-                                if (slug.StartsWith("modrinth-"))
+                                if (slug.StartsWith("modrinth-datapack-"))
+                                {
+                                    var realSlug = slug["modrinth-datapack-".Length..];
+                                    var addon = await ModrinthManager.GetMod(realSlug);
+                                    var modDomain =
+                                        await ModrinthManager.GetModID(addon, names[1].ToMCStandardVersion(), new[] { "datapack" }, true, false);
+                                    var rdir = $"projects/{names[1]}/assets/{slug}/{modDomain}/lang/";
+                                    sb.AppendLine($"  自动找到该模组 Domain 为 `{modDomain}`，可能正确文件夹为 `{rdir}`。使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                    sb.AppendLine();
+                                }
+                                else if (slug.StartsWith("modrinth-"))
                                 {
                                     slug = slug["modrinth-".Length..];
                                     var addon = await ModrinthManager.GetMod(slug);
                                     var modDomain =
                                         await ModrinthManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
                                     var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
+                                    sb.AppendLine($"  自动找到该模组 Domain 为 `{modDomain}`，可能正确文件夹为 `{rdir}`。使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                    sb.AppendLine();
+                                }
+                                else if (slug.StartsWith("texture-packs-"))
+                                {
+                                    var realSlug = slug["texture-packs-".Length..];
+                                    var addon = await CurseManager.GetAddon(realSlug);
+                                    var modDomain =
+                                        await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
+                                    var rdir = $"projects/{names[1]}/assets/{slug}/{modDomain}/lang/";
                                     sb.AppendLine($"  自动找到该模组 Domain 为 `{modDomain}`，可能正确文件夹为 `{rdir}`。使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
                                     sb.AppendLine();
                                 }
@@ -942,12 +1025,33 @@ namespace CFPABot.Utils
                                 sb.AppendLine($"⚠ 检测到一个语言文件，但提交路径不正常。缺少了 {{ModDomain}} 或 {{CurseForge 项目名}} 文件夹。请检查提交路径：`{diff.To}`；");
                                 try
                                 {
-                                    var addon = await CurseManager.GetAddon(names[3]);
-                                    var modDomain =
-                                        await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
-                                    var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
-                                    sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。 你可以使用命令 `/mv \"{names.Take(5).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
-                                    sb.AppendLine();
+                                    var slug = names[3];
+                                    if (slug.StartsWith("modrinth-datapack-"))
+                                    {
+                                        var realSlug = slug["modrinth-datapack-".Length..];
+                                        var addon = await ModrinthManager.GetMod(realSlug);
+                                        var modDomain = await ModrinthManager.GetModID(addon, names[1].ToMCStandardVersion(), new[] { "datapack" }, true, false);
+                                        var rdir = $"projects/{names[1]}/assets/{slug}/{modDomain}/lang/";
+                                        sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。 你可以使用命令 `/mv \"{names.Take(5).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                        sb.AppendLine();
+                                    }
+                                    else if (slug.StartsWith("texture-packs-"))
+                                    {
+                                        var realSlug = slug["texture-packs-".Length..];
+                                        var addon = await CurseManager.GetAddon(realSlug);
+                                        var modDomain = await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
+                                        var rdir = $"projects/{names[1]}/assets/{slug}/{modDomain}/lang/";
+                                        sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。 你可以使用命令 `/mv \"{names.Take(5).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                        sb.AppendLine();
+                                    }
+                                    else
+                                    {
+                                        var addon = await CurseManager.GetAddon(names[3]);
+                                        var modDomain = await CurseManager.GetModID(addon, names[1].ToMCStandardVersion(), true, false);
+                                        var rdir = $"projects/{names[1]}/assets/{names[3]}/{modDomain}/lang/";
+                                        sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。 你可以使用命令 `/mv \"{names.Take(5).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
+                                        sb.AppendLine();
+                                    }
                                 }
                                 catch (Exception)
                                 {
@@ -1030,7 +1134,11 @@ namespace CFPABot.Utils
 
                         try
                         {
-                            if (curseID != "1UNKNOWN" && curseID != "0-modrinth-mod" && !curseID.StartsWith("modrinth-"))
+                            if (curseID.StartsWith("texture-packs-"))
+                            {
+                                addon = await CurseManager.GetAddon(curseID["texture-packs-".Length..]);
+                            }
+                            else if (curseID != "1UNKNOWN" && curseID != "0-modrinth-mod" && !curseID.StartsWith("modrinth-"))
                                 addon = await CurseManager.GetAddon(curseID);
                         }
                         catch (Exception)
@@ -1069,7 +1177,12 @@ namespace CFPABot.Utils
 
                     try
                     {
-                        if (curseID != "1UNKNOWN" && curseID != "0-modrinth-mod" && !curseID.StartsWith("modrinth-"))
+                        if (curseID.StartsWith("texture-packs-"))
+                        {
+                            var realSlug = curseID["texture-packs-".Length..];
+                            addon = await CurseManager.GetAddon(realSlug);
+                        }
+                        else if (curseID != "1UNKNOWN" && curseID != "0-modrinth-mod" && !curseID.StartsWith("modrinth-"))
                             addon = await CurseManager.GetAddon(curseID);
                     }
                     catch (Exception)
@@ -1077,7 +1190,8 @@ namespace CFPABot.Utils
                         sb.AppendLine(string.Format(Locale.Check_ModID_ModNotFound, curseID, versionString));
                     }
 
-                    if (addon != null && addon.Slug != curseID)
+                    var curseIDForApi = curseID.StartsWith("texture-packs-") ? curseID["texture-packs-".Length..] : curseID;
+                    if (addon != null && addon.Slug != curseIDForApi)
                     {
                         sb.AppendLine("❌ 检测到此模组作者更改了 Slug 名，请使用以下命令进行路径移动：");
                         sb.AppendLine("```");
@@ -1126,7 +1240,9 @@ namespace CFPABot.Utils
                     Project z = null;
                     try
                     {
-                        if (curseID.StartsWith("modrinth-"))
+                        if (curseID.StartsWith("modrinth-datapack-"))
+                            z = await ModrinthManager.GetMod(curseID["modrinth-datapack-".Length..]);
+                        else if (curseID.StartsWith("modrinth-"))
                             z = await ModrinthManager.GetMod(curseID["modrinth-".Length..]);
                     }
                     catch (Exception)
@@ -1136,7 +1252,9 @@ namespace CFPABot.Utils
                     if (z != null)
                         try
                         {
-                            var filemodid = await ModrinthManager.GetModIDForCheck(z, mcVersion);
+                            var filemodid = curseID.StartsWith("modrinth-datapack-")
+                                ? await ModrinthManager.GetModIDForCheck(z, mcVersion, new[] { "datapack" })
+                                : await ModrinthManager.GetModIDForCheck(z, mcVersion);
                             if (filemodid == null || filemodid.Length == 0)
                             {
                                 sb.AppendLine(string.Format(Locale.Check_ModID_ModIDNotFound, "modrinth~" + modid));
