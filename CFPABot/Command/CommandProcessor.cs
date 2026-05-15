@@ -173,7 +173,7 @@ namespace CFPABot.Command
                             using var sr = new MemoryStream(f.ToUTF8Bytes()).CreateStreamReader(Encoding.UTF8);
                             using var sw = File.Open(
                                 Path.Combine(r.WorkingDirectory,
-                                    $"projects/assets/{curseForgeID}/{versionString}/{modID}/lang/{versionFile}"),
+                                    $"projects/assets/{originalID}/{versionString}/{modID}/lang/{versionFile}"),
                                 FileMode.Create).CreateStreamWriter(new UTF8Encoding(false));
 
                             switch (version)
@@ -187,7 +187,7 @@ namespace CFPABot.Command
                             }
 
                             r.AddAllFiles();
-                            r.Commit($"Update en_us file for {(curseForgeID.Replace("\"", "\\\""))}", user);
+                            r.Commit($"Update en_us file for {(originalID.Replace("\"", "\\\""))}", user);
                         }
                         else if (curseForgeID.StartsWith("modrinth-"))
                         {
@@ -225,7 +225,10 @@ namespace CFPABot.Command
                         }
                         else
                         {
-                            var addon = await CurseManager.GetAddon(curseForgeID);
+                            var cfIDForApi = curseForgeID;
+                            if (curseForgeID.StartsWith("texture-packs-"))
+                                cfIDForApi = curseForgeID["texture-packs-".Length..];
+                            var addon = await CurseManager.GetAddon(cfIDForApi);
 
                             var modID = await CurseManager.GetModID(addon, version, true, false);
                             var (files, downloadFileName) = await CurseManager.GetModEnFile(addon, version, LangType.EN);
@@ -487,6 +490,8 @@ namespace CFPABot.Command
                         //     continue;
                         // }
                         var slug = args[0];
+                        if (slug.StartsWith("texture-packs-"))
+                            slug = slug["texture-packs-".Length..];
                         var curseForgeProjectID = args[1];
                         var curseForgeProjectIDInt = curseForgeProjectID.ToInt();
                         ModIDMappingMetadata.Instance.Mapping[slug] = curseForgeProjectIDInt;

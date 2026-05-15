@@ -742,8 +742,8 @@
         {
             if (slug.StartsWith("modrinth-datapack-"))
             {
-                slug = slug["modrinth-datapack-".Length..];
-                var addon = await ModrinthManager.GetMod(slug);
+                var realSlug = slug["modrinth-datapack-".Length..];
+                var addon = await ModrinthManager.GetMod(realSlug);
                 foreach (var modVersion in versions)
                 {
                     var loaders = new[] { "datapack" };
@@ -770,8 +770,8 @@
             }
             if (slug.StartsWith("modrinth-"))
             {
-                slug = slug["modrinth-".Length..];
-                var addon = await ModrinthManager.GetMod(slug);
+                var realSlug = slug["modrinth-".Length..];
+                var addon = await ModrinthManager.GetMod(realSlug);
                 foreach (var modVersion in versions)
                 {
                     var modEnFile = await ModrinthManager.GetModEnFile(addon, modVersion.ToVersionDirectory().ToMCVersion(), LangType.EN);
@@ -797,8 +797,8 @@
             }
             else if (slug.StartsWith("texture-packs-"))
             {
-                slug = slug["texture-packs-".Length..];
-                var addon = await CurseManager.GetAddon(slug);
+                var realSlug = slug["texture-packs-".Length..];
+                var addon = await CurseManager.GetAddon(realSlug);
                 foreach (var modVersion in versions)
                 {
                     var modEnFile = await CurseManager.GetModEnFile(addon, modVersion.ToVersionDirectory().ToMCVersion(), LangType.EN);

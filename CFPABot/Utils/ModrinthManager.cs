@@ -22,7 +22,7 @@ namespace CFPABot.Utils
         }
 
         static string[] DefaultLoaders(MCVersion? version) =>
-            version?.ToString().Contains("fabric") == true ? new[] { "fabric" } : new[] { "fabric", "forge" };
+            version?.ToString().Contains("fabric") == true ? new[] { "fabric" } : new[] { "forge" };
 
         public static Task<string> GetModID(Project addon, MCVersion? version, bool enforcedLang = false,
     bool connect = true)

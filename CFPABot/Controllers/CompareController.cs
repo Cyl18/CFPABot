@@ -167,7 +167,8 @@ namespace CFPABot.Controllers
             CurseForge.APIClient.Models.Mods.Mod addon = null;
             try
             {
-                addon = await CurseManager.GetAddon(modid);
+                var cfSlug = modid.StartsWith("texture-packs-") ? modid["texture-packs-".Length..] : modid;
+                addon = await CurseManager.GetAddon(cfSlug);
             }
             catch (Exception e)
             {

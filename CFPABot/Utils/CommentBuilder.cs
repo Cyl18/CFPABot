@@ -1225,9 +1225,10 @@ namespace CFPABot.Utils
                     var curseIDForApi = curseID.StartsWith("texture-packs-") ? curseID["texture-packs-".Length..] : curseID;
                     if (addon != null && addon.Slug != curseIDForApi)
                     {
+                        var slugPrefix = curseID.StartsWith("texture-packs-") ? "texture-packs-" : "";
                         sb.AppendLine("❌ 检测到此模组作者更改了 Slug 名，请使用以下命令进行路径移动：");
                         sb.AppendLine("```");
-                        sb.AppendLine($"/mv projects/assets/{curseID}/{versionString}/ projects/assets/{addon.Slug}/{versionString}/");
+                        sb.AppendLine($"/mv projects/assets/{curseID}/{versionString}/ projects/assets/{slugPrefix}{addon.Slug}/{versionString}/");
                         sb.AppendLine($"/add-mapping {addon.Slug} {addon.Id}");
                         sb.AppendLine("```");
                         sb.AppendLine();

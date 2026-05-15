@@ -44,13 +44,15 @@ namespace CFPABot.Controllers
         [HttpGet("ModID")]
         public async Task<string> ModID([FromQuery]string slug, [FromQuery] string versionString)
         {
+            if (slug.StartsWith("texture-packs-"))
+                slug = slug["texture-packs-".Length..];
             return await CurseManager.GetModID(await CurseManager.GetAddon(slug), versionString.ToMCVersion(), true, false);
         }
 
         [HttpGet("GetAllModFilesInRepo")]
         public async Task<JsonResult> GetAllModFilesInRepo()
         {
-            var mods = ModList.ModListConfig.Instance.ModLists.Select(x => new {slug=x.modSlug, cfid= ModIDMappingMetadata.Instance.Mapping.GetValueOrDefault(x.modSlug), versions = x.versions.Select(y => y.version.ToVersionDirectory()) })
+            var mods = ModList.ModListConfig.Instance.ModLists.Select(x => new {slug=x.modSlug, cfid= ModIDMappingMetadata.Instance.Mapping.GetValueOrDefault(x.modSlug.StartsWith("texture-packs-") ? x.modSlug["texture-packs-".Length..] : x.modSlug), versions = x.versions.Select(y => y.version.ToVersionDirectory()) })
                 .Where(x => x.cfid != 0);
 
             return new JsonResult(mods);
