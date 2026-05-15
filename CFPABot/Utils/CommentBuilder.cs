@@ -1007,7 +1007,7 @@ namespace CFPABot.Utils
                                     sb.AppendLine($"  自动找到该模组 Domain 为 `{modDomain}`，可能正确文件夹为 `{rdir}`。使用命令 `/mv \"{names.Take(4).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
                                     sb.AppendLine();
                                 }
-                                else if (slug.StartsWith("modrinth-"))
+                                    else if (slug.StartsWith("modrinth-"))
                                 {
                                     slug = slug["modrinth-".Length..];
                                     var addon = await ModrinthManager.GetMod(slug);
@@ -1067,7 +1067,7 @@ namespace CFPABot.Utils
                                         sb.AppendLine($"  自动找到了该模组的 Mod Domain 为 `{modDomain}`，可能的正确文件夹为 `{rdir}`。 你可以使用命令 `/mv \"{names.Take(5).Connect("/")}/\" \"{rdir}\"` 来移动路径。");
                                         sb.AppendLine();
                                     }
-else if (slug.StartsWith("modrinth-"))
+                                    else if (slug.StartsWith("modrinth-"))
                                     {
                                         var realSlug = slug["modrinth-".Length..];
                                         var addon = await ModrinthManager.GetMod(realSlug);
