@@ -122,15 +122,60 @@ CFPABot/
 
 3. **配置环境变量** — 修改 `docker-compose.yml` 中的环境变量：
 
+   ```yaml
+   version: '2.1'
+
+   services:
+     cfpabot:
+       restart: unless-stopped
+       image: docker.cyan.cafe/cfpabot:latest
+       volumes:
+         - ./config:/app/config
+         - ./logs:/app/logs
+         - ./wwwroot:/app/userdata
+         - ./Packer:/app/Packer
+         - ./libgit2-e632535.so:/app/libgit2-e632535.so
+         - ./project-hex:/app/project-hex
+         - ./db:/app/db
+   #      - /data/cfpabot/repo-cache:/app/repo-cache # btrfs
+       ports:
+         - 19003:8080
+       environment:
+         - GITHUB_WEBHOOK_SECRET=
+         - GITHUB_OAUTH_TOKEN=
+        # - GITHUB_OAUTH_TOKEN=
+        # - GITHUB_OAUTH_TOKEN=
+         - CURSEFORGE_API_KEY=
+         - CFPA_HELPER_GITHUB_OAUTH_CLIENT_SECRET=
+         - EMAIL_PASSWORD=
+         - CHATGPT_API_KEY=
+         - HUOSHAN_API_KEY=
+         - OPENROUTER_API_KEY=
+         - OPENROUTER_API_KEY2=
+         - GEMINI_API_KEY=
+         - GEMINI_ENDPOINT=
+         - DISABLE_PROJECT_HEX=
+     wait:
+       image: hello-world:latest
+       depends_on:
+         cfpabot:
+             condition: service_healthy
+   ```
+
    | 变量 | 必填 | 说明 |
    |---|---|---|
    | `GITHUB_WEBHOOK_SECRET` | 是 | GitHub App webhook 密钥 |
    | `GITHUB_OAUTH_TOKEN` | 是 | 个人访问令牌（用于 gist 上传） |
    | `CURSEFORGE_API_KEY` | 否 | CurseForge API 密钥 |
    | `CFPA_HELPER_GITHUB_OAUTH_CLIENT_SECRET` | 否 | GitHub OAuth 密码（Azusa 登录） |
+   | `EMAIL_PASSWORD` | 否 | 邮件代理密码 |
    | `CHATGPT_API_KEY` | 否 | 旧版 ChatGPT API 密钥 |
+   | `HUOSHAN_API_KEY` | 否 | 火山 API 密钥 |
    | `GEMINI_API_KEY` | 否 | Google Gemini API 密钥（Christina） |
+   | `GEMINI_ENDPOINT` | 否 | Gemini 自定义 endpoint |
    | `OPENROUTER_API_KEY` | 否 | OpenRouter API 密钥（Christina） |
+   | `OPENROUTER_API_KEY2` | 否 | 第二个 OpenRouter API 密钥 |
+   | `DISABLE_PROJECT_HEX` | 否 | 禁用 Project Hex |
 
 4. 在 `config/` 放置 `cfpa-bot.pem`，这是 GitHub App 的私钥
 
