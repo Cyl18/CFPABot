@@ -154,7 +154,42 @@ namespace CFPABot.Command
                             MCVersion.v1122 => "en_us.lang",
                             _ => "en_us.json"
                         };
-                        if (curseForgeID.StartsWith("modrinth-"))
+                        if (curseForgeID.StartsWith("modrinth-datapack-"))
+                        {
+                            var originalID = curseForgeID;
+                            curseForgeID = curseForgeID["modrinth-datapack-".Length..];
+                            var addon = await ModrinthManager.GetMod(curseForgeID);
+
+                            var modID = await ModrinthManager.GetModID(addon, version, new[] { "datapack" }, true, false);
+                            var (files, downloadFileName) = await ModrinthManager.GetModEnFile(addon, version, new[] { "datapack" }, LangType.EN);
+                            if (files.Length != 1)
+                            {
+                                sb.AppendLine(Locale.Command_update_en_MultipleLangFiles);
+                                continue;
+                            }
+
+                            sb.AppendLine(string.Format(Locale.Command_update_en_Success, downloadFileName));
+                            var f = files[0];
+                            using var sr = new MemoryStream(f.ToUTF8Bytes()).CreateStreamReader(Encoding.UTF8);
+                            using var sw = File.Open(
+                                Path.Combine(r.WorkingDirectory,
+                                    $"projects/assets/{originalID}/{versionString}/{modID}/lang/{versionFile}"),
+                                FileMode.Create).CreateStreamWriter(new UTF8Encoding(false));
+
+                            switch (version)
+                            {
+                                case MCVersion.v1122:
+                                    new LangFormatter(sr, sw).Format();
+                                    break;
+                                default:
+                                    new JsonFormatter(sr, sw).Format();
+                                    break;
+                            }
+
+                            r.AddAllFiles();
+                            r.Commit($"Update en_us file for {(originalID.Replace("\"", "\\\""))}", user);
+                        }
+                        else if (curseForgeID.StartsWith("modrinth-"))
                         {
                             curseForgeID = curseForgeID["modrinth-".Length..];
                             var addon = await ModrinthManager.GetMod(curseForgeID);
@@ -190,7 +225,10 @@ namespace CFPABot.Command
                         }
                         else
                         {
-                            var addon = await CurseManager.GetAddon(curseForgeID);
+                            var cfIDForApi = curseForgeID;
+                            if (curseForgeID.StartsWith("texture-packs-"))
+                                cfIDForApi = curseForgeID["texture-packs-".Length..];
+                            var addon = await CurseManager.GetAddon(cfIDForApi);
 
                             var modID = await CurseManager.GetModID(addon, version, true, false);
                             var (files, downloadFileName) = await CurseManager.GetModEnFile(addon, version, LangType.EN);
@@ -221,7 +259,7 @@ namespace CFPABot.Command
                             r.AddAllFiles();
                             r.Commit($"Update en_us file for {(curseForgeID.Replace("\"", "\\\""))}", user);
                         }
-                        
+
                     }
 
                     if (line.StartsWith("/add-co-author "))
@@ -452,6 +490,8 @@ namespace CFPABot.Command
                         //     continue;
                         // }
                         var slug = args[0];
+                        if (slug.StartsWith("texture-packs-"))
+                            slug = slug["texture-packs-".Length..];
                         var curseForgeProjectID = args[1];
                         var curseForgeProjectIDInt = curseForgeProjectID.ToInt();
                         ModIDMappingMetadata.Instance.Mapping[slug] = curseForgeProjectIDInt;

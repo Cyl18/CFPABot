@@ -527,7 +527,7 @@ namespace CFPABot.Utils
     {
         public Dictionary<string, int> Mapping { get; set; } = new();
         public DateTime LastUpdate { get; set; }
-        [JsonIgnore] public int LastID => Mapping.Values.Max();
+        [JsonIgnore] public int LastID => Mapping.Values.DefaultIfEmpty(0).Max();
     }
 
     static class CurseForgeClientExtensions
@@ -550,26 +550,32 @@ namespace CFPABot.Utils
 
         static void AddMapping(List<Mod> addons)
         {
-            foreach (var addon in addons.Where(s => s.GameId == 432 && s.Links.WebsiteUrl.StartsWith("https://www.curseforge.com/minecraft/mc-mods/")))
+            foreach (var addon in addons.Where(s => s.GameId == 432 && (s.Links.WebsiteUrl.StartsWith("https://www.curseforge.com/minecraft/mc-mods/") || s.Links.WebsiteUrl.StartsWith("https://www.curseforge.com/minecraft/texture-packs/"))))
                 lock (ModIDMappingMetadata.Instance)
                 {
                     ModIDMappingMetadata.Instance.Mapping[addon.Slug] = (int)addon.Id;
                 }
         }
-        // public static async Task Build()
-        // {
-        //     var client = new ForgeClient();
-        //     var config = ModIDMappingMetadata.Instance;
-        //     for (int i = 0; i < 40; i++)
-        //     {
-        //         var addons = await client.Addons.RetriveAddons(Enumerable.Range(i * 20000 + 1, 20000).ToArray());
-        //         AddMapping(addons);
-        //         Console.WriteLine($"初始化 Mapping: {i + 1}/40");
-        //     }
-        //     config.LastUpdate = DateTime.Now;
-        //     ModIDMappingMetadata.Save();
-        // }
-        //
+        public static async Task Build()
+        {
+            var config = ModIDMappingMetadata.Instance;
+            for (int i = 0; i < 40; i++)
+            {
+                try
+                {
+                    var ids = Enumerable.Range(i * 20000 + 1, 20000).Select(x => x).ToList();
+                    var addons = await CurseManager.GetCfClient().GetModsByIdListAsync(new GetModsByIdsListRequestBody() { ModIds = ids });
+                    AddMapping(addons.Data);
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e, $"Build mapping batch {i + 1}/40 failed");
+                }
+            }
+            config.LastUpdate = DateTime.Now;
+            ModIDMappingMetadata.Save();
+        }
+
         // static SemaphoreSlim semaphore = new SemaphoreSlim(1);
         // public static async Task UpdateIfRequired()
         // {

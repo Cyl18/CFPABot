@@ -44,13 +44,15 @@ namespace CFPABot.Controllers
         [HttpGet("ModID")]
         public async Task<string> ModID([FromQuery]string slug, [FromQuery] string versionString)
         {
+            if (slug.StartsWith("texture-packs-"))
+                slug = slug["texture-packs-".Length..];
             return await CurseManager.GetModID(await CurseManager.GetAddon(slug), versionString.ToMCVersion(), true, false);
         }
 
         [HttpGet("GetAllModFilesInRepo")]
         public async Task<JsonResult> GetAllModFilesInRepo()
         {
-            var mods = ModList.ModListConfig.Instance.ModLists.Select(x => new {slug=x.modSlug, cfid= ModIDMappingMetadata.Instance.Mapping.GetValueOrDefault(x.modSlug), versions = x.versions.Select(y => y.version.ToVersionDirectory()) })
+            var mods = ModList.ModListConfig.Instance.ModLists.Select(x => new {slug=x.modSlug, cfid= ModIDMappingMetadata.Instance.Mapping.GetValueOrDefault(x.modSlug.StartsWith("texture-packs-") ? x.modSlug["texture-packs-".Length..] : x.modSlug), versions = x.versions.Select(y => y.version.ToVersionDirectory()) })
                 .Where(x => x.cfid != 0);
 
             return new JsonResult(mods);
@@ -93,11 +95,23 @@ namespace CFPABot.Controllers
         {
             try
             {
-                if (slug.StartsWith("modrinth-"))
+                if (slug.StartsWith("modrinth-datapack-"))
+                {
+                    slug = slug["modrinth-datapack-".Length..];
+                    var mod = await ModrinthManager.GetMod(slug);
+                    return Content(mod.Title);
+                }
+                else if (slug.StartsWith("modrinth-"))
                 {
                     slug = slug["modrinth-".Length..];
                     var mod = await ModrinthManager.GetMod(slug);
                     return Content(mod.Title);
+                }
+                else if (slug.StartsWith("texture-packs-"))
+                {
+                    slug = slug["texture-packs-".Length..];
+                    var mod = await CurseManager.GetAddon(slug);
+                    return Content(mod.Name);
                 }
                 else
                 {
