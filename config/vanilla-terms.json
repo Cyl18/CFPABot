@@ -1,0 +1,10471 @@
+{
+ "version": 1,
+ "source": "mtpa vanilla_terms.db (curated)",
+ "terms": [
+  {
+   "en": [
+    "AFK"
+   ],
+   "zh": [
+    "无操作时"
+   ]
+  },
+  {
+   "en": [
+    "Absorption"
+   ],
+   "zh": [
+    "伤害吸收"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Acacia"
+   ],
+   "zh": [
+    "金合欢木",
+    "金合欢"
+   ],
+   "labels": [
+    "wood"
+   ]
+  },
+  {
+   "en": [
+    "Accessibility"
+   ],
+   "zh": [
+    "辅助功能"
+   ]
+  },
+  {
+   "en": [
+    "Activator"
+   ],
+   "zh": [
+    "激活"
+   ]
+  },
+  {
+   "en": [
+    "Advanced tooltips"
+   ],
+   "zh": [
+    "高级提示框"
+   ]
+  },
+  {
+   "en": [
+    "Advancement"
+   ],
+   "zh": [
+    "进度"
+   ]
+  },
+  {
+   "en": [
+    "Advancements"
+   ],
+   "zh": [
+    "进度"
+   ]
+  },
+  {
+   "en": [
+    "Air"
+   ],
+   "zh": [
+    "空气"
+   ]
+  },
+  {
+   "en": [
+    "Allay"
+   ],
+   "zh": [
+    "悦灵"
+   ]
+  },
+  {
+   "en": [
+    "Allium"
+   ],
+   "zh": [
+    "绒球葱"
+   ]
+  },
+  {
+   "en": [
+    "Amethyst"
+   ],
+   "zh": [
+    "紫水晶",
+    "紫晶"
+   ],
+   "labels": [
+    "ore"
+   ]
+  },
+  {
+   "en": [
+    "Ancient Debris"
+   ],
+   "zh": [
+    "远古残骸"
+   ],
+   "labels": [
+    "ore"
+   ]
+  },
+  {
+   "en": [
+    "Andesite"
+   ],
+   "zh": [
+    "安山岩"
+   ]
+  },
+  {
+   "en": [
+    "Anemone"
+   ],
+   "zh": [
+    "海葵鱼"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Angler"
+   ],
+   "zh": [
+    "垂钓纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Anvil"
+   ],
+   "zh": [
+    "铁砧"
+   ]
+  },
+  {
+   "en": [
+    "Apple"
+   ],
+   "zh": [
+    "苹果"
+   ]
+  },
+  {
+   "en": [
+    "Apprentice"
+   ],
+   "zh": [
+    "学徒"
+   ]
+  },
+  {
+   "en": [
+    "Aqua Affinity"
+   ],
+   "zh": [
+    "水下速掘"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Archer"
+   ],
+   "zh": [
+    "弓箭纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Architecture"
+   ],
+   "zh": [
+    "建筑"
+   ]
+  },
+  {
+   "en": [
+    "Armadillo"
+   ],
+   "zh": [
+    "犰狳"
+   ]
+  },
+  {
+   "en": [
+    "Armor Stand"
+   ],
+   "zh": [
+    "盔甲架"
+   ]
+  },
+  {
+   "en": [
+    "Armor Toughness"
+   ],
+   "zh": [
+    "盔甲韧性"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Armor"
+   ],
+   "zh": [
+    "铠",
+    "盔甲"
+   ]
+  },
+  {
+   "en": [
+    "Armor"
+   ],
+   "zh": [
+    "护甲值"
+   ],
+   "scope": {
+    "key": "^attribute"
+   }
+  },
+  {
+   "en": [
+    "Armorer"
+   ],
+   "zh": [
+    "盔甲匠"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Armorer"
+   ],
+   "zh": [
+    "盔甲商"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Arms Up"
+   ],
+   "zh": [
+    "举臂纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Arrow of"
+   ],
+   "zh": [
+    "之箭"
+   ]
+  },
+  {
+   "en": [
+    "Arrow"
+   ],
+   "zh": [
+    "箭"
+   ]
+  },
+  {
+   "en": [
+    "Attached"
+   ],
+   "zh": [
+    "结果的"
+   ]
+  },
+  {
+   "en": [
+    "Attack Damage"
+   ],
+   "zh": [
+    "攻击伤害"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Attack Knockback"
+   ],
+   "zh": [
+    "击退"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Attack Speed"
+   ],
+   "zh": [
+    "攻击速度"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Attack indicator"
+   ],
+   "zh": [
+    "攻击指示器"
+   ]
+  },
+  {
+   "en": [
+    "Attribution"
+   ],
+   "zh": [
+    "著作权说明"
+   ]
+  },
+  {
+   "en": [
+    "Awkward"
+   ],
+   "zh": [
+    "粗制的"
+   ]
+  },
+  {
+   "en": [
+    "Axe"
+   ],
+   "zh": [
+    "斧"
+   ]
+  },
+  {
+   "en": [
+    "Axolotl"
+   ],
+   "zh": [
+    "美西螈"
+   ]
+  },
+  {
+   "en": [
+    "Azalea"
+   ],
+   "zh": [
+    "杜鹃花丛",
+    "杜鹃"
+   ],
+   "labels": [
+    "wood"
+   ]
+  },
+  {
+   "en": [
+    "Azure Bluet"
+   ],
+   "zh": [
+    "蓝花美耳草"
+   ]
+  },
+  {
+   "en": [
+    "Azure Bluet"
+   ],
+   "zh": [
+    "茜草花"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Backspace"
+   ],
+   "zh": [
+    "Backspace"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Bad Luck"
+   ],
+   "zh": [
+    "霉运"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Bad Omen"
+   ],
+   "zh": [
+    "不祥之兆"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Badlands"
+   ],
+   "zh": [
+    "恶地"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Baked"
+   ],
+   "zh": [
+    "烤"
+   ]
+  },
+  {
+   "en": [
+    "Ball"
+   ],
+   "zh": [
+    "球"
+   ]
+  },
+  {
+   "en": [
+    "Bamboo Jungle"
+   ],
+   "zh": [
+    "竹林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Bamboo Shoot"
+   ],
+   "zh": [
+    "竹笋"
+   ]
+  },
+  {
+   "en": [
+    "Bamboo"
+   ],
+   "zh": [
+    "竹",
+    "竹子"
+   ],
+   "labels": [
+    "wood"
+   ]
+  },
+  {
+   "en": [
+    "Bane of Arthropods"
+   ],
+   "zh": [
+    "节肢杀手"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Banner Pattern"
+   ],
+   "zh": [
+    "旗帜图案"
+   ]
+  },
+  {
+   "en": [
+    "Banner"
+   ],
+   "zh": [
+    "旗帜"
+   ]
+  },
+  {
+   "en": [
+    "Barrel"
+   ],
+   "zh": [
+    "木桶"
+   ]
+  },
+  {
+   "en": [
+    "Barrier"
+   ],
+   "zh": [
+    "屏障"
+   ]
+  },
+  {
+   "en": [
+    "Bars"
+   ],
+   "zh": [
+    "栏杆"
+   ]
+  },
+  {
+   "en": [
+    "Basalt Deltas"
+   ],
+   "zh": [
+    "玄武岩三角洲"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Basalt"
+   ],
+   "zh": [
+    "玄武岩"
+   ]
+  },
+  {
+   "en": [
+    "Base Gradient"
+   ],
+   "zh": [
+    "自下渐淡"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Base Indented"
+   ],
+   "zh": [
+    "底波纹"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Bat"
+   ],
+   "zh": [
+    "蝙蝠"
+   ]
+  },
+  {
+   "en": [
+    "Beach"
+   ],
+   "zh": [
+    "沙滩"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Beacon"
+   ],
+   "zh": [
+    "信标"
+   ]
+  },
+  {
+   "en": [
+    "Bed"
+   ],
+   "zh": [
+    "床"
+   ]
+  },
+  {
+   "en": [
+    "Bedrock"
+   ],
+   "zh": [
+    "基岩"
+   ]
+  },
+  {
+   "en": [
+    "Bee Nest"
+   ],
+   "zh": [
+    "蜂巢"
+   ]
+  },
+  {
+   "en": [
+    "Bee"
+   ],
+   "zh": [
+    "蜜蜂"
+   ]
+  },
+  {
+   "en": [
+    "Beef"
+   ],
+   "zh": [
+    "牛肉"
+   ]
+  },
+  {
+   "en": [
+    "Beehive"
+   ],
+   "zh": [
+    "蜂箱"
+   ]
+  },
+  {
+   "en": [
+    "Beetroot",
+    "Beetroots"
+   ],
+   "zh": [
+    "甜菜根",
+    "甜菜"
+   ]
+  },
+  {
+   "en": [
+    "Bell"
+   ],
+   "zh": [
+    "钟"
+   ]
+  },
+  {
+   "en": [
+    "Berries"
+   ],
+   "zh": [
+    "浆果"
+   ]
+  },
+  {
+   "en": [
+    "Betty"
+   ],
+   "zh": [
+    "背蒂类"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.type"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Birch Forest"
+   ],
+   "zh": [
+    "桦木森林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Birch"
+   ],
+   "zh": [
+    "白桦木",
+    "白桦"
+   ],
+   "labels": [
+    "wood"
+   ]
+  },
+  {
+   "en": [
+    "Black Tang"
+   ],
+   "zh": [
+    "黑刺尾鲷"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Black"
+   ],
+   "zh": [
+    "黑色",
+    "黑"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Blackstone"
+   ],
+   "zh": [
+    "黑石"
+   ]
+  },
+  {
+   "en": [
+    "Blade"
+   ],
+   "zh": [
+    "利刃纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Blast Furnace"
+   ],
+   "zh": [
+    "高炉"
+   ]
+  },
+  {
+   "en": [
+    "Blast Protection"
+   ],
+   "zh": [
+    "爆炸保护"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Blaze Rod"
+   ],
+   "zh": [
+    "烈焰棒"
+   ]
+  },
+  {
+   "en": [
+    "Blaze"
+   ],
+   "zh": [
+    "烈焰",
+    "烈焰人"
+   ]
+  },
+  {
+   "en": [
+    "Blindness"
+   ],
+   "zh": [
+    "失明"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Block Break Speed"
+   ],
+   "zh": [
+    "方块破坏速度"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Block Interaction Range"
+   ],
+   "zh": [
+    "方块交互距离"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Block of"
+   ],
+   "zh": [
+    "块"
+   ]
+  },
+  {
+   "en": [
+    "Block"
+   ],
+   "zh": [
+    "方块",
+    "块"
+   ]
+  },
+  {
+   "en": [
+    "Blockfish"
+   ],
+   "zh": [
+    "方身类"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.type"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Blocking"
+   ],
+   "zh": [
+    "防御"
+   ]
+  },
+  {
+   "en": [
+    "Blue Orchid"
+   ],
+   "zh": [
+    "兰花"
+   ]
+  },
+  {
+   "en": [
+    "Blue Tang"
+   ],
+   "zh": [
+    "蓝刺尾鲷"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Blue"
+   ],
+   "zh": [
+    "蓝色",
+    "蓝"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Boat"
+   ],
+   "zh": [
+    "船"
+   ]
+  },
+  {
+   "en": [
+    "Bogged"
+   ],
+   "zh": [
+    "沼骸"
+   ]
+  },
+  {
+   "en": [
+    "Bolt"
+   ],
+   "zh": [
+    "镶铆"
+   ],
+   "scope": {
+    "en": "Armor Trim"
+   },
+   "labels": [
+    "trim"
+   ]
+  },
+  {
+   "en": [
+    "Bone Block"
+   ],
+   "zh": [
+    "骨块"
+   ]
+  },
+  {
+   "en": [
+    "Bone Meal"
+   ],
+   "zh": [
+    "骨粉"
+   ]
+  },
+  {
+   "en": [
+    "Bone"
+   ],
+   "zh": [
+    "骨头",
+    "骨"
+   ]
+  },
+  {
+   "en": [
+    "Book"
+   ],
+   "zh": [
+    "书"
+   ]
+  },
+  {
+   "en": [
+    "Bookshelf"
+   ],
+   "zh": [
+    "书架"
+   ]
+  },
+  {
+   "en": [
+    "Boots"
+   ],
+   "zh": [
+    "靴子"
+   ]
+  },
+  {
+   "en": [
+    "Bordure Indented"
+   ],
+   "zh": [
+    "波纹边"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Bordure"
+   ],
+   "zh": [
+    "方框边"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Bottle o' Enchanting"
+   ],
+   "zh": [
+    "附魔之瓶"
+   ]
+  },
+  {
+   "en": [
+    "Bottle"
+   ],
+   "zh": [
+    "瓶"
+   ]
+  },
+  {
+   "en": [
+    "Bow"
+   ],
+   "zh": [
+    "弓"
+   ]
+  },
+  {
+   "en": [
+    "Bowl"
+   ],
+   "zh": [
+    "碗"
+   ]
+  },
+  {
+   "en": [
+    "Box"
+   ],
+   "zh": [
+    "盒"
+   ]
+  },
+  {
+   "en": [
+    "Brain"
+   ],
+   "zh": [
+    "脑纹"
+   ],
+   "scope": {
+    "en": "Coral"
+   }
+  },
+  {
+   "en": [
+    "Breach"
+   ],
+   "zh": [
+    "破甲"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Bread"
+   ],
+   "zh": [
+    "面包"
+   ]
+  },
+  {
+   "en": [
+    "Breaking"
+   ],
+   "zh": [
+    "破坏"
+   ]
+  },
+  {
+   "en": [
+    "Breath of the Nautilus"
+   ],
+   "zh": [
+    "鹦鹉螺之息"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Breeding"
+   ],
+   "zh": [
+    "繁殖"
+   ]
+  },
+  {
+   "en": [
+    "Breeze Rod"
+   ],
+   "zh": [
+    "旋风棒"
+   ]
+  },
+  {
+   "en": [
+    "Breeze"
+   ],
+   "zh": [
+    "旋风人",
+    "旋风"
+   ]
+  },
+  {
+   "en": [
+    "Brewer"
+   ],
+   "zh": [
+    "佳酿纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Brewing Stand"
+   ],
+   "zh": [
+    "酿造台"
+   ]
+  },
+  {
+   "en": [
+    "Brewing"
+   ],
+   "zh": [
+    "酿造"
+   ]
+  },
+  {
+   "en": [
+    "Brick",
+    "Bricks"
+   ],
+   "zh": [
+    "砖",
+    "砖块",
+    "红砖",
+    "红砖块"
+   ]
+  },
+  {
+   "en": [
+    "Brinely"
+   ],
+   "zh": [
+    "咸水类"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.type"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Brown"
+   ],
+   "zh": [
+    "棕色",
+    "棕"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Brute"
+   ],
+   "zh": [
+    "蛮兵"
+   ]
+  },
+  {
+   "en": [
+    "Bubble Column"
+   ],
+   "zh": [
+    "气泡柱"
+   ]
+  },
+  {
+   "en": [
+    "Bubble"
+   ],
+   "zh": [
+    "气泡"
+   ]
+  },
+  {
+   "en": [
+    "Bucket of"
+   ],
+   "zh": [
+    "桶"
+   ]
+  },
+  {
+   "en": [
+    "Bucket"
+   ],
+   "zh": [
+    "铁桶",
+    "桶"
+   ]
+  },
+  {
+   "en": [
+    "Bud"
+   ],
+   "zh": [
+    "芽"
+   ]
+  },
+  {
+   "en": [
+    "Budding"
+   ],
+   "zh": [
+    "母岩"
+   ]
+  },
+  {
+   "en": [
+    "Building Blocks"
+   ],
+   "zh": [
+    "建筑方块"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Bulb",
+    "Lamp"
+   ],
+   "zh": [
+    "灯"
+   ]
+  },
+  {
+   "en": [
+    "Bullet"
+   ],
+   "zh": [
+    "弹"
+   ]
+  },
+  {
+   "en": [
+    "Bundle"
+   ],
+   "zh": [
+    "收纳袋"
+   ]
+  },
+  {
+   "en": [
+    "Bundles"
+   ],
+   "zh": [
+    "收纳袋"
+   ]
+  },
+  {
+   "en": [
+    "Burn"
+   ],
+   "zh": [
+    "烈焰纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Burning Time"
+   ],
+   "zh": [
+    "着火时间"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Bush"
+   ],
+   "zh": [
+    "灌木丛",
+    "丛"
+   ]
+  },
+  {
+   "en": [
+    "Butcher"
+   ],
+   "zh": [
+    "屠夫"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Butterflyfish"
+   ],
+   "zh": [
+    "蝴蝶鱼"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Button"
+   ],
+   "zh": [
+    "按钮"
+   ]
+  },
+  {
+   "en": [
+    "Cactus"
+   ],
+   "zh": [
+    "仙人掌"
+   ]
+  },
+  {
+   "en": [
+    "Cake with {0}"
+   ],
+   "zh": [
+    "插上{0}的蛋糕"
+   ]
+  },
+  {
+   "en": [
+    "Cake"
+   ],
+   "zh": [
+    "蛋糕"
+   ]
+  },
+  {
+   "en": [
+    "Calcite"
+   ],
+   "zh": [
+    "方解石"
+   ]
+  },
+  {
+   "en": [
+    "Calibrated"
+   ],
+   "zh": [
+    "校频"
+   ]
+  },
+  {
+   "en": [
+    "Camel"
+   ],
+   "zh": [
+    "骆驼"
+   ]
+  },
+  {
+   "en": [
+    "Camera Distance"
+   ],
+   "zh": [
+    "镜头距离"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Campfire"
+   ],
+   "zh": [
+    "营火"
+   ]
+  },
+  {
+   "en": [
+    "Candle"
+   ],
+   "zh": [
+    "蜡烛"
+   ]
+  },
+  {
+   "en": [
+    "Cape"
+   ],
+   "zh": [
+    "披风"
+   ]
+  },
+  {
+   "en": [
+    "Caps Lock"
+   ],
+   "zh": [
+    "Caps Lock"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Carpet"
+   ],
+   "zh": [
+    "地毯"
+   ]
+  },
+  {
+   "en": [
+    "Carrot on a Stick"
+   ],
+   "zh": [
+    "胡萝卜钓竿"
+   ]
+  },
+  {
+   "en": [
+    "Carrot",
+    "Carrots"
+   ],
+   "zh": [
+    "胡萝卜"
+   ]
+  },
+  {
+   "en": [
+    "Cartographer"
+   ],
+   "zh": [
+    "制图师"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Cartography"
+   ],
+   "zh": [
+    "制图"
+   ]
+  },
+  {
+   "en": [
+    "Carved"
+   ],
+   "zh": [
+    "雕刻"
+   ]
+  },
+  {
+   "en": [
+    "Cat"
+   ],
+   "zh": [
+    "猫"
+   ]
+  },
+  {
+   "en": [
+    "Catalyst"
+   ],
+   "zh": [
+    "催发体"
+   ]
+  },
+  {
+   "en": [
+    "Cauldron"
+   ],
+   "zh": [
+    "炼药锅"
+   ]
+  },
+  {
+   "en": [
+    "Cave"
+   ],
+   "zh": [
+    "洞穴"
+   ]
+  },
+  {
+   "en": [
+    "Chain"
+   ],
+   "zh": [
+    "链",
+    "连锁型"
+   ]
+  },
+  {
+   "en": [
+    "Chainmail"
+   ],
+   "zh": [
+    "锁链"
+   ]
+  },
+  {
+   "en": [
+    "Channeling"
+   ],
+   "zh": [
+    "引雷"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Charcoal"
+   ],
+   "zh": [
+    "木炭"
+   ]
+  },
+  {
+   "en": [
+    "Charge"
+   ],
+   "zh": [
+    "盾徽"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Chat"
+   ],
+   "zh": [
+    "聊天"
+   ]
+  },
+  {
+   "en": [
+    "Cherry Grove"
+   ],
+   "zh": [
+    "樱花树林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Cherry"
+   ],
+   "zh": [
+    "樱花木",
+    "樱花"
+   ],
+   "labels": [
+    "wood"
+   ]
+  },
+  {
+   "en": [
+    "Chest"
+   ],
+   "zh": [
+    "箱子",
+    "箱"
+   ]
+  },
+  {
+   "en": [
+    "Chestplate"
+   ],
+   "zh": [
+    "胸甲"
+   ]
+  },
+  {
+   "en": [
+    "Chicken"
+   ],
+   "zh": [
+    "鸡"
+   ]
+  },
+  {
+   "en": [
+    "Chief Indented"
+   ],
+   "zh": [
+    "顶波纹"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Chipped"
+   ],
+   "zh": [
+    "开裂的"
+   ]
+  },
+  {
+   "en": [
+    "Chiseled"
+   ],
+   "zh": [
+    "雕纹"
+   ]
+  },
+  {
+   "en": [
+    "Chiseled"
+   ],
+   "zh": [
+    "錾制"
+   ],
+   "scope": {
+    "version": "1.19.2"
+   }
+  },
+  {
+   "en": [
+    "Chorus Fruit"
+   ],
+   "zh": [
+    "紫颂果"
+   ]
+  },
+  {
+   "en": [
+    "Chorus"
+   ],
+   "zh": [
+    "紫颂"
+   ]
+  },
+  {
+   "en": [
+    "Chunk borders"
+   ],
+   "zh": [
+    "区块边界"
+   ]
+  },
+  {
+   "en": [
+    "Cichlid"
+   ],
+   "zh": [
+    "丽鱼"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Clay Ball"
+   ],
+   "zh": [
+    "黏土球"
+   ]
+  },
+  {
+   "en": [
+    "Clay"
+   ],
+   "zh": [
+    "黏土"
+   ]
+  },
+  {
+   "en": [
+    "Clay"
+   ],
+   "zh": [
+    "粘土"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Clayfish"
+   ],
+   "zh": [
+    "陶鱼类"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.type"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Cleric"
+   ],
+   "zh": [
+    "牧师"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Clock"
+   ],
+   "zh": [
+    "时钟"
+   ]
+  },
+  {
+   "en": [
+    "Clock"
+   ],
+   "zh": [
+    "钟"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Closed"
+   ],
+   "zh": [
+    "闭合的"
+   ]
+  },
+  {
+   "en": [
+    "Clownfish"
+   ],
+   "zh": [
+    "小丑鱼"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Cluster"
+   ],
+   "zh": [
+    "簇"
+   ]
+  },
+  {
+   "en": [
+    "Coal"
+   ],
+   "zh": [
+    "煤炭",
+    "煤"
+   ]
+  },
+  {
+   "en": [
+    "Coarse Dirt"
+   ],
+   "zh": [
+    "砂土"
+   ]
+  },
+  {
+   "en": [
+    "Coast"
+   ],
+   "zh": [
+    "海岸"
+   ]
+  },
+  {
+   "en": [
+    "Cobbled Deepslate"
+   ],
+   "zh": [
+    "深板岩圆石"
+   ]
+  },
+  {
+   "en": [
+    "Cobblestone"
+   ],
+   "zh": [
+    "圆石"
+   ]
+  },
+  {
+   "en": [
+    "Cobweb"
+   ],
+   "zh": [
+    "蜘蛛网"
+   ]
+  },
+  {
+   "en": [
+    "Cocoa Beans"
+   ],
+   "zh": [
+    "可可豆"
+   ]
+  },
+  {
+   "en": [
+    "Cocoa"
+   ],
+   "zh": [
+    "可可果"
+   ]
+  },
+  {
+   "en": [
+    "Cod"
+   ],
+   "zh": [
+    "鳕鱼"
+   ]
+  },
+  {
+   "en": [
+    "Cold Ocean"
+   ],
+   "zh": [
+    "冷水海洋"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Colored Blocks"
+   ],
+   "zh": [
+    "染色方块"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Combat"
+   ],
+   "zh": [
+    "战斗用品"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Command Block"
+   ],
+   "zh": [
+    "命令方块"
+   ]
+  },
+  {
+   "en": [
+    "Command"
+   ],
+   "zh": [
+    "命令"
+   ]
+  },
+  {
+   "en": [
+    "Comparator"
+   ],
+   "zh": [
+    "比较器"
+   ]
+  },
+  {
+   "en": [
+    "Compass"
+   ],
+   "zh": [
+    "指南针",
+    "指针"
+   ]
+  },
+  {
+   "en": [
+    "Composter"
+   ],
+   "zh": [
+    "堆肥桶"
+   ]
+  },
+  {
+   "en": [
+    "Concrete"
+   ],
+   "zh": [
+    "混凝土"
+   ]
+  },
+  {
+   "en": [
+    "Conduit Power"
+   ],
+   "zh": [
+    "潮涌能量"
+   ]
+  },
+  {
+   "en": [
+    "Conduit"
+   ],
+   "zh": [
+    "潮涌核心"
+   ]
+  },
+  {
+   "en": [
+    "Consumables"
+   ],
+   "zh": [
+    "消耗品"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Cooked"
+   ],
+   "zh": [
+    "熟"
+   ]
+  },
+  {
+   "en": [
+    "Cookie"
+   ],
+   "zh": [
+    "曲奇"
+   ]
+  },
+  {
+   "en": [
+    "Copper"
+   ],
+   "zh": [
+    "铜"
+   ]
+  },
+  {
+   "en": [
+    "Coral"
+   ],
+   "zh": [
+    "珊瑚"
+   ]
+  },
+  {
+   "en": [
+    "Cornflower"
+   ],
+   "zh": [
+    "矢车菊"
+   ]
+  },
+  {
+   "en": [
+    "Cotton Candy Betta"
+   ],
+   "zh": [
+    "五彩搏鱼"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Cow"
+   ],
+   "zh": [
+    "牛"
+   ]
+  },
+  {
+   "en": [
+    "Cracked"
+   ],
+   "zh": [
+    "裂纹"
+   ]
+  },
+  {
+   "en": [
+    "Crafter"
+   ],
+   "zh": [
+    "合成器"
+   ]
+  },
+  {
+   "en": [
+    "Crafting Table"
+   ],
+   "zh": [
+    "工作台"
+   ]
+  },
+  {
+   "en": [
+    "Crafting"
+   ],
+   "zh": [
+    "合成用品"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Creaking"
+   ],
+   "zh": [
+    "嘎枝"
+   ]
+  },
+  {
+   "en": [
+    "Cream"
+   ],
+   "zh": [
+    "膏"
+   ]
+  },
+  {
+   "en": [
+    "Credits"
+   ],
+   "zh": [
+    "鸣谢名单"
+   ]
+  },
+  {
+   "en": [
+    "Creeper"
+   ],
+   "zh": [
+    "苦力怕"
+   ]
+  },
+  {
+   "en": [
+    "Creeper"
+   ],
+   "zh": [
+    "爬行者"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Crimson Forest"
+   ],
+   "zh": [
+    "绯红森林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Crimson"
+   ],
+   "zh": [
+    "绯红木",
+    "绯红"
+   ],
+   "labels": [
+    "wood"
+   ]
+  },
+  {
+   "en": [
+    "Cross"
+   ],
+   "zh": [
+    "正十字"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Crossbow"
+   ],
+   "zh": [
+    "弩"
+   ]
+  },
+  {
+   "en": [
+    "Crosshair"
+   ],
+   "zh": [
+    "准星"
+   ]
+  },
+  {
+   "en": [
+    "Crying"
+   ],
+   "zh": [
+    "哭泣的"
+   ]
+  },
+  {
+   "en": [
+    "Crystal",
+    "Crystals"
+   ],
+   "zh": [
+    "晶体"
+   ]
+  },
+  {
+   "en": [
+    "Crystal"
+   ],
+   "zh": [
+    "水晶"
+   ]
+  },
+  {
+   "en": [
+    "Crystals"
+   ],
+   "zh": [
+    "砂粒"
+   ]
+  },
+  {
+   "en": [
+    "Curse of Binding"
+   ],
+   "zh": [
+    "绑定诅咒"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Curse of Vanishing"
+   ],
+   "zh": [
+    "消失诅咒"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Cut"
+   ],
+   "zh": [
+    "切制"
+   ]
+  },
+  {
+   "en": [
+    "Cyan"
+   ],
+   "zh": [
+    "青色",
+    "青"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Damaged"
+   ],
+   "zh": [
+    "损坏的"
+   ]
+  },
+  {
+   "en": [
+    "Dandelion"
+   ],
+   "zh": [
+    "蒲公英"
+   ]
+  },
+  {
+   "en": [
+    "Danger"
+   ],
+   "zh": [
+    "危机纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Dark Forest"
+   ],
+   "zh": [
+    "黑森林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Dark Oak"
+   ],
+   "zh": [
+    "深色橡木",
+    "深色橡树",
+    "深色橡"
+   ],
+   "labels": [
+    "wood"
+   ]
+  },
+  {
+   "en": [
+    "Dark Prismarine"
+   ],
+   "zh": [
+    "暗海晶石"
+   ]
+  },
+  {
+   "en": [
+    "Darkness"
+   ],
+   "zh": [
+    "黑暗"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Dasher"
+   ],
+   "zh": [
+    "速跃类"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.type"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Daylight"
+   ],
+   "zh": [
+    "阳光"
+   ]
+  },
+  {
+   "en": [
+    "Dead Bush"
+   ],
+   "zh": [
+    "枯萎的灌木"
+   ]
+  },
+  {
+   "en": [
+    "Dead"
+   ],
+   "zh": [
+    "失活"
+   ],
+   "scope": {
+    "en": "Coral"
+   }
+  },
+  {
+   "en": [
+    "Decorated Pot"
+   ],
+   "zh": [
+    "饰纹陶罐"
+   ]
+  },
+  {
+   "en": [
+    "Deep Cold Ocean"
+   ],
+   "zh": [
+    "冷水深海"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Deep Dark"
+   ],
+   "zh": [
+    "深暗之域"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Deep Frozen Ocean"
+   ],
+   "zh": [
+    "冰冻深海"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Deep Lukewarm Ocean"
+   ],
+   "zh": [
+    "温水深海"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Deep Ocean"
+   ],
+   "zh": [
+    "深海"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Deepslate"
+   ],
+   "zh": [
+    "深板岩",
+    "深层"
+   ]
+  },
+  {
+   "en": [
+    "Delete"
+   ],
+   "zh": [
+    "Delete"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Density"
+   ],
+   "zh": [
+    "致密"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Depth Strider"
+   ],
+   "zh": [
+    "深海探索者"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Desert"
+   ],
+   "zh": [
+    "沙漠"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Detector"
+   ],
+   "zh": [
+    "探测",
+    "探测器"
+   ]
+  },
+  {
+   "en": [
+    "Diamond"
+   ],
+   "zh": [
+    "钻石"
+   ],
+   "labels": [
+    "ore"
+   ]
+  },
+  {
+   "en": [
+    "Diorite"
+   ],
+   "zh": [
+    "闪长岩"
+   ]
+  },
+  {
+   "en": [
+    "Dirt Path"
+   ],
+   "zh": [
+    "土径"
+   ]
+  },
+  {
+   "en": [
+    "Dirt"
+   ],
+   "zh": [
+    "泥土"
+   ]
+  },
+  {
+   "en": [
+    "Disc"
+   ],
+   "zh": [
+    "唱片"
+   ]
+  },
+  {
+   "en": [
+    "Disenchant"
+   ],
+   "zh": [
+    "祛魔"
+   ]
+  },
+  {
+   "en": [
+    "Dispenser"
+   ],
+   "zh": [
+    "发射器"
+   ]
+  },
+  {
+   "en": [
+    "Display"
+   ],
+   "zh": [
+    "展示"
+   ]
+  },
+  {
+   "en": [
+    "Dolphin"
+   ],
+   "zh": [
+    "海豚"
+   ]
+  },
+  {
+   "en": [
+    "Dolphin's Grace"
+   ],
+   "zh": [
+    "海豚的恩惠"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Donkey"
+   ],
+   "zh": [
+    "驴"
+   ]
+  },
+  {
+   "en": [
+    "Door"
+   ],
+   "zh": [
+    "门"
+   ]
+  },
+  {
+   "en": [
+    "Dottyback"
+   ],
+   "zh": [
+    "绣雀鲷"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Down Arrow"
+   ],
+   "zh": [
+    "下方向键"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Dragon"
+   ],
+   "zh": [
+    "龙"
+   ]
+  },
+  {
+   "en": [
+    "Dragon's Breath"
+   ],
+   "zh": [
+    "龙息"
+   ]
+  },
+  {
+   "en": [
+    "Dried Ghast"
+   ],
+   "zh": [
+    "失水恶魂"
+   ]
+  },
+  {
+   "en": [
+    "Dried"
+   ],
+   "zh": [
+    "干"
+   ]
+  },
+  {
+   "en": [
+    "Dripleaf"
+   ],
+   "zh": [
+    "垂滴叶"
+   ]
+  },
+  {
+   "en": [
+    "Dripstone Caves"
+   ],
+   "zh": [
+    "溶洞"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Dripstone"
+   ],
+   "zh": [
+    "滴水石"
+   ]
+  },
+  {
+   "en": [
+    "Dropper"
+   ],
+   "zh": [
+    "投掷器"
+   ]
+  },
+  {
+   "en": [
+    "Drowned"
+   ],
+   "zh": [
+    "溺尸"
+   ]
+  },
+  {
+   "en": [
+    "Dual wield"
+   ],
+   "zh": [
+    "双持"
+   ]
+  },
+  {
+   "en": [
+    "Dune"
+   ],
+   "zh": [
+    "沙丘"
+   ]
+  },
+  {
+   "en": [
+    "Dust"
+   ],
+   "zh": [
+    "粉"
+   ]
+  },
+  {
+   "en": [
+    "Dye"
+   ],
+   "zh": [
+    "染料"
+   ]
+  },
+  {
+   "en": [
+    "Dyed"
+   ],
+   "zh": [
+    "已染色"
+   ]
+  },
+  {
+   "en": [
+    "Echo"
+   ],
+   "zh": [
+    "回响"
+   ]
+  },
+  {
+   "en": [
+    "Efficiency"
+   ],
+   "zh": [
+    "效率"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Egg"
+   ],
+   "zh": [
+    "鸡蛋",
+    "蛋"
+   ]
+  },
+  {
+   "en": [
+    "Elder"
+   ],
+   "zh": [
+    "远古"
+   ]
+  },
+  {
+   "en": [
+    "Elytra"
+   ],
+   "zh": [
+    "鞘翅"
+   ]
+  },
+  {
+   "en": [
+    "Emerald"
+   ],
+   "zh": [
+    "绿宝石"
+   ]
+  },
+  {
+   "en": [
+    "Emperor Red Snapper"
+   ],
+   "zh": [
+    "川纹笛鲷"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Enabled"
+   ],
+   "zh": [
+    "启用"
+   ]
+  },
+  {
+   "en": [
+    "Enchanting",
+    "Enchant",
+    "Enchanted"
+   ],
+   "zh": [
+    "附魔"
+   ]
+  },
+  {
+   "en": [
+    "End Barrens"
+   ],
+   "zh": [
+    "末地荒地"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "End Crystal"
+   ],
+   "zh": [
+    "末影水晶"
+   ],
+   "scope": {
+    "version": "1.16.5"
+   }
+  },
+  {
+   "en": [
+    "End Highlands"
+   ],
+   "zh": [
+    "末地高地"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "End Midlands"
+   ],
+   "zh": [
+    "末地内陆"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "End Rod"
+   ],
+   "zh": [
+    "末地烛"
+   ]
+  },
+  {
+   "en": [
+    "End"
+   ],
+   "zh": [
+    "末地"
+   ]
+  },
+  {
+   "en": [
+    "Ender Dragon"
+   ],
+   "zh": [
+    "末影龙"
+   ]
+  },
+  {
+   "en": [
+    "Ender"
+   ],
+   "zh": [
+    "末影"
+   ]
+  },
+  {
+   "en": [
+    "Enderman"
+   ],
+   "zh": [
+    "末影人"
+   ]
+  },
+  {
+   "en": [
+    "Endermite"
+   ],
+   "zh": [
+    "末影螨"
+   ]
+  },
+  {
+   "en": [
+    "Enter"
+   ],
+   "zh": [
+    "Enter"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Entity Interaction Range"
+   ],
+   "zh": [
+    "实体交互距离"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Equipment"
+   ],
+   "zh": [
+    "装备"
+   ]
+  },
+  {
+   "en": [
+    "Eroded Badlands"
+   ],
+   "zh": [
+    "风蚀恶地"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Escape"
+   ],
+   "zh": [
+    "Esc"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Evoker"
+   ],
+   "zh": [
+    "唤魔者"
+   ]
+  },
+  {
+   "en": [
+    "Experience Orb"
+   ],
+   "zh": [
+    "经验球"
+   ]
+  },
+  {
+   "en": [
+    "Experience"
+   ],
+   "zh": [
+    "经验"
+   ]
+  },
+  {
+   "en": [
+    "Expert"
+   ],
+   "zh": [
+    "专家"
+   ]
+  },
+  {
+   "en": [
+    "Explorer"
+   ],
+   "zh": [
+    "探险纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Explorer"
+   ],
+   "zh": [
+    "探险家"
+   ]
+  },
+  {
+   "en": [
+    "Explosion Knockback Resistance"
+   ],
+   "zh": [
+    "爆炸击退抗性"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Exposed"
+   ],
+   "zh": [
+    "斑驳"
+   ]
+  },
+  {
+   "en": [
+    "Eye of Ender"
+   ],
+   "zh": [
+    "末影之眼"
+   ]
+  },
+  {
+   "en": [
+    "Eye"
+   ],
+   "zh": [
+    "眼"
+   ]
+  },
+  {
+   "en": [
+    "Eyeblossom"
+   ],
+   "zh": [
+    "眼眸花"
+   ]
+  },
+  {
+   "en": [
+    "FOV"
+   ],
+   "zh": [
+    "视场角"
+   ]
+  },
+  {
+   "en": [
+    "Fall Damage Multiplier"
+   ],
+   "zh": [
+    "摔落伤害倍数"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Fan"
+   ],
+   "zh": [
+    "扇"
+   ],
+   "scope": {
+    "en": "Coral"
+   }
+  },
+  {
+   "en": [
+    "Fangs"
+   ],
+   "zh": [
+    "尖牙"
+   ]
+  },
+  {
+   "en": [
+    "Farmer"
+   ],
+   "zh": [
+    "农民"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Farming"
+   ],
+   "zh": [
+    "耕种"
+   ]
+  },
+  {
+   "en": [
+    "Farmland"
+   ],
+   "zh": [
+    "耕地"
+   ]
+  },
+  {
+   "en": [
+    "Feather Falling"
+   ],
+   "zh": [
+    "摔落缓冲"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Feather Falling"
+   ],
+   "zh": [
+    "摔落保护"
+   ],
+   "scope": {
+    "version": "1.19.2"
+   }
+  },
+  {
+   "en": [
+    "Feather"
+   ],
+   "zh": [
+    "羽毛"
+   ]
+  },
+  {
+   "en": [
+    "Feature"
+   ],
+   "zh": [
+    "地物",
+    "功能"
+   ]
+  },
+  {
+   "en": [
+    "Fence Gate"
+   ],
+   "zh": [
+    "栅栏门"
+   ]
+  },
+  {
+   "en": [
+    "Fence"
+   ],
+   "zh": [
+    "栅栏"
+   ]
+  },
+  {
+   "en": [
+    "Fermented Spider Eye"
+   ],
+   "zh": [
+    "发酵蛛眼"
+   ]
+  },
+  {
+   "en": [
+    "Fermented"
+   ],
+   "zh": [
+    "发酵"
+   ]
+  },
+  {
+   "en": [
+    "Fern"
+   ],
+   "zh": [
+    "蕨"
+   ]
+  },
+  {
+   "en": [
+    "Field Masoned"
+   ],
+   "zh": [
+    "砖纹"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Fire Aspect"
+   ],
+   "zh": [
+    "火焰附加"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Fire Charge"
+   ],
+   "zh": [
+    "火焰弹"
+   ]
+  },
+  {
+   "en": [
+    "Fire Protection"
+   ],
+   "zh": [
+    "火焰保护"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Fire Resistance"
+   ],
+   "zh": [
+    "抗火"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Fire Resistance"
+   ],
+   "zh": [
+    "防火"
+   ],
+   "scope": {
+    "version": "1.19.2"
+   }
+  },
+  {
+   "en": [
+    "Fire"
+   ],
+   "zh": [
+    "火"
+   ]
+  },
+  {
+   "en": [
+    "Fireball"
+   ],
+   "zh": [
+    "火球"
+   ]
+  },
+  {
+   "en": [
+    "Firefly Bush"
+   ],
+   "zh": [
+    "萤火虫灌木丛"
+   ]
+  },
+  {
+   "en": [
+    "Firework"
+   ],
+   "zh": [
+    "烟花",
+    "烟火"
+   ]
+  },
+  {
+   "en": [
+    "Fish"
+   ],
+   "zh": [
+    "鱼"
+   ]
+  },
+  {
+   "en": [
+    "Fisherman"
+   ],
+   "zh": [
+    "渔夫"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Fishing Bobber"
+   ],
+   "zh": [
+    "浮漂"
+   ]
+  },
+  {
+   "en": [
+    "Fishing Rod"
+   ],
+   "zh": [
+    "钓鱼竿"
+   ]
+  },
+  {
+   "en": [
+    "Flame"
+   ],
+   "zh": [
+    "火矢"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Fletcher"
+   ],
+   "zh": [
+    "制箭师"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Fletching"
+   ],
+   "zh": [
+    "制箭"
+   ]
+  },
+  {
+   "en": [
+    "Flight Duration"
+   ],
+   "zh": [
+    "飞行时间"
+   ]
+  },
+  {
+   "en": [
+    "Flint and Steel"
+   ],
+   "zh": [
+    "打火石"
+   ]
+  },
+  {
+   "en": [
+    "Flint"
+   ],
+   "zh": [
+    "燧石"
+   ]
+  },
+  {
+   "en": [
+    "Flopper"
+   ],
+   "zh": [
+    "飞翼类"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.type"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Flow"
+   ],
+   "zh": [
+    "涡流纹样",
+    "涡流"
+   ]
+  },
+  {
+   "en": [
+    "Flower Forest"
+   ],
+   "zh": [
+    "繁花森林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Flower Pot"
+   ],
+   "zh": [
+    "花盆"
+   ]
+  },
+  {
+   "en": [
+    "Flower"
+   ],
+   "zh": [
+    "花朵"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Flower"
+   ],
+   "zh": [
+    "花"
+   ]
+  },
+  {
+   "en": [
+    "Flowering"
+   ],
+   "zh": [
+    "盛开的"
+   ]
+  },
+  {
+   "en": [
+    "Flying Speed"
+   ],
+   "zh": [
+    "飞行速度"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Food & Drinks"
+   ],
+   "zh": [
+    "食物与饮品"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Forest"
+   ],
+   "zh": [
+    "森林"
+   ]
+  },
+  {
+   "en": [
+    "Fortune"
+   ],
+   "zh": [
+    "时运"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Fox"
+   ],
+   "zh": [
+    "狐狸"
+   ]
+  },
+  {
+   "en": [
+    "Fragment"
+   ],
+   "zh": [
+    "残片"
+   ]
+  },
+  {
+   "en": [
+    "Frame"
+   ],
+   "zh": [
+    "展示框",
+    "框架"
+   ]
+  },
+  {
+   "en": [
+    "Friend"
+   ],
+   "zh": [
+    "挚友纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Frog"
+   ],
+   "zh": [
+    "青蛙"
+   ]
+  },
+  {
+   "en": [
+    "Froglight"
+   ],
+   "zh": [
+    "蛙明灯"
+   ]
+  },
+  {
+   "en": [
+    "Frogspawn"
+   ],
+   "zh": [
+    "青蛙卵"
+   ]
+  },
+  {
+   "en": [
+    "Frost Walker"
+   ],
+   "zh": [
+    "冰霜行者"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Frosted Ice"
+   ],
+   "zh": [
+    "霜冰"
+   ]
+  },
+  {
+   "en": [
+    "Frozen Ocean"
+   ],
+   "zh": [
+    "冻洋"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Frozen Peaks"
+   ],
+   "zh": [
+    "冰封山峰"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Frozen River"
+   ],
+   "zh": [
+    "冻河"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Fruit"
+   ],
+   "zh": [
+    "果"
+   ]
+  },
+  {
+   "en": [
+    "Fully {0} Field"
+   ],
+   "zh": [
+    "{0}底"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Functional Blocks"
+   ],
+   "zh": [
+    "功能方块"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Fungus"
+   ],
+   "zh": [
+    "菌"
+   ]
+  },
+  {
+   "en": [
+    "Furnace"
+   ],
+   "zh": [
+    "熔炉"
+   ]
+  },
+  {
+   "en": [
+    "Game Interface"
+   ],
+   "zh": [
+    "游戏界面"
+   ]
+  },
+  {
+   "en": [
+    "Gameplay"
+   ],
+   "zh": [
+    "游戏内容"
+   ]
+  },
+  {
+   "en": [
+    "Gateway"
+   ],
+   "zh": [
+    "折跃门"
+   ]
+  },
+  {
+   "en": [
+    "Ghast Tear"
+   ],
+   "zh": [
+    "恶魂之泪"
+   ]
+  },
+  {
+   "en": [
+    "Ghast"
+   ],
+   "zh": [
+    "恶魂"
+   ]
+  },
+  {
+   "en": [
+    "Giant"
+   ],
+   "zh": [
+    "巨人"
+   ]
+  },
+  {
+   "en": [
+    "Gilded"
+   ],
+   "zh": [
+    "镶金"
+   ]
+  },
+  {
+   "en": [
+    "Glass Pane"
+   ],
+   "zh": [
+    "玻璃板"
+   ]
+  },
+  {
+   "en": [
+    "Glass"
+   ],
+   "zh": [
+    "玻璃"
+   ]
+  },
+  {
+   "en": [
+    "Glazed"
+   ],
+   "zh": [
+    "带釉"
+   ]
+  },
+  {
+   "en": [
+    "Glistering"
+   ],
+   "zh": [
+    "闪烁的"
+   ]
+  },
+  {
+   "en": [
+    "Glitter"
+   ],
+   "zh": [
+    "闪鳞类"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.type"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Globe"
+   ],
+   "zh": [
+    "地球"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Glow"
+   ],
+   "zh": [
+    "发光",
+    "荧光"
+   ]
+  },
+  {
+   "en": [
+    "Glowing"
+   ],
+   "zh": [
+    "发光"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Glowstone"
+   ],
+   "zh": [
+    "荧石"
+   ]
+  },
+  {
+   "en": [
+    "Goat"
+   ],
+   "zh": [
+    "山羊"
+   ]
+  },
+  {
+   "en": [
+    "Goatfish"
+   ],
+   "zh": [
+    "拟羊鱼"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Golden",
+    "Gold"
+   ],
+   "zh": [
+    "金"
+   ],
+   "labels": [
+    "ore"
+   ]
+  },
+  {
+   "en": [
+    "Golem"
+   ],
+   "zh": [
+    "傀儡"
+   ]
+  },
+  {
+   "en": [
+    "Gradient"
+   ],
+   "zh": [
+    "自上渐淡"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Granite"
+   ],
+   "zh": [
+    "花岗岩"
+   ]
+  },
+  {
+   "en": [
+    "Grass Path"
+   ],
+   "zh": [
+    "草径"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Grass"
+   ],
+   "zh": [
+    "草"
+   ]
+  },
+  {
+   "en": [
+    "Grate"
+   ],
+   "zh": [
+    "格栅"
+   ]
+  },
+  {
+   "en": [
+    "Gravel"
+   ],
+   "zh": [
+    "沙砾"
+   ]
+  },
+  {
+   "en": [
+    "Gravity"
+   ],
+   "zh": [
+    "重力"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Gray"
+   ],
+   "zh": [
+    "灰色",
+    "灰"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Green"
+   ],
+   "zh": [
+    "绿色",
+    "绿"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Grid"
+   ],
+   "zh": [
+    "方格"
+   ]
+  },
+  {
+   "en": [
+    "Grindstone"
+   ],
+   "zh": [
+    "砂轮"
+   ]
+  },
+  {
+   "en": [
+    "Grove"
+   ],
+   "zh": [
+    "雪林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Guardian"
+   ],
+   "zh": [
+    "守卫者"
+   ]
+  },
+  {
+   "en": [
+    "Gunpowder"
+   ],
+   "zh": [
+    "火药"
+   ]
+  },
+  {
+   "en": [
+    "Guster"
+   ],
+   "zh": [
+    "旋风"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Guster"
+   ],
+   "zh": [
+    "旋风纹样"
+   ]
+  },
+  {
+   "en": [
+    "Hanging Roots"
+   ],
+   "zh": [
+    "垂根"
+   ]
+  },
+  {
+   "en": [
+    "Hanging"
+   ],
+   "zh": [
+    "悬挂式"
+   ]
+  },
+  {
+   "en": [
+    "Happy Ghast"
+   ],
+   "zh": [
+    "快乐恶魂"
+   ]
+  },
+  {
+   "en": [
+    "Harming"
+   ],
+   "zh": [
+    "伤害"
+   ],
+   "labels": [
+    "potion"
+   ]
+  },
+  {
+   "en": [
+    "Harness"
+   ],
+   "zh": [
+    "挽具"
+   ]
+  },
+  {
+   "en": [
+    "Haste"
+   ],
+   "zh": [
+    "急迫"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Hat",
+    "Cap"
+   ],
+   "zh": [
+    "帽子"
+   ]
+  },
+  {
+   "en": [
+    "Hay Bale"
+   ],
+   "zh": [
+    "干草捆"
+   ]
+  },
+  {
+   "en": [
+    "Head"
+   ],
+   "zh": [
+    "头",
+    "的头"
+   ]
+  },
+  {
+   "en": [
+    "Head"
+   ],
+   "zh": [
+    "头颅"
+   ],
+   "scope": {
+    "version": "1.16.5"
+   }
+  },
+  {
+   "en": [
+    "Healing"
+   ],
+   "zh": [
+    "治疗"
+   ],
+   "labels": [
+    "potion"
+   ]
+  },
+  {
+   "en": [
+    "Health Boost"
+   ],
+   "zh": [
+    "生命提升"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Health bar"
+   ],
+   "zh": [
+    "生命条"
+   ]
+  },
+  {
+   "en": [
+    "Health"
+   ],
+   "zh": [
+    "生命"
+   ]
+  },
+  {
+   "en": [
+    "Heart of the Sea"
+   ],
+   "zh": [
+    "海洋之心"
+   ]
+  },
+  {
+   "en": [
+    "Heart"
+   ],
+   "zh": [
+    "心"
+   ]
+  },
+  {
+   "en": [
+    "Heart"
+   ],
+   "zh": [
+    "爱心纹样"
+   ],
+   "scope": {
+    "key": "pottery_sherd"
+   }
+  },
+  {
+   "en": [
+    "Heartbreak"
+   ],
+   "zh": [
+    "心碎纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Heavy Core"
+   ],
+   "zh": [
+    "沉重核心"
+   ]
+  },
+  {
+   "en": [
+    "Heavy"
+   ],
+   "zh": [
+    "重质"
+   ]
+  },
+  {
+   "en": [
+    "Helmet"
+   ],
+   "zh": [
+    "头盔"
+   ]
+  },
+  {
+   "en": [
+    "Hero of the Village"
+   ],
+   "zh": [
+    "村庄英雄"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Hitboxes"
+   ],
+   "zh": [
+    "判定箱"
+   ]
+  },
+  {
+   "en": [
+    "Hoe"
+   ],
+   "zh": [
+    "锄"
+   ]
+  },
+  {
+   "en": [
+    "Hoglin"
+   ],
+   "zh": [
+    "疣猪兽"
+   ]
+  },
+  {
+   "en": [
+    "Hold"
+   ],
+   "zh": [
+    "按住"
+   ]
+  },
+  {
+   "en": [
+    "Hollow"
+   ],
+   "zh": [
+    "空洞"
+   ]
+  },
+  {
+   "en": [
+    "Home"
+   ],
+   "zh": [
+    "Home"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Honey"
+   ],
+   "zh": [
+    "蜂蜜"
+   ]
+  },
+  {
+   "en": [
+    "Honeycomb"
+   ],
+   "zh": [
+    "蜜脾"
+   ]
+  },
+  {
+   "en": [
+    "Hopper"
+   ],
+   "zh": [
+    "漏斗"
+   ]
+  },
+  {
+   "en": [
+    "Horn"
+   ],
+   "zh": [
+    "角"
+   ]
+  },
+  {
+   "en": [
+    "Horse Jump Strength"
+   ],
+   "zh": [
+    "马匹跳跃能力"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Horse"
+   ],
+   "zh": [
+    "马"
+   ]
+  },
+  {
+   "en": [
+    "Host"
+   ],
+   "zh": [
+    "雇主"
+   ]
+  },
+  {
+   "en": [
+    "Hotbar"
+   ],
+   "zh": [
+    "快捷栏"
+   ]
+  },
+  {
+   "en": [
+    "Howl"
+   ],
+   "zh": [
+    "狼嚎纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Hunger"
+   ],
+   "zh": [
+    "饥饿"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Husk"
+   ],
+   "zh": [
+    "尸壳"
+   ]
+  },
+  {
+   "en": [
+    "Hyphae"
+   ],
+   "zh": [
+    "菌核"
+   ]
+  },
+  {
+   "en": [
+    "Ice Spikes"
+   ],
+   "zh": [
+    "冰刺之地"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Ice"
+   ],
+   "zh": [
+    "冰"
+   ]
+  },
+  {
+   "en": [
+    "Illusioner"
+   ],
+   "zh": [
+    "幻术师"
+   ]
+  },
+  {
+   "en": [
+    "Impaling"
+   ],
+   "zh": [
+    "穿刺"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Infestation"
+   ],
+   "zh": [
+    "虫蚀"
+   ],
+   "labels": [
+    "potion"
+   ]
+  },
+  {
+   "en": [
+    "Infested"
+   ],
+   "zh": [
+    "虫蚀"
+   ]
+  },
+  {
+   "en": [
+    "Infested"
+   ],
+   "zh": [
+    "寄生"
+   ],
+   "scope": {
+    "key": "effect"
+   }
+  },
+  {
+   "en": [
+    "Infinity"
+   ],
+   "zh": [
+    "无限"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Ingot"
+   ],
+   "zh": [
+    "锭"
+   ]
+  },
+  {
+   "en": [
+    "Ingots"
+   ],
+   "zh": [
+    "锭"
+   ]
+  },
+  {
+   "en": [
+    "Ingredients"
+   ],
+   "zh": [
+    "原材料"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Ink Sac"
+   ],
+   "zh": [
+    "墨囊"
+   ]
+  },
+  {
+   "en": [
+    "Insert"
+   ],
+   "zh": [
+    "Insert"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Instance"
+   ],
+   "zh": [
+    "实例"
+   ]
+  },
+  {
+   "en": [
+    "Instant Damage"
+   ],
+   "zh": [
+    "瞬间伤害"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Instant Health"
+   ],
+   "zh": [
+    "瞬间治疗"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Inventory"
+   ],
+   "zh": [
+    "物品栏"
+   ]
+  },
+  {
+   "en": [
+    "Invisibility"
+   ],
+   "zh": [
+    "隐身"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Iron Golem"
+   ],
+   "zh": [
+    "铁傀儡"
+   ]
+  },
+  {
+   "en": [
+    "Iron"
+   ],
+   "zh": [
+    "铁"
+   ],
+   "labels": [
+    "ore"
+   ]
+  },
+  {
+   "en": [
+    "Item"
+   ],
+   "zh": [
+    "物品"
+   ]
+  },
+  {
+   "en": [
+    "Jack o'Lantern"
+   ],
+   "zh": [
+    "南瓜灯"
+   ]
+  },
+  {
+   "en": [
+    "Jagged Peaks"
+   ],
+   "zh": [
+    "尖峭山峰"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Jigsaw"
+   ],
+   "zh": [
+    "拼图"
+   ]
+  },
+  {
+   "en": [
+    "Journeyman"
+   ],
+   "zh": [
+    "老手"
+   ]
+  },
+  {
+   "en": [
+    "Jukebox"
+   ],
+   "zh": [
+    "唱片机"
+   ]
+  },
+  {
+   "en": [
+    "Jump Boost"
+   ],
+   "zh": [
+    "跳跃提升"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Jump Strength"
+   ],
+   "zh": [
+    "跳跃力度"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Jump"
+   ],
+   "zh": [
+    "跳跃"
+   ]
+  },
+  {
+   "en": [
+    "Jungle"
+   ],
+   "zh": [
+    "丛林木",
+    "丛林"
+   ],
+   "labels": [
+    "wood"
+   ]
+  },
+  {
+   "en": [
+    "Kelp"
+   ],
+   "zh": [
+    "海带"
+   ]
+  },
+  {
+   "en": [
+    "Key"
+   ],
+   "zh": [
+    "钥匙"
+   ]
+  },
+  {
+   "en": [
+    "Keypad Decimal"
+   ],
+   "zh": [
+    "小键盘 ."
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Keypad Enter"
+   ],
+   "zh": [
+    "小键盘 Enter"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Knockback Resistance"
+   ],
+   "zh": [
+    "击退抗性"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Knockback"
+   ],
+   "zh": [
+    "击退"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Knowledge"
+   ],
+   "zh": [
+    "知识"
+   ]
+  },
+  {
+   "en": [
+    "Kob"
+   ],
+   "zh": [
+    "石首类"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.type"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Ladder"
+   ],
+   "zh": [
+    "梯子"
+   ]
+  },
+  {
+   "en": [
+    "Lantern"
+   ],
+   "zh": [
+    "灯笼"
+   ]
+  },
+  {
+   "en": [
+    "Lapis Lazuli",
+    "Lapis"
+   ],
+   "zh": [
+    "青金石"
+   ]
+  },
+  {
+   "en": [
+    "Lava"
+   ],
+   "zh": [
+    "熔岩"
+   ]
+  },
+  {
+   "en": [
+    "Layer"
+   ],
+   "zh": [
+    "层面",
+    "层"
+   ]
+  },
+  {
+   "en": [
+    "Lead"
+   ],
+   "zh": [
+    "拴绳"
+   ]
+  },
+  {
+   "en": [
+    "Leaf Litter"
+   ],
+   "zh": [
+    "枯叶堆"
+   ]
+  },
+  {
+   "en": [
+    "Leaping"
+   ],
+   "zh": [
+    "跳跃"
+   ],
+   "labels": [
+    "potion"
+   ]
+  },
+  {
+   "en": [
+    "Leash Knot"
+   ],
+   "zh": [
+    "拴绳结"
+   ]
+  },
+  {
+   "en": [
+    "Leather"
+   ],
+   "zh": [
+    "皮革"
+   ]
+  },
+  {
+   "en": [
+    "Leatherworker"
+   ],
+   "zh": [
+    "皮匠"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Leaves"
+   ],
+   "zh": [
+    "树叶"
+   ]
+  },
+  {
+   "en": [
+    "Lectern"
+   ],
+   "zh": [
+    "讲台"
+   ]
+  },
+  {
+   "en": [
+    "Left Alt"
+   ],
+   "zh": [
+    "左Alt"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Left Arrow"
+   ],
+   "zh": [
+    "左方向键"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Left Control"
+   ],
+   "zh": [
+    "左Ctrl"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Left Shift"
+   ],
+   "zh": [
+    "左Shift"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Left Win"
+   ],
+   "zh": [
+    "左Win"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Leggings"
+   ],
+   "zh": [
+    "护腿"
+   ]
+  },
+  {
+   "en": [
+    "Lever"
+   ],
+   "zh": [
+    "拉杆"
+   ]
+  },
+  {
+   "en": [
+    "Levitation"
+   ],
+   "zh": [
+    "飘浮"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Librarian"
+   ],
+   "zh": [
+    "图书管理员"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Licenses"
+   ],
+   "zh": [
+    "许可协议"
+   ]
+  },
+  {
+   "en": [
+    "Lichen"
+   ],
+   "zh": [
+    "地衣"
+   ]
+  },
+  {
+   "en": [
+    "Light Blue"
+   ],
+   "zh": [
+    "淡蓝色",
+    "淡蓝"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Light Gray"
+   ],
+   "zh": [
+    "淡灰色",
+    "淡灰"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Light"
+   ],
+   "zh": [
+    "轻质"
+   ]
+  },
+  {
+   "en": [
+    "Lightning Bolt"
+   ],
+   "zh": [
+    "闪电束"
+   ]
+  },
+  {
+   "en": [
+    "Lightning Rod"
+   ],
+   "zh": [
+    "避雷针"
+   ]
+  },
+  {
+   "en": [
+    "Lilac"
+   ],
+   "zh": [
+    "丁香"
+   ]
+  },
+  {
+   "en": [
+    "Lily Pad"
+   ],
+   "zh": [
+    "睡莲"
+   ]
+  },
+  {
+   "en": [
+    "Lily of the Valley"
+   ],
+   "zh": [
+    "铃兰"
+   ]
+  },
+  {
+   "en": [
+    "Lime"
+   ],
+   "zh": [
+    "黄绿色",
+    "黄绿"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Lingering"
+   ],
+   "zh": [
+    "滞留",
+    "滞留型"
+   ]
+  },
+  {
+   "en": [
+    "Llama"
+   ],
+   "zh": [
+    "羊驼"
+   ]
+  },
+  {
+   "en": [
+    "Locator Bar"
+   ],
+   "zh": [
+    "定位栏"
+   ]
+  },
+  {
+   "en": [
+    "Lodestone"
+   ],
+   "zh": [
+    "磁石"
+   ]
+  },
+  {
+   "en": [
+    "Log"
+   ],
+   "zh": [
+    "原木"
+   ]
+  },
+  {
+   "en": [
+    "Loom"
+   ],
+   "zh": [
+    "织布机"
+   ]
+  },
+  {
+   "en": [
+    "Looting"
+   ],
+   "zh": [
+    "抢夺"
+   ]
+  },
+  {
+   "en": [
+    "Loyalty"
+   ],
+   "zh": [
+    "忠诚"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Lozenge"
+   ],
+   "zh": [
+    "菱形"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Luck of the Sea"
+   ],
+   "zh": [
+    "海之眷顾"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Luck"
+   ],
+   "zh": [
+    "幸运"
+   ]
+  },
+  {
+   "en": [
+    "Lukewarm Ocean"
+   ],
+   "zh": [
+    "温水海洋"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Lunge"
+   ],
+   "zh": [
+    "突进"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Lure"
+   ],
+   "zh": [
+    "饵钓"
+   ]
+  },
+  {
+   "en": [
+    "Lush Caves"
+   ],
+   "zh": [
+    "繁茂洞穴"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Mace"
+   ],
+   "zh": [
+    "重锤"
+   ]
+  },
+  {
+   "en": [
+    "Magenta"
+   ],
+   "zh": [
+    "品红色",
+    "品红"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Magma Cube"
+   ],
+   "zh": [
+    "岩浆怪"
+   ]
+  },
+  {
+   "en": [
+    "Magma"
+   ],
+   "zh": [
+    "岩浆"
+   ]
+  },
+  {
+   "en": [
+    "Mangrove Swamp"
+   ],
+   "zh": [
+    "红树林沼泽"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Mangrove"
+   ],
+   "zh": [
+    "红树木",
+    "红树"
+   ],
+   "labels": [
+    "wood"
+   ]
+  },
+  {
+   "en": [
+    "Map"
+   ],
+   "zh": [
+    "地图"
+   ]
+  },
+  {
+   "en": [
+    "Mason"
+   ],
+   "zh": [
+    "石匠"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Master"
+   ],
+   "zh": [
+    "大师"
+   ]
+  },
+  {
+   "en": [
+    "Material"
+   ],
+   "zh": [
+    "质"
+   ]
+  },
+  {
+   "en": [
+    "Max Absorption"
+   ],
+   "zh": [
+    "最大伤害吸收值"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Max Health"
+   ],
+   "zh": [
+    "最大生命值"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Meadow"
+   ],
+   "zh": [
+    "草甸"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Melon"
+   ],
+   "zh": [
+    "西瓜"
+   ]
+  },
+  {
+   "en": [
+    "Membrane"
+   ],
+   "zh": [
+    "膜"
+   ]
+  },
+  {
+   "en": [
+    "Mending"
+   ],
+   "zh": [
+    "经验修补"
+   ]
+  },
+  {
+   "en": [
+    "Menu"
+   ],
+   "zh": [
+    "菜单"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Milk"
+   ],
+   "zh": [
+    "奶"
+   ]
+  },
+  {
+   "en": [
+    "Minecart with Furnace"
+   ],
+   "zh": [
+    "动力矿车"
+   ]
+  },
+  {
+   "en": [
+    "Minecart with {0}"
+   ],
+   "zh": [
+    "{0}矿车"
+   ]
+  },
+  {
+   "en": [
+    "Minecart"
+   ],
+   "zh": [
+    "矿车"
+   ]
+  },
+  {
+   "en": [
+    "Miner"
+   ],
+   "zh": [
+    "采矿纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Mining Efficiency"
+   ],
+   "zh": [
+    "挖掘效率"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Mining Fatigue"
+   ],
+   "zh": [
+    "挖掘疲劳"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Miscellaneous"
+   ],
+   "zh": [
+    "杂项"
+   ]
+  },
+  {
+   "en": [
+    "Mob Follow Range"
+   ],
+   "zh": [
+    "生物跟随距离"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Mob Tempt Range"
+   ],
+   "zh": [
+    "生物引诱范围"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Mobs"
+   ],
+   "zh": [
+    "生物"
+   ]
+  },
+  {
+   "en": [
+    "Mode"
+   ],
+   "zh": [
+    "模式"
+   ]
+  },
+  {
+   "en": [
+    "Monster Egg"
+   ],
+   "zh": [
+    "怪物蛋"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Monster Spawner"
+   ],
+   "zh": [
+    "刷怪笼"
+   ]
+  },
+  {
+   "en": [
+    "Monster Spawner"
+   ],
+   "zh": [
+    "刷怪箱"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Moorish Idol"
+   ],
+   "zh": [
+    "镰鱼"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Mooshroom"
+   ],
+   "zh": [
+    "哞菇"
+   ]
+  },
+  {
+   "en": [
+    "Mosaic"
+   ],
+   "zh": [
+    "马赛克"
+   ]
+  },
+  {
+   "en": [
+    "Moss Carpet"
+   ],
+   "zh": [
+    "覆地苔藓"
+   ]
+  },
+  {
+   "en": [
+    "Moss Stone"
+   ],
+   "zh": [
+    "苔石"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Moss"
+   ],
+   "zh": [
+    "苔藓"
+   ]
+  },
+  {
+   "en": [
+    "Mossy Cobblestone"
+   ],
+   "zh": [
+    "苔石"
+   ]
+  },
+  {
+   "en": [
+    "Mossy"
+   ],
+   "zh": [
+    "苔"
+   ]
+  },
+  {
+   "en": [
+    "Mourner"
+   ],
+   "zh": [
+    "悲恸纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Movement Efficiency"
+   ],
+   "zh": [
+    "移动效率"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Movement"
+   ],
+   "zh": [
+    "移动"
+   ]
+  },
+  {
+   "en": [
+    "Moving"
+   ],
+   "zh": [
+    "移动的"
+   ]
+  },
+  {
+   "en": [
+    "Mud"
+   ],
+   "zh": [
+    "泥巴",
+    "泥"
+   ]
+  },
+  {
+   "en": [
+    "Muddy"
+   ],
+   "zh": [
+    "沾泥的"
+   ]
+  },
+  {
+   "en": [
+    "Mule"
+   ],
+   "zh": [
+    "骡"
+   ]
+  },
+  {
+   "en": [
+    "Multishot"
+   ],
+   "zh": [
+    "多重射击"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Mundane"
+   ],
+   "zh": [
+    "平凡的"
+   ],
+   "labels": [
+    "potion"
+   ]
+  },
+  {
+   "en": [
+    "Mushroom Fields"
+   ],
+   "zh": [
+    "蘑菇岛"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Mushroom"
+   ],
+   "zh": [
+    "蘑菇"
+   ]
+  },
+  {
+   "en": [
+    "Music Disc"
+   ],
+   "zh": [
+    "音乐唱片"
+   ]
+  },
+  {
+   "en": [
+    "Mutton"
+   ],
+   "zh": [
+    "羊肉"
+   ]
+  },
+  {
+   "en": [
+    "Mycelium"
+   ],
+   "zh": [
+    "菌丝体"
+   ]
+  },
+  {
+   "en": [
+    "Mycelium"
+   ],
+   "zh": [
+    "菌丝"
+   ],
+   "scope": {
+    "version": "1.19.2"
+   }
+  },
+  {
+   "en": [
+    "NPC"
+   ],
+   "zh": [
+    "NPC"
+   ]
+  },
+  {
+   "en": [
+    "Name Tag"
+   ],
+   "zh": [
+    "命名牌"
+   ]
+  },
+  {
+   "en": [
+    "Narrator"
+   ],
+   "zh": [
+    "复述功能"
+   ]
+  },
+  {
+   "en": [
+    "Natural Blocks"
+   ],
+   "zh": [
+    "自然方块"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Nausea"
+   ],
+   "zh": [
+    "反胃"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Nautilus"
+   ],
+   "zh": [
+    "鹦鹉螺"
+   ]
+  },
+  {
+   "en": [
+    "Nether Wastes"
+   ],
+   "zh": [
+    "下界荒地"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Nether"
+   ],
+   "zh": [
+    "下界"
+   ]
+  },
+  {
+   "en": [
+    "Nether"
+   ],
+   "zh": [
+    "地狱"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Netherite"
+   ],
+   "zh": [
+    "下界合金"
+   ],
+   "labels": [
+    "ore"
+   ]
+  },
+  {
+   "en": [
+    "Netherrack"
+   ],
+   "zh": [
+    "下界岩"
+   ]
+  },
+  {
+   "en": [
+    "Netherrack"
+   ],
+   "zh": [
+    "地狱岩"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Night Vision"
+   ],
+   "zh": [
+    "夜视"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Nitwit"
+   ],
+   "zh": [
+    "傻子"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "No Effects"
+   ],
+   "zh": [
+    "无效果"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Not Bound"
+   ],
+   "zh": [
+    "未指定"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Note Block"
+   ],
+   "zh": [
+    "音符盒"
+   ]
+  },
+  {
+   "en": [
+    "Novice"
+   ],
+   "zh": [
+    "新手"
+   ]
+  },
+  {
+   "en": [
+    "Nugget"
+   ],
+   "zh": [
+    "粒"
+   ]
+  },
+  {
+   "en": [
+    "Num Lock"
+   ],
+   "zh": [
+    "Num Lock"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Nylium"
+   ],
+   "zh": [
+    "菌岩"
+   ]
+  },
+  {
+   "en": [
+    "Oak"
+   ],
+   "zh": [
+    "橡树",
+    "橡木",
+    "橡"
+   ],
+   "labels": [
+    "wood"
+   ]
+  },
+  {
+   "en": [
+    "Observer"
+   ],
+   "zh": [
+    "侦测器"
+   ]
+  },
+  {
+   "en": [
+    "Obsidian"
+   ],
+   "zh": [
+    "黑曜石"
+   ]
+  },
+  {
+   "en": [
+    "Ocean"
+   ],
+   "zh": [
+    "海洋"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Ocelot"
+   ],
+   "zh": [
+    "豹猫"
+   ]
+  },
+  {
+   "en": [
+    "Ochre"
+   ],
+   "zh": [
+    "赭黄"
+   ]
+  },
+  {
+   "en": [
+    "Old Growth Birch Forest"
+   ],
+   "zh": [
+    "原始桦木森林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Old Growth Pine Taiga"
+   ],
+   "zh": [
+    "原始松木针叶林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Old Growth Spruce Taiga"
+   ],
+   "zh": [
+    "原始云杉针叶林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Old Growth"
+   ],
+   "zh": [
+    "原始"
+   ]
+  },
+  {
+   "en": [
+    "Ominous"
+   ],
+   "zh": [
+    "不祥"
+   ]
+  },
+  {
+   "en": [
+    "Oozing"
+   ],
+   "zh": [
+    "渗浆"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Opacity"
+   ],
+   "zh": [
+    "不透明度"
+   ]
+  },
+  {
+   "en": [
+    "Open"
+   ],
+   "zh": [
+    "张开的"
+   ]
+  },
+  {
+   "en": [
+    "Operator Utilities"
+   ],
+   "zh": [
+    "管理员用品"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Orange"
+   ],
+   "zh": [
+    "橙色",
+    "橙"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Ore"
+   ],
+   "zh": [
+    "矿石"
+   ]
+  },
+  {
+   "en": [
+    "Ornate Butterflyfish"
+   ],
+   "zh": [
+    "华丽蝴蝶鱼"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Overworld"
+   ],
+   "zh": [
+    "主世界"
+   ]
+  },
+  {
+   "en": [
+    "Oxeye Daisy"
+   ],
+   "zh": [
+    "滨菊"
+   ]
+  },
+  {
+   "en": [
+    "Oxidized"
+   ],
+   "zh": [
+    "氧化"
+   ]
+  },
+  {
+   "en": [
+    "Oxygen Bonus"
+   ],
+   "zh": [
+    "额外氧气"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Packed Ice"
+   ],
+   "zh": [
+    "浮冰"
+   ]
+  },
+  {
+   "en": [
+    "Packed Mud"
+   ],
+   "zh": [
+    "泥坯"
+   ]
+  },
+  {
+   "en": [
+    "Page Down"
+   ],
+   "zh": [
+    "Page Down"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Page Up"
+   ],
+   "zh": [
+    "Page Up"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Painting"
+   ],
+   "zh": [
+    "画"
+   ]
+  },
+  {
+   "en": [
+    "Pale Garden"
+   ],
+   "zh": [
+    "苍白之园"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Pale Hanging Moss"
+   ],
+   "zh": [
+    "苍白垂须"
+   ]
+  },
+  {
+   "en": [
+    "Pale Oak"
+   ],
+   "zh": [
+    "苍白橡树",
+    "苍白橡木",
+    "苍白橡"
+   ],
+   "labels": [
+    "wood"
+   ]
+  },
+  {
+   "en": [
+    "Pale"
+   ],
+   "zh": [
+    "苍白"
+   ]
+  },
+  {
+   "en": [
+    "Paly"
+   ],
+   "zh": [
+    "竖条纹"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Panda"
+   ],
+   "zh": [
+    "熊猫"
+   ]
+  },
+  {
+   "en": [
+    "Pants"
+   ],
+   "zh": [
+    "裤子"
+   ]
+  },
+  {
+   "en": [
+    "Paper"
+   ],
+   "zh": [
+    "纸"
+   ]
+  },
+  {
+   "en": [
+    "Parched"
+   ],
+   "zh": [
+    "焦骸"
+   ]
+  },
+  {
+   "en": [
+    "Parrot"
+   ],
+   "zh": [
+    "鹦鹉"
+   ]
+  },
+  {
+   "en": [
+    "Parrotfish"
+   ],
+   "zh": [
+    "鹦嘴鱼"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Pause"
+   ],
+   "zh": [
+    "Pause"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Pearl"
+   ],
+   "zh": [
+    "珍珠"
+   ]
+  },
+  {
+   "en": [
+    "Pearlescent"
+   ],
+   "zh": [
+    "珠光"
+   ]
+  },
+  {
+   "en": [
+    "Peony"
+   ],
+   "zh": [
+    "牡丹"
+   ]
+  },
+  {
+   "en": [
+    "Per Bend Inverted"
+   ],
+   "zh": [
+    "右下三角"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Per Bend Sinister Inverted"
+   ],
+   "zh": [
+    "左下三角"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Per Bend Sinister"
+   ],
+   "zh": [
+    "右上三角"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Per Bend"
+   ],
+   "zh": [
+    "左上三角"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Per Fess Inverted"
+   ],
+   "zh": [
+    "下半方形"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Per Fess"
+   ],
+   "zh": [
+    "上半方形"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Per Pale Inverted"
+   ],
+   "zh": [
+    "左半方形"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Per Pale"
+   ],
+   "zh": [
+    "右半方形"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Petals"
+   ],
+   "zh": [
+    "花簇"
+   ]
+  },
+  {
+   "en": [
+    "Petrified"
+   ],
+   "zh": [
+    "石化"
+   ]
+  },
+  {
+   "en": [
+    "Phantom"
+   ],
+   "zh": [
+    "幻翼"
+   ]
+  },
+  {
+   "en": [
+    "Pickaxe"
+   ],
+   "zh": [
+    "镐"
+   ]
+  },
+  {
+   "en": [
+    "Pie"
+   ],
+   "zh": [
+    "派"
+   ]
+  },
+  {
+   "en": [
+    "Piercing"
+   ],
+   "zh": [
+    "穿透"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Pig"
+   ],
+   "zh": [
+    "猪"
+   ]
+  },
+  {
+   "en": [
+    "Piglin"
+   ],
+   "zh": [
+    "猪灵"
+   ]
+  },
+  {
+   "en": [
+    "Pillager patrol"
+   ],
+   "zh": [
+    "灾厄巡逻队"
+   ]
+  },
+  {
+   "en": [
+    "Pillager"
+   ],
+   "zh": [
+    "掠夺者"
+   ]
+  },
+  {
+   "en": [
+    "Pillar"
+   ],
+   "zh": [
+    "柱"
+   ]
+  },
+  {
+   "en": [
+    "Pink"
+   ],
+   "zh": [
+    "粉红色",
+    "粉红"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Piston"
+   ],
+   "zh": [
+    "活塞"
+   ]
+  },
+  {
+   "en": [
+    "Pitcher",
+    "Pitcher Plant"
+   ],
+   "zh": [
+    "瓶子草"
+   ]
+  },
+  {
+   "en": [
+    "Plains"
+   ],
+   "zh": [
+    "平原"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Planks"
+   ],
+   "zh": [
+    "板"
+   ],
+   "scope": {
+    "en": "Bamboo"
+   }
+  },
+  {
+   "en": [
+    "Planks"
+   ],
+   "zh": [
+    "木板"
+   ]
+  },
+  {
+   "en": [
+    "Plant",
+    "Crops",
+    "Crop"
+   ],
+   "zh": [
+    "植株"
+   ]
+  },
+  {
+   "en": [
+    "Player"
+   ],
+   "zh": [
+    "玩家"
+   ]
+  },
+  {
+   "en": [
+    "Plenty"
+   ],
+   "zh": [
+    "富饶纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Pod"
+   ],
+   "zh": [
+    "荚果"
+   ]
+  },
+  {
+   "en": [
+    "Podzol"
+   ],
+   "zh": [
+    "灰化土"
+   ]
+  },
+  {
+   "en": [
+    "Pointed"
+   ],
+   "zh": [
+    "锥"
+   ]
+  },
+  {
+   "en": [
+    "Poison"
+   ],
+   "zh": [
+    "中毒"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Poison"
+   ],
+   "zh": [
+    "剧毒"
+   ]
+  },
+  {
+   "en": [
+    "Poisonous"
+   ],
+   "zh": [
+    "毒"
+   ]
+  },
+  {
+   "en": [
+    "Polar Bear"
+   ],
+   "zh": [
+    "北极熊"
+   ]
+  },
+  {
+   "en": [
+    "Polished"
+   ],
+   "zh": [
+    "磨制"
+   ]
+  },
+  {
+   "en": [
+    "Popped"
+   ],
+   "zh": [
+    "爆裂"
+   ]
+  },
+  {
+   "en": [
+    "Poppy"
+   ],
+   "zh": [
+    "虞美人"
+   ]
+  },
+  {
+   "en": [
+    "Porkchop"
+   ],
+   "zh": [
+    "猪排"
+   ]
+  },
+  {
+   "en": [
+    "Portal"
+   ],
+   "zh": [
+    "传送门"
+   ]
+  },
+  {
+   "en": [
+    "Potato",
+    "Potatoes"
+   ],
+   "zh": [
+    "马铃薯"
+   ]
+  },
+  {
+   "en": [
+    "Potion of"
+   ],
+   "zh": [
+    "药水"
+   ]
+  },
+  {
+   "en": [
+    "Potion"
+   ],
+   "zh": [
+    "药水"
+   ]
+  },
+  {
+   "en": [
+    "Potted"
+   ],
+   "zh": [
+    "盆栽"
+   ]
+  },
+  {
+   "en": [
+    "Pottery Shard",
+    "Pottery Sherd"
+   ],
+   "zh": [
+    "陶片"
+   ]
+  },
+  {
+   "en": [
+    "Powder Snow"
+   ],
+   "zh": [
+    "细雪"
+   ]
+  },
+  {
+   "en": [
+    "Powder"
+   ],
+   "zh": [
+    "粉末",
+    "粉"
+   ]
+  },
+  {
+   "en": [
+    "Power"
+   ],
+   "zh": [
+    "力量"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Powered"
+   ],
+   "zh": [
+    "动力"
+   ]
+  },
+  {
+   "en": [
+    "Powered"
+   ],
+   "zh": [
+    "充能"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Pressure Plate"
+   ],
+   "zh": [
+    "压力板"
+   ]
+  },
+  {
+   "en": [
+    "Primary Power"
+   ],
+   "zh": [
+    "主效果"
+   ]
+  },
+  {
+   "en": [
+    "Primed"
+   ],
+   "zh": [
+    "被激活的"
+   ]
+  },
+  {
+   "en": [
+    "Print Screen"
+   ],
+   "zh": [
+    "Print Screen"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Prismarine"
+   ],
+   "zh": [
+    "海晶石",
+    "海晶"
+   ]
+  },
+  {
+   "en": [
+    "Prize"
+   ],
+   "zh": [
+    "珍宝纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Projectile Protection"
+   ],
+   "zh": [
+    "弹射物保护"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Projectile"
+   ],
+   "zh": [
+    "弹射物"
+   ]
+  },
+  {
+   "en": [
+    "Propagule"
+   ],
+   "zh": [
+    "胎生苗"
+   ]
+  },
+  {
+   "en": [
+    "Protection"
+   ],
+   "zh": [
+    "保护"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Pufferfish"
+   ],
+   "zh": [
+    "河豚"
+   ]
+  },
+  {
+   "en": [
+    "Pumpkin"
+   ],
+   "zh": [
+    "南瓜"
+   ]
+  },
+  {
+   "en": [
+    "Punch"
+   ],
+   "zh": [
+    "冲击"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Purple"
+   ],
+   "zh": [
+    "紫色",
+    "紫"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Purpur"
+   ],
+   "zh": [
+    "紫珀"
+   ]
+  },
+  {
+   "en": [
+    "Quartz"
+   ],
+   "zh": [
+    "石英"
+   ]
+  },
+  {
+   "en": [
+    "Queen Angelfish"
+   ],
+   "zh": [
+    "额斑刺蝶鱼"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Quick Charge"
+   ],
+   "zh": [
+    "快速装填"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Rabbit Hide"
+   ],
+   "zh": [
+    "兔子皮"
+   ]
+  },
+  {
+   "en": [
+    "Rabbit"
+   ],
+   "zh": [
+    "兔子",
+    "兔肉"
+   ]
+  },
+  {
+   "en": [
+    "Rabbit's Foot"
+   ],
+   "zh": [
+    "兔子脚"
+   ]
+  },
+  {
+   "en": [
+    "Raft"
+   ],
+   "zh": [
+    "筏"
+   ]
+  },
+  {
+   "en": [
+    "Raid Omen"
+   ],
+   "zh": [
+    "袭击之兆"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Raid"
+   ],
+   "zh": [
+    "袭击"
+   ]
+  },
+  {
+   "en": [
+    "Rail"
+   ],
+   "zh": [
+    "铁轨"
+   ]
+  },
+  {
+   "en": [
+    "Raiser"
+   ],
+   "zh": [
+    "牧民"
+   ],
+   "scope": {
+    "en": "Armor Trim"
+   },
+   "labels": [
+    "trim"
+   ]
+  },
+  {
+   "en": [
+    "Rarity"
+   ],
+   "zh": [
+    "稀有度"
+   ]
+  },
+  {
+   "en": [
+    "Ravager"
+   ],
+   "zh": [
+    "劫掠兽"
+   ]
+  },
+  {
+   "en": [
+    "Raw"
+   ],
+   "zh": [
+    "生",
+    "粗"
+   ]
+  },
+  {
+   "en": [
+    "Recipe book"
+   ],
+   "zh": [
+    "配方书"
+   ]
+  },
+  {
+   "en": [
+    "Recovery Compass"
+   ],
+   "zh": [
+    "追溯指针"
+   ]
+  },
+  {
+   "en": [
+    "Red Cichlid"
+   ],
+   "zh": [
+    "红丽鱼"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Red Lipped Blenny"
+   ],
+   "zh": [
+    "红唇真蛇鳚"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Red Snapper"
+   ],
+   "zh": [
+    "红边笛鲷"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Red"
+   ],
+   "zh": [
+    "红色",
+    "红"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Redstone Blocks"
+   ],
+   "zh": [
+    "红石方块"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Redstone"
+   ],
+   "zh": [
+    "红石"
+   ]
+  },
+  {
+   "en": [
+    "Regeneration"
+   ],
+   "zh": [
+    "生命恢复"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Regeneration"
+   ],
+   "zh": [
+    "再生"
+   ]
+  },
+  {
+   "en": [
+    "Reinforced"
+   ],
+   "zh": [
+    "强化"
+   ]
+  },
+  {
+   "en": [
+    "Repeater"
+   ],
+   "zh": [
+    "中继器"
+   ]
+  },
+  {
+   "en": [
+    "Repeating"
+   ],
+   "zh": [
+    "循环型"
+   ]
+  },
+  {
+   "en": [
+    "Resin Clump"
+   ],
+   "zh": [
+    "树脂团"
+   ]
+  },
+  {
+   "en": [
+    "Resin"
+   ],
+   "zh": [
+    "树脂"
+   ]
+  },
+  {
+   "en": [
+    "Resistance"
+   ],
+   "zh": [
+    "抗性提升"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Respawn Anchor"
+   ],
+   "zh": [
+    "重生锚"
+   ]
+  },
+  {
+   "en": [
+    "Respiration"
+   ],
+   "zh": [
+    "水下呼吸"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Rib"
+   ],
+   "zh": [
+    "肋骨"
+   ],
+   "scope": {
+    "en": "Armor Trim"
+   },
+   "labels": [
+    "trim"
+   ]
+  },
+  {
+   "en": [
+    "Right Alt"
+   ],
+   "zh": [
+    "右Alt"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Right Arrow"
+   ],
+   "zh": [
+    "右方向键"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Right Control"
+   ],
+   "zh": [
+    "右Ctrl"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Right Shift"
+   ],
+   "zh": [
+    "右Shift"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Right Win"
+   ],
+   "zh": [
+    "右Win"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Riptide"
+   ],
+   "zh": [
+    "激流"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "River"
+   ],
+   "zh": [
+    "河流"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Rocket"
+   ],
+   "zh": [
+    "火箭"
+   ]
+  },
+  {
+   "en": [
+    "Rooted"
+   ],
+   "zh": [
+    "缠根"
+   ]
+  },
+  {
+   "en": [
+    "Rose"
+   ],
+   "zh": [
+    "玫瑰"
+   ]
+  },
+  {
+   "en": [
+    "Rotten Flesh"
+   ],
+   "zh": [
+    "腐肉"
+   ]
+  },
+  {
+   "en": [
+    "Roundel"
+   ],
+   "zh": [
+    "圆形"
+   ]
+  },
+  {
+   "en": [
+    "Saddle"
+   ],
+   "zh": [
+    "鞍"
+   ]
+  },
+  {
+   "en": [
+    "Safe Fall Distance"
+   ],
+   "zh": [
+    "安全摔落高度"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Salmon"
+   ],
+   "zh": [
+    "鲑鱼"
+   ]
+  },
+  {
+   "en": [
+    "Saltire"
+   ],
+   "zh": [
+    "斜十字"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Sand"
+   ],
+   "zh": [
+    "沙子",
+    "沙"
+   ]
+  },
+  {
+   "en": [
+    "Sandstone"
+   ],
+   "zh": [
+    "砂岩"
+   ]
+  },
+  {
+   "en": [
+    "Sapling"
+   ],
+   "zh": [
+    "树苗"
+   ]
+  },
+  {
+   "en": [
+    "Saturation level"
+   ],
+   "zh": [
+    "饱和度"
+   ]
+  },
+  {
+   "en": [
+    "Saturation"
+   ],
+   "zh": [
+    "饱和"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Savanna Plateau"
+   ],
+   "zh": [
+    "热带高原"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Savanna"
+   ],
+   "zh": [
+    "热带草原"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Saved Hotbars"
+   ],
+   "zh": [
+    "已保存的快捷栏"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Scaffolding"
+   ],
+   "zh": [
+    "脚手架"
+   ]
+  },
+  {
+   "en": [
+    "Scale"
+   ],
+   "zh": [
+    "尺寸"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Scoreboard"
+   ],
+   "zh": [
+    "记分板"
+   ]
+  },
+  {
+   "en": [
+    "Scrape"
+   ],
+   "zh": [
+    "刮削纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Scroll Lock"
+   ],
+   "zh": [
+    "Scroll Lock"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Sculk"
+   ],
+   "zh": [
+    "幽匿"
+   ]
+  },
+  {
+   "en": [
+    "Scute"
+   ],
+   "zh": [
+    "鳞甲"
+   ]
+  },
+  {
+   "en": [
+    "Sea Lantern"
+   ],
+   "zh": [
+    "海晶灯"
+   ]
+  },
+  {
+   "en": [
+    "Sea Pickle"
+   ],
+   "zh": [
+    "海泡菜"
+   ]
+  },
+  {
+   "en": [
+    "Seagrass"
+   ],
+   "zh": [
+    "海草"
+   ]
+  },
+  {
+   "en": [
+    "Search Items"
+   ],
+   "zh": [
+    "搜索物品"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Secondary Power"
+   ],
+   "zh": [
+    "辅助效果"
+   ]
+  },
+  {
+   "en": [
+    "Seeds"
+   ],
+   "zh": [
+    "种子"
+   ]
+  },
+  {
+   "en": [
+    "Selection"
+   ],
+   "zh": [
+    "选栏"
+   ]
+  },
+  {
+   "en": [
+    "Sensor"
+   ],
+   "zh": [
+    "感测体"
+   ]
+  },
+  {
+   "en": [
+    "Sentry"
+   ],
+   "zh": [
+    "哨兵"
+   ],
+   "scope": {
+    "en": "Armor Trim"
+   },
+   "labels": [
+    "trim"
+   ]
+  },
+  {
+   "en": [
+    "Shaper"
+   ],
+   "zh": [
+    "塑造"
+   ],
+   "scope": {
+    "en": "Armor Trim"
+   },
+   "labels": [
+    "trim"
+   ]
+  },
+  {
+   "en": [
+    "Shard",
+    "Scrap"
+   ],
+   "zh": [
+    "碎片"
+   ]
+  },
+  {
+   "en": [
+    "Sharpness"
+   ],
+   "zh": [
+    "锋利"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Sheaf"
+   ],
+   "zh": [
+    "麦捆纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Shears"
+   ],
+   "zh": [
+    "剪刀"
+   ]
+  },
+  {
+   "en": [
+    "Sheep"
+   ],
+   "zh": [
+    "绵羊"
+   ]
+  },
+  {
+   "en": [
+    "Sheep"
+   ],
+   "zh": [
+    "羊"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Shelf"
+   ],
+   "zh": [
+    "展示架"
+   ]
+  },
+  {
+   "en": [
+    "Shell"
+   ],
+   "zh": [
+    "壳"
+   ]
+  },
+  {
+   "en": [
+    "Shelter"
+   ],
+   "zh": [
+    "树荫纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Shepherd"
+   ],
+   "zh": [
+    "牧羊人"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Shield"
+   ],
+   "zh": [
+    "盾牌"
+   ]
+  },
+  {
+   "en": [
+    "Short Dry Grass"
+   ],
+   "zh": [
+    "矮枯草丛"
+   ]
+  },
+  {
+   "en": [
+    "Short Grass"
+   ],
+   "zh": [
+    "矮草丛"
+   ]
+  },
+  {
+   "en": [
+    "Shovel"
+   ],
+   "zh": [
+    "锹"
+   ]
+  },
+  {
+   "en": [
+    "Shrieker"
+   ],
+   "zh": [
+    "尖啸体"
+   ]
+  },
+  {
+   "en": [
+    "Shroomlight"
+   ],
+   "zh": [
+    "菌光体"
+   ]
+  },
+  {
+   "en": [
+    "Shulker"
+   ],
+   "zh": [
+    "潜影",
+    "潜影贝"
+   ]
+  },
+  {
+   "en": [
+    "Sign"
+   ],
+   "zh": [
+    "告示牌"
+   ]
+  },
+  {
+   "en": [
+    "Silence"
+   ],
+   "zh": [
+    "幽静"
+   ],
+   "scope": {
+    "en": "Armor Trim"
+   },
+   "labels": [
+    "trim"
+   ]
+  },
+  {
+   "en": [
+    "Silk Touch"
+   ],
+   "zh": [
+    "精准采集"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Silverfish"
+   ],
+   "zh": [
+    "蠹虫"
+   ]
+  },
+  {
+   "en": [
+    "Skeleton"
+   ],
+   "zh": [
+    "骷髅"
+   ]
+  },
+  {
+   "en": [
+    "Skull"
+   ],
+   "zh": [
+    "头颅"
+   ]
+  },
+  {
+   "en": [
+    "Skull"
+   ],
+   "zh": [
+    "头颅纹样"
+   ],
+   "scope": {
+    "key": "pottery_sherd"
+   }
+  },
+  {
+   "en": [
+    "Slab"
+   ],
+   "zh": [
+    "台阶"
+   ]
+  },
+  {
+   "en": [
+    "Slice"
+   ],
+   "zh": [
+    "片"
+   ]
+  },
+  {
+   "en": [
+    "Slime Block"
+   ],
+   "zh": [
+    "黏液块"
+   ]
+  },
+  {
+   "en": [
+    "Slime Block"
+   ],
+   "zh": [
+    "粘液块"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Slime"
+   ],
+   "zh": [
+    "史莱姆"
+   ]
+  },
+  {
+   "en": [
+    "Slimeball"
+   ],
+   "zh": [
+    "黏液球"
+   ]
+  },
+  {
+   "en": [
+    "Slot"
+   ],
+   "zh": [
+    "槽位"
+   ]
+  },
+  {
+   "en": [
+    "Slow Falling"
+   ],
+   "zh": [
+    "缓降"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Slowness"
+   ],
+   "zh": [
+    "缓慢"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Slowness"
+   ],
+   "zh": [
+    "迟缓"
+   ]
+  },
+  {
+   "en": [
+    "Small End Islands"
+   ],
+   "zh": [
+    "末地小型岛屿"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Smelting"
+   ],
+   "zh": [
+    "烧炼"
+   ]
+  },
+  {
+   "en": [
+    "Smite"
+   ],
+   "zh": [
+    "亡灵杀手"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Smith",
+    "Smithing"
+   ],
+   "zh": [
+    "锻造"
+   ]
+  },
+  {
+   "en": [
+    "Smoker"
+   ],
+   "zh": [
+    "烟熏炉"
+   ]
+  },
+  {
+   "en": [
+    "Smooth"
+   ],
+   "zh": [
+    "平滑"
+   ]
+  },
+  {
+   "en": [
+    "Sneaking Speed"
+   ],
+   "zh": [
+    "潜行速度"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Sneaking",
+    "Sneak",
+    "Crouch"
+   ],
+   "zh": [
+    "潜行"
+   ]
+  },
+  {
+   "en": [
+    "Sniffer"
+   ],
+   "zh": [
+    "嗅探兽"
+   ]
+  },
+  {
+   "en": [
+    "Snooper"
+   ],
+   "zh": [
+    "窥伺类"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.type"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Snort"
+   ],
+   "zh": [
+    "嗅探纹样"
+   ],
+   "scope": {
+    "key": "pottery"
+   },
+   "labels": [
+    "pottery"
+   ]
+  },
+  {
+   "en": [
+    "Snout"
+   ],
+   "zh": [
+    "猪鼻"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Snow Golem"
+   ],
+   "zh": [
+    "雪傀儡"
+   ]
+  },
+  {
+   "en": [
+    "Snow"
+   ],
+   "zh": [
+    "雪"
+   ]
+  },
+  {
+   "en": [
+    "Snowball"
+   ],
+   "zh": [
+    "雪球"
+   ]
+  },
+  {
+   "en": [
+    "Snowy Beach"
+   ],
+   "zh": [
+    "积雪沙滩"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Snowy Plains"
+   ],
+   "zh": [
+    "雪原"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Snowy Slopes"
+   ],
+   "zh": [
+    "积雪山坡"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Snowy Taiga"
+   ],
+   "zh": [
+    "积雪针叶林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Snowy"
+   ],
+   "zh": [
+    "积雪"
+   ]
+  },
+  {
+   "en": [
+    "Soil"
+   ],
+   "zh": [
+    "土"
+   ]
+  },
+  {
+   "en": [
+    "Soul Sand Valley"
+   ],
+   "zh": [
+    "灵魂沙峡谷"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Soul Speed"
+   ],
+   "zh": [
+    "灵魂疾行"
+   ]
+  },
+  {
+   "en": [
+    "Soul"
+   ],
+   "zh": [
+    "灵魂"
+   ]
+  },
+  {
+   "en": [
+    "Soup"
+   ],
+   "zh": [
+    "汤"
+   ]
+  },
+  {
+   "en": [
+    "Space"
+   ],
+   "zh": [
+    "空格"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Sparse Jungle"
+   ],
+   "zh": [
+    "稀疏丛林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Spawn Egg",
+    "Spawn Eggs"
+   ],
+   "zh": [
+    "刷怪蛋"
+   ]
+  },
+  {
+   "en": [
+    "Spawn Eggs"
+   ],
+   "zh": [
+    "刷怪蛋"
+   ]
+  },
+  {
+   "en": [
+    "Spawn"
+   ],
+   "zh": [
+    "生成"
+   ]
+  },
+  {
+   "en": [
+    "Spear"
+   ],
+   "zh": [
+    "矛"
+   ]
+  },
+  {
+   "en": [
+    "Spectral Arrow"
+   ],
+   "zh": [
+    "光灵箭"
+   ]
+  },
+  {
+   "en": [
+    "Speed"
+   ],
+   "zh": [
+    "速度"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Speed"
+   ],
+   "zh": [
+    "迅捷"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Spider"
+   ],
+   "zh": [
+    "蜘蛛"
+   ]
+  },
+  {
+   "en": [
+    "Spire"
+   ],
+   "zh": [
+    "尖塔"
+   ],
+   "scope": {
+    "en": "Armor Trim"
+   },
+   "labels": [
+    "trim"
+   ]
+  },
+  {
+   "en": [
+    "Spit"
+   ],
+   "zh": [
+    "唾沫"
+   ]
+  },
+  {
+   "en": [
+    "Splash"
+   ],
+   "zh": [
+    "闪烁标语"
+   ]
+  },
+  {
+   "en": [
+    "Splashing",
+    "Splash"
+   ],
+   "zh": [
+    "喷溅",
+    "喷溅型"
+   ]
+  },
+  {
+   "en": [
+    "Sponge"
+   ],
+   "zh": [
+    "海绵"
+   ]
+  },
+  {
+   "en": [
+    "Spore Blossom"
+   ],
+   "zh": [
+    "孢子花"
+   ]
+  },
+  {
+   "en": [
+    "Spotty"
+   ],
+   "zh": [
+    "多斑类"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.type"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Sprint"
+   ],
+   "zh": [
+    "疾跑"
+   ]
+  },
+  {
+   "en": [
+    "Sprinting"
+   ],
+   "zh": [
+    "疾跑"
+   ]
+  },
+  {
+   "en": [
+    "Sprouts"
+   ],
+   "zh": [
+    "苗"
+   ]
+  },
+  {
+   "en": [
+    "Spruce"
+   ],
+   "zh": [
+    "云杉木",
+    "云杉"
+   ],
+   "labels": [
+    "wood"
+   ]
+  },
+  {
+   "en": [
+    "Spyglass"
+   ],
+   "zh": [
+    "望远镜"
+   ]
+  },
+  {
+   "en": [
+    "Squid"
+   ],
+   "zh": [
+    "鱿鱼"
+   ]
+  },
+  {
+   "en": [
+    "Stained"
+   ],
+   "zh": [
+    "染色"
+   ]
+  },
+  {
+   "en": [
+    "Stairs"
+   ],
+   "zh": [
+    "楼梯"
+   ]
+  },
+  {
+   "en": [
+    "Star"
+   ],
+   "zh": [
+    "星"
+   ]
+  },
+  {
+   "en": [
+    "Statistics"
+   ],
+   "zh": [
+    "统计信息"
+   ]
+  },
+  {
+   "en": [
+    "Statue"
+   ],
+   "zh": [
+    "像"
+   ]
+  },
+  {
+   "en": [
+    "Status effect"
+   ],
+   "zh": [
+    "状态效果"
+   ]
+  },
+  {
+   "en": [
+    "Steak"
+   ],
+   "zh": [
+    "牛排"
+   ]
+  },
+  {
+   "en": [
+    "Stem"
+   ],
+   "zh": [
+    "茎",
+    "柄"
+   ]
+  },
+  {
+   "en": [
+    "Step Height"
+   ],
+   "zh": [
+    "最大行走高度"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Stew"
+   ],
+   "zh": [
+    "煲"
+   ]
+  },
+  {
+   "en": [
+    "Stick"
+   ],
+   "zh": [
+    "木棍"
+   ]
+  },
+  {
+   "en": [
+    "Sticky"
+   ],
+   "zh": [
+    "黏性"
+   ]
+  },
+  {
+   "en": [
+    "Sticky"
+   ],
+   "zh": [
+    "粘性"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Stone"
+   ],
+   "zh": [
+    "石头",
+    "石"
+   ]
+  },
+  {
+   "en": [
+    "Stonecutter"
+   ],
+   "zh": [
+    "切石机"
+   ]
+  },
+  {
+   "en": [
+    "Stony Peaks"
+   ],
+   "zh": [
+    "裸岩山峰"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Stony Shore"
+   ],
+   "zh": [
+    "石岸"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Stray"
+   ],
+   "zh": [
+    "流浪者"
+   ]
+  },
+  {
+   "en": [
+    "Stray"
+   ],
+   "zh": [
+    "流髑"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Strength"
+   ],
+   "zh": [
+    "力量"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Strider"
+   ],
+   "zh": [
+    "炽足兽"
+   ]
+  },
+  {
+   "en": [
+    "String"
+   ],
+   "zh": [
+    "线"
+   ]
+  },
+  {
+   "en": [
+    "Stripey"
+   ],
+   "zh": [
+    "条纹类"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.type"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Stripped"
+   ],
+   "zh": [
+    "去皮"
+   ]
+  },
+  {
+   "en": [
+    "Structure"
+   ],
+   "zh": [
+    "结构"
+   ]
+  },
+  {
+   "en": [
+    "Submerged Mining Speed"
+   ],
+   "zh": [
+    "水下挖掘速度"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Sugar Cane"
+   ],
+   "zh": [
+    "甘蔗"
+   ]
+  },
+  {
+   "en": [
+    "Sugar"
+   ],
+   "zh": [
+    "糖"
+   ]
+  },
+  {
+   "en": [
+    "Sunflower Plains"
+   ],
+   "zh": [
+    "向日葵平原"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Sunflower"
+   ],
+   "zh": [
+    "向日葵"
+   ]
+  },
+  {
+   "en": [
+    "Sunstreak"
+   ],
+   "zh": [
+    "日纹类"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.type"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Survival Inventory"
+   ],
+   "zh": [
+    "生存模式物品栏"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Suspicious Stew"
+   ],
+   "zh": [
+    "谜之炖菜"
+   ]
+  },
+  {
+   "en": [
+    "Suspicious Stew"
+   ],
+   "zh": [
+    "迷之炖菜"
+   ],
+   "scope": {
+    "version": "1.19.2"
+   }
+  },
+  {
+   "en": [
+    "Suspicious"
+   ],
+   "zh": [
+    "可疑的"
+   ]
+  },
+  {
+   "en": [
+    "Swamp"
+   ],
+   "zh": [
+    "沼泽"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Sweeping Damage Ratio"
+   ],
+   "zh": [
+    "横扫伤害比率"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Sweeping Edge"
+   ],
+   "zh": [
+    "横扫之刃"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Sweet Berry Bush"
+   ],
+   "zh": [
+    "甜浆果丛"
+   ]
+  },
+  {
+   "en": [
+    "Sweet"
+   ],
+   "zh": [
+    "甜"
+   ]
+  },
+  {
+   "en": [
+    "Swift Sneak"
+   ],
+   "zh": [
+    "迅捷潜行"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Swiftness"
+   ],
+   "zh": [
+    "迅捷"
+   ],
+   "labels": [
+    "potion"
+   ]
+  },
+  {
+   "en": [
+    "Sword"
+   ],
+   "zh": [
+    "剑"
+   ]
+  },
+  {
+   "en": [
+    "TNT"
+   ],
+   "zh": [
+    "TNT"
+   ]
+  },
+  {
+   "en": [
+    "Table"
+   ],
+   "zh": [
+    "台"
+   ]
+  },
+  {
+   "en": [
+    "Tadpole"
+   ],
+   "zh": [
+    "蝌蚪"
+   ]
+  },
+  {
+   "en": [
+    "Taiga"
+   ],
+   "zh": [
+    "针叶林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Tall Dry Grass"
+   ],
+   "zh": [
+    "高枯草丛"
+   ]
+  },
+  {
+   "en": [
+    "Tall"
+   ],
+   "zh": [
+    "高"
+   ]
+  },
+  {
+   "en": [
+    "Target"
+   ],
+   "zh": [
+    "标靶"
+   ],
+   "scope": {
+    "key": "^block"
+   }
+  },
+  {
+   "en": [
+    "Template"
+   ],
+   "zh": [
+    "模板"
+   ]
+  },
+  {
+   "en": [
+    "Terracotta"
+   ],
+   "zh": [
+    "陶瓦"
+   ]
+  },
+  {
+   "en": [
+    "Test"
+   ],
+   "zh": [
+    "测试"
+   ]
+  },
+  {
+   "en": [
+    "The End"
+   ],
+   "zh": [
+    "末地"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "The Killer Bunny"
+   ],
+   "zh": [
+    "杀手兔"
+   ]
+  },
+  {
+   "en": [
+    "Thick"
+   ],
+   "zh": [
+    "浓稠的"
+   ],
+   "labels": [
+    "potion"
+   ]
+  },
+  {
+   "en": [
+    "Thing"
+   ],
+   "zh": [
+    "Mojang徽标"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "Third person view"
+   ],
+   "zh": [
+    "第三人称视角"
+   ]
+  },
+  {
+   "en": [
+    "Thorns"
+   ],
+   "zh": [
+    "荆棘"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Threadfin"
+   ],
+   "zh": [
+    "马鲅"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Thrown"
+   ],
+   "zh": [
+    "掷出的"
+   ]
+  },
+  {
+   "en": [
+    "Tide"
+   ],
+   "zh": [
+    "潮汐"
+   ],
+   "scope": {
+    "en": "Armor Trim"
+   },
+   "labels": [
+    "trim"
+   ]
+  },
+  {
+   "en": [
+    "Tier"
+   ],
+   "zh": [
+    "品质"
+   ]
+  },
+  {
+   "en": [
+    "Tiles",
+    "Tile"
+   ],
+   "zh": [
+    "瓦"
+   ]
+  },
+  {
+   "en": [
+    "Tinted Glass"
+   ],
+   "zh": [
+    "遮光玻璃"
+   ]
+  },
+  {
+   "en": [
+    "Tipped Arrow"
+   ],
+   "zh": [
+    "药箭"
+   ]
+  },
+  {
+   "en": [
+    "Tomato Clownfish"
+   ],
+   "zh": [
+    "白条双锯鱼"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Tool Smith"
+   ],
+   "zh": [
+    "工具商"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Tools & Utilities"
+   ],
+   "zh": [
+    "工具与实用物品"
+   ],
+   "labels": [
+    "itemgroup"
+   ]
+  },
+  {
+   "en": [
+    "Toolsmith"
+   ],
+   "zh": [
+    "工具匠"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Torch"
+   ],
+   "zh": [
+    "火把"
+   ]
+  },
+  {
+   "en": [
+    "Torchflower"
+   ],
+   "zh": [
+    "火把花"
+   ]
+  },
+  {
+   "en": [
+    "Totem of Undying"
+   ],
+   "zh": [
+    "不死图腾"
+   ]
+  },
+  {
+   "en": [
+    "Trader Llama"
+   ],
+   "zh": [
+    "行商羊驼"
+   ]
+  },
+  {
+   "en": [
+    "Trades",
+    "Trading"
+   ],
+   "zh": [
+    "交易"
+   ]
+  },
+  {
+   "en": [
+    "Transportation"
+   ],
+   "zh": [
+    "运输"
+   ]
+  },
+  {
+   "en": [
+    "Trapdoor"
+   ],
+   "zh": [
+    "活板门"
+   ]
+  },
+  {
+   "en": [
+    "Trapped Chest"
+   ],
+   "zh": [
+    "陷阱箱"
+   ]
+  },
+  {
+   "en": [
+    "Trial Omen"
+   ],
+   "zh": [
+    "试炼之兆"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Trial Spawner"
+   ],
+   "zh": [
+    "试炼刷怪笼"
+   ]
+  },
+  {
+   "en": [
+    "Trial"
+   ],
+   "zh": [
+    "试炼"
+   ]
+  },
+  {
+   "en": [
+    "Trident"
+   ],
+   "zh": [
+    "三叉戟"
+   ]
+  },
+  {
+   "en": [
+    "Triggerfish"
+   ],
+   "zh": [
+    "鳞鲀"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Trim"
+   ],
+   "zh": [
+    "纹饰"
+   ]
+  },
+  {
+   "en": [
+    "Tripwire Hook"
+   ],
+   "zh": [
+    "绊线钩"
+   ]
+  },
+  {
+   "en": [
+    "Tripwire"
+   ],
+   "zh": [
+    "绊线"
+   ]
+  },
+  {
+   "en": [
+    "Tropical"
+   ],
+   "zh": [
+    "热带"
+   ]
+  },
+  {
+   "en": [
+    "Tube"
+   ],
+   "zh": [
+    "管"
+   ]
+  },
+  {
+   "en": [
+    "Tuff"
+   ],
+   "zh": [
+    "凝灰岩"
+   ]
+  },
+  {
+   "en": [
+    "Tulip"
+   ],
+   "zh": [
+    "郁金香"
+   ]
+  },
+  {
+   "en": [
+    "Tunic"
+   ],
+   "zh": [
+    "外套"
+   ]
+  },
+  {
+   "en": [
+    "Turtle Master"
+   ],
+   "zh": [
+    "神龟"
+   ],
+   "labels": [
+    "potion"
+   ]
+  },
+  {
+   "en": [
+    "Turtle"
+   ],
+   "zh": [
+    "海龟"
+   ]
+  },
+  {
+   "en": [
+    "Tutorial hint"
+   ],
+   "zh": [
+    "教学提示"
+   ]
+  },
+  {
+   "en": [
+    "Twisting Vines"
+   ],
+   "zh": [
+    "缠怨藤"
+   ]
+  },
+  {
+   "en": [
+    "Unbreakable"
+   ],
+   "zh": [
+    "无法破坏"
+   ]
+  },
+  {
+   "en": [
+    "Unbreaking"
+   ],
+   "zh": [
+    "耐久"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Uncraftable"
+   ],
+   "zh": [
+    "不可合成的"
+   ]
+  },
+  {
+   "en": [
+    "Unemployed"
+   ],
+   "zh": [
+    "失业"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Up Arrow"
+   ],
+   "zh": [
+    "上方向键"
+   ],
+   "labels": [
+    "keyboard"
+   ]
+  },
+  {
+   "en": [
+    "Upgrade"
+   ],
+   "zh": [
+    "升级"
+   ]
+  },
+  {
+   "en": [
+    "Valley"
+   ],
+   "zh": [
+    "峡谷"
+   ]
+  },
+  {
+   "en": [
+    "Vault"
+   ],
+   "zh": [
+    "宝库"
+   ]
+  },
+  {
+   "en": [
+    "Vehicle"
+   ],
+   "zh": [
+    "载具"
+   ]
+  },
+  {
+   "en": [
+    "Vein"
+   ],
+   "zh": [
+    "脉络"
+   ]
+  },
+  {
+   "en": [
+    "Verdant"
+   ],
+   "zh": [
+    "青翠"
+   ]
+  },
+  {
+   "en": [
+    "Vex"
+   ],
+   "zh": [
+    "恼鬼"
+   ]
+  },
+  {
+   "en": [
+    "Village"
+   ],
+   "zh": [
+    "村庄"
+   ]
+  },
+  {
+   "en": [
+    "Villager"
+   ],
+   "zh": [
+    "村民"
+   ]
+  },
+  {
+   "en": [
+    "Vindicator"
+   ],
+   "zh": [
+    "卫道士"
+   ]
+  },
+  {
+   "en": [
+    "Vines"
+   ],
+   "zh": [
+    "藤蔓"
+   ]
+  },
+  {
+   "en": [
+    "Void",
+    "The Void"
+   ],
+   "zh": [
+    "虚空"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Wall"
+   ],
+   "zh": [
+    "墙"
+   ]
+  },
+  {
+   "en": [
+    "Wall"
+   ],
+   "zh": [
+    "墙上的"
+   ],
+   "scope": {
+    "en": "sign|fan|head|skull|torch"
+   }
+  },
+  {
+   "en": [
+    "Wandering Trader"
+   ],
+   "zh": [
+    "流浪商人"
+   ]
+  },
+  {
+   "en": [
+    "Ward"
+   ],
+   "zh": [
+    "监守"
+   ]
+  },
+  {
+   "en": [
+    "Warden"
+   ],
+   "zh": [
+    "监守者"
+   ]
+  },
+  {
+   "en": [
+    "Warm Ocean"
+   ],
+   "zh": [
+    "暖水海洋"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Warped Forest"
+   ],
+   "zh": [
+    "诡异森林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Warped"
+   ],
+   "zh": [
+    "诡异"
+   ]
+  },
+  {
+   "en": [
+    "Wart"
+   ],
+   "zh": [
+    "疣"
+   ]
+  },
+  {
+   "en": [
+    "Water Breathing"
+   ],
+   "zh": [
+    "水下呼吸"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Water Breathing"
+   ],
+   "zh": [
+    "水肺"
+   ]
+  },
+  {
+   "en": [
+    "Water Movement Efficiency"
+   ],
+   "zh": [
+    "水中移动效率"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Water"
+   ],
+   "zh": [
+    "水"
+   ]
+  },
+  {
+   "en": [
+    "Waterlogging"
+   ],
+   "zh": [
+    "含水"
+   ]
+  },
+  {
+   "en": [
+    "Waxed"
+   ],
+   "zh": [
+    "涂蜡的"
+   ]
+  },
+  {
+   "en": [
+    "Wayfinder"
+   ],
+   "zh": [
+    "向导"
+   ],
+   "scope": {
+    "en": "Armor Trim"
+   },
+   "labels": [
+    "trim"
+   ]
+  },
+  {
+   "en": [
+    "Waypoint Receive Range"
+   ],
+   "zh": [
+    "路径点接收距离"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Waypoint Transmit Range"
+   ],
+   "zh": [
+    "路径点传输距离"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Weakness"
+   ],
+   "zh": [
+    "虚弱"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Weapon Smith"
+   ],
+   "zh": [
+    "武器商"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Weaponsmith"
+   ],
+   "zh": [
+    "武器匠"
+   ],
+   "labels": [
+    "profession"
+   ]
+  },
+  {
+   "en": [
+    "Weathered"
+   ],
+   "zh": [
+    "锈蚀"
+   ]
+  },
+  {
+   "en": [
+    "Weaving"
+   ],
+   "zh": [
+    "盘丝"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Weeping Vines"
+   ],
+   "zh": [
+    "垂泪藤"
+   ]
+  },
+  {
+   "en": [
+    "Weighted Pressure Plate"
+   ],
+   "zh": [
+    "测重压力板"
+   ]
+  },
+  {
+   "en": [
+    "Wet"
+   ],
+   "zh": [
+    "湿"
+   ]
+  },
+  {
+   "en": [
+    "Wheat"
+   ],
+   "zh": [
+    "小麦"
+   ]
+  },
+  {
+   "en": [
+    "When equipped"
+   ],
+   "zh": [
+    "装备时"
+   ]
+  },
+  {
+   "en": [
+    "When held"
+   ],
+   "zh": [
+    "手持时"
+   ]
+  },
+  {
+   "en": [
+    "When in Main Hand"
+   ],
+   "zh": [
+    "在主手时"
+   ]
+  },
+  {
+   "en": [
+    "When in Off Hand"
+   ],
+   "zh": [
+    "在副手时"
+   ]
+  },
+  {
+   "en": [
+    "When on Chest"
+   ],
+   "zh": [
+    "穿在身上时"
+   ]
+  },
+  {
+   "en": [
+    "When on Feet"
+   ],
+   "zh": [
+    "穿在脚上时"
+   ]
+  },
+  {
+   "en": [
+    "When on Head"
+   ],
+   "zh": [
+    "戴在头上时"
+   ]
+  },
+  {
+   "en": [
+    "When on Legs"
+   ],
+   "zh": [
+    "穿在腿上时"
+   ]
+  },
+  {
+   "en": [
+    "When saddled"
+   ],
+   "zh": [
+    "装备鞍时"
+   ]
+  },
+  {
+   "en": [
+    "When worn"
+   ],
+   "zh": [
+    "穿戴时"
+   ]
+  },
+  {
+   "en": [
+    "White"
+   ],
+   "zh": [
+    "白色",
+    "白"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Wild"
+   ],
+   "zh": [
+    "荒野"
+   ],
+   "scope": {
+    "en": "Armor Trim"
+   },
+   "labels": [
+    "trim"
+   ]
+  },
+  {
+   "en": [
+    "Wildflowers"
+   ],
+   "zh": [
+    "野花簇"
+   ]
+  },
+  {
+   "en": [
+    "Wind Burst"
+   ],
+   "zh": [
+    "风爆"
+   ],
+   "labels": [
+    "enchantment"
+   ]
+  },
+  {
+   "en": [
+    "Wind Charge"
+   ],
+   "zh": [
+    "风弹"
+   ]
+  },
+  {
+   "en": [
+    "Wind Charged"
+   ],
+   "zh": [
+    "蓄风"
+   ],
+   "labels": [
+    "effect"
+   ]
+  },
+  {
+   "en": [
+    "Wind Charging"
+   ],
+   "zh": [
+    "蓄风"
+   ],
+   "labels": [
+    "potion"
+   ]
+  },
+  {
+   "en": [
+    "Wind"
+   ],
+   "zh": [
+    "风"
+   ]
+  },
+  {
+   "en": [
+    "Windswept Forest"
+   ],
+   "zh": [
+    "风袭森林"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Windswept Gravelly Hills"
+   ],
+   "zh": [
+    "风袭沙砾丘陵"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Windswept Hills"
+   ],
+   "zh": [
+    "风袭丘陵"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Windswept Savanna"
+   ],
+   "zh": [
+    "风袭热带草原"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Windswept"
+   ],
+   "zh": [
+    "风袭"
+   ]
+  },
+  {
+   "en": [
+    "Wire"
+   ],
+   "zh": [
+    "线"
+   ]
+  },
+  {
+   "en": [
+    "Witch"
+   ],
+   "zh": [
+    "女巫"
+   ]
+  },
+  {
+   "en": [
+    "Wither Rose"
+   ],
+   "zh": [
+    "凋零玫瑰"
+   ],
+   "scope": {
+    "version": "1.19.2"
+   }
+  },
+  {
+   "en": [
+    "Wither Skeleton"
+   ],
+   "zh": [
+    "凋灵骷髅"
+   ]
+  },
+  {
+   "en": [
+    "Wither"
+   ],
+   "zh": [
+    "凋灵",
+    "凋零"
+   ]
+  },
+  {
+   "en": [
+    "Wolf"
+   ],
+   "zh": [
+    "狼"
+   ]
+  },
+  {
+   "en": [
+    "Wood",
+    "Wooden"
+   ],
+   "zh": [
+    "木"
+   ]
+  },
+  {
+   "en": [
+    "Wooded Badlands"
+   ],
+   "zh": [
+    "疏林恶地"
+   ],
+   "labels": [
+    "biome"
+   ]
+  },
+  {
+   "en": [
+    "Woodland"
+   ],
+   "zh": [
+    "林地"
+   ]
+  },
+  {
+   "en": [
+    "Wool"
+   ],
+   "zh": [
+    "羊毛"
+   ]
+  },
+  {
+   "en": [
+    "World"
+   ],
+   "zh": [
+    "世界"
+   ]
+  },
+  {
+   "en": [
+    "Yellow Tang"
+   ],
+   "zh": [
+    "黄刺尾鲷"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Yellow"
+   ],
+   "zh": [
+    "黄色",
+    "黄"
+   ],
+   "labels": [
+    "color"
+   ]
+  },
+  {
+   "en": [
+    "Yellowtail Parrotfish"
+   ],
+   "zh": [
+    "高鳍鹦嘴鱼"
+   ],
+   "scope": {
+    "key": "tropical_fish\\.predefined"
+   },
+   "labels": [
+    "tropical-fish"
+   ]
+  },
+  {
+   "en": [
+    "Zoglin"
+   ],
+   "zh": [
+    "僵尸疣猪兽"
+   ]
+  },
+  {
+   "en": [
+    "Zombie Pigman"
+   ],
+   "zh": [
+    "僵尸猪人"
+   ],
+   "scope": {
+    "version": "1.12.2"
+   }
+  },
+  {
+   "en": [
+    "Zombie Reinforcements"
+   ],
+   "zh": [
+    "僵尸增援"
+   ],
+   "labels": [
+    "attribute"
+   ]
+  },
+  {
+   "en": [
+    "Zombie"
+   ],
+   "zh": [
+    "僵尸"
+   ]
+  },
+  {
+   "en": [
+    "Zombified Piglin"
+   ],
+   "zh": [
+    "僵尸猪灵"
+   ]
+  },
+  {
+   "en": [
+    "and %s more..."
+   ],
+   "zh": [
+    "还有%s项未显示…"
+   ]
+  },
+  {
+   "en": [
+    "biome"
+   ],
+   "zh": [
+    "生物群系"
+   ]
+  },
+  {
+   "en": [
+    "chunk"
+   ],
+   "zh": [
+    "区块"
+   ]
+  },
+  {
+   "en": [
+    "dies"
+   ],
+   "zh": [
+    "死亡"
+   ],
+   "scope": {
+    "key": "subtitles"
+   }
+  },
+  {
+   "en": [
+    "hurts"
+   ],
+   "zh": [
+    "受伤"
+   ],
+   "scope": {
+    "key": "subtitles"
+   }
+  },
+  {
+   "en": [
+    "loot"
+   ],
+   "zh": [
+    "战利品"
+   ]
+  },
+  {
+   "en": [
+    "on a Stick"
+   ],
+   "zh": [
+    "钓竿"
+   ]
+  },
+  {
+   "en": [
+    "resource packs"
+   ],
+   "zh": [
+    "资源包"
+   ]
+  },
+  {
+   "en": [
+    "tooltips"
+   ],
+   "zh": [
+    "提示框"
+   ]
+  },
+  {
+   "en": [
+    "with Chest"
+   ],
+   "zh": [
+    "运输"
+   ]
+  },
+  {
+   "en": [
+    "{0} Base Dexter Canton"
+   ],
+   "zh": [
+    "右底{0}方"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "{0} Base Sinister Canton"
+   ],
+   "zh": [
+    "左底{0}方"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "{0} Base"
+   ],
+   "zh": [
+    "底{0}横条"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "{0} Bend Sinister"
+   ],
+   "zh": [
+    "左{0}斜条"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "{0} Bend"
+   ],
+   "zh": [
+    "右{0}斜条"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "{0} Cauldron"
+   ],
+   "zh": [
+    "装有{0}的炼药锅"
+   ]
+  },
+  {
+   "en": [
+    "{0} Chevron"
+   ],
+   "zh": [
+    "底{0}三角"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "{0} Chief Dexter Canton"
+   ],
+   "zh": [
+    "右顶{0}方"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "{0} Chief Sinister Canton"
+   ],
+   "zh": [
+    "左顶{0}方"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "{0} Chief"
+   ],
+   "zh": [
+    "顶{0}横条"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "{0} Fess"
+   ],
+   "zh": [
+    "中{0}横条"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "{0} Inverted Chevron"
+   ],
+   "zh": [
+    "顶{0}三角"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "{0} Pale Dexter"
+   ],
+   "zh": [
+    "右{0}竖条"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "{0} Pale Sinister"
+   ],
+   "zh": [
+    "左{0}竖条"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  },
+  {
+   "en": [
+    "{0} Pale"
+   ],
+   "zh": [
+    "中{0}竖条"
+   ],
+   "scope": {
+    "key": "banner"
+   },
+   "labels": [
+    "banner"
+   ]
+  }
+ ]
+}

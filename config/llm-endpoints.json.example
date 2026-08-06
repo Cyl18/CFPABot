@@ -1,0 +1,41 @@
+// Optional per-endpoint thinkingLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+// When omitted, the SDK defaults to "medium".
+{
+  "endpoints": [
+    {
+      "provider": "openai",
+      "protocol": "openai-responses",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKey": "sk-...",
+      "modelId": "gpt-4o",
+      "inputLimit": 128000,
+      "maxOutputTokens": 16384
+    },
+    {
+      "provider": "anthropic",
+      "protocol": "anthropic-messages",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "apiKey": "sk-ant-...",
+      "modelId": "claude-sonnet-4-20260514",
+      "inputLimit": 200000,
+      "maxOutputTokens": 8192,
+      "thinkingLevel": "high"
+    },
+    {
+      "provider": "google",
+      "protocol": "google-generative-ai",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+      "apiKey": "AIza...",
+      "modelId": "gemini-2.0-flash",
+      "inputLimit": 1048576,
+      "maxOutputTokens": 8192
+    }
+  ],
+  "defaults": {
+    "sessionModel": { "provider": "openai", "modelId": "gpt-4o" },
+    "reviewModelSet": [
+      { "provider": "openai", "modelId": "gpt-4o" },
+      { "provider": "anthropic", "modelId": "claude-sonnet-4-20260514" }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+version: '2.1'
+
+services:
+  cfpabot:
+    restart: unless-stopped
+    build: .
+    image: cfpabot:latest
+    ports:
+      - "19003:8080"
+    volumes:
+      - ./config:/app/config
+      - ./runtime:/app/runtime
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
