@@ -54,3 +54,15 @@ export type {
   AlignReviewItemsInput,
   AlignReviewItemsResult,
 } from "./align-review-items.js";
+
+export {
+  CHECK_REGISTRY,
+  getCheckMeta,
+  isCheckEnabled,
+  applyCheckIgnores,
+} from "./checks.js";
+export type {
+  CheckMeta,
+  CheckCategory,
+  CheckIgnoreRule,
+} from "./checks.js";

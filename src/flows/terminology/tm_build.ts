@@ -148,7 +148,7 @@ export const tm_build: Flow<typeof tm_build_input, typeof tm_build_output> = {
         const zh = zhContent[key];
         if (typeof en !== "string" || typeof zh !== "string") continue;
         if (en.trim() === "" || zh.trim() === "") continue; // 空语料不建索引
-        entries.push({ en, zh, path: enPath });
+        entries.push({ en, zh, path: enPath, key });
       }
     }
 

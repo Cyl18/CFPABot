@@ -146,6 +146,14 @@ export interface ProgramCandidate {
   issueType: ProgramIssueType;
   severity: "error" | "warning";
   detail?: string;
+  /** 来源文件路径(条目级忽略规则匹配用) */
+  path?: string;
+  /** 语言文件 key(条目级忽略规则匹配用) */
+  key?: string;
+  /** 结构化差异: 缺失的占位符/标签/单位(源自 format-checks) */
+  missing?: string[];
+  /** 结构化差异: 多余的占位符/标签/单位 */
+  extra?: string[];
 }
 
 export interface AlignReviewItemsInput {
@@ -291,6 +299,8 @@ export function alignLangReviewItems(
         issueType: "missing_translation",
         severity: "error",
         detail: `Key "${key}" is present in head en_us but missing from zh_cn`,
+        path,
+        key,
       });
     }
 
@@ -301,6 +311,8 @@ export function alignLangReviewItems(
         issueType: "orphan_translation",
         severity: "warning",
         detail: `Key "${key}" is present in head zh_cn but absent from en_us`,
+        path,
+        key,
       });
     }
 
@@ -311,6 +323,8 @@ export function alignLangReviewItems(
         issueType: "empty_value",
         severity: "warning",
         detail: `zh_cn value for "${key}" is an empty string`,
+        path,
+        key,
       });
     }
 
@@ -321,6 +335,8 @@ export function alignLangReviewItems(
         issueType: "stale_translation",
         severity: "warning",
         detail: `English "${bEn}" → "${hEn}" but Chinese remains "${hZh}"`,
+        path,
+        key,
       });
     }
 
@@ -336,6 +352,8 @@ export function alignLangReviewItems(
         issueType: "untranslated_value",
         severity: "warning",
         detail: `Chinese "${hZh}" matches English source — likely untranslated`,
+        path,
+        key,
       });
     }
   }
@@ -366,6 +384,10 @@ export function alignLangReviewItems(
           issueType: f.issueType,
           severity: f.severity,
           detail: f.detail,
+          path,
+          key,
+          ...(f.missing !== undefined ? { missing: f.missing } : {}),
+          ...(f.extra !== undefined ? { extra: f.extra } : {}),
         });
       }
     }

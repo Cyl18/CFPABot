@@ -11,6 +11,7 @@ import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { readJsonFile } from "../../_shared/fs-utils.js";
 import { tmIndexPath } from "../../runtime-paths.js";
 import {
+  queryTm,
   searchTm,
   fuzzyFind,
   type TmIndexFile,
@@ -77,16 +78,35 @@ export function createTmQueryTool(sessionId: string): ToolDefinition {
       const op = p.op === "bm25" || p.op === "fuzzy" ? p.op : "both";
       const topK = typeof p.topK === "number" && p.topK > 0 ? p.topK : undefined;
 
-      const bm25Hits: TmHit[] =
-        op !== "fuzzy" ? searchTm(file.index, p.query, { topK: topK ?? DEFAULT_TOP_K }) : [];
-      const fuzzyHits: TmHit[] =
-        op !== "bm25" ? fuzzyFind(file.index, p.query, { maxDist: DEFAULT_MAX_DIST, topK: topK ?? DEFAULT_TOP_K }) : [];
+      let exactHits: TmHit[] = [];
+      let fuzzyHits: TmHit[] = [];
+      let hits: TmHit[] = [];
+
+      if (op === "bm25") {
+        // 原语义: 仅 BM25 相关性检索; 精确命中单独提供
+        hits = searchTm(file.index, p.query, { topK: topK ?? DEFAULT_TOP_K });
+        exactHits = queryTm(file.index, p.query, { topK: topK ?? DEFAULT_TOP_K }).exact;
+      } else if (op === "fuzzy") {
+        fuzzyHits = fuzzyFind(file.index, p.query, { maxDist: DEFAULT_MAX_DIST, topK: topK ?? DEFAULT_TOP_K });
+        hits = fuzzyHits;
+      } else {
+        // 统一入口: 先精确命中, 缺失才模糊; 精确命中优先置于 hits 头部。
+        // 不传 minScore: fuzzy 相似度上限 0.5(1-edit), 阈值过滤会静默吞掉错拼召回
+        const res = queryTm(file.index, p.query, {
+          topK: topK ?? DEFAULT_TOP_K,
+          maxDist: DEFAULT_MAX_DIST,
+        });
+        exactHits = res.exact;
+        fuzzyHits = res.fuzzy;
+        hits = res.all;
+      }
 
       const result = {
         ok: true,
         op,
         slug: p.slug,
-        hits: bm25Hits,
+        hits,
+        exactHits,
         fuzzyHits,
       };
       return {

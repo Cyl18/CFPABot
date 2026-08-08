@@ -16,7 +16,7 @@ import { getSessionCtx, setSessionCtx, type DictEntry } from "../session-ctx.js"
 import { persistSessionCtx } from "../ctx-store.js";
 import { readJsonFile } from "../../_shared/fs-utils.js";
 import { tmIndexPath } from "../../runtime-paths.js";
-import { searchTm, fuzzyFind, type TmIndexFile, type TmHit } from "../../flows/_shared/terminology/index.js";
+import { queryTm, type TmIndexFile } from "../../flows/_shared/terminology/index.js";
 import {
   buildTermMatcher,
   matchRowTerms,
@@ -99,14 +99,10 @@ export function createReviewPrepTool(sessionId: string): ToolDefinition {
               tmCache.set(slug, idx);
             }
             if (idx?.index) {
-              const bm25: TmHit[] = searchTm(idx.index, en, { topK: TM_TOP_K });
-              const fuzzy: TmHit[] = fuzzyFind(idx.index, en, { maxDist: 2, topK: TM_TOP_K });
+              // 统一入口: 先精确命中, 缺失才模糊; 已按置信惩罚+短串阈值处理
+              const res = queryTm(idx.index, en, { topK: TM_TOP_K, maxDist: 2 });
               const merged: PrepRow["tm"] = [];
-              const seen = new Set<string>();
-              for (const h of [...bm25, ...fuzzy]) {
-                const sig = `${h.en}|${h.zh}`;
-                if (seen.has(sig)) continue;
-                seen.add(sig);
+              for (const h of res.all) {
                 merged.push({ en: h.en, zh: h.zh, path: h.path, score: h.score });
               }
               if (merged.length > 0) {

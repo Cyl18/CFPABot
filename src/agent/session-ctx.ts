@@ -34,6 +34,10 @@ export interface ReviewFinding {
   issueType?: string;
   detail?: string;
   suggestion?: string;
+  /** 结构化差异: 缺失的占位符/标签/单位(程序候选透传) */
+  missing?: string[];
+  /** 结构化差异: 多余的占位符/标签/单位 */
+  extra?: string[];
 }
 
 /** 中间表行 —— 全量保留（含 pass 与 unreviewed），供 agent 裁决。 */

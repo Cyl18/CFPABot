@@ -90,6 +90,27 @@ export function validateReviewFinalize(
       errors.push(`dismissed ${d.itemId} 缺少驳回理由`);
     }
   }
+
+  // 门禁 (Weblate enforced_checks 同构: 命中必改检查 → 强制处置并留审计):
+  // flagged 行若含程序 error 级候选, 必须被处置 —— 采纳进 finalRows 或
+  // 驳回进 dismissed(理由必填)。error 是必改级, 不可悬置未决。
+  const finalIds = new Set(finalRows.map((f) => f.itemId));
+  // 有效驳回 = 在 dismissed 列表且理由非空(驳回留因是硬契约, 无理由的驳回不成立)
+  const validDismissed = new Set(
+    (params.dismissed ?? []).filter((d) => d.reason.trim()).map((d) => d.itemId),
+  );
+  for (const r of table) {
+    if (r.status !== "flagged") continue;
+    const hasProgramError = r.findings.some(
+      (f) => f.origin === "program" && f.severity === "error",
+    );
+    if (!hasProgramError) continue;
+    if (finalIds.has(r.itemId) || validDismissed.has(r.itemId)) continue;
+    errors.push(
+      `程序 error 级候选未处置: ${r.itemId}(key=${r.key}) —— 必须采纳进 finalRows 或驳回(带理由)`,
+    );
+  }
+
   return { errors, finalRows };
 }
 

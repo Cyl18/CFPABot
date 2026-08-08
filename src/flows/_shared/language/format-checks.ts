@@ -50,19 +50,41 @@ export interface FormatCheckFinding {
   issueType: FormatIssueType;
   severity: "error" | "warning";
   detail: string;
+  /** 结构化差异: 缺失的占位符/标签/单位(Weblate check_format 同构, MoA prompt 可直接渲染) */
+  missing?: string[];
+  /** 结构化差异: 多余的占位符/标签/单位 */
+  extra?: string[];
 }
 
 // ─── 工具 ─────────────────────────────────────────────────────────────────
 
-/** %1$s → %s（位置占位符归一化，用于数量比较）。 */
+/** %1$s → %s（位置占位符归一化，用于数量比较）。非全局正则避免 lastIndex 漂移。 */
 function normalizePrintf(p: string): string {
-  const m = RE_POSITIONAL_PRINTF.exec(p);
-  if (m) return `%${p[p.length - 1]}`;
-  return p;
+  const m = /%\d+\$([dsf])/.exec(p);
+  return m ? `%${m[1]}` : p;
 }
 
 function collectList(text: string, re: RegExp): string[] {
   return [...text.matchAll(re)].map((m) => m[0]);
+}
+
+/** 两组列表的多重集差(匿名占位符用 Counter 计数比较, 不做位置敏感——中文语序调整合法)。 */
+function countDiff(
+  enItems: string[],
+  zhItems: string[],
+  formatFn?: (p: string) => string,
+): { missing: string[]; extra: string[] } {
+  const enSorted = [...enItems].sort();
+  const zhSorted = [...zhItems].sort();
+  if (JSON.stringify(enSorted) === JSON.stringify(zhSorted)) return { missing: [], extra: [] };
+  const fmt = (p: string) => (formatFn ? formatFn(p) : p);
+  const enCount = new Map<string, number>();
+  const zhCount = new Map<string, number>();
+  for (const p of enSorted) enCount.set(p, (enCount.get(p) ?? 0) + 1);
+  for (const p of zhSorted) zhCount.set(p, (zhCount.get(p) ?? 0) + 1);
+  const missing = [...enCount.entries()].filter(([p, c]) => c > (zhCount.get(p) ?? 0)).map(([p]) => fmt(p));
+  const extra = [...zhCount.entries()].filter(([p, c]) => c > (enCount.get(p) ?? 0)).map(([p]) => fmt(p));
+  return { missing, extra };
 }
 
 /** 比较两组占位符列表，返回差异描述（缺失/多余）。 */
@@ -72,17 +94,8 @@ function compareLists(
   label: string,
   formatFn?: (p: string) => string,
 ): string[] {
+  const { missing, extra } = countDiff(enItems, zhItems, formatFn);
   const issues: string[] = [];
-  const enSorted = [...enItems].sort();
-  const zhSorted = [...zhItems].sort();
-  if (JSON.stringify(enSorted) === JSON.stringify(zhSorted)) return issues;
-  const fmt = (p: string) => (formatFn ? formatFn(p) : p);
-  const enCount = new Map<string, number>();
-  const zhCount = new Map<string, number>();
-  for (const p of enSorted) enCount.set(p, (enCount.get(p) ?? 0) + 1);
-  for (const p of zhSorted) zhCount.set(p, (zhCount.get(p) ?? 0) + 1);
-  const missing = [...enCount.entries()].filter(([p, c]) => c > (zhCount.get(p) ?? 0)).map(([p]) => fmt(p));
-  const extra = [...zhCount.entries()].filter(([p, c]) => c > (enCount.get(p) ?? 0)).map(([p]) => fmt(p));
   if (missing.length > 0) issues.push(`缺失${label}: ${missing.join(", ")}`);
   if (extra.length > 0) issues.push(`多余${label}: ${extra.join(", ")}`);
   return issues;
@@ -148,7 +161,23 @@ export function checkEntryFormat(key: string, en: string, zh: string): FormatChe
     ),
   ];
   if (pIssues.length > 0) {
-    findings.push({ issueType: "placeholder_count_mismatch", severity: "error", detail: `占位符不一致: ${pIssues.join("; ")}` });
+    const pMissing = [
+      ...countDiff(enPrintf, zhPrintf).missing,
+      ...countDiff(collectList(en, RE_PERCENT_VAR), collectList(zh, RE_PERCENT_VAR)).missing,
+      ...countDiff(collectList(en, RE_BRACE_VAR), collectList(zh, RE_BRACE_VAR), (p) => `{${p}}`).missing,
+    ];
+    const pExtra = [
+      ...countDiff(enPrintf, zhPrintf).extra,
+      ...countDiff(collectList(en, RE_PERCENT_VAR), collectList(zh, RE_PERCENT_VAR)).extra,
+      ...countDiff(collectList(en, RE_BRACE_VAR), collectList(zh, RE_BRACE_VAR), (p) => `{${p}}`).extra,
+    ];
+    findings.push({
+      issueType: "placeholder_count_mismatch",
+      severity: "error",
+      detail: `占位符不一致: ${pIssues.join("; ")}`,
+      missing: pMissing,
+      extra: pExtra,
+    });
   }
 
   // 2. 特殊标签数量比较（§/& 色码、$(action)、HTML、<br>、换行）
@@ -161,15 +190,26 @@ export function checkEntryFormat(key: string, en: string, zh: string): FormatChe
     [RE_NEWLINE, "换行符"],
   ];
   const tIssues: string[] = [];
+  const tMissing: string[] = [];
+  const tExtra: string[] = [];
   for (const [re, label] of tagChecks) {
     const enFound = collectList(en, re).sort();
     const zhFound = collectList(zh, re).sort();
+    const d = countDiff(enFound, zhFound);
+    tMissing.push(...d.missing);
+    tExtra.push(...d.extra);
     if (JSON.stringify(enFound) !== JSON.stringify(zhFound)) {
       tIssues.push(`${label}数量不一致: EN=${enFound.length}, ZH=${zhFound.length}`);
     }
   }
   if (tIssues.length > 0) {
-    findings.push({ issueType: "special_tag_mismatch", severity: "error", detail: `格式标签不一致: ${tIssues.join("; ")}` });
+    findings.push({
+      issueType: "special_tag_mismatch",
+      severity: "error",
+      detail: `格式标签不一致: ${tIssues.join("; ")}`,
+      missing: tMissing,
+      extra: tExtra,
+    });
   }
 
   // 3. tellraw JSON：仅翻译 text 键
@@ -227,7 +267,14 @@ export function checkEntryFormat(key: string, en: string, zh: string): FormatChe
   const zhUnits = collectList(zh, RE_ENERGY_UNIT).sort();
   if (enUnits.length > 0 && JSON.stringify(enUnits) !== JSON.stringify(zhUnits)) {
     const missing = enUnits.filter((u) => !zhUnits.includes(u));
-    findings.push({ issueType: "energy_unit_translated", severity: "error", detail: `能量/体积单位不应翻译，缺少: ${missing.join(", ")}` });
+    const extra = zhUnits.filter((u) => !enUnits.includes(u));
+    findings.push({
+      issueType: "energy_unit_translated",
+      severity: "error",
+      detail: `能量/体积单位不应翻译，缺少: ${missing.join(", ")}`,
+      missing,
+      extra,
+    });
   }
 
   // 7. 省略号：不应使用三个英文句号

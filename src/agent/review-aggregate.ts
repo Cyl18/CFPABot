@@ -28,6 +28,10 @@ interface ProgramCandidateShape {
   issueType?: string;
   severity?: "error" | "warning";
   detail?: string;
+  path?: string;
+  key?: string;
+  missing?: string[];
+  extra?: string[];
 }
 
 function asProgramCandidate(c: unknown): ProgramCandidateShape | null {
@@ -38,6 +42,10 @@ function asProgramCandidate(c: unknown): ProgramCandidateShape | null {
   if (typeof p.issueType === "string") out.issueType = p.issueType;
   if (p.severity === "error" || p.severity === "warning") out.severity = p.severity;
   if (typeof p.detail === "string") out.detail = p.detail;
+  if (typeof p.path === "string") out.path = p.path;
+  if (typeof p.key === "string") out.key = p.key;
+  if (Array.isArray(p.missing) && p.missing.every((x): x is string => typeof x === "string")) out.missing = p.missing;
+  if (Array.isArray(p.extra) && p.extra.every((x): x is string => typeof x === "string")) out.extra = p.extra;
   return out;
 }
 
@@ -167,11 +175,16 @@ export function aggregateReviewTable(
       const it = itemsById.get(cand.itemId);
       const row = getRow(cand.itemId, it);
       row.status = "flagged";
+      // 只存失败态 + 按 (itemId, issueType) 去重(mergeAlignedItems 已做, 此处幂等重建保险;
+      // 仅作用于程序候选, 不误伤多模型 MoA 意见)
+      if (row.findings.some((f) => f.origin === "program" && f.issueType === cand.issueType)) continue;
       row.findings.push({
         origin: "program",
         severity: cand.severity === "warning" ? "warning" : "error",
         issueType: cand.issueType,
         detail: cand.detail,
+        ...(cand.missing !== undefined ? { missing: cand.missing } : {}),
+        ...(cand.extra !== undefined ? { extra: cand.extra } : {}),
       });
     }
   }

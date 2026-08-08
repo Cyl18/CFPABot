@@ -6,7 +6,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { validateReviewFinalize } from "../agent/tools/review-finalize.js";
-import type { ReviewAggRow } from "../agent/session-ctx.js";
+import type { ReviewAggRow, ReviewFinding } from "../agent/session-ctx.js";
 
 function makeTableRow(itemId: string, status: ReviewAggRow["status"]): ReviewAggRow {
   return {
@@ -79,5 +79,59 @@ describe("validateReviewFinalize", () => {
     );
     expect(errors.some((e) => e.includes("同时包含"))).toBe(true);
     expect(finalRows).toHaveLength(0);
+  });
+
+  test("门禁: flagged 行含程序 error 候选但未处置 → 报错", () => {
+    const t = [
+      makeTableRow("id-e", "flagged"),
+      { ...makeTableRow("id-f", "flagged"), findings: [{ origin: "program", severity: "error", issueType: "placeholder_count_mismatch", detail: "缺 %s" }] satisfies ReviewFinding[] },
+    ];
+    const { errors } = validateReviewFinalize({ finalRows: [], dismissed: [] }, t);
+    expect(errors.some((e) => e.includes("程序 error 级候选未处置"))).toBe(true);
+    expect(errors.some((e) => e.includes("id-f"))).toBe(true);
+    expect(errors.some((e) => e.includes("id-e"))).toBe(false); // 无程序 error 意见的行不受门禁
+  });
+
+  test("门禁: 程序 error 候选采纳进 finalRows 即通过", () => {
+    const t = [
+      { ...makeTableRow("id-f", "flagged"), findings: [{ origin: "program", severity: "error", issueType: "placeholder_count_mismatch", detail: "缺 %s" }] satisfies ReviewFinding[] },
+    ];
+    const { errors } = validateReviewFinalize(
+      { finalRows: [{ itemId: "id-f", key: "k", path: "p", severity: "error", review: "占位符缺失" }], dismissed: [] },
+      t,
+    );
+    expect(errors.some((e) => e.includes("未处置"))).toBe(false);
+  });
+
+  test("门禁: 程序 error 候选驳回(带理由)即通过", () => {
+    const t = [
+      { ...makeTableRow("id-f", "flagged"), findings: [{ origin: "program", severity: "error", issueType: "placeholder_count_mismatch", detail: "缺 %s" }] satisfies ReviewFinding[] },
+    ];
+    const { errors } = validateReviewFinalize(
+      { finalRows: [], dismissed: [{ itemId: "id-f", reason: "en 本身就有问题, 不适用" }] },
+      t,
+    );
+    expect(errors.some((e) => e.includes("未处置"))).toBe(false);
+  });
+
+  test("门禁: 程序 warning / 模型 error 不强制处置", () => {
+    const t = [
+      { ...makeTableRow("id-g", "flagged"), findings: [{ origin: "program", severity: "warning", issueType: "punctuation_issue", detail: "标点" }] satisfies ReviewFinding[] },
+      { ...makeTableRow("id-h", "flagged"), findings: [{ origin: "openai:gpt-4o", severity: "error", issueType: "consistency", detail: "术语不一致" }] satisfies ReviewFinding[] },
+    ];
+    const { errors } = validateReviewFinalize({ finalRows: [], dismissed: [] }, t);
+    expect(errors.some((e) => e.includes("未处置"))).toBe(false);
+  });
+
+  test("门禁: 程序 error 候选驳回但缺理由 → 报错(理由必填)", () => {
+    const t = [
+      { ...makeTableRow("id-f", "flagged"), findings: [{ origin: "program", severity: "error", issueType: "placeholder_count_mismatch", detail: "缺 %s" }] satisfies ReviewFinding[] },
+    ];
+    const { errors } = validateReviewFinalize(
+      { finalRows: [], dismissed: [{ itemId: "id-f", reason: "  " }] },
+      t,
+    );
+    expect(errors.some((e) => e.includes("缺少驳回理由"))).toBe(true);
+    expect(errors.some((e) => e.includes("未处置"))).toBe(true); // 驳回无效 → 仍视为未处置
   });
 });

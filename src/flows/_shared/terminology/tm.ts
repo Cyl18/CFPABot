@@ -22,6 +22,8 @@ export interface TmEntry {
   en: string;
   zh: string;
   path: string;
+  /** 语言文件内 key(溯源/上下文用, 不进去重键; 可选) */
+  key?: string;
 }
 
 /** 去重合并后的索引文档(数组下标即 docId)。 */
@@ -32,6 +34,8 @@ export interface TmDoc {
   zh: string;
   /** 语料来源文件路径(取该 (en,zh) 首次出现的 en_us 文件) */
   path: string;
+  /** 该 (en,zh) 首次出现时对应的语言文件 key(溯源/上下文) */
+  key?: string;
   /** 同 (en,zh) 语料合并后的出现次数 */
   freq: number;
 }
@@ -49,15 +53,24 @@ export interface TmIndex {
   totalDocs: number;
   k1: number;
   b: number;
+  /**
+   * en(小写) → docId 列表 精确命中索引(哈希表, O(1) 查重)。
+   * 旧版落盘索引可能缺失该字段, 读取端经 getExactMap 惰性回填。
+   */
+  exact?: Record<string, number[]>;
 }
 
-/** 检索命中。score 语义: 越大越相关(BM25 得分 / 模糊距离的倒数)。 */
+/** 检索命中。score 语义: 越大越相关(BM25 得分 / 模糊距离的倒数, 均已乘置信惩罚)。 */
 export interface TmHit {
   en: string;
   zh: string;
   path: string;
   score: number;
   freq: number;
+  /** 语言文件 key(溯源/上下文) */
+  key?: string;
+  /** 是否为精确命中(en 忽略大小写全等) */
+  exact?: boolean;
 }
 
 /** 落盘文件结构: 元信息 + 索引本体。 */
@@ -101,6 +114,7 @@ export function buildTmIndex(entries: TmEntry[]): TmIndex {
         en: e.en,
         zh: e.zh,
         path: e.path,
+        key: e.key,
         freq: 1,
       });
     }
@@ -123,7 +137,19 @@ export function buildTmIndex(entries: TmEntry[]): TmIndex {
     }
   });
 
-  // 3. 平均文档长度
+  // 3. 精确命中哈希索引: en(小写) → docId 列表(O(1) 查重)
+  const exact: Record<string, number[]> = {};
+  docs.forEach((doc, docId) => {
+    const enLower = doc.en.toLowerCase();
+    let list = exact[enLower];
+    if (!list) {
+      list = [];
+      exact[enLower] = list;
+    }
+    list.push(docId);
+  });
+
+  // 4. 平均文档长度
   const totalTerms = docs.reduce((n, d) => n + d.terms.length, 0);
   const avgDocLen = docs.length > 0 ? totalTerms / docs.length : 0;
 
@@ -135,7 +161,62 @@ export function buildTmIndex(entries: TmEntry[]): TmIndex {
     totalDocs: docs.length,
     k1: TM_K1,
     b: TM_B,
+    exact,
   };
+}
+
+/**
+ * 读取精确索引, 旧版落盘文件缺失时从 docs 惰性回填(一次性 O(n), 不落盘)。
+ */
+export function getExactMap(index: TmIndex): Record<string, number[]> {
+  if (index.exact) return index.exact;
+  const exact: Record<string, number[]> = {};
+  index.docs.forEach((doc, docId) => {
+    const enLower = doc.en.toLowerCase();
+    let list = exact[enLower];
+    if (!list) {
+      list = [];
+      exact[enLower] = list;
+    }
+    list.push(docId);
+  });
+  return exact;
+}
+
+// ─── 置信惩罚与阈值映射 ──────────────────────────────────────────────
+
+/**
+ * 置信惩罚: 同 (en,zh) 语料出现次数(freq) 越高 = 多文件共识度越高, 权重越大。
+ * Weblate 的 pending×0.7 / context 不同×0.95 在我们的数据模型下无直接对应物
+ * (TM 语料全部来自已合并翻译, 无未审阅条目), 以 freq 共识度作为置信代理。
+ */
+export function freqPenalty(freq: number): number {
+  if (freq >= 5) return 1;
+  if (freq >= 2) return 0.95;
+  return 0.9;
+}
+
+/**
+ * UI 阈值(0-100) → 相似度(0-1) 的非线性映射 (Weblate threshold_to_similarity
+ * 同构: 0.127264 * ln(24.282 * t), 10→0.70, 80→0.96, 100→1.0)。
+ * 让「用户可见阈值」与「内部相似度」解耦。
+ */
+export function thresholdToSimilarity(t: number): number {
+  const clamped = Math.min(100, Math.max(0, t));
+  if (clamped <= 0) return 0;
+  if (clamped >= 100) return 1; // UI 阈值 100 = 完全精确
+  return 0.127264 * Math.log(24.282 * clamped);
+}
+
+/**
+ * 短查询强置更严的编辑距离上限: ≤8 字符只接受 1-edit 错拼(dist≤1),
+ * 拒绝 2-edit 换位/双错——短串的两次编辑相对差异巨大, 多为噪声
+ * (Weblate 对 ≤8/≤16 字符强置相似度下限 0.97/0.95 的编辑距离近似;
+ * 1-edit 错拼是 fuzzy 召回主场景, 予以保留)。9+ 字符保持默认上限。
+ */
+export function shortQueryMaxDist(queryLen: number, maxDist: number): number {
+  if (queryLen <= 8) return Math.min(maxDist, 1);
+  return maxDist;
 }
 
 // ─── BM25 检索 ────────────────────────────────────────────────────────
@@ -184,7 +265,14 @@ export function searchTm(index: TmIndex, query: string, opts: SearchTmOptions = 
   const hits: TmHit[] = [...scores.entries()]
     .map(([docId, score]) => {
       const doc = docs[docId]!;
-      return { en: doc.en, zh: doc.zh, path: doc.path, score, freq: doc.freq };
+      return {
+        en: doc.en,
+        zh: doc.zh,
+        path: doc.path,
+        key: doc.key,
+        score: score * freqPenalty(doc.freq),
+        freq: doc.freq,
+      };
     })
     .sort((a, b) => b.score - a.score);
 
@@ -244,12 +332,14 @@ function fuzzyDistance(en: string, query: string, maxDist: number): number | nul
 
 /**
  * 编辑距离模糊匹配: 命中 en 整串或其任意词元与 query 距离 ≤ maxDist 的文档。
- * 按距离升序(同距离按 freq 降序)。score = 1 / (1 + dist), 越大越接近。
+ * 短查询(≤8/≤16 字符)经 shortQueryMaxDist 强置更严上限防宽泛命中。
+ * 按距离升序(同距离按 freq 降序)。score = 1 / (1 + dist) × 置信惩罚, 越大越接近。
  */
 export function fuzzyFind(index: TmIndex, query: string, opts: FuzzyFindOptions = {}): TmHit[] {
   const maxDist = opts.maxDist ?? 2;
   const q = query.trim().toLowerCase();
   if (q.length === 0 || index.totalDocs === 0) return [];
+  const effMaxDist = shortQueryMaxDist(q.length, maxDist);
 
   interface Candidate {
     doc: TmDoc;
@@ -257,7 +347,7 @@ export function fuzzyFind(index: TmIndex, query: string, opts: FuzzyFindOptions 
   }
   const candidates: Candidate[] = [];
   for (const doc of index.docs) {
-    const dist = fuzzyDistance(doc.en, q, maxDist);
+    const dist = fuzzyDistance(doc.en, q, effMaxDist);
     if (dist !== null) candidates.push({ doc, dist });
   }
 
@@ -267,9 +357,84 @@ export function fuzzyFind(index: TmIndex, query: string, opts: FuzzyFindOptions 
     en: c.doc.en,
     zh: c.doc.zh,
     path: c.doc.path,
-    score: 1 / (1 + c.dist),
+    key: c.doc.key,
+    score: (1 / (1 + c.dist)) * freqPenalty(c.doc.freq),
     freq: c.doc.freq,
   }));
 
   return opts.topK && opts.topK > 0 ? hits.slice(0, opts.topK) : hits;
+}
+
+// ─── 统一检索入口(先精确后模糊) ───────────────────────────────────────
+
+export interface QueryTmOptions {
+  /** 每种检索(bm25/fuzzy)返回条数上限, 默认 5; ≤0 表示不限制 */
+  topK?: number;
+  /** fuzzy 编辑距离上限, 默认 2 */
+  maxDist?: number;
+  /** 相似度下限(0-1), 低于该值的模糊命中被过滤(如 thresholdToSimilarity(80)≈0.96) */
+  minScore?: number;
+}
+
+export interface QueryTmResult {
+  /** 精确命中(en 忽略大小写全等), 按 freq 降序; 同一 en 的多译法全部保留 */
+  exact: TmHit[];
+  /** 模糊命中(BM25 + fuzzy 合并, 已排除精确命中 doc), 按 bm25→fuzzy 顺序各自排序 */
+  fuzzy: TmHit[];
+  /** exact + fuzzy 合并(exact 优先, 供展示/消费的单一列表) */
+  all: TmHit[];
+}
+
+/**
+ * 统一消费入口: 先精确命中(O(1) 哈希), 缺失才走模糊(BM25 + 编辑距离)。
+ * 精确命中永远置于结果头部——金标准不参与模糊排序。Weblate memory lookup
+ * 「exact 先行 + get_best_fuzzy_match 兜底」的同构落地。
+ */
+export function queryTm(index: TmIndex, query: string, opts: QueryTmOptions = {}): QueryTmResult {
+  const topK = opts.topK ?? 5;
+  const q = query.trim().toLowerCase();
+  const exactMap = getExactMap(index);
+
+  // 1. 精确命中
+  const exact: TmHit[] = (exactMap[q] ?? [])
+    .map((docId) => {
+      const doc = index.docs[docId]!;
+      return {
+        en: doc.en,
+        zh: doc.zh,
+        path: doc.path,
+        key: doc.key,
+        score: 1 * freqPenalty(doc.freq),
+        freq: doc.freq,
+        exact: true,
+      };
+    })
+    .sort((a, b) => b.freq - a.freq);
+
+  // 2. 模糊命中(排除精确已覆盖的条目)
+  const exactSigs = new Set<string>(exact.map((h) => `${h.en}\u0000${h.zh}`));
+  const bm25 = searchTm(index, query, { topK }).filter((h) => !exactSigs.has(`${h.en}\u0000${h.zh}`));
+  const fuzzy = fuzzyFind(index, query, { maxDist: opts.maxDist ?? 2, topK }).filter(
+    (h) => !exactSigs.has(`${h.en}\u0000${h.zh}`),
+  );
+
+  const fuzzyMerged: TmHit[] = [];
+  // BM25 分数无界(相关性量纲), 不受相似度阈值过滤; minScore 只作用于
+  // fuzzyFind 的编辑距离相似度(0-1 量纲, 1/(1+dist) × 惩罚)
+  for (const h of bm25) {
+    const sig = `${h.en}\u0000${h.zh}`;
+    if (exactSigs.has(sig)) continue;
+    exactSigs.add(sig);
+    fuzzyMerged.push(h);
+  }
+  for (const h of fuzzy) {
+    if (opts.minScore !== undefined && h.score < opts.minScore) continue;
+    const sig = `${h.en}\u0000${h.zh}`;
+    if (exactSigs.has(sig)) continue;
+    exactSigs.add(sig);
+    fuzzyMerged.push(h);
+  }
+
+  const fuzzyTop = topK > 0 ? fuzzyMerged.slice(0, topK) : fuzzyMerged;
+  return { exact, fuzzy: fuzzyTop, all: [...exact, ...fuzzyTop] };
 }
