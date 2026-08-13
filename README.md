@@ -144,6 +144,8 @@ Agent 只认识 Flow，编排函数也只调 Flow。Flow 之间直接 `await flo
 
 ### 目录结构
 
+以下路径相对 `CFPABot/` 内层目录（应用本体）：
+
 ```
 src/
 ├── index.ts               # 入口：加载配置 + 启动 bootstrap
@@ -231,7 +233,7 @@ src/
 
 web/
 ├── index.html             # Vite 入口 HTML
-├── vite.config.ts         # Vite 配置 (proxy, outDir: ../../public)
+├── vite.config.ts         # Vite 配置 (proxy, outDir: ../public)
 └── src/
     ├── main.tsx           # React 入口
     ├── App.tsx            # React Router 路由定义
@@ -275,7 +277,7 @@ web/
 ```bash
 # 克隆
 git clone https://github.com/Cyl18/CFPABot.git
-cd CFPABot
+cd CFPABot/CFPABot    # 应用本体（仓库根下的 CFPABot/ 内层目录）
 
 # 安装依赖
 bun install
@@ -287,6 +289,8 @@ cp .env.example .env
 # 开发模式（同时启动后端 + Vite HMR）
 bun run dev
 ```
+
+> 所有 bun 命令在 `CFPABot/` 内层目录运行（bun 从 cwd 找 package.json/bunfig.toml）。
 
 开发模式下访问 `http://localhost:5173`（Vite dev server，API 自动代理到 8080）。
 
@@ -300,7 +304,7 @@ bun run start      # bun run dist/index.js
 ### 类型检查
 
 ```bash
-bun run typecheck  # 根目录 (后端 tsc --noEmit)
+bun run typecheck  # 内层 (后端 tsc --noEmit)
 cd web && bun run typecheck  # 前端 tsc --noEmit
 ```
 

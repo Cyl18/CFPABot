@@ -10,6 +10,7 @@
     "build": "bun run --cwd=web build && bun build src/index.ts --outdir dist --target bun --minify",
     "start": "bun run dist/index.js",
     "lint:arch": "bun run scripts/lint-arch.ts",
+    "fetch:glossary": "bun run scripts/fetch-glossary.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test ./src",
     "test:web": "bun run --cwd=web test"

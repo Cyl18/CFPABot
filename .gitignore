@@ -15,8 +15,8 @@ public/
 
 # Secrets
 .env
-config/cfpa-bot.pem
-config/encrypt_key.txt
+CFPABot/config/cfpa-bot.pem
+CFPABot/config/encrypt_key.txt
 
 # Runtime data
 runtime/
@@ -27,4 +27,4 @@ temp/
 .vscode/
 .idea/
 *.log
-config/llm-endpoints.json
+CFPABot/config/llm-endpoints.json

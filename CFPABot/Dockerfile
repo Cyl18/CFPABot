@@ -18,7 +18,9 @@ FROM oven/bun:1 AS runtime
 
 ENV TZ=Asia/Shanghai \
     NODE_ENV=production \
-    PORT=8080
+    PORT=8080 \
+    PI_CODING_AGENT_DIR=/app/config/pi-agent \
+    CFPABOT_GLOSSARY_DIR=/app/bin
 
 # packtrans/glossary release tag for the bundled MCP server binary.
 # Note: glibc build (no musl asset upstream) — runtime must be glibc-based (oven/bun:1), not -alpine.
@@ -29,8 +31,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone &
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /app/bin && \
     curl -fsSL "https://github.com/packtrans/glossary/releases/download/${GLOSSARY_VERSION}/packtrans-glossary-${GLOSSARY_VERSION}-x86_64-unknown-linux-gnu.tar.gz" | tar xz --strip-components=1 -C /app/bin && \
-    /app/bin/packtrans-glossary mcp --help >/dev/null && \
-    printf '%s\n' '{"mcpServers":{"glossary":{"command":"/app/bin/packtrans-glossary","args":["mcp"],"lifecycle":"lazy"}}}' > /app/.mcp.json
+    /app/bin/packtrans-glossary mcp --help >/dev/null
 
 WORKDIR /app
 
@@ -41,6 +42,7 @@ RUN bun install --frozen-lockfile --production
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/public ./public
+COPY --from=build /app/scripts ./scripts
 
 RUN mkdir -p config runtime logs temp
 

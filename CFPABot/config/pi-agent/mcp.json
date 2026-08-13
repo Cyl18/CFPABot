@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "glossary": {
+      "command": "./packtrans-glossary",
+      "args": ["mcp"],
+      "cwd": "${CFPABOT_GLOSSARY_DIR}",
+      "lifecycle": "lazy"
+    }
+  }
+}

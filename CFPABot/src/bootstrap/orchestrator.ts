@@ -4,10 +4,9 @@
 
 import type { EntryConfig } from "../config.js";
 import type { Logger } from "../types.js";
-import { mkdir, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-import { REQUIRED_DIRS, AGENT_SETTINGS_PATH } from "../config.js";
+import { mkdir } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { REQUIRED_DIRS } from "../config.js";
 import { createDeps, type Deps } from "./deps.js";
 import { createHonoApp } from "./app.js";
 import { startServer } from "./server.js";
@@ -27,16 +26,14 @@ export async function bootstrap(config: EntryConfig, logger: Logger): Promise<vo
   for (const dir of REQUIRED_DIRS) {
     await mkdir(dir, { recursive: true });
   }
-  // Pi agent settings — 幂等初始化：注册 pi-mcp-adapter extension（标准 Pi settings 机制，
-  // 与 `pi install` 等价；MCP server 配置在项目 .mcp.json，加 server 无需改代码）。
-  // 注意：global scope 的相对路径以 agentDir 为基准解析，这里必须用绝对路径。
-  if (!existsSync(AGENT_SETTINGS_PATH)) {
-    await writeFile(
-      AGENT_SETTINGS_PATH,
-      JSON.stringify({ extensions: [join(process.cwd(), "node_modules/pi-mcp-adapter")] }, null, 2) + "\n",
-      "utf-8",
-    );
-  }
+  // pi-agent 配置：extension 注册与 MCP server 在 config/pi-agent/（git 跟踪，
+  // PI_CODING_AGENT_DIR env 指向）；此处不再生成配置。
+
+  // glossary 二进制：幂等自动下载（存在即跳过；容器内 Dockerfile 已装到 /app/bin）。
+  spawn(process.execPath, ["scripts/fetch-glossary.ts"], { stdio: "inherit", detached: false }).on(
+    "error",
+    (err) => logger.warn({ err }, "glossary fetch failed"),
+  );
 
   const deps: Deps = await createDeps(config, logger);
 

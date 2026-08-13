@@ -12,15 +12,36 @@ CFPABot — GitHub 机器人，服务于 [CFPAOrg/Minecraft-Mod-Language-Package
 - **样式**: Tailwind CSS
 - **状态**: Zustand
 
+## 仓库布局
+
+应用本体自包含在 `CFPABot/` 内层目录（对齐 ref .NET 仓库结构）；根目录只留协议文件、编排与文档：
+
+```
+CFPABot/                    # 仓库根
+├── AGENTS.md / README.md / .gitignore / .gitattributes
+├── docker-compose.yml / docker-up.bat / docker-build.bat
+├── docs/                   # 开发文档
+└── CFPABot/                # 应用本体（cwd，所有 bun 命令在此运行）
+    ├── package.json / bun.lock / bunfig.toml / tsconfig.json
+    ├── Dockerfile / .dockerignore / .env.example
+    ├── src/                # 后端 (Bun + Hono)
+    ├── web/                # 前端 (Vite + React)
+    ├── config/             # 运行时配置（pi-agent/ 为 pi-agent 配置环境，git 跟踪）
+    ├── runtime/ / logs/ / temp/   # 运行时数据（gitignored）
+    └── scripts/ skills/
+```
+
 ## 开发与构建
 
 ```bash
-bun install          # 安装依赖 (workspaces: 根 + web/)
-bun run dev          # 开发: concurrently 同时启动后端(8080) + Vite dev server(5173, HMR)
-bun run build        # 生产构建: Vite 构建前端到 public/ + Bun 构建后端到 dist/
-bun run start        # 生产运行: bun run dist/index.js
-bun run typecheck    # 类型检查: tsc --noEmit (根目录后端)
+cd CFPABot && bun install   # 安装依赖 (workspaces: 根 + web/)
+cd CFPABot && bun run dev   # 开发: concurrently 同时启动后端(8080) + Vite dev server(5173, HMR)
+cd CFPABot && bun run build # 生产构建: Vite 构建前端到 public/ + Bun 构建后端到 dist/
+cd CFPABot && bun run start # 生产运行: bun run dist/index.js
+cd CFPABot && bun run typecheck  # 类型检查: tsc --noEmit
 ```
+
+> 所有 bun 命令在 `CFPABot/` 内层运行（bun 从 cwd 找 package.json/bunfig.toml，不向上查找）。
 
 ### 开发模式
 
@@ -156,6 +177,7 @@ interface FlowContext {
 
 ## 目录结构
 
+以下目录树路径均相对 **`CFPABot/` 内层目录**（应用本体）：
 ```
 src/
 ├── index.ts              # 入口: 加载配置 + 启动 bootstrap
@@ -459,15 +481,21 @@ Agent ReAct loop 自身的 LLM 调用也使用同一注册表 (`src/agent/sessio
 
 审查 Agent 通过 `pi-mcp-adapter` extension 使用 MCP server（如 packtrans-glossary 术语库）：
 
-- **extension 注册**：`runtime/agent/settings.json`（bootstrap 幂等初始化）的
-  `extensions` 数组记录 adapter 绝对路径（标准 Pi settings 机制，与 `pi install` 等价）；
-  global scope 相对路径以 agentDir 为基准解析，必须写绝对路径
-- **server 配置**：项目 `.mcp.json`（gitignored，本机配置不随仓库走）——加新 server
-  无需改代码
+- **extension 注册**：`config/pi-agent/settings.json`（git 跟踪）的
+  `extensions` 数组记录 adapter 路径（标准 Pi settings 机制，与 `pi install` 等价）；
+  global scope 相对路径以 agentDir（`PI_CODING_AGENT_DIR` → `config/pi-agent`）为基准解析
+- **server 配置**：`config/pi-agent/mcp.json`（git 跟踪；`PI_CODING_AGENT_DIR` env
+  指向 config/pi-agent，本机与 Docker 同机制；server `cwd` 用 `${CFPABOT_GLOSSARY_DIR}`
+  插值，`command` 相对 cwd 解析）——加新 server 无需改代码
 - **生产镜像**：Dockerfile runtime 阶段下载 `packtrans/glossary` release 的
   `x86_64-unknown-linux-gnu` 二进制到 `/app/bin/`（`GLOSSARY_VERSION` ARG 钉版本，
-  构建期 `mcp --help` 冒烟），并生成 `/app/.mcp.json` 指向它。注意：上游只有 glibc
-  资产（无 musl），runtime 必须是 glibc 基础镜像（`oven/bun:1`），不能用 `-alpine`
+  构建期 `mcp --help` 冒烟），并设 `ENV PI_CODING_AGENT_DIR=/app/config/pi-agent
+  CFPABOT_GLOSSARY_DIR=/app/bin`（不再生成 `.mcp.json`，配置走 git 跟踪的
+  `config/pi-agent/mcp.json`，经 compose volume `./CFPABot/config:/app/config` 挂载）。
+  注意：上游只有 glibc 资产（无 musl），runtime 必须是 glibc 基础镜像（`oven/bun:1`），不能用 `-alpine`
+- **二进制**：本机 `bun run fetch:glossary` 自动从 GitHub release 下载到
+  `runtime/bin`（gitignored；`CFPABOT_GLOSSARY_DIR` 缺省 = `<cwd>/runtime/bin`，
+  幂等：存在即跳过）；容器由 Dockerfile 下载到 `/app/bin`。跨机器克隆无需改配置
 - **加载链路**：`CfpabotResourceLoader`（`session-prompt.ts`）委托
   `DefaultResourceLoader`（`extensionFactories` 官方机制）加载 extensions；
   `session-manager.ts` 在 `createAgentSession` 前显式 `await resourceLoader.reload()`
@@ -500,11 +528,11 @@ Agent ReAct loop 自身的 LLM 调用也使用同一注册表 (`src/agent/sessio
 
 ## 运行时目录
 
-启动前一次性迁移旧布局 (`migrateRuntimeLayout`，见 `src/runtime-paths.ts`)，
-随后 `ensureDirectories` 自动创建所需目录：
+以下路径均相对 **`CFPABot/` 内层目录**（cwd）。`ensureDirectories` 自动创建所需目录：
 
 ```
-config/                         # 配置文件 (encrypt_key.txt, cfpa-bot.pem)
+config/                         # 运行时配置（pi-agent/ 为 pi-agent 配置环境，git 跟踪；
+                                #  encrypt_key.txt、cfpa-bot.pem、llm-endpoints.json gitignored）
 runtime/
 ├── cache/                      # 可重建缓存
 │   ├── modlist.json
@@ -512,19 +540,20 @@ runtime/
 │   ├── pr_index.json
 │   ├── pr_files/               # 原 runtime/pr_cache/*.json
 │   │   └── {prId}.json
-│   └── pr_files_watermark.json
+│   ├── pr_files_watermark.json
+│   └── tm/                     # 翻译记忆索引
 ├── state/                      # 持久化业务状态
 │   ├── info-comments/          # 原 runtime/cache/info-comments
 │   │   └── {owner}/{repo}/{pr}.json
-│   ├── review-publications/    # 原 runtime/cache/review-publications
-│   │   └── {repoId}/{pr}/{session}.json
+│   └── review-publications/    # 原 runtime/cache/review-publications
+│       └── {repoId}/{pr}/{session}.json
 ├── sessions/                   # Agent 会话 JSON 元数据
 │   ├── {uuid}.json
 │   ├── _dedup/
 │   ├── ctx/                     # 会话 ctx 增量快照 (审查中间表/最终表/术语)
 │   └── transcripts/            # 原 runtime/pi-sessions
 │       └── {ts}_{id}.jsonl
-├── agent/                      # Pi agent 目录 (settings.json 注册 extensions)
+├── bin/                        # glossary 二进制（fetch-glossary 自动下载，gitignored）
 ├── ops/
 │   ├── executions/             # 原 runtime/executions
 │   └── idempotency/            # 原 runtime/idempotency
@@ -539,7 +568,7 @@ temp/                           # 临时文件
 ## 关键设计决策
 - **Flow 即 Agent Tool**: Flow 通过 `flowToAgentTool` 适配为 pi-agent 工具。所有注册 Flow 均暴露给 Agent，tag 仅用于分类和可观测性
 - **Flow 注册集中在 bootstrap/flows.ts**: `registerFlows()` 中创建 FlowRegistry 并注册所有 Flow
-- **Vite outDir 到项目根 public/**: 生产时后端直接 serve，无需额外静态服务器
+- **Vite outDir 到 CFPABot/public/**: 生产时后端直接 serve，无需额外静态服务器
 - **Agent 审查不经过 Flow 引擎**: 翻译审查使用 `agent/tools/` 中的原生工具直接调用 LLM，仅评论发布等写操作通过 Flow 引擎执行
 
 ## 部署约束

@@ -2,9 +2,16 @@
 // Loads entry layer configuration from environment variables + constants.
 // Runtime validation with TypeBox — fails fast with clear error messages on missing/invalid vars.
 
+import { join } from "node:path";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { readFile } from "node:fs/promises";
+
+// pi-agent 配置环境：项目内 config/pi-agent（git 跟踪），与构建 agent（opencode/omp 根 .mcp.json）分离。
+// pi-coding-agent 的 getAgentDir() 与 pi-mcp-adapter 的 getAgentDir() 均读此 env（config.js ENV_AGENT_DIR / agent-dir.ts）。
+process.env.PI_CODING_AGENT_DIR ??= join(process.cwd(), "config/pi-agent");
+// glossary 二进制目录：本机 runtime/bin（脚本下载），Docker 镜像 /app/bin（Dockerfile ENV 覆盖）。
+process.env.CFPABOT_GLOSSARY_DIR ??= join(process.cwd(), "runtime/bin");
 
 export const REPO = {
   OWNER: "CFPAOrg",
@@ -28,7 +35,7 @@ export const AUTH = {
 /** Cache schema version. Bump when cache JSON structure changes. */
 export const CACHE_VERSION = 1;
 
-export { REQUIRED_DIRS, AGENT_SETTINGS_PATH } from "./runtime-paths.js";
+export { REQUIRED_DIRS } from "./runtime-paths.js";
 
 /** Bot login for finding existing bot comments on PRs. */
 export const BOT_LOGIN = "cfpa-bot[bot]";

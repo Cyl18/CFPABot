@@ -11,9 +11,10 @@ import { buildRawUrl } from "./github/helpers.js";
 // ---- Path resolution ----
 
 export function getRepoPath(): string {
-  // Use import.meta.dir (Bun: file dirname) over process.cwd() for stability
+  // Use import.meta.dir (Bun: file dirname) over process.cwd() for stability.
+  // src/client/ → src/ → CFPABot/ → 仓库根（应用本体在 CFPABot/ 内层）。
   const projectRoot = import.meta.dir
-    ? join(import.meta.dir, "..", "..")
+    ? join(import.meta.dir, "..", "..", "..")
     : process.cwd();
   return process.env.LOCAL_REPO_PATH ?? join(projectRoot, "..", "minecraft", "Minecraft-Mod-Language-Package");
 }

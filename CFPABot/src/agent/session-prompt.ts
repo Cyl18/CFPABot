@@ -84,15 +84,15 @@ export function buildSystemPrompt(session: SessionRecord): string {
 // ─── Custom ResourceLoader ──────────────────────────────────────────────
 // Resolves the translation-review skill from skills/translation-review/SKILL.md,
 // and delegates extension discovery to DefaultResourceLoader so standard Pi
-// extension/settings mechanisms work (settings.extensions in runtime/agent/
-// settings.json + project .mcp.json for MCP servers via pi-mcp-adapter).
+// extension/settings mechanisms work (settings.extensions in config/pi-agent/
+// settings.json + config/pi-agent/mcp.json for MCP servers via pi-mcp-adapter).
 
 export class CfpabotResourceLoader implements ResourceLoader {
   private systemPrompt: string;
   private skillDir: string;
   private delegate: DefaultResourceLoader;
 
-  constructor(systemPrompt: string, agentDir = "runtime/agent") {
+  constructor(systemPrompt: string, agentDir = process.env.PI_CODING_AGENT_DIR ?? "config/pi-agent") {
     this.systemPrompt = systemPrompt;
     this.skillDir = join(process.cwd(), "skills");
     this.delegate = new DefaultResourceLoader({

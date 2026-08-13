@@ -60,11 +60,6 @@ export const IDEMPOTENCY_DIR = `${OPS_DIR}/idempotency`;
 
 export const REPO_DIR = "runtime/repo";
 
-// ─── Pi agent dir (extension/settings host for pi-coding-agent SDK) ──
-
-export const AGENT_DIR = "runtime/agent";
-export const AGENT_SETTINGS_PATH = `${AGENT_DIR}/settings.json`;
-
 // ─── Required directories (created by ensureDirectories at boot) ──────
 
 export const REQUIRED_DIRS = [
@@ -80,7 +75,6 @@ export const REQUIRED_DIRS = [
   "logs",
   "temp",
   "runtime/repo",
-  AGENT_DIR,
 ] as const;
 
 // ─── Path helpers ─────────────────────────────────────────────────────
