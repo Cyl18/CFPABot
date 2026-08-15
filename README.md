@@ -72,190 +72,106 @@
 ## 架构
 
 ```
-                    ┌─────────────────────────────────────┐
-                    │         Entry Points                │
-                    │  GitHub Webhook │ REST API │ SSE    │
-                    └────────┬────────┬──────────┬────────┘
-                     │         │          │
-                     ┌────────▼────────▼──────────▼────────┐
-                     │         dispatch()                  │
-                     │   switch/case → composite Flows     │
-                     └────────┬────────────────────┬───────┘
-                              │                    │
-               ┌──────────────▼──┐     ┌───────────▼──────────┐
-               │  Composite     │     │  Agent Session       │
-               │  Event Flows   │     │  Manager (ReAct)     │
-               │  (onPrOpened,  │     │  /api/sessions/*     │
-               │   onPrSync...) │     │  (SSE streaming)     │
-               └────────┬───────┘     └───────────┬──────────┘
-                        │                         │
-                     ┌──▼─────────────────────────▼──────────┐
-                     │          Flow Registry                 │
-                     │  register / get / list / search        │
-                     └───────────────────────────────────────┘
-                                      │
-                                      ▼
-                      ┌──────────────────────────────────────┐
-                      │       Shared Utilities               │
-                      │  flows/_shared (pure functions)      │
-                      │  client/ (transport: GitHub, CF, MR) │
-                      └──────────────────────────────────────┘
+                 ┌────────────────────────────────────────────┐
+                 │                Entry Points                │
+                 │  Webhook (202 后后台执行)                  │
+                 │  REST API (/api/frontend, /api/sessions)   │
+                 │  SSE (/api/sessions/:id/stream)            │
+                 └────────┬──────────────┬─────────────┬──────┘
+                          │              │             │
+               ┌──────────▼─────┐  ┌─────▼──────┐  ┌───▼───────────┐
+               │ webhook/       │  │ api/       │  │ agent/        │
+               │ dispatch.ts    │  │ frontend/  │  │ session-*     │
+               │ direct/agent   │  │ sessions   │  │ flow-adapter  │
+               │ commands       │  │ (HTTP DTO) │  │ ReAct loop    │
+               └──────────┬─────┘  └─────┬──────┘  └───┬───────────┘
+                          │              │             │
+                          └──────────────┼─────────────┘
+                                         ▼
+                              executeFlow(flow, ctx, input)
+                                · TypeBox 校验 · 风险策略
+                                · 幂等 · 重试 · 超时 · NDJSON
+                                         │
+                                  FlowRegistry
+                                         │
+                          ┌──────────────┴──────────────┐
+                          │  flows/  (原子业务操作)     │
+                          │  flows/_shared/ (纯函数)    │
+                          │  client/   (外部副作用)     │
+                          └─────────────────────────────┘
 ```
+
+入口层只做协议转换和编排，所有业务副作用都经 `executeFlow()` 进入 Flow。Webhook 在完成
+HMAC / 去重 / DTO 转换后立即返回 202，真实处理在后台任务中执行并由优雅停机逻辑 drain。
 
 ### 核心概念
 
-**Flow** - 一等公民，每个业务操作是一个 Flow：
+**Flow** — 每个业务操作是一个 Flow，使用 TypeBox 作为唯一 schema：
 
 ```ts
-interface Flow<I, O> {
-  name: string;
+interface Flow<InputSchema, OutputSchema> {
+  name: string;                 // snake_case，1-64 字符
   description: string;
-  meta: { timeout?, retry?, permission?, tags? };
-  inputSchema: JSONSchema;
-  outputSchema: JSONSchema;
-  execute(ctx: FlowContext, input: I): Promise<O>;
+  input: InputSchema;           // TypeBox
+  output: OutputSchema;         // TypeBox
+  meta: {
+    tags: readonly string[];
+    risk: "read" | "review_write" | "repository_write" | "destructive";
+    effects: readonly FlowEffect[];
+    timeoutMs?: number;
+    retry?: { maxAttempts: number; backoffMs: number };
+    idempotencyKey?: (invocation, input) => string;
+    agent_callable?: boolean;
+  };
+  execute(ctx: FlowContext, input: Input): Promise<Output>;
 }
 ```
 
-Agent 只认识 Flow，编排函数也只调 Flow。Flow 之间直接 `await flow.execute()` 组合，不需要 DAG 引擎。
+- 生产调用必须经过 `executeFlow()`，不直接 `flow.execute()`。
+- Flow 之间不互相调用；固定编排在 dispatch，动态编排由 Agent 连续调用 Tool。
+- 注册时校验元数据：`read` 不能声明写 effect，配置 retry 必须提供幂等键，写风险必须声明写 effect。
+- Agent 可见性由 `src/agent/flow-policy.ts` 的显式白名单控制，不自动等同于 `agent_callable`。
 
-**Shared Utilities** — 纯函数工具库 (`src/flows/_shared/`)，无副作用：
+**Shared Utilities** — `flows/_shared/` 保持纯函数、无 I/O、无全局状态；实际子目录：
 
-| 模块 | 职责 | 示例 |
+| 模块 | 职责 |
+|---|---|
+| `language/` | 语言文件解析、差异计算、格式化、键分析 |
+| `terminology/` | 术语检查、n-gram、TM 匹配 |
+| `project-path/` | Minecraft 模组路径解析 |
+| `markdown/` | Markdown 转义与评论/审查报告渲染 |
+| `review/` | 审查共享算法（term projection 等） |
+
+外部副作用封装在 `client/`：GitHub、本地 Git、CurseForge、Modrinth、LLM 模型探测。
+
+### Webhook 事件流（当前实现）
+
+| 事件 | 路由 | 执行的 Flow |
 |---|---|---|
-| **analysis/** | PR 分析、路径校验、术语检查 | `validatePaths`, `analyzePR`, `formatRelationsWarning` |
-| **diff/** | 语言文件差异计算 | `computeLangDiff`, `formatDiffTable` |
-| **comment/** | 评论内容组装 | `assembleComment`, `buildCheckContent`, `chooseDeliveryChannel` |
-| **term/** | 术语表格格式化 | `formatTermCheckTable` |
-| **llm-review/** | LLM 审查流水线 | `LlmReviewPipelineImpl` |
+| `pull_request.opened` / `synchronize` | dispatch.ts | `packer_auto_approve` → 并行 `info_comment_refresh` + `checks_run_label_guard` + `labels_sync` + `pr_cache_refresh` |
+| `pull_request.edited` | dispatch.ts | 并行 `checks_run_label_guard` + `labels_sync` |
+| `pull_request.labeled` / `unlabeled` | dispatch.ts | `checks_run_label_guard` |
+| `pull_request.closed` | dispatch.ts | `pr_cache_refresh(mode=remove_closed)` |
+| `issue_comment.created` | direct-commands / agent-command | 单列命令直连 Flow；`/agent`、`/agent-review` 创建 Session |
+| `issue_comment.edited` | dispatch.ts | 复选框触发 `info_comment_force_refresh` |
+| `workflow_run.completed` | dispatch.ts | PR Packer 成功时 `info_comment_refresh_artifacts` |
+| `push`（默认分支） | dispatch.ts | `modlist_refresh(force=true)` |
 
-外部副作用（GitHub API、磁盘、CurseForge/Modrinth）在 `src/client/` 中封装。
-
-### Webhook 事件流
-
-| 事件 | 编排器 | 执行的 Flow |
-|---|---|---|
-| `pull_request.opened` | onPrOpened (composite) | updatePrComment + checkLabels + updateLabels + refreshPrData + checkContributor (并行) |
-| `pull_request.synchronize` | onPrSynchronized (composite) | updatePrComment + checkLabels + updateLabels + refreshPrData (并行) |
-| `pull_request.edited` / `labeled` / `unlabeled` | onPrLabelChanged (composite) | checkLabels + updateLabels + refreshPrsCache; labeled 时额外触发 triggerAgentReview |
-| `pull_request.closed` | onPrClosed (composite) | refreshPrData + refreshPrsCache |
-| `issue_comment.created` / `edited` | dispatch.ts | forceRefresh（复选框）/ commandRouter（/cmd 命令） |
-| `workflow_run` | dispatch.ts | updatePrComment（PR Packer artifacts）+ triggerAgentReview |
-
-### 目录结构
-
-以下路径相对 `CFPABot/` 内层目录（应用本体）：
+完整目录树以 `AGENTS.md` 为准。关键结构：
 
 ```
 src/
-├── index.ts               # 入口：加载配置 + 启动 bootstrap
-├── bootstrap.ts           # 服务器启动：Hono app + Flow 注册 + Bun.serve
-
-├── config.ts              # 环境变量 + 常量
-├── context.ts             # FlowContext 构建器
-├── types.ts               # 核心类型定义
-├── store.ts               # 文件存储
-├── logger.ts              # 日志
-├── cron.ts                # Cron 调度器
-├── cron-tasks/            # 定时任务 (modlist-refresh, curseforge-mapping, pr-cache-refresh, cleanup)
-├── agent/                 # Agent 系统
-│   ├── session-manager.ts # ReAct loop + 会话管理
-│   ├── llm-endpoints.ts   # LLM 模型注册/解析
-│   ├── review-run/        # ReviewRun 状态机 + LLM worker 流水线
-│   └── tools/
-│       └── flow-adapter.ts # Flow -> AgentTool 转换
-├── api/                   # HTTP 路由 (文件直接挂载, 无子目录)
-│   ├── auth.ts            # OAuth cookie 认证 (AES-256-GCM)
-│   ├── oauth.ts           # /api/oauth/* (GitHub OAuth)
-│   ├── frontend.ts        # /api/frontend/* 薄入口
-│   ├── frontend/          # 前端 API 子路由 (prs/pr/compare/compare-utils/modlist/csv/diff/stats/helpers, dev/)
-│   ├── sessions.ts        # /api/sessions/* (CRUD + SSE)
-│   ├── sessions-context.ts    # Session FlowContext 构建
-│   └── compare-utils.ts       # Compare 工具 (ZIP 提取等)
-├── engine/                # Flow 引擎
-│   ├── registry.ts        # FlowRegistry 接口
-│   ├── registry-store.ts  # 共享 FlowRegistry 单例
-│   └── execute.ts         # Flow 执行 + NDJSON 日志
-├── flows/                 # 全部业务逻辑 (Flow)
-│   ├── index.ts           # Barrel export
-│   ├── pr/                # PR 相关 Flow
-│   │   ├── updatePrComment.ts
-│   │   ├── checkLabels.ts / updateLabels.ts
-│   │   ├── refreshPrData.ts / checkContributor.ts
-│   │   ├── forceRefresh.ts
-│   │   ├── llmReview.ts / postComment.ts / triggerAgentReview.ts
-│   │   ├── onPrOpened.ts / onPrSynchronized.ts / onPrLabelChanged.ts / onPrClosed.ts
-│   │   └── ...
-│   ├── comment/           # 评论组装 Flow
-│   │   ├── assembleComment.ts
-│   │   ├── buildArtifactsSegment.ts
-│   │   ├── buildCheckSegment.ts
-│   │   ├── buildDiffSegment.ts
-│   │   └── buildModLinkSegment.ts
-│   ├── file/              # 文件操作 Flow
-│   │   ├── moveProject.ts / renameFile.ts / fetchEnUs.ts
-│   │   ├── replaceText.ts / sortKeys.ts / formatFile.ts
-│   ├── git/               # Git 操作 Flow
-│   │   ├── revertCommit.ts
-│   ├── misc/              # 杂项 Flow
-│   │   ├── commandRouter.ts / addCoAuthor.ts / addMapping.ts
-│   │   └── refreshPrsCache.ts
-│   └── _shared/           # 可复用工具库 (纯函数，无副作用)
-│       ├── index.ts           # Barrel export
-│       ├── event-utils.ts     # 共享 payload 提取工具
-│       ├── parse-mod-path.ts  # Minecraft 模组路径解析
-│       ├── pr-relation.ts     # PR 关系映射
-│       ├── git-repo.ts        # 本地 Git 操作 (Bun.spawn)
-│       ├── lock.ts            # 进程内并发锁
-│       ├── check-run-format.ts    # CheckRun 格式化
-│       ├── analysis/          # PR 分析
-│       │   ├── pr-analyzer.ts / path-validator.ts / label-helper.ts
-│       │   ├── mod-table.ts / key-analyzer.ts / mc-version.ts
-│       │   ├── file-ops.ts / error-formatter.ts
-│       ├── diff/              # 差异计算
-│       │   ├── lang-file.ts / lang-differ.ts / diff-table.ts / format-lang.ts
-│       ├── comment/           # 评论组装
-│       │   ├── comment-assembler.ts / check-content.ts / delivery.ts
-│       ├── term/              # 术语处理
-│       │   ├── data.ts / checker.ts / table.ts
-│       └── llm-review/        # LLM 审查
-│           ├── pipeline.ts / pipeline-utils.ts / types.ts
-├── client/                # 外部 API 客户端
-│   ├── index.ts           # Barrel export
-│   ├── github-client.ts   # GitHub API (Octokit 封装)
-│   ├── github-app-auth.ts # GitHub App JWT 认证
-│   ├── curseforge-client.ts   # CurseForge API
-│   └── modrinth-client.ts     # Modrinth API
-└── webhook/               # Webhook 处理
-    ├── receiver.ts        # HMAC 验证 + 事件反序列化
-    ├── dispatch.ts        # 事件 -> composite Flow 路由
-    └── route.ts           # POST /api/webhook + GET 手动触发
-
-web/
-├── index.html             # Vite 入口 HTML
-├── vite.config.ts         # Vite 配置 (proxy, outDir: ../public)
-└── src/
-    ├── main.tsx           # React 入口
-    ├── App.tsx            # React Router 路由定义
-    ├── index.css          # Tailwind 样式
-    ├── components/        # Layout, Skeleton, ErrorBoundary
-    ├── pages/             # 页面组件
-    │   ├── Dashboard.tsx / dashboard/helpers.tsx
-    │   ├── PrList.tsx / PrDetail.tsx
-    │   ├── Compare.tsx / CompareIndex.tsx / compare/ (DiffTable, SourcePanel, StatBadge, types)
-    │   ├── Sessions.tsx / sessions/ (helpers, components)
-    │   ├── AdminPanel.tsx / Cache.tsx / Logs.tsx
-    │   └── NotFound.tsx
-    ├── hooks/
-    │   └── useAgentChat/  # useAgentChat 拆分 (protocol, normalize, index)
-    ├── stores/
-    │   └── authStore.ts   # Zustand 认证状态
-    ├── lib/
-    │   └── api.ts         # API 客户端
-    └── types/             # 前端类型 (空目录, 类型集中在 lib/api.ts)
+├── bootstrap/          # 组合根：deps → routers → app → server
+├── api/
+│   ├── webhook/        # HMAC、DTO、dispatch、命令处理（router factory）
+│   ├── frontend/       # 薄 HTTP 路由，调用 executeFlow
+│   └── sessions.ts     # createSessionsRouter(deps) 工厂
+├── agent/              # SessionService、PiSessionManager、原生 Agent tools
+│   └── tools/          # review-moa/align/aggregate/finalize 等 LLM 工具
+├── engine/             # registry、executeFlow、policy、idempotency、retry、timeout
+├── flows/              # 原子业务 Flow（pr/info-comment/files/git/compare/cache/...）
+└── client/             # GitHub/Git/CurseForge/Modrinth 适配器
 ```
-
----
 
 ## 快速开始
 

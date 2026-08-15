@@ -16,3 +16,22 @@
     llm-endpoints.json。llm-registry.ts 目前没有该条目,直接配会报模型未注册。
  4. temp/ab*.json 是运行时临时文件:cleanup cron 可能会清掉。结论已完整固化在 docs/review-pipeline-batch-research-2026-08-01.md,原始 JSON
     丢了也不影响,只是没法再逐条翻。
+## 架构收口（2026-08 已处理）
+
+- [x] Webhook 先返回 202，命令/dispatch 后台执行并纳入优雅停机 drain
+- [x] 修复 HMAC 校验误把 sha256 签名当 sha1 验证的问题
+- [x] Flow 超时/会话 abort 信号传到 Octokit 与主要 git 子进程
+- [x] Flow 注册期元数据校验 + read/写 effect 一致性
+- [x] tm_build 风险改为 repository_write；review_comment 注释与 meta 对齐
+- [x] webhook/sessions 路由改为依赖注入 factory
+- [x] 共享 FileStore 注入所有 FlowContext；SessionStateStore 命中内存缓存
+- [x] /update-en 的 en_us 路径推导从 api 层移入 files_resolve_en_us_path Flow
+- [x] 敏感文件写入 0600、5xx 错误响应脱敏
+- [x] 新增 CI workflow 与 webhook/flow-policy 回归测试
+
+## 仍可继续
+
+- [ ] frontend/oauth/bmcl 等其余 router 逐步 factory 化
+- [ ] 前端 API 类型从 TypeBox 自动生成，消除手工同步
+- [ ] 全应用动态 smoke 用 fake deps 真正跑起来（不再 describe.skip）
+- [ ] ctx-store 改用注入 logger，替代 console.error

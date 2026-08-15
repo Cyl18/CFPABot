@@ -13,7 +13,8 @@
     "fetch:glossary": "bun run scripts/fetch-glossary.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test ./src",
-    "test:web": "bun run --cwd=web test"
+    "test:web": "bun run --cwd=web test",
+    "check": "bun run lint:arch && bun run typecheck && bun run test && bun run test:web"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.80.6",

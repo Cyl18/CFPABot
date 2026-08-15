@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main, TS-Agent]
+  pull_request:
+
+jobs:
+  cfpabot:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: CFPABot
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Architecture boundary lint
+        run: bun run lint:arch
+
+      - name: Typecheck backend
+        run: bun run typecheck
+
+      - name: Test backend
+        run: bun run test
+
+      - name: Typecheck + test frontend
+        run: bun run test:web
+
+      - name: Build frontend + backend
+        run: bun run build

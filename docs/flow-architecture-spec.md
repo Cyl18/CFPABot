@@ -1,5 +1,11 @@
 # Flow 原子化与 Agent Tool 规范
 
+> 实现演进提示（2026-08）：本文是早期设计快照，核心边界仍然有效。当前实现差异：
+> 发布 Flow 为 `review_comment`（repository_write，需确认），不是 `review_publish`；
+> compare Flow 为 `compare_workspace`（不是 `compare_run`）；Agent Flow 可见性采用
+> `src/agent/flow-policy.ts` 显式白名单；webhook router 为依赖注入 factory。
+> 冲突时以 AGENTS.md 和源码为准。
+
 ## 1. 目的
 
 本文定义 CFPAAgent 中以下边界：

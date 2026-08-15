@@ -39,6 +39,7 @@ cd CFPABot && bun run dev   # 开发: concurrently 同时启动后端(8080) + Vi
 cd CFPABot && bun run build # 生产构建: Vite 构建前端到 public/ + Bun 构建后端到 dist/
 cd CFPABot && bun run start # 生产运行: bun run dist/index.js
 cd CFPABot && bun run typecheck  # 类型检查: tsc --noEmit
+cd CFPABot && bun run check      # CI 级本地检查: arch lint + typecheck + 后端/前端测试
 ```
 
 > 所有 bun 命令在 `CFPABot/` 内层运行（bun 从 cwd 找 package.json/bunfig.toml，不向上查找）。
@@ -70,7 +71,7 @@ cd CFPABot && bun run typecheck  # 类型检查: tsc --noEmit
 | `CF_API_KEY` | CurseForge 模组信息查询 |
 | `PORT` | 服务端口 (默认 8080) |
 | `LOG_LEVEL` | 日志级别 (debug/info/warn/error) |
-| `REVIEW_PUBLISH_ENABLED` | 启用 review_publish Flow（默认 false）；false 时审查 E2E 仅产生 review 结果，不写入 GitHub |
+| `REVIEW_PUBLISH_ENABLED` | 启用 `review_comment` Flow 的发表能力（默认 false）；false 时审查 E2E 仅产生 review 结果，不写入 GitHub。注意评论恢复需要三重开关同时打开，见 docs/TODO.md |
 | `ASPNETCORE_ENVIRONMENT=Development` | 开发模式 (跳过启动时 GitHub 认证检查) |
 
 LLM 审查通过 JSON 文件配置 (`config/llm-endpoints.json`):
@@ -117,12 +118,12 @@ REST API → Hono路由 → OAuth认证 → 业务逻辑
 ### Web Compare & SpecialDiff
 
 - Compare 工具的业务逻辑已迁移到 `flows/compare/` 域（4 个 Flow）：
-  `compare_get_sources`、`compare_run`、`compare_upload`、`compare_special_diff`。
+  `compare_get_sources`、`compare_workspace`、`compare_upload`、`compare_special_diff`、`compare_cross_version`。
   API 层 (`api/frontend/compare.ts`) 仅做 HTTP DTO 解析 + `executeFlow()` 调用。
 - **非语言文件**（如 `.txt` 手册/manual 文件）不走普通 compare 端点，而是通过
   `GET /compare/:prId/special-diff`（`compare_special_diff` Flow）获取原始内容，
   由前端 Monaco 双窗格展示 diff。
-- 普通 compare 的 `POST /compare/:prId/do`（`compare_run` Flow）中 `resolveCompareSource`
+- 普通 compare 的 `POST /compare/:prId/workspace`（`compare_workspace` Flow）中 source 解析
   已加固：每个 source 独立解析，fetch 失败时返回 `{}` 而非抛出，保证单 source 失败不会拖垮整次对比。
 
 SSE → PiSessionManager(pi-coding-agent AgentSession)
