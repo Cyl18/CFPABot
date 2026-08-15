@@ -6,12 +6,32 @@ import { createGitHubClient } from "./octokit-client.js";
 import type { GitHubClient } from "./types.js";
 import type { Logger } from "../../types.js";
 
+// Per-token client cache. authMiddleware validates the cookie on every
+// request and the route then builds another FlowContext — without a cache
+// that is two Octokit instances + hook stacks per API call. Tokens are
+// short-lived cookies; a bounded insertion-order LRU prevents unbounded
+// growth for long-lived processes.
+const userClientCache = new Map<string, GitHubClient>();
+const USER_CLIENT_CACHE_MAX = 500;
+
 /**
- * Create a GitHubClient backed by Octokit with user OAuth token.
+ * Create (or reuse) a GitHubClient backed by Octokit with a user OAuth token.
  * Replaces the raw-fetch user-token-client.ts implementation.
  */
 export function createUserTokenGitHubClient(token?: string, logger?: Logger): GitHubClient {
-  return createGitHubClient(createUserOctokit(token, logger));
+  if (!token) {
+    throw new Error("GitHub OAuth token is required for user-scoped requests");
+  }
+  const cached = userClientCache.get(token);
+  if (cached) return cached;
+
+  const client = createGitHubClient(createUserOctokit(token, logger), undefined, logger);
+  if (userClientCache.size >= USER_CLIENT_CACHE_MAX) {
+    const oldest = userClientCache.keys().next();
+    if (!oldest.done) userClientCache.delete(oldest.value);
+  }
+  userClientCache.set(token, client);
+  return client;
 }
 
 export { createGitHubClient } from "./octokit-client.js";

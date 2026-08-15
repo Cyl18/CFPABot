@@ -44,7 +44,11 @@ export class SessionStateStore {
   // ─── Read ─────────────────────────────────────────────────────────
 
   async getSession(sessionId: string): Promise<SessionRecord | null> {
+    // Single-process invariant: every mutation updates this cache before it
+    // resolves. Returning the cached record avoids a disk read per poll
+    // (agent loops poll pendingConfirmation frequently).
     const cached = this.sessions.get(sessionId);
+    if (cached) return cached;
 
     const path = sessionPath(sessionId);
     const record = await this.store.read<SessionRecord>(path);
