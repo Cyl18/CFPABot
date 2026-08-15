@@ -186,7 +186,8 @@ export async function saveConfig(body: unknown): Promise<void> {
 
   // 原子写 + Windows rename 重试(复用 fs-utils;失败自动清理临时文件)
   try {
-    await writeJsonFile(LLM_ENDPOINTS_JSON_PATH, out);
+    // API keys live in this file — keep it owner-readable on POSIX.
+    await writeJsonFile(LLM_ENDPOINTS_JSON_PATH, out, { mode: 0o600 });
   } catch (err) {
     throw new Error(`Failed to write ${LLM_ENDPOINTS_JSON_PATH}: ${(err as Error).message}`);
   }

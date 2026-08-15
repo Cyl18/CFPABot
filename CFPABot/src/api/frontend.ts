@@ -2,6 +2,7 @@
 // Thin entry point for frontend API routes - mounts sub-routers from ./frontend/
 
 import { Hono } from "hono";
+import { Type } from "typebox";
 import { authMiddleware, requireAuth, requireAdmin } from "./auth.js";
 import { createUserTokenGitHubClient } from "@/client/github/index.js"
 import {
@@ -12,6 +13,7 @@ import { getRecentLogs } from "@/logger.js";
 import type { LogEntry } from "@/logger.js";
 import { executeFlow } from "@/engine/execute.js";
 import { buildUserFlowContext, getApiLogger } from "./flow-context.js";
+import { parseBody, sendApiError } from "./body.js";
 
 
 // ---- Sub-routers ----
@@ -81,15 +83,11 @@ protectedFrontend.post("/review/:prid", requireAdmin, async (c) => {
   const prNumber = parseInt(c.req.param("prid"), 10);
   if (isNaN(prNumber)) return c.json({ error: "Invalid PR number" }, 400);
 
-  const body = await c.req.json<{
-    threadCommentId?: number;
-    body?: string;
-    sessionId?: string;
-  }>();
-
-  if (!body.threadCommentId || !body.body) {
-    return c.json({ error: "threadCommentId and body are required" }, 400);
-  }
+    const body = await parseBody(c, Type.Object({
+    threadCommentId: Type.Number(),
+    body: Type.String({ minLength: 1 }),
+    sessionId: Type.Optional(Type.String()),
+  }));
 
   try {
     const registry = getSharedRegistry();
@@ -106,8 +104,7 @@ protectedFrontend.post("/review/:prid", requireAdmin, async (c) => {
 
     return c.json(result);
   } catch (err) {
-    // 500 不泄漏内部错误详情 — 仅返回通用信息
-    return c.json({ error: "Failed to reply to review thread" }, 500);
+    return sendApiError(c, err, { prefix: "Failed to reply to review thread" });
   }
 });
 

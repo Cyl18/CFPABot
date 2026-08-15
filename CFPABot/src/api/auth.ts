@@ -4,7 +4,7 @@
 import type { MiddlewareHandler } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { createDecipheriv, createCipheriv, randomBytes } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { chmod, readFile, writeFile } from "node:fs/promises";
 import { AUTH } from "@/config.js";
 import { createUserTokenGitHubClient } from "@/client/github/index.js";
 import { getApiLogger } from "./flow-context.js";
@@ -16,6 +16,15 @@ const IV_LENGTH = 12; // GCM nonce size — NIST SP 800-38D recommends 12 bytes
 const GCM_TAG_LENGTH = 16;
 
 const KEY_FILE = "config/encrypt_key.txt";
+
+/** auth middleware may run before initApiDeps in tests / route contracts. */
+function apiLoggerOrNull(): ReturnType<typeof getApiLogger> | null {
+  try {
+    return getApiLogger();
+  } catch {
+    return null;
+  }
+}
 
 /** Encrypt key loaded at bootstrap, avoids TOCTOU race from lazy init. */
 let _encryptKey: string | null = null;
@@ -119,13 +128,17 @@ export function decryptOAuthToken(encrypted: string, key: string): string {
 export async function getOrCreateEncryptKey(): Promise<string> {
   try {
     const key = (await readFile(KEY_FILE, "utf-8")).trim();
-    if (key.length > 0) return key;
+    if (key.length > 0) {
+      // Tighten permissions on pre-existing key files where POSIX chmod works.
+      await chmod(KEY_FILE, 0o600).catch(() => {});
+      return key;
+    }
   } catch {
     // file missing or empty — generate new key
   }
 
   const key = randomBytes(32).toString("hex");
-  await writeFile(KEY_FILE, key, "utf-8");
+  await writeFile(KEY_FILE, key, { encoding: "utf-8", mode: 0o600 });
   return key;
 }
 
@@ -141,8 +154,9 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
   if (process.env.ASPNETCORE_ENVIRONMENT === "Development") {
     const devToken = process.env.GITHUB_OAUTH_TOKEN;
     if (devToken) {
+      const logger = apiLoggerOrNull();
       try {
-        const client = createUserTokenGitHubClient(devToken, getApiLogger());
+        const client = createUserTokenGitHubClient(devToken, logger ?? undefined);
         const user = await client.getUser();
         c.set("user", { ...user, avatar: "" });
         c.set("oauthToken", devToken);
@@ -151,7 +165,7 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
       } catch (e) {
         // Token present but verification failed — don't silently grant admin.
         // Fall back to no-user mode so misconfiguration is visible.
-        getApiLogger().warn({ err: String(e) }, "[auth][dev]: GITHUB_OAUTH_TOKEN 验证失败，清除 dev 登录");
+        logger?.warn({ err: String(e) }, "[auth][dev]: GITHUB_OAUTH_TOKEN 验证失败，清除 dev 登录");
         c.set("user", null);
         c.set("oauthToken", null);
         c.set("isAdmin", false);
@@ -174,7 +188,8 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
     const token = decryptOAuthToken(encrypted, key);
   
     // Validate token by fetching the authenticated user
-    const client = createUserTokenGitHubClient(token, getApiLogger());
+    const logger = apiLoggerOrNull();
+    const client = createUserTokenGitHubClient(token, logger ?? undefined);
     const user = await client.getUser();
     c.set("user", user);
     c.set("oauthToken", token);
@@ -184,7 +199,7 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
     c.set("isAdmin", await checkAdminStatus(client, user.login));
     c.set("isContributor", false);
   } catch (e) {
-    getApiLogger().warn({ err: String(e) }, "[auth]: OAuth token 验证失败，清除 cookie");
+    apiLoggerOrNull()?.warn({ err: String(e) }, "[auth]: OAuth token 验证失败，清除 cookie");
     c.set("user", null);
     c.set("oauthToken", null);
     c.set("isAdmin", false);

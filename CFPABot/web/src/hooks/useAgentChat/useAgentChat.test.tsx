@@ -67,14 +67,21 @@ describe('useAgentChat', () => {
     expect(secondCount).toBe(firstCount) // …and then it stopped
   })
 
-  it('keeps session callbacks referentially stable across re-renders', () => {
+  it('keeps session callbacks referentially stable across re-renders', async () => {
     const { result, rerender } = renderHook(() => useAgentChat())
+
+    // Let the initial getSessions effect settle before synchronous rerenders.
+    await act(async () => {
+      await sleep(0)
+    })
 
     const selectSession1 = result.current.selectSession
     const startSession1 = result.current.startSession
 
-    rerender()
-    rerender()
+    act(() => {
+      rerender()
+      rerender()
+    })
 
     expect(result.current.selectSession).toBe(selectSession1)
     expect(result.current.startSession).toBe(startSession1)

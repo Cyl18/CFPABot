@@ -16,7 +16,7 @@
 // touching the same file); writeJsonFile is appropriate when the caller already
 // serializes access.
 
-import { mkdir, rename, unlink } from "node:fs/promises";
+import { mkdir, rename, unlink, chmod } from "node:fs/promises";
 import { dirname } from "node:path";
 import { acquireLock } from "@/engine/lock.js";
 
@@ -79,11 +79,15 @@ export async function readJsonFile<T>(
 export async function writeJsonFile(
   path: string,
   data: unknown,
+  options?: { mode?: number },
 ): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const tmpPath = `${path}.tmp.${crypto.randomUUID()}`;
   try {
     await Bun.write(tmpPath, JSON.stringify(data, null, 2));
+    if (options?.mode !== undefined) {
+      await chmod(tmpPath, options.mode);
+    }
     await renameWithRetry(tmpPath, path);
   } catch (err) {
     // Clean up temp file on failure; ignore ENOENT

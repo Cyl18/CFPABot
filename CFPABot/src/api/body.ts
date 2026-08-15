@@ -88,23 +88,26 @@ export function sendApiError(
 ): Response {
   if (err instanceof FlowError) {
     const status = flowErrorToStatusCode(err);
-    return c.json(
-      { error: err.publicMessage, code: err.code, detail: err.message },
-      status,
-    );
+    // Internal messages (stack traces, upstream error text) are log material,
+    // never response material. 5xx responses expose only the public message.
+    return status >= 500
+      ? c.json({ error: err.publicMessage, code: err.code }, status)
+      : c.json({ error: err.publicMessage, code: err.code, detail: err.message }, status);
   }
   if (err instanceof HttpBodyError) {
     return c.json({ error: err.message }, err.status);
   }
   // Errors carrying a numeric HTTP status (e.g. LlmCallError from upstream
-  // failures) keep it; anything else becomes a generic 500.
+  // failures) keep their message for the admin caller; only 500 is sanitized.
   if (err && typeof err === "object" && "status" in err && typeof err.status === "number") {
     const message = err instanceof Error ? err.message : String(err);
     if (isContentfulStatus(err.status)) {
-      return c.json({ error: message }, err.status);
+      return err.status >= 500
+        ? c.json({ error: "Internal Server Error" }, err.status)
+        : c.json({ error: message }, err.status);
     }
   }
-  const message = err instanceof Error ? err.message : String(err);
   const prefix = options?.prefix ? `${options.prefix}: ` : "";
-  return c.json({ error: prefix + message }, 500);
+  void prefix;
+  return c.json({ error: "Internal Server Error" }, 500);
 }
