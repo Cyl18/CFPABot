@@ -43,8 +43,10 @@ RUN bun install --frozen-lockfile --production
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/public ./public
 COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/config/pi-agent ./config/pi-agent
+COPY --from=build /app/config/vanilla-terms.json ./config/vanilla-terms.json
 
-RUN mkdir -p config runtime logs temp
+RUN mkdir -p runtime logs temp
 
 EXPOSE 8080
 

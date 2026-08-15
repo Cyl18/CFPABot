@@ -1,11 +1,8 @@
 // src/agent/session-prompt.ts
-// System prompt construction and prompt-text resolution for agent sessions.
+// Pure prompt construction for agent sessions. Pi resource loading
+// (extensions/MCP/skills) lives in src/agent/pi-runtime.ts.
 
-import { join } from "node:path";
 import type { SessionRecord } from "./session-types.js";
-import type { ResourceLoader, LoadExtensionsResult, ResourceDiagnostic } from "@earendil-works/pi-coding-agent";
-import type { Skill, PromptTemplate, Theme } from "@earendil-works/pi-coding-agent";
-import { DefaultResourceLoader, SettingsManager, loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
 
 /**
  * Validate that active tool names include all expected names. Extension tools
@@ -31,7 +28,8 @@ export function validateToolSet(
  *
  * For sessions whose objective starts with /skill:translation-review (the
  * /agent-review command), emit the skill command so pi-coding-agent expands
- * skills/translation-review/SKILL.md into the first-turn user message
+ * config/pi-agent/skills/translation-review/SKILL.md into the first-turn
+ * user message
  * (SDK `_expandSkillCommand`, see agent-session.js).
  *
  * 注意: SDK 的 _expandSkillCommand 用「第一个空格」分隔 skill 名与参数 ——
@@ -79,69 +77,4 @@ export function buildSystemPrompt(session: SessionRecord): string {
     session.baseSha ? `- base: ${session.baseSha}` : undefined,
     session.headSha ? `- head: ${session.headSha}（全 SHA，工具入参需要全 SHA，勿截短）` : undefined,
   ].filter((l) => l !== undefined).join("\n");
-}
-
-// ─── Custom ResourceLoader ──────────────────────────────────────────────
-// Resolves the translation-review skill from skills/translation-review/SKILL.md,
-// and delegates extension discovery to DefaultResourceLoader so standard Pi
-// extension/settings mechanisms work (settings.extensions in config/pi-agent/
-// settings.json + config/pi-agent/mcp.json for MCP servers via pi-mcp-adapter).
-
-export class CfpabotResourceLoader implements ResourceLoader {
-  private systemPrompt: string;
-  private skillDir: string;
-  private delegate: DefaultResourceLoader;
-
-  constructor(systemPrompt: string, agentDir = process.env.PI_CODING_AGENT_DIR ?? "config/pi-agent") {
-    this.systemPrompt = systemPrompt;
-    this.skillDir = join(process.cwd(), "skills");
-    this.delegate = new DefaultResourceLoader({
-      cwd: process.cwd(),
-      agentDir,
-      settingsManager: SettingsManager.create(process.cwd(), agentDir),
-      // Extension discovery only — skills/prompts/themes/context stay with
-      // CfpabotResourceLoader's own implementations below.
-      noSkills: true,
-      noPromptTemplates: true,
-      noThemes: true,
-      noContextFiles: true,
-      systemPrompt,
-    });
-  }
-
-  getExtensions(): LoadExtensionsResult {
-    return this.delegate.getExtensions();
-  }
-
-  getSkills(): { skills: Skill[]; diagnostics: ResourceDiagnostic[] } {
-    return loadSkillsFromDir({ dir: this.skillDir, source: "cfpabot" });
-  }
-
-  getPrompts(): { prompts: PromptTemplate[]; diagnostics: ResourceDiagnostic[] } {
-    return { prompts: [], diagnostics: [] };
-  }
-
-  getThemes(): { themes: Theme[]; diagnostics: ResourceDiagnostic[] } {
-    return { themes: [], diagnostics: [] };
-  }
-
-  getAgentsFiles(): { agentsFiles: Array<{ path: string; content: string }> } {
-    return { agentsFiles: [] };
-  }
-
-  getSystemPrompt(): string | undefined {
-    return this.systemPrompt;
-  }
-
-  getAppendSystemPrompt(): string[] {
-    return [];
-  }
-
-  extendResources(paths: unknown): void {
-    this.delegate.extendResources(paths as never);
-  }
-
-  async reload(options?: unknown): Promise<void> {
-    await this.delegate.reload(options as never);
-  }
 }

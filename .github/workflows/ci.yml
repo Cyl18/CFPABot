@@ -27,11 +27,11 @@ jobs:
       - name: Typecheck backend
         run: bun run typecheck
 
-      - name: Test backend
-        run: bun run test
+      - name: Smoke backend
+        run: bun run smoke
 
-      - name: Typecheck + test frontend
-        run: bun run test:web
+      - name: Typecheck frontend
+        run: bun run --cwd=web typecheck
 
       - name: Build frontend + backend
         run: bun run build

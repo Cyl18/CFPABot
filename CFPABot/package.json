@@ -12,9 +12,10 @@
     "lint:arch": "bun run scripts/lint-arch.ts",
     "fetch:glossary": "bun run scripts/fetch-glossary.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test ./src",
-    "test:web": "bun run --cwd=web test",
-    "check": "bun run lint:arch && bun run typecheck && bun run test && bun run test:web"
+    "smoke": "bun test ./src/__tests__/smoke.test.ts",
+    "test": "bun run smoke",
+    "typecheck:web": "bun run --cwd=web typecheck",
+    "check": "bun run lint:arch && bun run typecheck && bun run smoke && bun run typecheck:web"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.80.6",

@@ -6,12 +6,9 @@
 // SessionRecord.messages is a metadata breadcrumb only, so history is served
 // through this reader via GET /sessions/:sessionId/messages.
 
-import { resolve, normalize, join } from "node:path";
 import { readFile } from "node:fs/promises";
 import type { SessionMessage } from "./session-types.js";
-import { SESSIONS_TRANSCRIPTS_DIR } from "../runtime-paths.js";
-
-const PI_SESSIONS_PREFIX = normalize(resolve(SESSIONS_TRANSCRIPTS_DIR)).replace(/\\/g, "/") + "/";
+import { sessionTranscriptAbs } from "../runtime-paths.js";
 
 interface ProjectableMessage {
   role?: unknown;
@@ -64,19 +61,11 @@ export function extractThinkingText(msg: ProjectableMessage): string | undefined
 
 /**
  * Assert that a transcript path resides under the transcripts directory.
- * Same rule as session-manager: path must be inside SESSIONS_TRANSCRIPTS_DIR.
- * Returns the absolute resolved path.
+ * The containment rule lives in runtime-paths.sessionTranscriptAbs and is
+ * shared with agent/pi-runtime.ts.
  */
 function safeTranscriptAbs(piSessionFile: string): string {
-  const cwd = process.cwd();
-  const requested = resolve(join(cwd, piSessionFile));
-  const normalizedReq = normalize(requested).replace(/\\/g, "/");
-  if (!normalizedReq.startsWith(PI_SESSIONS_PREFIX)) {
-    throw new Error(
-      `Invalid piSessionFile path: ${piSessionFile} — must reside under ${SESSIONS_TRANSCRIPTS_DIR}`,
-    );
-  }
-  return requested;
+  return sessionTranscriptAbs(piSessionFile);
 }
 
 /** Parse a pi-coding-agent JSONL file into flat SessionMessage-compatible messages. */

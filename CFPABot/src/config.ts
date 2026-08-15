@@ -2,16 +2,16 @@
 // Loads entry layer configuration from environment variables + constants.
 // Runtime validation with TypeBox — fails fast with clear error messages on missing/invalid vars.
 
-import { join } from "node:path";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { readFile } from "node:fs/promises";
+import { ensurePiRuntimeEnv } from "./runtime-paths.js";
 
 // pi-agent 配置环境：项目内 config/pi-agent（git 跟踪），与构建 agent（opencode/omp 根 .mcp.json）分离。
-// pi-coding-agent 的 getAgentDir() 与 pi-mcp-adapter 的 getAgentDir() 均读此 env（config.js ENV_AGENT_DIR / agent-dir.ts）。
-process.env.PI_CODING_AGENT_DIR ??= join(process.cwd(), "config/pi-agent");
+// pi-coding-agent 的 getAgentDir() 与 pi-mcp-adapter 的 getAgentDir() 均读 PI_CODING_AGENT_DIR。
 // glossary 二进制目录：本机 runtime/bin（脚本下载），Docker 镜像 /app/bin（Dockerfile ENV 覆盖）。
-process.env.CFPABOT_GLOSSARY_DIR ??= join(process.cwd(), "runtime/bin");
+// 路径常量与 env 初始化统一在 src/runtime-paths.ts。
+ensurePiRuntimeEnv();
 
 export const REPO = {
   OWNER: "CFPAOrg",

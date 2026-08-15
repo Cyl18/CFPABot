@@ -10,7 +10,14 @@ public/
 runtime/
 logs/
 temp/
-config/
+# Runtime config defaults are baked into the image (config/pi-agent + vanilla
+# terms); secrets under config/ stay out and are supplied via volume/env.
+config/*
+!config/pi-agent/
+!config/vanilla-terms.json
+config/cfpa-bot.pem
+config/encrypt_key.txt
+config/llm-endpoints.json
 *.md
 AGENTS.md
 TODO.md

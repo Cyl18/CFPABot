@@ -27,6 +27,38 @@
 // └── repo/                        # shallow clone — stay top-level
 
 import crypto from "node:crypto";
+import { isAbsolute, relative, resolve } from "node:path";
+
+// ─── Pi agent runtime ─────────────────────────────────────────────────
+// config/pi-agent is the tracked Pi agent environment: settings.json,
+// mcp.json and skills/. These constants are consumed by src/agent/pi-runtime.ts
+// — Pi resource/extension/MCP/skill management.
+
+export const PI_AGENT_DIR = "config/pi-agent";
+export const PI_SETTINGS_PATH = `${PI_AGENT_DIR}/settings.json`;
+export const PI_MCP_CONFIG_PATH = `${PI_AGENT_DIR}/mcp.json`;
+export const PI_SKILLS_DIR = `${PI_AGENT_DIR}/skills`;
+export const PI_GLOSSARY_DIR = "runtime/bin";
+
+/** Resolve the configured Pi agent dir (env override wins, otherwise project default). */
+export function piAgentDirAbs(cwd: string = process.cwd()): string {
+  const configured = process.env.PI_CODING_AGENT_DIR?.trim();
+  if (configured) return resolve(cwd, configured);
+  return resolve(cwd, PI_AGENT_DIR);
+}
+
+/**
+ * Ensure Pi/glossary runtime env vars exist before any pi SDK module reads them.
+ * Both pi-coding-agent and pi-mcp-adapter read PI_CODING_AGENT_DIR at call time.
+ * `agentDir` is normally the project default; PiRuntime can pass an explicit dir.
+ */
+export function ensurePiRuntimeEnv(
+  cwd: string = process.cwd(),
+  agentDir: string = resolve(cwd, PI_AGENT_DIR),
+): void {
+  process.env.PI_CODING_AGENT_DIR ??= resolve(agentDir);
+  process.env.CFPABOT_GLOSSARY_DIR ??= resolve(cwd, PI_GLOSSARY_DIR);
+}
 
 // ─── Cache (rebuildable) ──────────────────────────────────────────────
 
@@ -118,4 +150,25 @@ export function executionPath(id: string): string {
 /** Absolute path for the shallow-clone repo dir, resolved from cwd. */
 export function repoDirAbs(): string {
   return `${process.cwd().replace(/\\/g, "/")}/${REPO_DIR}`;
+}
+
+/**
+ * Resolve a persisted pi transcript path and enforce that it stays inside
+ * runtime/sessions/transcripts. This is the single path-containment rule used
+ * by both transcript creation/open (agent/pi-runtime.ts) and the transcript
+ * reader (agent/pi-transcript-reader.ts).
+ */
+export function sessionTranscriptAbs(
+  piSessionFile: string,
+  cwd: string = process.cwd(),
+): string {
+  const transcriptsAbs = resolve(cwd, SESSIONS_TRANSCRIPTS_DIR);
+  const requested = resolve(cwd, piSessionFile);
+  const rel = relative(transcriptsAbs, requested);
+  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
+    throw new Error(
+      `Invalid piSessionFile path: ${piSessionFile} — must reside under ${SESSIONS_TRANSCRIPTS_DIR}`,
+    );
+  }
+  return requested;
 }

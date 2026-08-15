@@ -64,9 +64,9 @@ export async function handleAgentReviewCommand(
   deps.logger.info({}, "/agent-review command received");
   const userTail = commentBody.trim().replace(/^\/agent-review\b/, "").trim();
   // Route /agent-review through the translation-review skill. The skill
-  // body is loaded by CfpabotResourceLoader.getSkills() from
-  // skills/translation-review/SKILL.md; the /skill: prefix in the objective
-  // tells resolvePromptText to expand it inline for the first turn.
+  // body is loaded by PiRuntime from config/pi-agent/skills/; the /skill:
+  // prefix in the objective tells resolvePromptText to expand it inline
+  // for the first turn.
   const objective = `/skill:translation-review${userTail ? ` — ${userTail}` : ""}`;
 
   const sender = payload.sender as Record<string, unknown> | undefined;

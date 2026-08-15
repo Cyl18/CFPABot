@@ -26,9 +26,9 @@ CFPABot/                    # 仓库根
     ├── Dockerfile / .dockerignore / .env.example
     ├── src/                # 后端 (Bun + Hono)
     ├── web/                # 前端 (Vite + React)
-    ├── config/             # 运行时配置（pi-agent/ 为 pi-agent 配置环境，git 跟踪）
+    ├── config/             # 运行时配置（pi-agent/ 含 settings/mcp/skills，git 跟踪）
     ├── runtime/ / logs/ / temp/   # 运行时数据（gitignored）
-    └── scripts/ skills/
+    └── scripts/
 ```
 
 ## 开发与构建
@@ -39,8 +39,16 @@ cd CFPABot && bun run dev   # 开发: concurrently 同时启动后端(8080) + Vi
 cd CFPABot && bun run build # 生产构建: Vite 构建前端到 public/ + Bun 构建后端到 dist/
 cd CFPABot && bun run start # 生产运行: bun run dist/index.js
 cd CFPABot && bun run typecheck  # 类型检查: tsc --noEmit
-cd CFPABot && bun run check      # CI 级本地检查: arch lint + typecheck + 后端/前端测试
+cd CFPABot && bun run smoke      # 后端冒烟: Flow 注册/执行、Pi 资源、webhook HMAC
+cd CFPABot && bun run check      # CI 级本地检查: arch lint + typecheck + smoke + 前端 typecheck
 ```
+
+### 测试策略
+
+- **不做细粒度单元测试，冒烟测试是上限。** 只覆盖会影响启动/关键链路的契约。
+- 后端冒烟集中在一个文件：`src/__tests__/smoke.test.ts`。
+- 前端不写组件/hook 测试；`check` 里前端只跑 typecheck，`build` 本身再做一次 `tsc -b`。
+- 新功能默认不补测试；只有改变 Flow 注册、Pi resource 加载、webhook 入口等关键路径时，才扩展现有 smoke。
 
 > 所有 bun 命令在 `CFPABot/` 内层运行（bun 从 cwd 找 package.json/bunfig.toml，不向上查找）。
 
@@ -201,11 +209,12 @@ src/
 ├── _shared/              # 项目级共享工具
 │   └── fs-utils.ts         # 文件读写工具 (readJsonFile, writeJsonLocked, 原 durable-json)
 ├── agent/                # AI Agent 模块 (pi-coding-agent 集成)
-│   ├── session-manager.ts   # PiSessionManager — AgentSession 封装 (prompt/SSE/transcript)
+│   ├── pi-runtime.ts        # PiRuntime — Pi SDK runtime 组装 (settings/extension/MCP/skill/transcript)
+│   ├── session-manager.ts   # PiSessionManager — 会话编排 (模型/工具/SSE/continuation/abort)
 │   ├── session-service.ts   # 会话业务元数据持久化 + confirmation 生命周期
 │   ├── session-types.ts     # 会话类型定义
 │   ├── session-ctx.ts       # Agent FlowContext 构建
-│   ├── session-prompt.ts    # Agent 提示词注入
+│   ├── session-prompt.ts    # Agent 提示词纯构造（资源加载已移入 pi-runtime）
 │   ├── session-projection.ts# 会话消息投影 (DB → API DTO)
 │   ├── session-sse.ts       # SSE 事件流 (流式消息 + 进度)
 │   ├── ctx-store.ts         # 会话 ctx 增量持久化 (runtime/sessions/ctx/)
@@ -292,11 +301,11 @@ src/
 │   ├── mappings/           # 映射: mapping-add, unmapped-slugs
 │   ├── terminology/        # 术语/TM 基建: terms_ngram_build (n-gram 自动术语表), tm_build (BM25+fuzzy TM 索引)
 │   └── compare/            # Compare 工具: get-sources, run, upload, special-diff, workspace, cross-version
-├── __tests__/             # 集成测试 + 契约测试
-│   ├── api-route-contracts.test.ts # API 路由契约测试
-│   ├── integration.test.ts         # 架构边界集成测试
+├── __tests__/             # 冒烟测试（唯一后端测试文件）
+│   ├── smoke.test.ts              # Flow 注册/执行、Pi 资源、webhook HMAC
 │   └── helpers/
-│       └── mock-context.ts
+│       ├── mock-context.ts
+│       └── prefixed-store.ts
 │
 ├── client/               # 外部 API 客户端
 │   ├── index.ts            # Barrel export
@@ -339,7 +348,13 @@ web/
 │   │   └── helpers.tsx      # 前端辅助函数
 │   └── types/              # (空: 前端类型移至 lib/api/types.ts)
 │
-config/                         # 运行时配置 (encrypt_key.txt, cfpa-bot.pem)
+config/                         # 运行时配置（pi-agent/ 含 settings/mcp/skills，git 跟踪；secrets 忽略）
+├── pi-agent/
+│   ├── settings.json           # extension 声明
+│   ├── mcp.json                # MCP server 声明
+│   └── skills/
+│       └── translation-review/
+│           └── SKILL.md
 runtime/                        # 运行时数据
 ├── cache/                      # 可重建缓存
 │   ├── modlist.json
@@ -359,7 +374,6 @@ runtime/                        # 运行时数据
 │   ├── ctx/                     # 会话 ctx 增量快照 (审查中间表/最终表/术语)
 │   └── transcripts/            # 原 runtime/pi-sessions
 │       └── {ts}_{id}.jsonl
-├── agent/                      # Pi agent 目录 (settings.json 注册 extensions, 如 pi-mcp-adapter)
 ├── ops/
 │   ├── executions/             # 原 runtime/executions
 │   └── idempotency/            # 原 runtime/idempotency
@@ -371,9 +385,6 @@ docs/                           # 开发文档
 ├── flow-architecture-spec.md
 ├── semantic-layer-analysis.md  # 语义层分析
 └── handoff-2026-07-12-api-client-边界.md
-skills/                         # Agent 技能 (SKILL.md)
-└── translation-review/
-    └── SKILL.md
 ```
 
 ## 模块放置规则
@@ -439,7 +450,7 @@ dispatch.ts 直接通过 switch/case 路由到各 Flow，无中间的 composite 
 PR 评论中以 `/agent` 或 `/agent-review` 开头的命令（首行）由 `src/api/webhook/route.ts` 检测并通过 `src/api/webhook/agent-command.ts` 处理:
 
 - `/agent <目标说明>` — 创建一个完整的 Agent ReAct 会话，通过 `flowToAgentTool` 暴露所有注册的 Flow 作为工具，Agent 可自主编排执行顺序
-- `/agent-review` — 创建 Agent 会话并加载 `skills/translation-review/SKILL.md` 技能，进入翻译审查流水线。审查逻辑由 Agent 通过 `agent/tools/` 中的原生工具执行，不经过 Flow 引擎
+- `/agent-review` — 创建 Agent 会话并加载 `config/pi-agent/skills/translation-review/SKILL.md` 技能，进入翻译审查流水线。审查逻辑由 Agent 通过 `agent/tools/` 中的原生工具执行，不经过 Flow 引擎
 
 会话创建后由 `SessionService` (`src/agent/session-service.ts`) 持久化到 `runtime/sessions/`，
 通过 `AgentSessionManager` (`src/agent/session-manager.ts`) 驱动 pi-agent ReAct loop，
@@ -480,27 +491,51 @@ Agent ReAct loop 自身的 LLM 调用也使用同一注册表 (`src/agent/sessio
 
 ## MCP 集成
 
-审查 Agent 通过 `pi-mcp-adapter` extension 使用 MCP server（如 packtrans-glossary 术语库）：
+审查 Agent 通过 `pi-mcp-adapter` extension 使用 MCP server（如 packtrans-glossary 术语库）。
+
+### Pi 资产放置策略（2026-08 定稿）
+
+| 资产 | 位置 | git | 编译/加载 | 说明 |
+|---|---|---|---|---|
+| 第三方 extension（如 `pi-mcp-adapter`） | npm 依赖，本体在 `node_modules/<pkg>`；声明在 `config/pi-agent/settings.json` | package.json + bun.lock 锁定 | **运行时 jiti 加载，不编译进 dist** | 不 vendor；升级走依赖版本 |
+| fork/patch 的第三方 extension | `CFPABot/config/pi-agent/extensions/<name>/` | 跟踪 | **运行时加载** | 保留 Pi 标准 settings 声明机制；也可在 package.json 引用 fork |
+| 自研 Pi extension | `src/agent/extensions/` | 跟踪 | **随 dist 一起编译** | 在 `PiRuntime` 通过 `extensionFactories` 注册 |
+| 现有 agent 工具 | `src/agent/tools/` | 跟踪 | **随 dist 一起编译** | 它们是 `ToolDefinition`，不是 extension，不转 extension |
+| MCP server 声明（含外部 server） | `config/pi-agent/mcp.json` | 跟踪 | **运行时读** | 加 server 不改代码；secret 用 env 占位 |
+| MCP server 可执行文件 | `runtime/bin/`（本机）/ `/app/bin`（容器） | **不跟踪** | 脚本或 Dockerfile 下载 | 版本由 script/Dockerfile ARG 钉住 |
+| skills | `config/pi-agent/skills/` | 跟踪 | **运行时加载** | 随 `config/pi-agent` 打入镜像，compose config volume 可覆盖 |
+| Pi 运行产物 | `runtime/{cache,sessions,ops,repo}` | **不跟踪** | 本地生成 | 不入库 |
 
 - **extension 注册**：`config/pi-agent/settings.json`（git 跟踪）的
   `extensions` 数组记录 adapter 路径（标准 Pi settings 机制，与 `pi install` 等价）；
-  global scope 相对路径以 agentDir（`PI_CODING_AGENT_DIR` → `config/pi-agent`）为基准解析
+  global scope 相对路径以 agentDir（`PI_CODING_AGENT_DIR` → `config/pi-agent`）为基准解析。
+  **extension 本体是 npm 依赖**（`package.json` + `bun.lock` 钉版本），安装在
+  `node_modules/pi-mcp-adapter`，由 Pi 的 jiti loader 在 runtime 加载入口 TS，
+  不会编译进 `dist/index.js`
 - **server 配置**：`config/pi-agent/mcp.json`（git 跟踪；`PI_CODING_AGENT_DIR` env
   指向 config/pi-agent，本机与 Docker 同机制；server `cwd` 用 `${CFPABOT_GLOSSARY_DIR}`
   插值，`command` 相对 cwd 解析）——加新 server 无需改代码
 - **生产镜像**：Dockerfile runtime 阶段下载 `packtrans/glossary` release 的
   `x86_64-unknown-linux-gnu` 二进制到 `/app/bin/`（`GLOSSARY_VERSION` ARG 钉版本，
   构建期 `mcp --help` 冒烟），并设 `ENV PI_CODING_AGENT_DIR=/app/config/pi-agent
-  CFPABOT_GLOSSARY_DIR=/app/bin`（不再生成 `.mcp.json`，配置走 git 跟踪的
-  `config/pi-agent/mcp.json`，经 compose volume `./CFPABot/config:/app/config` 挂载）。
+  CFPABOT_GLOSSARY_DIR=/app/bin`。镜像会把 git 跟踪的
+  `config/pi-agent/**`（settings/mcp/skills）和 `config/vanilla-terms.json`
+  作为默认资源打入；compose volume `./CFPABot/config:/app/config` 在运行时整体覆盖，
+  用于注入 secrets 和热改配置。不再生成 `.mcp.json`。
   注意：上游只有 glibc 资产（无 musl），runtime 必须是 glibc 基础镜像（`oven/bun:1`），不能用 `-alpine`
 - **二进制**：本机 `bun run fetch:glossary` 自动从 GitHub release 下载到
   `runtime/bin`（gitignored；`CFPABOT_GLOSSARY_DIR` 缺省 = `<cwd>/runtime/bin`，
   幂等：存在即跳过）；容器由 Dockerfile 下载到 `/app/bin`。跨机器克隆无需改配置
-- **加载链路**：`CfpabotResourceLoader`（`session-prompt.ts`）委托
-  `DefaultResourceLoader`（`extensionFactories` 官方机制）加载 extensions；
-  `session-manager.ts` 在 `createAgentSession` 前显式 `await resourceLoader.reload()`
-  （SDK 契约：自定义 loader 由调用方负责 reload）
+- **加载链路**：`PiRuntime.createServices()`（`src/agent/pi-runtime.ts`）通过官方
+  `createAgentSessionServices()` 组装一个 cwd-bound runtime bundle——同一个
+  `SettingsManager` 同时供 `DefaultResourceLoader` 与 `AgentSession` 使用；
+  extensions 默认开启（settings.extensions → pi-mcp-adapter → `config/pi-agent/mcp.json`），
+  skills 只从 `config/pi-agent/skills/` 加载，prompts/themes/context-files 关闭；
+  `PiSessionManager` 不再直接接触 SDK 的 Settings/Auth/ResourceLoader 构造
+- **密钥不落盘**：LLM key 来自 `config/llm-endpoints.json`，通过 `AuthStorage.inMemory()`
+  在运行时注入，绝不写入 `config/pi-agent/auth.json`
+- **可观测性**：`PiRuntime.inspectResources()` 返回已加载 extension/tool/skill
+  与 diagnostics，`PiSessionManager` 在每次会话启动时记录加载摘要与错误
 - **工具校验**：`validateToolSet` 只查 missing——extension 注册的额外工具
   （`mcp`/`mcp_script`）合法
 - **依赖**：`pi-mcp-adapter` + `zod`（peer）；`@modelcontextprotocol/sdk` 为直接依赖
@@ -532,7 +567,7 @@ Agent ReAct loop 自身的 LLM 调用也使用同一注册表 (`src/agent/sessio
 以下路径均相对 **`CFPABot/` 内层目录**（cwd）。`ensureDirectories` 自动创建所需目录：
 
 ```
-config/                         # 运行时配置（pi-agent/ 为 pi-agent 配置环境，git 跟踪；
+config/                         # 运行时配置（pi-agent/ 为 Pi agent 环境：settings/mcp/skills，git 跟踪；
                                 #  encrypt_key.txt、cfpa-bot.pem、llm-endpoints.json gitignored）
 runtime/
 ├── cache/                      # 可重建缓存

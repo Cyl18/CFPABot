@@ -1,17 +1,11 @@
 // src/agent/session-manager.ts
-// PiSessionManager — wraps pi-coding-agent AgentSession via createAgentSession.
-// AgentSession owns the ReAct loop, tool execution, and transcript persistence
-// (SessionManager append-only JSONL at runtime/sessions/transcripts/).
-// PiSessionManager owns only: AgentSession creation, SSE broadcasting
-// (delegated to SseBroadcaster), and abort controllers.
-//
-// After Phase 2, the pi coding agent JSONL is the sole conversation truth —
-// there is no projection of transcript into SessionRecord.messages. History is
-// served via GET /sessions/:sessionId/messages (pi-transcript-reader).
+// PiSessionManager — session orchestration on top of PiRuntime.
+// PiRuntime owns the pi-coding-agent SDK assembly (settings, extensions,
+// MCP/skill resources, transcripts); this file owns policy and lifecycle:
+// model/tool selection, SSE broadcasting, confirmation/continuation loops
+// and abort controllers.
 
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
-import { join, resolve, normalize } from "node:path";
-import { existsSync, mkdirSync } from "node:fs";
 import type { FlowContext, Logger } from "@/types.js";
 import { flowToToolDefinition } from "./flow-adapter.js";
 import { isAgentVisible } from "./flow-policy.js";
@@ -21,19 +15,15 @@ import { parseLlmEndpoints, findLlmEndpoint } from "./llm-endpoints.js";
 
 import type { SessionRecord } from "./session-types.js";
 import type { SessionService } from "./session-service.js";
-import {
-  createAgentSession,
-  type AgentSession,
-  type ToolDefinition,
-  SessionManager,
-  SettingsManager,
-  ModelRegistry,
-  AuthStorage,
+import type {
+  AgentSession,
+  AgentSessionServices,
+  ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 
+import { PiRuntime } from "./pi-runtime.js";
 import { SseBroadcaster, type SseSubscriber } from "./session-sse.js";
 import {
-  CfpabotResourceLoader,
   validateToolSet,
   resolvePromptText,
   buildSystemPrompt,
@@ -54,14 +44,6 @@ import { createReviewFinalizeTool } from "./tools/review-finalize.js";
 import { createTermsDistillTool } from "./tools/terms-distill.js";
 import { createTmQueryTool } from "./tools/tm-query.js";
 import { createReviewPrepTool } from "./tools/review-prep.js";
-
-import {
-  SESSIONS_DIR,
-  SESSIONS_TRANSCRIPTS_DIR,
-  sessionTranscriptPath,
-} from "../runtime-paths.js";
-const PI_SESSIONS_DIR = SESSIONS_TRANSCRIPTS_DIR;
-const PI_SESSIONS_ABS = resolve(PI_SESSIONS_DIR);
 
 // ─── Internal runtime state ──────────────────────────────────────────
 
@@ -86,10 +68,17 @@ export class PiSessionManager {
 
   private readonly broadcaster: SseBroadcaster;
   private readonly logger?: Logger;
+  /** Owns Pi SDK runtime assembly (extensions/MCP/skills/transcripts). */
+  private readonly piRuntime: PiRuntime;
 
-  constructor(sessionService: SessionService, logger?: Logger) {
+  constructor(
+    sessionService: SessionService,
+    logger?: Logger,
+    piRuntime: PiRuntime = new PiRuntime(),
+  ) {
     this.sessionService = sessionService;
     this.logger = logger;
+    this.piRuntime = piRuntime;
     this.broadcaster = new SseBroadcaster(logger);
     this.sessionService.sseBroadcast = (sessionId, event) => this.broadcast(sessionId, event);
   }
@@ -198,6 +187,39 @@ export class PiSessionManager {
     return flowToolDefs;
   }
 
+  private logPiRuntimeResources(
+    sessionId: string,
+    services: AgentSessionServices,
+  ): void {
+    const snapshot = this.piRuntime.inspectResources(services);
+    const { extensions, extensionErrors, skills, resourceDiagnostics, serviceDiagnostics } = snapshot;
+
+    this.logger?.debug({
+      sessionId,
+      extensions: extensions.map((e) => ({ path: e.path, tools: e.tools })),
+      skills: skills.map((s) => s.name),
+    }, "[PiRuntime] loaded resources");
+
+    for (const err of extensionErrors) {
+      this.logger?.error(
+        { sessionId, extensionPath: err.path, err: err.error },
+        "[PiRuntime] extension load error",
+      );
+    }
+    for (const diagnostic of resourceDiagnostics) {
+      this.logger?.warn(
+        { sessionId, diagnostic },
+        "[PiRuntime] resource diagnostic",
+      );
+    }
+    for (const diagnostic of serviceDiagnostics) {
+      this.logger?.warn(
+        { sessionId, diagnostic },
+        "[PiRuntime] service diagnostic",
+      );
+    }
+  }
+
   // ─── Run one prompt + optional continuation ───────────────────────
 
   private async runLoop(
@@ -260,53 +282,36 @@ export class PiSessionManager {
       // ── Build system prompt ────────────────────────────────
       const systemPrompt = buildSystemPrompt(session);
 
-      // ── Create or open pi-coding-agent SessionManager ──────
-      const cwd = process.cwd();
-      const piSessionDir = join(cwd, PI_SESSIONS_DIR);
-      if (!existsSync(piSessionDir)) {
-        mkdirSync(piSessionDir, { recursive: true });
-      }
-
-      let piSessionManager: SessionManager;
-      if (session.piSessionFile) {
-        const requestedPath = resolve(join(cwd, session.piSessionFile));
-        const normalizedRequested = normalize(requestedPath);
-        const normalizedPiSessions = normalize(PI_SESSIONS_ABS);
-        const normalizedPiPrefix = normalizedPiSessions.replace(/\\/g, "/") + "/";
-        const normalizedReq = normalizedRequested.replace(/\\/g, "/");
-        if (!normalizedReq.startsWith(normalizedPiPrefix) && normalizedReq !== normalizedPiSessions.replace(/\\/g, "/")) {
-          throw new Error(`Invalid piSessionFile path: ${session.piSessionFile} — must reside under ${PI_SESSIONS_DIR}`);
-        }
-        piSessionManager = SessionManager.open(requestedPath);
-      } else {
-        piSessionManager = SessionManager.create(cwd, piSessionDir);
-        const rawPath = piSessionManager.getSessionFile();
-        const relativePath = PI_SESSIONS_DIR + "/" + (rawPath?.split(/[/\\]/).pop() ?? `${session.sessionId}.jsonl`);
-        await this.sessionService.setPiSessionFile(session.sessionId, relativePath);
-      }
-
-      // ── Create AgentSession via SDK ────────────────────────
-      const authStorage = AuthStorage.inMemory();
-      const modelRegistry = ModelRegistry.inMemory(authStorage);
       // Fail-fast: no API key means every LLM call returns 401
       if (!selectedEndpoint?.apiKey) {
         throw new Error(`No API key configured for provider "${selectedEndpoint?.provider ?? model.provider}" — cannot start agent session`);
       }
-      authStorage.set(selectedEndpoint.provider, { type: "api_key", key: selectedEndpoint.apiKey });
-      const resourceLoader = new CfpabotResourceLoader(systemPrompt);
-      // 自定义 ResourceLoader 需调用方显式 reload（SDK 契约）：加载 settings.extensions
-      // 注册的 Pi extensions（pi-mcp-adapter → MCP 工具）
-      await resourceLoader.reload();
-      const result = await createAgentSession({
-        cwd,
+
+      // ── Pi runtime: settings + extensions/MCP/skills + transcript ──
+      // One coherent services bundle; one SettingsManager is shared by the
+      // resource loader and the AgentSession (previous code used two managers).
+      const services = await this.piRuntime.createServices(systemPrompt);
+      this.logPiRuntimeResources(sessionId, services);
+
+      const { sessionManager: piSessionManager, createdPath } =
+        this.piRuntime.openOrCreateSessionManager(session.piSessionFile);
+      if (!session.piSessionFile && createdPath) {
+        await this.sessionService.setPiSessionFile(session.sessionId, createdPath);
+      }
+
+      // API keys live in config/llm-endpoints.json and are injected at runtime;
+      // PiRuntime keeps AuthStorage in-memory so they are never persisted.
+      services.authStorage.set(selectedEndpoint.provider, {
+        type: "api_key",
+        key: selectedEndpoint.apiKey,
+      });
+
+      const result = await this.piRuntime.createAgentSession({
+        services,
+        sessionManager: piSessionManager,
         model,
         customTools: allToolDefs,
         noTools: "builtin",
-        sessionManager: piSessionManager,
-        settingsManager: SettingsManager.inMemory(),
-        authStorage,
-        modelRegistry,
-        resourceLoader,
         ...(session.thinkingLevel
           ? { thinkingLevel: session.thinkingLevel }
           : {}),
