@@ -43,6 +43,7 @@ export async function collectMovedFiles(
   handle: { dir: string },
   sourceProjectPath: string,
   targetProjectPath: string,
+  signal?: AbortSignal,
 ): Promise<string[]> {
   if (!sourceProjectPath || !targetProjectPath) {
     throw new FlowError({
@@ -118,7 +119,7 @@ export async function collectMovedFiles(
   const repoHandle: RepoHandle = { dir: handle.dir, url: "" };
 
   // Use git mv to move the entire directory (handles both files and dirs)
-  await moveFile(repoHandle, sourceProjectPath, targetProjectPath);
+  await moveFile(repoHandle, sourceProjectPath, targetProjectPath, signal);
 
   // Verify the move: source should no longer exist, target should exist
   const targetFiles = await listFilesRecursive(targetAbs, handle.dir);

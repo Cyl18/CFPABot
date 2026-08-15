@@ -82,7 +82,7 @@ export async function revertCommitInWorkspace(
     );
 
     // Clone with enough history for the revert (fetch up to 50 commits deep)
-    const repoHandle = await ensureRepo(repoUrl, tmpDir, branchName);
+    const repoHandle = await ensureRepo(repoUrl, tmpDir, branchName, ctx.signal);
 
     // Re-verify HEAD after clone
     const actualSha = await getHeadSha(repoHandle);
@@ -96,19 +96,19 @@ export async function revertCommitInWorkspace(
     }
 
     // Verify target commit is reachable from HEAD
-    const subject = await getCommitSubject(tmpDir, targetCommitSha);
+    const subject = await getCommitSubject(tmpDir, targetCommitSha, ctx.signal);
 
     // Perform the revert
     const { status, stderr } = await runGitRaw(tmpDir, [
       "revert", "--no-edit", targetCommitSha,
-    ]);
+    ], ctx.signal);
 
     if (status !== 0) {
       // Check for conflicts
       if (stderr.includes("CONFLICT") || stderr.includes("conflict")) {
-        const conflictFiles = await listConflictFiles(tmpDir);
+        const conflictFiles = await listConflictFiles(tmpDir, ctx.signal);
         // Abort the revert to leave workspace clean
-        await runGitRaw(tmpDir, ["revert", "--abort"]).catch(() => {});
+        await runGitRaw(tmpDir, ["revert", "--abort"], ctx.signal).catch(() => {});
         return { revertCommitSha: "", conflictFiles };
       }
 
@@ -120,10 +120,10 @@ export async function revertCommitInWorkspace(
       });
     }
 
-    const revertCommitSha = await getHeadSha(repoHandle);
+    const revertCommitSha = await getHeadSha(repoHandle, ctx.signal);
 
     // Push
-    await push(repoHandle);
+    await push(repoHandle, ctx.signal);
 
     ctx.logger.info(
       { prNumber, operationName: "git_revert_commit", revertCommitSha, targetSha: targetCommitSha },
@@ -143,23 +143,36 @@ export async function revertCommitInWorkspace(
 async function runGitRaw(
   cwd: string,
   args: string[],
+  signal?: AbortSignal,
 ): Promise<{ status: number; stdout: string; stderr: string }> {
   const proc = Bun.spawn(["git", ...args], {
     cwd,
     stdout: "pipe",
     stderr: "pipe",
   });
-  const stdout = await new Response(proc.stdout).text();
-  const stderr = await new Response(proc.stderr).text();
-  const status = await proc.exited;
-  return { status, stdout, stderr };
+  const onAbort = () => proc.kill();
+  if (signal) {
+    if (signal.aborted) {
+      onAbort();
+    } else {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+  }
+  try {
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+    const status = await proc.exited;
+    return { status, stdout, stderr };
+  } finally {
+    if (signal) signal.removeEventListener("abort", onAbort);
+  }
 }
 
 /** Get the commit subject line (first line of message) for a given SHA. */
-async function getCommitSubject(cwd: string, sha: string): Promise<string> {
+async function getCommitSubject(cwd: string, sha: string, signal?: AbortSignal): Promise<string> {
   const { status, stdout } = await runGitRaw(cwd, [
     "log", "-1", "--format=%s", sha,
-  ]);
+  ], signal);
   if (status !== 0) {
     throw new FlowError({
       code: "INVALID_INPUT",
@@ -172,8 +185,8 @@ async function getCommitSubject(cwd: string, sha: string): Promise<string> {
 }
 
 /** List conflicted files after a failed merge/revert. */
-async function listConflictFiles(cwd: string): Promise<string[]> {
-  const { stdout } = await runGitRaw(cwd, ["diff", "--name-only", "--diff-filter=U"]);
+async function listConflictFiles(cwd: string, signal?: AbortSignal): Promise<string[]> {
+  const { stdout } = await runGitRaw(cwd, ["diff", "--name-only", "--diff-filter=U"], signal);
   return stdout.trim().split("\n").filter(Boolean);
 }
 

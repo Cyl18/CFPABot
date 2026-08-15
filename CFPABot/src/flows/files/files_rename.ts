@@ -75,7 +75,7 @@ export const files_rename: Flow<
         commitMessage,
       },
       async (handle) => {
-        finalPath = await safeRename(handle, sourcePath, targetPath);
+        finalPath = await safeRename(handle, sourcePath, targetPath, ctx.signal);
       },
     );
 

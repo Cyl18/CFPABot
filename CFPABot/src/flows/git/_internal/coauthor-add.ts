@@ -86,7 +86,7 @@ export async function addCoauthorInWorkspace(
       "Acquired lock, cloning PR branch for coauthor commit",
     );
 
-    const repoHandle = await ensureRepo(repoUrl, tmpDir, branchName);
+    const repoHandle = await ensureRepo(repoUrl, tmpDir, branchName, ctx.signal);
 
     const actualSha = await getHeadSha(repoHandle);
     if (actualSha !== expectedHeadSha) {
@@ -112,7 +112,7 @@ export async function addCoauthorInWorkspace(
       "commit", "--allow-empty",
       "-m", commitMsg,
       "--trailer", trailer,
-    ]);
+    ], ctx.signal);
 
     if (status !== 0) {
       throw new FlowError({
@@ -123,8 +123,8 @@ export async function addCoauthorInWorkspace(
       });
     }
 
-    const commitSha = await getHeadSha(repoHandle);
-    await push(repoHandle);
+    const commitSha = await getHeadSha(repoHandle, ctx.signal);
+    await push(repoHandle, ctx.signal);
 
     ctx.logger.info(
       { prNumber, operationName: "coauthor_add", commitSha, login },
@@ -143,16 +143,29 @@ export async function addCoauthorInWorkspace(
 async function runGitRaw(
   cwd: string,
   args: string[],
+  signal?: AbortSignal,
 ): Promise<{ status: number; stdout: string; stderr: string }> {
   const proc = Bun.spawn(["git", ...args], {
     cwd,
     stdout: "pipe",
     stderr: "pipe",
   });
-  const stdout = await new Response(proc.stdout).text();
-  const stderr = await new Response(proc.stderr).text();
-  const status = await proc.exited;
-  return { status, stdout, stderr };
+  const onAbort = () => proc.kill();
+  if (signal) {
+    if (signal.aborted) {
+      onAbort();
+    } else {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+  }
+  try {
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+    const status = await proc.exited;
+    return { status, stdout, stderr };
+  } finally {
+    if (signal) signal.removeEventListener("abort", onAbort);
+  }
 }
 
 function wrapError(err: unknown, fallbackMessage: string): FlowError {

@@ -3,6 +3,7 @@
 // Created once in bootstrap.ts, injected into FlowContext as `ctx.github`.
 
 import { Octokit } from "@octokit/rest";
+import { currentRequestSignal } from "../request-context.js";
 import type { Logger } from "@/types.js";
 import { REPO, BOT_LOGIN } from "@/config.js";
 import type {
@@ -38,6 +39,22 @@ const REPO_FULL = `${REPO.OWNER}/${REPO.NAME}`;
 
 
 export function createGitHubClient(octokit: Octokit, personalOctokit?: Octokit | null, logger?: Logger): GitHubClient {
+  // ─── Request cancellation hook ───────────────────────────────────────
+  // Must be installed even when no logger is supplied: Flow timeout/session
+  // abort propagation is a correctness feature, not a logging side effect.
+  function setupRequestSignal(clientOctokit: Octokit): void {
+    clientOctokit.hook.wrap("request", async (request, options) => {
+      // Read from AsyncLocalStorage set by engine/timeout.ts, so no method
+      // signature changes are required and cancellation follows the async
+      // call chain automatically.
+      const signal = currentRequestSignal();
+      if (signal && !options.request?.signal) {
+        options.request = { ...(options.request ?? {}), signal };
+      }
+      return request(options);
+    });
+  }
+
   // ─── Add request/response logging hooks ──────────────────────────────
   function setupLogging(clientOctokit: Octokit): void {
     if (!logger) return;
@@ -68,8 +85,12 @@ export function createGitHubClient(octokit: Octokit, personalOctokit?: Octokit |
     });
   }
 
+  setupRequestSignal(octokit);
   setupLogging(octokit);
-  if (personalOctokit) setupLogging(personalOctokit);
+  if (personalOctokit) {
+    setupRequestSignal(personalOctokit);
+    setupLogging(personalOctokit);
+  }
   const client: GitHubClient = {
     async getPullRequest(prId: number): Promise<PullRequest> {
       const r = await octokit.rest.pulls.get({

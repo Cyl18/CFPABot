@@ -20,6 +20,7 @@ export async function safeRename(
   handle: { dir: string },
   sourcePath: string,
   targetPath: string,
+  signal?: AbortSignal,
 ): Promise<string> {
   if (!sourcePath || !targetPath) {
     throw new FlowError({
@@ -80,10 +81,10 @@ export async function safeRename(
     // Case-only rename: two-step rename via a temporary name to avoid
     // filesystem collision on case-insensitive platforms (Windows, macOS).
     const tempName = `__cfpa_temp_${randomUUID()}__${sourcePath}`;
-    await moveFile(repoHandle, sourcePath, tempName);
-    await moveFile(repoHandle, tempName, targetPath);
+    await moveFile(repoHandle, sourcePath, tempName, signal);
+    await moveFile(repoHandle, tempName, targetPath, signal);
   } else {
-    await moveFile(repoHandle, sourcePath, targetPath);
+    await moveFile(repoHandle, sourcePath, targetPath, signal);
   }
 
   return targetPath;

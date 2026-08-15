@@ -76,7 +76,7 @@ export const files_move_project: Flow<
         commitMessage,
       },
       async (handle) => {
-        const movedFiles = await collectMovedFiles(handle, sourceProjectPath, targetProjectPath);
+        const movedFiles = await collectMovedFiles(handle, sourceProjectPath, targetProjectPath, ctx.signal);
 
         // Store moved files on context state for return value construction
         ctx.state.set("files:move_project", "movedFiles", movedFiles);

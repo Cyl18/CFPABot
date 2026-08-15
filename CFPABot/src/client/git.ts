@@ -41,22 +41,23 @@ export async function commit(
   handle: RepoHandle,
   message: string,
   user: string,
+  signal?: AbortSignal,
 ): Promise<string> {
-  await runGit(handle, ["add", "-A"]);
+  await runGit(handle, ["add", "-A"], undefined, signal);
   await runGit(handle, [
     "-c", `user.name=${user}`,
     "-c", `user.email=${user}@users.noreply.github.com`,
     "commit", "-m", message,
-  ]);
-  return getHeadSha(handle);
+  ], undefined, signal);
+  return getHeadSha(handle, signal);
 }
 
 /**
  * Push committed changes to the remote.
  * Uses `git push` - assumes the remote is `origin` and the branch is `HEAD`.
  */
-export async function push(handle: RepoHandle): Promise<void> {
-  await runGit(handle, ["push", "origin", "HEAD"], PUSH_TIMEOUT_MS);
+export async function push(handle: RepoHandle, signal?: AbortSignal): Promise<void> {
+  await runGit(handle, ["push", "origin", "HEAD"], PUSH_TIMEOUT_MS, signal);
 }
 
 /**
@@ -72,11 +73,12 @@ export async function push(handle: RepoHandle): Promise<void> {
 export async function revert(
   handle: RepoHandle,
   hash?: string,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (hash) {
-    await runGit(handle, ["revert", "--no-edit", hash]);
+    await runGit(handle, ["revert", "--no-edit", hash], undefined, signal);
   } else {
-    await runGit(handle, ["reset", "--soft", "HEAD~1"]);
+    await runGit(handle, ["reset", "--soft", "HEAD~1"], undefined, signal);
   }
 }
 
@@ -94,6 +96,7 @@ export async function moveFile(
   handle: RepoHandle,
   from: string,
   to: string,
+  signal?: AbortSignal,
 ): Promise<void> {
   const fromAbs = join(handle.dir, from);
   const toAbs = join(handle.dir, to);
@@ -107,21 +110,21 @@ export async function moveFile(
   }
 
   try {
-    await runGit(handle, ["mv", from, to]);
+    await runGit(handle, ["mv", from, to], undefined, signal);
   } catch {
     // git mv failed - do a manual move + stage
     await Bun.write(toAbs, Bun.file(fromAbs));
     // Remove source
     unlinkSync(fromAbs);
-    await runGit(handle, ["add", "-A"]);
+    await runGit(handle, ["add", "-A"], undefined, signal);
   }
 }
 
 /**
  * Get the current HEAD commit SHA.
  */
-export async function getHeadSha(handle: RepoHandle): Promise<string> {
-  const result = await runGit(handle, ["rev-parse", "HEAD"]);
+export async function getHeadSha(handle: RepoHandle, signal?: AbortSignal): Promise<string> {
+  const result = await runGit(handle, ["rev-parse", "HEAD"], undefined, signal);
   return result.trim();
 }
 
@@ -137,21 +140,21 @@ export async function getHeadMessage(handle: RepoHandle): Promise<string> {
  * Amend the most recent commit with a new message.
  * Unlike `commit()`, this does NOT run `git add -A` — only the message changes.
  */
-export async function amendCommit(handle: RepoHandle, message: string, user: string): Promise<string> {
+export async function amendCommit(handle: RepoHandle, message: string, user: string, signal?: AbortSignal): Promise<string> {
   await runGit(handle, [
     "-c", `user.name=${user}`,
     "-c", `user.email=${user}@users.noreply.github.com`,
     "commit", "--amend", "-m", message,
-  ]);
-  return getHeadSha(handle);
+  ], undefined, signal);
+  return getHeadSha(handle, signal);
 }
 
 /**
  * Force-push the current HEAD branch (squash/amend workflows).
  * Uses --force-with-lease to avoid clobbering upstream changes.
  */
-export async function pushWithForceLease(handle: RepoHandle): Promise<void> {
-  await runGit(handle, ["push", "origin", "HEAD", "--force-with-lease"], PUSH_TIMEOUT_MS);
+export async function pushWithForceLease(handle: RepoHandle, signal?: AbortSignal): Promise<void> {
+  await runGit(handle, ["push", "origin", "HEAD", "--force-with-lease"], PUSH_TIMEOUT_MS, signal);
 }
 
 /** Delete stale .git/index.lock if present (e.g. from a previous crash). */
@@ -171,7 +174,7 @@ function cleanStaleLock(gitDir: string): void {
  * @param dir     Local directory path for the repo.
  * @param branch  Branch to track (default "main").
  */
-export async function ensureRepo(url: string, dir: string, branch: string = "main"): Promise<RepoHandle> {
+export async function ensureRepo(url: string, dir: string, branch: string = "main", signal?: AbortSignal): Promise<RepoHandle> {
   const gitDir = join(dir, ".git");
   let repoExists = false;
   try {
@@ -184,8 +187,8 @@ export async function ensureRepo(url: string, dir: string, branch: string = "mai
   if (repoExists) {
     cleanStaleLock(gitDir);
     const handle: RepoHandle = { dir, url };
-    await runGit(handle, ["fetch", "--depth", "1", "origin", branch], FETCH_TIMEOUT_MS);
-    await runGit(handle, ["reset", "--hard", `origin/${branch}`], FETCH_TIMEOUT_MS);
+    await runGit(handle, ["fetch", "--depth", "1", "origin", branch], FETCH_TIMEOUT_MS, signal);
+    await runGit(handle, ["reset", "--hard", `origin/${branch}`], FETCH_TIMEOUT_MS, signal);
     return handle;
   } else {
     // Ensure parent directory exists
@@ -197,7 +200,7 @@ export async function ensureRepo(url: string, dir: string, branch: string = "mai
         await mkdir(parentDir, { recursive: true });
       }
     }
-    await runGit(null, ["clone", "--depth", "1", "--branch", branch, url, dir], FETCH_TIMEOUT_MS);
+    await runGit(null, ["clone", "--depth", "1", "--branch", branch, url, dir], FETCH_TIMEOUT_MS, signal);
     return { dir, url };
   }
 }
@@ -240,6 +243,7 @@ async function runGit(
   handle: RepoHandle | null,
   args: string[],
   timeoutMs?: number,
+  signal?: AbortSignal,
 ): Promise<string> {
   const cwd = handle?.dir ?? process.cwd();
 
@@ -251,6 +255,18 @@ async function runGit(
 
   let timeoutTimer: TimerHandle | undefined;
   let timedOut = false;
+  let aborted = false;
+  const onAbort = () => {
+    aborted = true;
+    proc.kill();
+  };
+  if (signal) {
+    if (signal.aborted) {
+      onAbort();
+    } else {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+  }
 
   if (timeoutMs != null) {
     timeoutTimer = setTimeout(() => {
@@ -266,6 +282,10 @@ async function runGit(
     const stderrPromise = readStream(proc.stderr, READ_TIMEOUT_MS);
     const exitCode = await proc.exited;
     const [stdout, stderr] = await Promise.all([stdoutPromise, stderrPromise]);
+
+    if (aborted) {
+      throw new Error(`Git command aborted: git ${args.join(" ")}`);
+    }
 
     if (timedOut) {
       throw new Error(`Git command timed out after ${timeoutMs}ms: git ${args.join(" ")}\n${stderr.trim() || stdout.trim()}`);
@@ -284,6 +304,7 @@ async function runGit(
 
     return stdout;
   } finally {
+    if (signal) signal.removeEventListener("abort", onAbort);
     clearTimeout(timeoutTimer);
   }
 }

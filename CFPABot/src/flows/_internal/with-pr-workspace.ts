@@ -43,9 +43,8 @@ const REPO_URL_TEMPLATE = "https://github.com/{owner}/{repo}.git";
  * 10. Return commit SHA.
  * 11. Finally: cleanup temp dir and release lock.
  *
- * Cancellation: ctx.signal propagates to git subprocesses where possible.
- * The git client (ensureRepo/commit/push) does not accept signals yet,
- * but future versions will.
+ * Cancellation: ctx.signal propagates to git subprocesses; client/git.ts
+ * kills the spawned git process on abort (including clone/fetch/commit/push).
  *
  * @param ctx     FlowContext (repo, actor, signal, logger)
  * @param options Workspace parameters including explicit commitMessage
@@ -104,7 +103,7 @@ export async function withPrWorkspace(
       .replace("{repo}", ctx.repo.name);
 
     // 4. Clone/fetch PR branch
-    const repoHandle = await ensureRepo(repoUrl, tmpDir, branchName);
+    const repoHandle = await ensureRepo(repoUrl, tmpDir, branchName, ctx.signal);
 
     // 5. Re-verify HEAD SHA after clone (defence-in-depth)
     const actualSha = await getHeadSha(repoHandle);
@@ -121,7 +120,7 @@ export async function withPrWorkspace(
     await mutate({ dir: tmpDir });
 
     // 7. Check for changes
-    const hasChanges = await checkGitStatus(tmpDir);
+    const hasChanges = await checkGitStatus(tmpDir, ctx.signal);
 
     if (!hasChanges) {
       ctx.logger.info(
@@ -136,8 +135,9 @@ export async function withPrWorkspace(
       repoHandle,
       commitMessage.trim(),
       ctx.actor.login ?? "cfpa-bot",
+      ctx.signal,
     );
-    await push(repoHandle);
+    await push(repoHandle, ctx.signal);
 
     ctx.logger.info(
       { prNumber, operationName, commitSha },
@@ -171,16 +171,28 @@ export async function withPrWorkspace(
  * Run `git status --porcelain` and return true if there are any changes.
  * Fails safe: returns true on non-zero exit or spawn error.
  */
-async function checkGitStatus(cwd: string): Promise<boolean> {
+async function checkGitStatus(cwd: string, signal?: AbortSignal): Promise<boolean> {
   try {
     const proc = Bun.spawn(["git", "status", "--porcelain"], {
       cwd,
       stdout: "pipe",
       stderr: "pipe",
     });
-    const output = await new Response(proc.stdout).text();
-    const exitCode = await proc.exited;
-    return exitCode === 0 ? output.trim().length > 0 : true;
+    const onAbort = () => proc.kill();
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+      } else {
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
+    }
+    try {
+      const output = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+      return exitCode === 0 ? output.trim().length > 0 : true;
+    } finally {
+      if (signal) signal.removeEventListener("abort", onAbort);
+    }
   } catch {
     return true;
   }

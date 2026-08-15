@@ -4,6 +4,7 @@
 import type { Flow, FlowContext } from "@/types.js";
 import { FlowError } from "@/types.js";
 import type { TSchema, Static } from "typebox";
+import { runWithRequestSignal } from "../client/request-context.js";
 
 export async function runWithTimeout<
   InputSchema extends TSchema,
@@ -70,7 +71,7 @@ export async function runWithTimeout<
     }
 
     return await Promise.race([
-      flow.execute(execCtx, decodedInput),
+      runWithRequestSignal(combinedController.signal, () => flow.execute(execCtx, decodedInput)),
       cancelPromise,
     ]);
   } catch (raw) {
