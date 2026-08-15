@@ -33,9 +33,11 @@ export async function verifyWebhookSignature(
 ): Promise<boolean> {
   try {
     const webhooks = new Webhooks({ secret });
-    // remove leading "sha256=" if present
-    const sig = signatureHeader.replace(/^sha256=/, "");
-    return await webhooks.verify(rawBody, sig);
+    // This route reads x-hub-signature-256 only. Require the explicit
+    // sha256 prefix so @octokit/webhooks verifies HMAC-SHA256; a bare hex
+    // string would make it fall back to HMAC-SHA1 (legacy header).
+    if (!signatureHeader.startsWith("sha256=")) return false;
+    return await webhooks.verify(rawBody, signatureHeader);
   } catch {
     return false;
   }

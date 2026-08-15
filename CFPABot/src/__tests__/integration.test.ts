@@ -82,6 +82,7 @@ describe("Cron task smoke", () => {
       github: createMockContext({ store: createPrefixedStore(TEST_ROOT) }).github,
       config: createMockContext({ store: createPrefixedStore(TEST_ROOT) }).config,
       logger: noopLogger as never,
+      fileStore: createPrefixedStore(TEST_ROOT),
     };
   };
 

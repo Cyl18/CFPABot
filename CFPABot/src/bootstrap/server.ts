@@ -5,7 +5,7 @@
 import type { Server } from "bun";
 import type { Logger } from "../types.js";
 import type { Hono } from "hono";
-import { setWebhookShutdown, waitForWebhookOps } from "../api/webhook/route.js";
+import type { WebhookController } from "../api/webhook/route.js";
 import type { EntryConfig } from "../config.js";
 import { REPO } from "../config.js";
 
@@ -22,20 +22,21 @@ export function setupGracefulShutdown(
   server: ReturnType<typeof Bun.serve>,
   stopCron: () => void,
   logger: Logger,
+  webhook: WebhookController,
 ): void {
   let shuttingDown = false;
 
   const shutdown = async () => {
     if (shuttingDown) return;
     shuttingDown = true;
-    setWebhookShutdown(true);
+    webhook.setShuttingDown(true);
     logger.info({}, "开始关闭，等待 in-flight 操作...");
     stopCron();
     server.stop();
     // Drain started webhook operations (bounded) — server.stop() rejects
     // new connections but already-started dispatch/command ops are
     // fire-and-forget promises that must settle before exit.
-    await waitForWebhookOps(WEBHOOK_DRAIN_TIMEOUT_MS);
+    await webhook.waitForWebhookOps(WEBHOOK_DRAIN_TIMEOUT_MS);
     logger.info({}, "关闭完成");
     process.exit(0);
   };
@@ -49,6 +50,7 @@ export interface StartServerDeps {
   config: EntryConfig;
   stopCron: () => void;
   logger: Logger;
+  webhook: WebhookController;
 }
 
 /**
@@ -57,7 +59,7 @@ export interface StartServerDeps {
  * public/index.html in production for SPA client-side routing.
  */
 export function startServer(deps: StartServerDeps): ReturnType<typeof Bun.serve> {
-  const { app, config, stopCron, logger } = deps;
+  const { app, config, stopCron, logger, webhook } = deps;
 
   logger.info({ port: config.port, repo: `${REPO.OWNER}/${REPO.NAME}` }, "启动 CFPABot");
 
@@ -93,7 +95,7 @@ export function startServer(deps: StartServerDeps): ReturnType<typeof Bun.serve>
     },
   });
 
-  setupGracefulShutdown(server, stopCron, logger);
+  setupGracefulShutdown(server, stopCron, logger, webhook);
 
   return server;
 }

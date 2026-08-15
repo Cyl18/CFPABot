@@ -4,6 +4,7 @@
 import { REPO } from "./config.js";
 import { createFileStore } from "./store.js";
 import type {
+  FileStore,
   FlowContext,
   Logger,
   EntryConfig,
@@ -34,6 +35,9 @@ export interface EntryDependencies {
   github: GitHubClient;
   logger: Logger;
   config: EntryConfig;
+  /** Shared persistence primitive. Defaults to a new FileStore only for
+   *  tests/legacy callers; bootstrap must inject the shared instance. */
+  store?: FileStore;
 }
 
 /**
@@ -81,7 +85,7 @@ export function buildContext(
       source: ctxInit.source as "webhook",
     },
     github: deps.github,
-    store: createFileStore(),
+    store: deps.store ?? createFileStore(deps.logger),
     logger: deps.logger,
     config: deps.config,
     state: createScopedState(),

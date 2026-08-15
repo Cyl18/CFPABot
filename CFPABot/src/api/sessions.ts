@@ -16,7 +16,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { authMiddleware, requireAuth, requireAdmin } from "./auth.js";
 import { createSessionFlowContext } from "./flow-context.js";
-import type { FlowContext, Logger, EntryConfig } from "@/types.js";
+import type { FileStore, FlowContext, Logger, EntryConfig } from "@/types.js";
 import type { GitHubClient } from "@/client/github/index.js";
 import { MAX_BODY_SIZE } from "./frontend/helpers.js";
 import type { AppVariables } from "./frontend/helpers.js";
@@ -30,33 +30,30 @@ import { readTranscriptMessages, countTranscriptMessages } from "@/agent/pi-tran
 import { loadSessionCtx } from "@/agent/ctx-store.js";
 import { getSessionCtx } from "@/agent/session-ctx.js";
 
+export type SessionsRouter = Hono<{ Variables: AppVariables }>;
+
 interface SessionRouteDeps {
   githubClient: GitHubClient;
   config: EntryConfig;
   logger: Logger;
+  fileStore: FileStore;
   sessionService: SessionService;
   agentSessionManager: PiSessionManager;
 }
-let _deps: SessionRouteDeps | null = null;
-
-export function initSessionRoutes(deps: SessionRouteDeps): void {
-  _deps = deps;
-}
-
-const flowContextMiddleware: MiddlewareHandler = async (c, next) => {
-  if (!_deps) return c.json({ error: "Session routes not initialized" }, 500);
-  c.set("flowContext", createSessionFlowContext(_deps.githubClient, _deps.config, _deps.logger));
+export function createSessionsRouter(deps: SessionRouteDeps): SessionsRouter {
+  const flowContextMiddleware: MiddlewareHandler = async (c, next) => {
+  c.set("flowContext", createSessionFlowContext(deps.githubClient, deps.config, deps.logger, "agent", deps.fileStore));
   await next();
 };
 
-export const sessionsRouter = new Hono<{ Variables: AppVariables }>();
+const sessionsRouter = new Hono<{ Variables: AppVariables }>();
 sessionsRouter.use("*", authMiddleware);
 sessionsRouter.use("*", requireAuth);
 sessionsRouter.use("*", requireAdmin);
 sessionsRouter.use("*", flowContextMiddleware);
 
 /** Validate prNumber: must be a positive integer when provided. Returns error message or null. */
-export function validatePrNumber(value: unknown): string | null {
+function validatePrNumber(value: unknown): string | null {
   if (value === undefined || value === null) return null;
   if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
     return "prNumber must be a positive integer";
@@ -67,7 +64,7 @@ export function validatePrNumber(value: unknown): string | null {
 // ─── GET /sessions ──────────────────────────────────────────────────
 
 sessionsRouter.get("/", async (c) => {
-  const svc = _deps!.sessionService;
+  const svc = deps.sessionService;
   const list = await Promise.all(
     (await svc.listSessions()).filter((s) => s.status !== "archived").map(async (s) => {
       const messageCount = s.piSessionFile
@@ -99,7 +96,7 @@ sessionsRouter.get("/", async (c) => {
 
 sessionsRouter.get("/:sessionId/review-state", async (c) => {
   const sessionId = c.req.param("sessionId");
-  const svc = _deps!.sessionService;
+  const svc = deps.sessionService;
   const session = await svc.getSession(sessionId);
   if (!session) return c.json({ error: "Session not found" }, 404);
 
@@ -124,7 +121,7 @@ sessionsRouter.get("/:sessionId/review-state", async (c) => {
 
 sessionsRouter.get("/:sessionId/messages", async (c) => {
   const sessionId = c.req.param("sessionId");
-  const svc = _deps!.sessionService;
+  const svc = deps.sessionService;
   const session = await svc.getSession(sessionId);
   if (!session) return c.json({ error: "Session not found" }, 404);
   if (!session.piSessionFile) {
@@ -135,7 +132,7 @@ sessionsRouter.get("/:sessionId/messages", async (c) => {
 });
 
 sessionsRouter.get("/:sessionId", async (c) => {
-  const session = await _deps!.sessionService.getSession(c.req.param("sessionId"));
+  const session = await deps.sessionService.getSession(c.req.param("sessionId"));
   if (!session) return c.json({ error: "Session not found" }, 404);
   // Detail metadata only — full transcript is served via /messages.
   const messageCount = session.piSessionFile
@@ -219,7 +216,7 @@ sessionsRouter.post("/", async (c) => {
   const ctx = c.var.flowContext;
   if (!ctx) return c.json({ error: "Server context not available" }, 500);
 
-  const svc = _deps!.sessionService;
+  const svc = deps.sessionService;
 
   // Resolve PR scope upfront — fail before creating the session if GitHub
   // is unreachable, rather than creating a session with undefined scope.
@@ -227,12 +224,12 @@ sessionsRouter.post("/", async (c) => {
   let headSha: string | undefined;
   if (body.prNumber) {
     try {
-      const pr = await _deps!.githubClient.getPullRequest(body.prNumber);
+      const pr = await deps.githubClient.getPullRequest(body.prNumber);
       baseSha = pr.base.sha;
       headSha = pr.head.sha;
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      _deps!.logger.warn({ err: detail, prNumber: body.prNumber }, "Failed to fetch PR data for frontend session");
+      deps.logger.warn({ err: detail, prNumber: body.prNumber }, "Failed to fetch PR data for frontend session");
       return c.json({ error: `无法获取 PR #${body.prNumber} 信息，请稍后重试`, detail }, 502);
     }
   }
@@ -256,7 +253,7 @@ sessionsRouter.post("/", async (c) => {
   }
 
   try {
-    await _deps!.agentSessionManager.startSession(session.sessionId, ctx);
+    await deps.agentSessionManager.startSession(session.sessionId, ctx);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     // startSession failed before runLoop (e.g. startRunning rejected).
@@ -280,7 +277,7 @@ sessionsRouter.post("/:sessionId/messages", async (c) => {
   const body = await c.req.json<{ message: string }>();
   if (!body.message) return c.json({ error: "message is required" }, 400);
 
-  const session = await _deps!.sessionService.getSession(sessionId);
+  const session = await deps.sessionService.getSession(sessionId);
   if (!session) return c.json({ error: "Session not found" }, 404);
 
   if (session.status === "archived") {
@@ -294,7 +291,7 @@ sessionsRouter.post("/:sessionId/messages", async (c) => {
   if (!ctx) return c.json({ error: "Context not available" }, 500);
 
   try {
-    await _deps!.agentSessionManager.continueSession(sessionId, ctx, body.message);
+    await deps.agentSessionManager.continueSession(sessionId, ctx, body.message);
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
@@ -303,7 +300,7 @@ sessionsRouter.post("/:sessionId/messages", async (c) => {
 });
 sessionsRouter.post("/:sessionId/abort", async (c) => {
   const sessionId = c.req.param("sessionId");
-  const svc = _deps!.sessionService;
+  const svc = deps.sessionService;
 
   const session = await svc.getSession(sessionId);
   if (!session) return c.json({ error: "Session not found" }, 404);
@@ -312,7 +309,7 @@ sessionsRouter.post("/:sessionId/abort", async (c) => {
     return c.json({ error: "Session is archived" }, 400);
   }
 
-    const aborted = await _deps!.agentSessionManager.abortSession(sessionId);
+    const aborted = await deps.agentSessionManager.abortSession(sessionId);
   return c.json({ success: aborted, sessionId });
 });
 
@@ -321,18 +318,18 @@ sessionsRouter.post("/:sessionId/confirm", async (c) => {
   const body = await c.req.json<{ toolCallId: string }>();
   if (!body.toolCallId) return c.json({ error: "toolCallId is required" }, 400);
 
-  const session = await _deps!.sessionService.getSession(sessionId);
+  const session = await deps.sessionService.getSession(sessionId);
   if (!session) return c.json({ error: "Session not found" }, 404);
   if (session.status === "archived") {
     return c.json({ error: "Session is archived" }, 400);
   }
 
   try {
-    const result = await _deps!.sessionService.confirmAction(sessionId, body.toolCallId);
+    const result = await deps.sessionService.confirmAction(sessionId, body.toolCallId);
     if (!result) return c.json({ error: "No matching pending confirmation found" }, 404);
     return c.json({ success: true, flowName: result.flowName, inputHash: result.inputHash });
   } catch (err) {
-    _deps!.logger.error({ err: String(err), sessionId, toolCallId: body.toolCallId }, "Confirm action execution failed");
+    deps.logger.error({ err: String(err), sessionId, toolCallId: body.toolCallId }, "Confirm action execution failed");
     return c.json({
       error: "Action execution failed",
       detail: err instanceof Error ? err.message : String(err),
@@ -345,8 +342,8 @@ sessionsRouter.post("/:sessionId/confirm", async (c) => {
 
 sessionsRouter.post("/:sessionId/archive", async (c) => {
   const sessionId = c.req.param("sessionId");
-  const svc = _deps!.sessionService;
-  const mgr = _deps!.agentSessionManager;
+  const svc = deps.sessionService;
+  const mgr = deps.agentSessionManager;
   // Stop any in-flight agent loop first — otherwise finalizeSession could
   // overwrite the archived status back to a live one.
   if (await mgr.isRunning(sessionId)) {
@@ -370,13 +367,13 @@ sessionsRouter.post("/:sessionId/reject", async (c) => {
   const body = await c.req.json<{ toolCallId: string }>();
   if (!body.toolCallId) return c.json({ error: "toolCallId is required" }, 400);
 
-  const session = await _deps!.sessionService.getSession(sessionId);
+  const session = await deps.sessionService.getSession(sessionId);
   if (!session) return c.json({ error: "Session not found" }, 404);
   if (session.status === "archived") {
     return c.json({ error: "Session is archived" }, 400);
   }
 
-  const rejected = await _deps!.sessionService.rejectAction(sessionId, body.toolCallId);
+  const rejected = await deps.sessionService.rejectAction(sessionId, body.toolCallId);
   if (!rejected) return c.json({ error: "No matching pending confirmation found" }, 404);
 
   return c.json({ success: true });
@@ -386,8 +383,8 @@ sessionsRouter.post("/:sessionId/reject", async (c) => {
 
 sessionsRouter.get("/:sessionId/stream", (c) => {
   const sessionId = c.req.param("sessionId");
-  const deps = _deps!;
-  const sessionPromise = deps.sessionService.getSession(sessionId);
+  const routeDeps = deps;
+  const sessionPromise = routeDeps.sessionService.getSession(sessionId);
 
   return streamSSE(c, async (stream) => {
     const session = await sessionPromise;
@@ -427,7 +424,7 @@ sessionsRouter.get("/:sessionId/stream", (c) => {
     };
     c.req.raw.signal.addEventListener("abort", onAbort, { once: true });
 
-    const unsubscribe = _deps!.agentSessionManager.subscribe(sessionId, (event) => {
+    const unsubscribe = deps.agentSessionManager.subscribe(sessionId, (event) => {
       // Throwing here lets broadcast() detect + evict this dead subscriber; the route's
       // streamSSE wrapper catches per-call errors, so throws are safe.
       stream.writeSSE({ data: JSON.stringify({ sessionId, ...event }) }).catch(() => {
@@ -442,3 +439,5 @@ sessionsRouter.get("/:sessionId/stream", (c) => {
     clearInterval(heartbeat);
   });
 });
+  return sessionsRouter;
+}

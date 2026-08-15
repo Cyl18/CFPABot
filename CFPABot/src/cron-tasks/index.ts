@@ -9,7 +9,7 @@ import { executeFlow } from "@/engine/execute.js";
 import type { FlowRegistry } from "@/engine/registry.js";
 import type { EntryConfig } from "@/config.js";
 import type { GitHubClient } from "@/client/github/index.js";
-import type { Logger } from "@/types.js";
+import type { FileStore, Logger } from "@/types.js";
 import { createModlistRefreshTask } from "./modlist-refresh.js";
 import { createCurseforgeMappingTask } from "./curseforge-mapping.js";
 import { createPrCacheRefreshTask } from "./pr-cache-refresh.js";
@@ -25,13 +25,14 @@ export interface CronTaskDeps {
   github: GitHubClient;
   config: EntryConfig;
   logger: Logger;
+  fileStore: FileStore;
 }
 
 /** Build a detached FlowContext for cron-originated Flow execution. */
 function buildCronContext(deps: CronTaskDeps) {
   return buildContext(
     { type: "cron", source: "cron", payload: {} },
-    { github: deps.github, logger: deps.logger, config: deps.config },
+    { github: deps.github, logger: deps.logger, config: deps.config, store: deps.fileStore },
     {
       actor: { kind: "system" },
       scope: {},

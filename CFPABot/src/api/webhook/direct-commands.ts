@@ -15,7 +15,7 @@ import type { GitHubClient } from "@/client/github/index.js";
 import type { Logger } from "@/logger.js";
 import type { EntryConfig } from "@/config.js";
 import type { FlowRegistry } from "@/engine/registry.js";
-import type { FlowContext } from "@/types.js";
+import type { FileStore, FlowContext } from "@/types.js";
 import { FlowError } from "@/types.js";
 import { buildContext } from "@/context.js";
 import { executeFlow } from "@/engine/execute.js";
@@ -27,6 +27,7 @@ export interface DirectCommandDeps {
   logger: Logger;
   config: EntryConfig;
   registry: FlowRegistry;
+  fileStore: FileStore;
   /** Raw delivery id from x-github-delivery header (may be empty — manual triggers). */
   deliveryId?: string;
 }
@@ -119,7 +120,7 @@ export async function handleDirectCommand(
   // so execution records attribute the operation to a person, not "system".
   const ctx = buildContext(
     { type: "issue_comment.created", source: "webhook", payload: body },
-    { github: deps.githubClient, logger: deps.logger, config: deps.config },
+    { github: deps.githubClient, logger: deps.logger, config: deps.config, store: deps.fileStore },
     {
       actor: { kind: "admin", login: commenterLogin },
       scope: { prNumber },
@@ -193,12 +194,12 @@ async function executeDirectCommand(
         provider: "curseforge",
       })) as Record<string, unknown>;
     case "update-en": {
-      const targetPath = await resolveEnUsTargetPath(
-        deps.githubClient,
+      const resolved = await exec("files_resolve_en_us_path", {
         prNumber,
-        match.args.slug,
-        match.args.gameVersion,
-      );
+        slug: match.args.slug,
+        gameVersion: match.args.gameVersion,
+      }) as { path: string | null };
+      const targetPath = resolved.path;
       if (!targetPath) {
         throw new FlowError({
           code: "FAILED",
@@ -217,33 +218,6 @@ async function executeDirectCommand(
       })) as Record<string, unknown>;
     }
   }
-}
-
-/**
- * Derive the en_us.json target path from the PR's changed files:
- * find `projects/{slug}/{version}/{domain}/lang/zh_cn.{json,lang}` and swap
- * the file name to en_us.json; prefer the version matching the requested
- * game version, else the first match.
- */
-async function resolveEnUsTargetPath(
-  client: GitHubClient,
-  prNumber: number,
-  slug: string,
-  gameVersion: string,
-): Promise<string | null> {
-  const files = await client.getPullRequestFiles(prNumber);
-  const slugRe = new RegExp(
-    `^projects/${slug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/`,
-  );
-  const candidates = files
-    .map((f) => f.filename)
-    .filter((f) => slugRe.test(f) && /\/lang\/zh_cn\.(json|lang)$/.test(f));
-  if (candidates.length === 0) return null;
-  const byVersion = candidates.find((f) => f.split("/")[2] === gameVersion);
-  const pick = byVersion ?? candidates[0]!;
-  const seg = pick.split("/");
-  seg[seg.length - 1] = "en_us.json";
-  return seg.join("/");
 }
 
 function formatSuccess(

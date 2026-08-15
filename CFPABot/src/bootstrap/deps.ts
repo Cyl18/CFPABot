@@ -13,15 +13,15 @@ import { PiSessionManager } from "../agent/session-manager.js";
 import { initApiDeps } from "../api/flow-context.js";
 import { initPrCacheLogger } from "../client/pr-relations-cache.js";
 import { initGitLogger } from "../client/git.js";
-import { initRegistryLogger } from "../engine/registry.js";
 import { initPrIndexLogger } from "../engine/pr-index.js";
-import { initWebhookRoutes } from "../api/webhook/route.js";
-import { initSessionRoutes } from "../api/sessions.js";
+import { createWebhookRouter, type WebhookController } from "../api/webhook/route.js";
+import type { AgentCommandSessionCreator } from "../api/webhook/agent-command.js";
+import { createSessionsRouter } from "../api/sessions.js";
 import { createSessionFlowContext } from "../api/flow-context.js";
 import { REPO } from "../config.js";
 import type { FlowRegistry } from "../engine/registry.js";
 import type { GitHubClient } from "../client/github/index.js";
-import { registerFlows, type FlowDeps } from "./flows.js";
+import { registerFlows } from "./flows.js";
 
 /**
  * All service dependencies created at startup.
@@ -35,6 +35,8 @@ export interface Deps {
   sessionService: SessionService;
   piSessionManager: PiSessionManager;
   registry: FlowRegistry;
+  webhook: WebhookController;
+  sessionsRouter: ReturnType<typeof createSessionsRouter>;
 }
 
 /**
@@ -45,7 +47,7 @@ export interface Deps {
  *   3. SessionService + PiSessionManager (SSE wiring)
  *   4. FlowRegistry + flow registration
  *   5. initApiDeps (so routes can build user flow contexts)
- *   6. Route init (initWebhookRoutes, initSessionRoutes)
+ *   6. Route construction (webhook router, session routes)
  */
 export async function createDeps(config: EntryConfig, logger: Logger): Promise<Deps> {
   // Pre-load encrypt key for OAuth cookies — must happen before any middleware runs
@@ -65,7 +67,6 @@ export async function createDeps(config: EntryConfig, logger: Logger): Promise<D
   // Wire module-level loggers (client/engine modules that used console.*)
   initPrCacheLogger(logger);
   initGitLogger(logger);
-  initRegistryLogger(logger);
   initPrIndexLogger(logger);
   // FileStore is the single persistence primitive for everything
   const fileStore = createFileStore(logger);
@@ -82,22 +83,19 @@ export async function createDeps(config: EntryConfig, logger: Logger): Promise<D
   };
 
   // ─── 3. Flow Registry + Flow creation ─────────────────────────
-  const flowDeps: FlowDeps = {
-    sessionService,
-  };
-  const registry = registerFlows(flowDeps, config, logger);
+  const registry = registerFlows(logger);
 
 
   // Initialize shared API deps (config + logger) so that api/ routes and
   // background tasks can build user flow contexts without crashing.
   // ⚠️ Order dependency: initApiDeps MUST be called before any route handler
   //   that uses buildUserFlowContext / getApiConfig / getApiLogger.
-  initApiDeps(config, logger, githubClient);
+  initApiDeps(config, logger, githubClient, fileStore);
 
   // ─── 4. Route initialization ──────────────────────────────────
 
-  // Webhook routes with session creator for /agent-review
-  initWebhookRoutes(githubClient, logger, config, registry, {
+  // Webhook router + lifecycle controller with session creator for /agent*.
+  const webhookSessionCreator: AgentCommandSessionCreator = {
     createSession: async (params) => {
       const { session, created } = await sessionService.createOrGetSession({
         source: "github_command",
@@ -112,20 +110,30 @@ export async function createDeps(config: EntryConfig, logger: Logger): Promise<D
       return { sessionId: session.sessionId, created };
     },
     startSession: async (sessionId) => {
-      const ctx = createSessionFlowContext(githubClient, config, logger, "webhook");
+      const ctx = createSessionFlowContext(githubClient, config, logger, "webhook", fileStore);
       const session = await sessionService.getSession(sessionId);
       if (session) {
         ctx.scope = { prNumber: session.prNumber, baseSha: session.baseSha, headSha: session.headSha };
       }
       await piSessionManager.startSession(sessionId, ctx);
     },
+  };
+
+  const webhook = createWebhookRouter({
+    githubClient,
+    logger,
+    config,
+    registry,
+    fileStore,
+    sessionCreator: webhookSessionCreator,
   });
 
   // SSE session routes with SessionService + manager
-  initSessionRoutes({
+  const sessionsRouter = createSessionsRouter({
     githubClient,
     config,
     logger,
+    fileStore,
     sessionService,
     agentSessionManager: piSessionManager,
   });
@@ -138,5 +146,7 @@ export async function createDeps(config: EntryConfig, logger: Logger): Promise<D
     sessionService,
     piSessionManager,
     registry,
+    webhook,
+    sessionsRouter,
   };
 }

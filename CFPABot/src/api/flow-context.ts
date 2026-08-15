@@ -9,7 +9,7 @@ import { REPO } from "@/config.js";
 import { createFileStore } from "@/store.js";
 import { createScopedState } from "@/context.js";
 import { createUserTokenGitHubClient } from "@/client/github/index.js"
-import type { FlowContext, Logger, EntryConfig } from "@/types.js"
+import type { FileStore, FlowContext, Logger, EntryConfig } from "@/types.js"
 import type { GitHubClient, GitHubUser } from "@/client/github/index.js"
 
 /**
@@ -30,6 +30,7 @@ export function createApiFlowContext(
   logger: Logger,
   user?: GitHubUser,
   source: "agent" | "webhook" | "api" | "cron" = "api",
+  store?: FileStore,
 ): FlowContext {
   return {
     repo: {
@@ -47,7 +48,7 @@ export function createApiFlowContext(
       source,
     },
     github,
-    store: createFileStore(),
+    store: store ?? createFileStore(logger),
     logger,
     config,
     state: createScopedState(),
@@ -60,14 +61,21 @@ export function createApiFlowContext(
 let _apiConfig: EntryConfig | null = null;
 let _apiLogger: Logger | null = null;
 let _appClient: GitHubClient | null = null;
+let _apiFileStore: FileStore | null = null;
 
 /** Set shared config + logger + App-install client for API-initiated Flow
  *  execution. Called once at startup. `appClient` is used for anonymous
  *  requests (no OAuth token) — never falls back to shared PATs. */
-export function initApiDeps(config: EntryConfig, logger: Logger, appClient?: GitHubClient): void {
+export function initApiDeps(
+  config: EntryConfig,
+  logger: Logger,
+  appClient?: GitHubClient,
+  fileStore?: FileStore,
+): void {
   _apiConfig = config;
   _apiLogger = logger;
   _appClient = appClient ?? null;
+  _apiFileStore = fileStore ?? null;
 }
 
 export function getApiConfig(): EntryConfig {
@@ -97,6 +105,7 @@ export function buildUserFlowContext(token?: string, user?: GitHubUser): FlowCon
     getApiLogger(),
     user,
     "api",
+    _apiFileStore ?? undefined,
   );
 }
 
@@ -110,6 +119,7 @@ export function createSessionFlowContext(
   config: EntryConfig,
   logger: Logger,
   source: "agent" | "webhook" | "api" | "cron" = "agent",
+  store?: FileStore,
 ): FlowContext {
-  return createApiFlowContext(githubClient, config, logger, undefined, source ?? "agent");
+  return createApiFlowContext(githubClient, config, logger, undefined, source ?? "agent", store);
 }

@@ -4,8 +4,6 @@
 // Spec: docs/specs/09-translation-review-delta.md §7.1
 
 import type { Flow } from "@/types.js";
-import type { TerminologyProvider } from "../client/terminology/types.js";
-import type { SessionService } from "../agent/session-service.js";
 
 // ─── Imports for createAllPublicFlows factory ──────────────────────────
 
@@ -40,6 +38,7 @@ import { dev_unmapped_slugs } from "./mappings/unmapped_slugs.js";
 import { files_move_project } from "./files/files_move_project.js";
 import { files_rename } from "./files/files_rename.js";
 import { files_fetch_en_us } from "./files/files_fetch_en_us.js";
+import { files_resolve_en_us_path } from "./files/files_resolve_en_us_path.js";
 import { files_replace_text } from "./files/files_replace_text.js";
 import { files_sort_keys } from "./files/files_sort_keys.js";
 import { files_format } from "./files/files_format.js";
@@ -50,19 +49,13 @@ import { tm_build } from "./terminology/index.js";
 import { compare_get_sources, compare_workspace, compare_upload, compare_special_diff, compare_list_workspaces, compare_cross_version } from "./compare/index.js";
 import { terms_ngram_build } from "./terminology/index.js";
 import { manual_rule_promote } from "./manual/index.js";
-export interface CreatePublicFlowsOptions {
-  terminologyProviders?: TerminologyProvider[];
-  sessionService?: SessionService;
-}
 /**
  * Build the array of all public Flows registered at startup.
+ * All current Flows are stateless; dependencies are obtained exclusively
+ * through FlowContext. Re-introduce a factory options object only when a
+ * concrete Flow needs injected construction-time dependencies.
  */
-export function createAllPublicFlows(
-  options?: CreatePublicFlowsOptions,
-): Flow[] {
-  // Options are reserved for future dependency injection; currently all flows are stateless
-  void options;
-
+export function createAllPublicFlows(): Flow[] {
   const flows: Flow[] = [
     // PR - stateless
     pr_get_context,
@@ -99,6 +92,7 @@ export function createAllPublicFlows(
     files_move_project,
     files_rename,
     files_fetch_en_us,
+    files_resolve_en_us_path,
     files_replace_text,
     files_sort_keys,
     files_format,

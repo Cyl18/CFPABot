@@ -97,6 +97,56 @@ describe("Backend mount table", () => {
 
 
 // ===================================================================
+// 3. Session router factory — route existence without env/GitHub
+// ===================================================================
+describe("Session router factory", () => {
+  it("mounts all admin session routes (401 without auth, not 404)", async () => {
+    // Bun auto-loads .env; prevent the local Development auto-admin path from
+    // issuing real GitHub /user calls during this contract test.
+    const previousEnv = process.env.ASPNETCORE_ENVIRONMENT;
+    process.env.ASPNETCORE_ENVIRONMENT = "Production";
+    try {
+    const { createSessionsRouter } = await import("@/api/sessions.js");
+    const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+    const router = createSessionsRouter({
+      githubClient: {} as never,
+      config: { environment: "production" } as never,
+      logger: noopLogger,
+      fileStore: {} as never,
+      sessionService: {} as never,
+      agentSessionManager: {} as never,
+    });
+    const app = new Hono();
+    app.route("/api/sessions", router);
+
+    for (const [method, path, body] of [
+      ["GET", "/api/sessions", undefined],
+      ["POST", "/api/sessions", "{}"],
+      ["GET", "/api/sessions/some-id", undefined],
+      ["GET", "/api/sessions/some-id/messages", undefined],
+      ["POST", "/api/sessions/some-id/messages", "{}"],
+      ["POST", "/api/sessions/some-id/abort", "{}"],
+      ["POST", "/api/sessions/some-id/confirm", "{}"],
+      ["POST", "/api/sessions/some-id/reject", "{}"],
+      ["POST", "/api/sessions/some-id/archive", "{}"],
+      ["GET", "/api/sessions/some-id/stream", undefined],
+    ] as const) {
+      const res = await app.request(path, {
+        method,
+        ...(body !== undefined
+          ? { headers: { "Content-Type": "application/json" }, body }
+          : {}),
+      });
+      expect(res.status, method + " " + path).not.toBe(404);
+    }
+    } finally {
+      if (previousEnv === undefined) delete process.env.ASPNETCORE_ENVIRONMENT;
+      else process.env.ASPNETCORE_ENVIRONMENT = previousEnv;
+    }
+  });
+});
+
+// ===================================================================
 // 4. Full-app dynamic smoke (optional — requires env vars)
 //
 // Un-skip to test ALL registered routes including sessions and frontend.
@@ -105,44 +155,59 @@ describe("Backend mount table", () => {
 //   GITHUB_APP_ID=1
 //   GITHUB_APP_INSTALLATION_ID=1
 // ===================================================================
-describe.skip("Full app dynamic smoke (set env vars to enable)", () => {
+describe("Full app dynamic smoke (factory deps, no real GitHub)", () => {
   let app: Hono;
 
   beforeAll(async () => {
-    // Set minimal env vars so helpers.ts / loadEntryConfigSync() passes
-    process.env.GITHUB_WEBHOOK_SECRET ??= "test-webhook-secret";
-    process.env.GITHUB_APP_ID ??= "1";
-    process.env.GITHUB_APP_INSTALLATION_ID ??= "1";
+    // Bun auto-loads CFPABot/.env, whose Development branch would make
+    // authMiddleware call GitHub /user for real. Force the cookie path
+    // (no cookie → unauthenticated) for this route-contract suite.
+    const previousEnv = process.env.ASPNETCORE_ENVIRONMENT;
+    process.env.CFPABOT_TEST_PREVIOUS_ENV = previousEnv === undefined ? "" : previousEnv;
+    process.env.ASPNETCORE_ENVIRONMENT = "Production";
 
-    // Dynamic import is an exception — bootstrap.ts statically imports
-    // modules with env-dependent module-level code (helpers.ts etc.).
-    const bootstrap = await import("@/bootstrap.js");
-    const { createHonoApp } = bootstrap as unknown as {
-      createHonoApp: (config: {
-        environment: string;
-        port: number;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      }) => Promise<Hono>;
-    };
-    const { sessionsRouter } = await import("@/api/sessions.js");
+    const { createHonoApp } = await import("@/bootstrap/app.js");
+    const { createWebhookRouter } = await import("@/api/webhook/route.js");
+    const { createSessionsRouter } = await import("@/api/sessions.js");
+    const { initApiDeps } = await import("@/api/flow-context.js");
 
-    // Build full app.  createHonoApp is private; we replicate it inline
-    // here to avoid exporting it purely for test reasons.
-    app = new Hono();
+    const noopLogger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+    // Full-app route smoke only cares about mount points. Give frontend
+    // routes a fake shared client so they fail fast (500) instead of failing
+    // during FlowContext construction.
+    initApiDeps({} as never, noopLogger, {} as never, {} as never);
+    const sessionsRouter = createSessionsRouter({
+      githubClient: {} as never,
+      config: { environment: "development" } as never,
+      logger: noopLogger,
+      fileStore: {} as never,
+      sessionService: {} as never,
+      agentSessionManager: {} as never,
+    });
+    const webhook = createWebhookRouter({
+      githubClient: {} as never,
+      logger: noopLogger,
+      config: {
+        webhookSecret: "test-webhook-secret",
+        githubAppId: 1,
+      } as never,
+      registry: {} as never,
+      fileStore: {} as never,
+    });
 
-    // Static assets are outside the API scope — not relevant for API-route checks.
-    // Mount the same route modules as createHonoApp + bootstrap.
-    const { oauth } = await import("@/api/oauth.js");
-    const { webhookRouter } = await import("@/api/webhook/route.js");
-    const { frontendRouter, protectedFrontend } = await import("@/api/frontend.js");
-    const { bmclModlistRouter } = await import("@/api/bmcl-modlist.js");
+    app = await createHonoApp(
+      { environment: "development", port: 8080 } as never,
+      { webhookRouter: webhook.router, sessionsRouter },
+    );
+  });
 
-    app.route("/api/oauth", oauth);
-    app.route("/api", webhookRouter);
-    app.route("/api/frontend", frontendRouter);
-    app.route("/api/frontend", protectedFrontend);
-    app.route("/api", bmclModlistRouter);
-    app.route("/api/sessions", sessionsRouter);
+  afterAll(() => {
+    // Restore the local .env Development mode only after all requests in
+    // this describe have run; otherwise authMiddleware would call GitHub.
+    const previousEnv = process.env.CFPABOT_TEST_PREVIOUS_ENV;
+    if (previousEnv === undefined) delete process.env.ASPNETCORE_ENVIRONMENT;
+    else process.env.ASPNETCORE_ENVIRONMENT = previousEnv;
+    delete process.env.CFPABOT_TEST_PREVIOUS_ENV;
   });
 
   // --- Sessions routes ---

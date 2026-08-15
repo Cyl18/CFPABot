@@ -47,12 +47,15 @@ export async function bootstrap(config: EntryConfig, logger: Logger): Promise<vo
   );
 
   // Cron: scheduled background tasks
-  const cronTasks = createCronTasks({ registry: deps.registry, github: deps.githubClient, config, logger });
+  const cronTasks = createCronTasks({ registry: deps.registry, github: deps.githubClient, config, logger, fileStore: deps.fileStore });
   const stopCronTasks = startCronTasks(cronTasks, logger);
 
   // Create Hono app + mount routes
-  const app = await createHonoApp(config);
+  const app = await createHonoApp(config, {
+    webhookRouter: deps.webhook.router,
+    sessionsRouter: deps.sessionsRouter,
+  });
 
   // Start Bun.serve + SPA fallback
-  startServer({ app, config, stopCron: stopCronTasks, logger });
+  startServer({ app, config, stopCron: stopCronTasks, logger, webhook: deps.webhook });
 }

@@ -33,7 +33,7 @@ export interface AgentCommandDeps {
   logger: Logger;
   config: EntryConfig;
   registry: FlowRegistry;
-  sessionCreator: AgentCommandSessionCreator;
+  sessionCreator?: AgentCommandSessionCreator;
   /** Raw delivery id from x-github-delivery header (may be empty — manual triggers). */
   deliveryId?: string;
 }
@@ -103,6 +103,11 @@ export async function handleAgentReviewCommand(
       { err: String(err), prNumber },
       "Failed to fetch PR data for /agent-review",
     );
+    return true;
+  }
+
+  if (!deps.sessionCreator) {
+    deps.logger.error({ prNumber }, "Session creator not configured; cannot handle /agent command");
     return true;
   }
 
@@ -198,6 +203,11 @@ export async function handleAgentCommand(
       { err: String(err), prNumber },
       "Failed to fetch PR data for /agent",
     );
+    return true;
+  }
+
+  if (!deps.sessionCreator) {
+    deps.logger.error({ prNumber }, "Session creator not configured; cannot handle /agent command");
     return true;
   }
 

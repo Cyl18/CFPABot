@@ -8,9 +8,8 @@ import { csrf } from "hono/csrf";
 import { secureHeaders } from "hono/secure-headers";
 import type { EntryConfig } from "../config.js";
 import { oauth } from "../api/oauth.js";
-import { webhookRouter } from "../api/webhook/route.js";
 import { frontendRouter, protectedFrontend } from "../api/frontend.js";
-import { sessionsRouter } from "../api/sessions.js";
+import type { SessionsRouter } from "../api/sessions.js";
 import { bmclModlistRouter } from "../api/bmcl-modlist.js";
 
 /**
@@ -45,7 +44,12 @@ export function createCSRFOptions(environment: "development" | "production"): Pa
  * Create Hono app with all middleware and mounted routes.
  * Returned app is ready to be served via Bun.serve.
  */
-export async function createHonoApp(config: EntryConfig): Promise<Hono> {
+export interface CreateHonoAppRoutes {
+  webhookRouter: Hono;
+  sessionsRouter: SessionsRouter;
+}
+
+export async function createHonoApp(config: EntryConfig, routes: CreateHonoAppRoutes): Promise<Hono> {
   // strict:false — accept both /api/sessions and /api/sessions/ for collection roots.
   // Hono's default strict=true treats them as distinct; frontend historically used trailing slash.
   const app = new Hono({ strict: false });
@@ -119,11 +123,11 @@ export async function createHonoApp(config: EntryConfig): Promise<Hono> {
 
   // ---- Mount route modules ----
   app.route("/api/oauth", oauth);
-  app.route("/api", webhookRouter);
+  app.route("/api", routes.webhookRouter);
   app.route("/api/frontend", frontendRouter);
   app.route("/api/frontend", protectedFrontend);
   app.route("/api", bmclModlistRouter);
-  app.route("/api/sessions", sessionsRouter);
+  app.route("/api/sessions", routes.sessionsRouter);
 
   return app;
 }
