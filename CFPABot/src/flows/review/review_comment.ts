@@ -1,10 +1,9 @@
 // src/flows/review/review_comment.ts
 // Flow: review_comment — post a single PR issue comment (Mode A, NOT inline).
-// Risk: review_write | Effects: github_comment_write
+// Risk: repository_write | Effects: github_comment_write
 // The agent reads ctx.draft/reviews to compose the body, then calls this
-// tool to post it. Body length validated. No confirmation required
-// (review_write is below the repository_write/destructive threshold in
-// flow-adapter).
+// tool to post it. Posting to a public PR requires admin confirmation via
+// flow-adapter (see meta below).
 
 import { Type, type Static } from "typebox";
 import type { Flow, FlowContext } from "@/types.js";

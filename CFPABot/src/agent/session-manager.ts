@@ -14,6 +14,7 @@ import { join, resolve, normalize } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
 import type { FlowContext, Logger } from "@/types.js";
 import { flowToToolDefinition } from "./flow-adapter.js";
+import { isAgentVisible } from "./flow-policy.js";
 import { getSharedRegistry } from "@/engine/registry-store.js";
 import { syncLlmRegistry, selectSessionModel } from "./llm-registry.js";
 import { parseLlmEndpoints, findLlmEndpoint } from "./llm-endpoints.js";
@@ -70,26 +71,11 @@ interface PiSessionRuntime {
   agentSession?: AgentSession;
 }
 
-// ─── Whitelist of registry Flow names exposed to agent ───────────────
-// Phase 3+: explicit whitelist, NOT every agent_callable === true.
-// Add moa/dict here when those tools land.
+// ─── Agent flow visibility ────────────────────────────────────────────
+// Deliberately narrow allow-list, see src/agent/flow-policy.ts. This is
+// NOT derived from Flow.meta.agent_callable on purpose: re-opening a Flow
+// for Agent use is a policy decision after the 2026-08-01 publish incident.
 
-const FLOW_WHITELIST = new Set([
-  "pr_get_context",
-  "pr_get_detail",
-  "pr_get_diff",
-  "pr_read_file",
-  "pr_compare",
-  "pr_find_related",
-  // Review tools
-  // review_comment 已从 agent 工具中移除（2026-08-01：验证期间发生意外发表，
-  // 重新开放前需评估确认机制在开发模式下的自动放行问题）。
-  // Terminology tools
-  "terms_ngram_build",
-  "tm_build",
-  // Manual tools
-  "manual_rule_promote",
-]);
 // ─── Max continuation rounds in runLoop ──────────────────────────────
 const MAX_CONTINUATION_ROUNDS = 3;
 export class PiSessionManager {
@@ -207,7 +193,7 @@ export class PiSessionManager {
     const registry = getSharedRegistry();
     const flowToolDefs: ToolDefinition[] = registry
       .list()
-      .filter((f) => FLOW_WHITELIST.has(f.name))
+      .filter((f) => isAgentVisible(f.name))
       .map((f) => flowToToolDefinition(f, sessionCtx, this.sessionService, sessionId));
     return flowToolDefs;
   }

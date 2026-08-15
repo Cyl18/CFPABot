@@ -9,6 +9,7 @@
 import type { ToolDefinition, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Flow, FlowContext } from "@/types.js";
 import { FlowError } from "@/types.js";
+import { requiresAgentConfirmation } from "@/engine/policy.js";
 import { executeFlow } from "@/engine/execute.js";
 import type { SessionService } from "./session-service.js";
 import { computeInputHash } from "./session-service.js";
@@ -102,9 +103,9 @@ export function flowToToolDefinition(
         }
       }
 
-      // ── Risk-based confirmation ───────────────────────────────────
+      // ── Risk-based confirmation (shared policy module) ─────────────
       const risk = flow.meta.risk;
-      const needsConfirmation = risk === "repository_write" || risk === "destructive";
+      const needsConfirmation = requiresAgentConfirmation(risk);
 
       if (needsConfirmation) {
         if (!sessionService || !sessionId) {

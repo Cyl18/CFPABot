@@ -68,7 +68,10 @@ export const tm_build: Flow<typeof tm_build_input, typeof tm_build_output> = {
   output: tm_build_output,
   meta: {
     tags: ["terminology", "tm", "cache"],
-    risk: "read",
+    // Builds and writes runtime/cache/tm/{slug}.json — a local write, but
+    // still not a pure read. Keep risk aligned with effects: agent
+    // invocations require admin confirmation like every other write.
+    risk: "repository_write",
     effects: ["github_read", "storage_write"],
     agent_callable: true,
     timeoutMs: 60_000,

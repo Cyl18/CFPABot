@@ -10,6 +10,7 @@ import type { TSchema, Static } from "typebox";
 import { decodeOrThrow } from "./validate.js";
 import { ensureFlowError } from "./timeout.js";
 import { resolveRetry, executeWithRetry } from "./retry.js";
+import { isProgrammaticExecutionAllowed } from "./policy.js";
 import { executeWithIdempotency } from "./idempotency.js";
 import { appendRecord, buildRecord } from "./record.js";
 
@@ -56,8 +57,8 @@ export async function executeFlow<
   const hasIdempKey = !!flow.meta.idempotencyKey;
   const resolvedRetry = resolveRetry(flow.meta.retry, hasIdempKey);
 
-  // ── 3. Risk policy ───────────────────────────────────────────────
-  if (flow.meta.risk === "destructive" && ctx.invocation.source !== "agent") {
+  // ── 3. Risk policy (shared policy module) ──────────────────────────
+  if (!isProgrammaticExecutionAllowed(flow.meta.risk) && ctx.invocation.source !== "agent") {
     const err = new FlowError({
       code: "CONFIRMATION_REQUIRED",
       message: `Flow "${flow.name}" (${flow.meta.risk}) requires agent invocation source`,
