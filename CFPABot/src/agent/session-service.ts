@@ -48,7 +48,11 @@ export class SessionService {
   private pendingToolCalls = new Map<string, PendingToolCall<ToolResult>>();
   /** Per-session abort signals — fired by abortSession so in-flight thunks
    *  ( confirmation → pending.execute ) can detect cancellation without a
-   *  back-reference to PiSessionManager. */
+   *  back-reference to PiSessionManager.
+   *  Entries are released at terminal transitions via releaseAbortController:
+   *  never deleting leaks one controller per historical session, and a cached
+   *  aborted controller would make every later confirmation of a continued
+   *  session fail its abortSignal.aborted check (confirmAction). */
   private sessionAbort = new Map<string, AbortController>();
   private logger: Logger;
   sseBroadcast?: (sessionId: string, event: Record<string, unknown>) => void;
@@ -132,6 +136,17 @@ export class SessionService {
       this.sessionAbort.set(sessionId, ac);
     }
     return ac.signal;
+  }
+
+  /**
+   * Drop the per-session abort controller. Idempotent (no-op when absent).
+   * Safe because PendingToolCall holds its own signal reference — deletion
+   * never affects in-flight confirmation abort checks; a later confirmation
+   * lazily gets a fresh controller. Called at terminal transitions:
+   * abortSession, archiveSession, and finalizeSession (normal completion).
+   */
+  releaseAbortController(sessionId: string): void {
+    this.sessionAbort.delete(sessionId);
   }
 
   /**
@@ -399,6 +414,10 @@ export class SessionService {
         this.pendingToolCalls.delete(key);
       }
     }
+    // Released after the reject pass: pending holds its own signal reference,
+    // and any registration racing this teardown already captured the fired
+    // (aborted) signal. Future runs lazily get a fresh controller.
+    this.releaseAbortController(sessionId);
     return true;
   }
 
@@ -446,6 +465,7 @@ export class SessionService {
       // Terminal state — persist ctx snapshot first, then drop in-memory blobs.
       await persistSessionCtx(sessionId);
       clearSessionCtx(sessionId);
+      this.releaseAbortController(sessionId);
       return record;
     });
   }

@@ -96,31 +96,42 @@ export class PiSessionManager {
   // ─── Session Lifecycle ────────────────────────────────────────────
 
   async startSession(sessionId: string, ctx: FlowContext): Promise<void> {
+    // Register the runtime BEFORE the awaited startRunning/getSession disk I/O.
+    // During that window abortSession must find the controller, or the loop
+    // would run a full round with a signal nobody can fire. has→set happens
+    // in one synchronous block, so the double-start check stays race-free.
     if (this.runtimes.has(sessionId)) {
       throw new Error(`Session ${sessionId} already has a running agent`);
     }
-    const started = await this.sessionService.startRunning(sessionId);
-    if (!started) {
-      throw new Error(`Cannot start session ${sessionId}: not found or already running`);
-    }
-
-    const session = await this.sessionService.getSession(sessionId);
-    if (!session) {
-      await this.sessionService.updateStatus(sessionId, "idle");
-      throw new Error(`Session ${sessionId} not found after startRunning`);
-    }
-
-    // Register runtime immediately so isRunning returns true
     const abortController = new AbortController();
     this.runtimes.set(sessionId, { sessionId, abortController });
+    try {
+      const started = await this.sessionService.startRunning(sessionId);
+      if (!started) {
+        throw new Error(`Cannot start session ${sessionId}: not found or already running`);
+      }
 
-    // Fire-and-forget — API must return immediately
-    const loop = this.runLoop(session, ctx, undefined, abortController).catch((err) => {
-      this.logger?.error({ err: String(err), sessionId }, "[PiSessionManager] runLoop error");
-    }).finally(() => {
-      if (this.runLoops.get(sessionId) === loop) this.runLoops.delete(sessionId);
-    });
-    this.runLoops.set(sessionId, loop);
+      const session = await this.sessionService.getSession(sessionId);
+      if (!session) {
+        await this.sessionService.updateStatus(sessionId, "idle");
+        throw new Error(`Session ${sessionId} not found after startRunning`);
+      }
+
+      // Fire-and-forget — API must return immediately
+      const loop = this.runLoop(session, ctx, undefined, abortController).catch((err) => {
+        this.logger?.error({ err: String(err), sessionId }, "[PiSessionManager] runLoop error");
+      }).finally(() => {
+        if (this.runLoops.get(sessionId) === loop) this.runLoops.delete(sessionId);
+      });
+      this.runLoops.set(sessionId, loop);
+    } catch (err) {
+      // Startup failed before the loop took ownership — roll back the early
+      // registration (runLoop's finally only cleans up what it owns).
+      if (this.runtimes.get(sessionId)?.abortController === abortController) {
+        this.runtimes.delete(sessionId);
+      }
+      throw err;
+    }
   }
 
   async continueSession(
@@ -128,29 +139,36 @@ export class PiSessionManager {
     ctx: FlowContext,
     promptOverride: string,
   ): Promise<void> {
+    // Same early-registration rationale as startSession.
     if (this.runtimes.has(sessionId)) {
       throw new Error(`Session ${sessionId} is currently running — wait for completion`);
     }
-    const started = await this.sessionService.startRunning(sessionId);
-    if (!started) {
-      throw new Error(`Cannot continue session ${sessionId}: not found or already running`);
-    }
-
-    const session = await this.sessionService.getSession(sessionId);
-    if (!session) {
-      await this.sessionService.updateStatus(sessionId, "idle");
-      throw new Error(`Session ${sessionId} not found after startRunning`);
-    }
-
     const abortController = new AbortController();
     this.runtimes.set(sessionId, { sessionId, abortController });
+    try {
+      const started = await this.sessionService.startRunning(sessionId);
+      if (!started) {
+        throw new Error(`Cannot continue session ${sessionId}: not found or already running`);
+      }
 
-    const loop = this.runLoop(session, ctx, promptOverride, abortController).catch((err) => {
-      this.logger?.error({ err: String(err), sessionId }, "[PiSessionManager] runLoop error");
-    }).finally(() => {
-      if (this.runLoops.get(sessionId) === loop) this.runLoops.delete(sessionId);
-    });
-    this.runLoops.set(sessionId, loop);
+      const session = await this.sessionService.getSession(sessionId);
+      if (!session) {
+        await this.sessionService.updateStatus(sessionId, "idle");
+        throw new Error(`Session ${sessionId} not found after startRunning`);
+      }
+
+      const loop = this.runLoop(session, ctx, promptOverride, abortController).catch((err) => {
+        this.logger?.error({ err: String(err), sessionId }, "[PiSessionManager] runLoop error");
+      }).finally(() => {
+        if (this.runLoops.get(sessionId) === loop) this.runLoops.delete(sessionId);
+      });
+      this.runLoops.set(sessionId, loop);
+    } catch (err) {
+      if (this.runtimes.get(sessionId)?.abortController === abortController) {
+        this.runtimes.delete(sessionId);
+      }
+      throw err;
+    }
   }
 
   // ─── Compose the tool list (whitelist flows + custom tools) ────────
@@ -374,6 +392,11 @@ export class PiSessionManager {
           await this.sessionService.updateStatus(sessionId, "idle");
           await this.sessionService.addMessage(sessionId, "system", `Agent 执行失败: ${agentError}`);
           this.broadcast(sessionId, { type: "session_status", sessionId, status: "idle", error: agentError });
+          // Paused-at-confirmation keeps in-memory ctx for the continuation;
+          // otherwise this run is over — persist then clear (先写再 clear).
+          if (cur?.pendingConfirmation === undefined) {
+            await this.persistAndClearCtx(sessionId);
+          }
           return;
         }
 
@@ -412,6 +435,9 @@ export class PiSessionManager {
           const errorMsg = err instanceof Error ? err.message : String(err);
           await this.sessionService.updateStatus(sessionId, "idle");
           this.broadcast(sessionId, { type: "session_status", sessionId, status: "idle", error: errorMsg });
+          // This run is over and nothing awaits confirmation — persist then
+          // clear, otherwise the working set stays resident until restart.
+          await this.persistAndClearCtx(sessionId);
         }
       }
     } finally {
@@ -428,6 +454,14 @@ export class PiSessionManager {
     }
   }
 
+  /** Terminal for this run with nothing awaiting confirmation — persist the
+   *  working set, then drop the in-memory copy (契约 2026-08-01: 先写再
+   *  clear, partial results must survive; see ctx-store.ts header). */
+  private async persistAndClearCtx(sessionId: string): Promise<void> {
+    await persistSessionCtx(sessionId);
+    clearSessionCtx(sessionId);
+  }
+
   private async finalizeSession(sessionId: string): Promise<void> {
     // Guard: archiving is a terminal admin action — never let the agent loop
     // overwrite an archived session back to a live status.
@@ -437,10 +471,10 @@ export class PiSessionManager {
     this.broadcast(sessionId, { type: "idle", sessionId } as Record<string, unknown>);
     // Session is terminal — prune any lingering subscribers so they don't accumulate.
     this.broadcaster.clearSession(sessionId);
-    // Terminal state: persist first, then drop in-memory ctx — partial results
-    // must survive (契约 2026-08-01: 先写再 clear)。
-    await persistSessionCtx(sessionId);
-    clearSessionCtx(sessionId);
+    await this.persistAndClearCtx(sessionId);
+    // Terminal state — drop the per-session abort controller too, so a later
+    // run never inherits a fired (aborted) signal.
+    this.sessionService.releaseAbortController(sessionId);
   }
 
   // ─── Abort ────────────────────────────────────────────────────────
