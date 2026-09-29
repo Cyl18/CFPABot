@@ -145,6 +145,27 @@ export const gh: GitHubClient = {
     return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
   },
 
+  async getFiles(paths, ref) {
+    const texts = new Map<string, string>();
+    const load = async (path: string) => {
+      try {
+        const encoded = path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
+        const res = await fetch(`https://raw.githubusercontent.com/${repo.owner}/${repo.name}/${ref}/${encoded}`, {
+          headers: { "user-agent": USER_AGENT },
+        });
+        if (res.status === 404) return;
+        if (!res.ok) throw new Error(`raw.githubusercontent ${res.status}`);
+        const text = await res.text();
+        texts.set(path, text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
+      } catch {
+        const text = await gh.getFile(path, ref);
+        if (text !== null) texts.set(path, text);
+      }
+    };
+    await Promise.all(paths.map(load));
+    return texts;
+  },
+
   async listComments(n) {
     const all = await octokit.paginate(octokit.rest.issues.listComments, {
       owner: repo.owner,

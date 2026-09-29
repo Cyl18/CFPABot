@@ -8,6 +8,7 @@ import type { GhFile, GhPull } from "./github/client.ts";
 import { mods } from "./mods/index.ts";
 import { mirror } from "./mirror.ts";
 import { prdata } from "./prdata.ts";
+import { ttlCache } from "./ttl.ts";
 import type {
   CompareResult,
   CrossVersionResult,
@@ -320,9 +321,17 @@ function changedKeys(base: Map<string, string> | undefined, head: Map<string, st
   return keys;
 }
 
-export async function crossVersionResult(slug: string, opts: { namespace?: string; pr?: number }): Promise<CrossVersionResult> {
+const CROSS_TTL_MS = 30 * 60_000;
+const CROSS_CACHE_MAX = 100;
+const crossCache = ttlCache<CrossVersionResult>(CROSS_TTL_MS, CROSS_CACHE_MAX);
+
+async function buildCrossVersion(
+  slug: string,
+  opts: { namespace?: string; pr?: number },
+  head: string | null,
+  prData: { pull: GhPull; files: GhFile[] } | null,
+): Promise<CrossVersionResult> {
   const prNumber = opts.pr;
-  const prData = prNumber === undefined ? null : await prdata.files(prNumber);
   const all = await mirror.langFiles();
   const prLangs = (prData?.files ?? [])
     .filter((file) => file.status !== "removed")
@@ -344,44 +353,48 @@ export async function crossVersionResult(slug: string, opts: { namespace?: strin
     byVersion.set(file.version, slot);
   }
 
+  const basePaths: string[] = [];
+  for (const slot of byVersion.values()) {
+    if (slot.en) basePaths.push(slot.en.path);
+    if (slot.zh) basePaths.push(slot.zh.path);
+  }
+  const prPaths = prLangs.filter((parsed) => parsed.namespace === namespace).map((parsed) => parsed.path);
+  const [baseTexts, prTexts] = await Promise.all([
+    mirror.readMany(head ?? "HEAD", basePaths),
+    prData === null ? null : gh.getFiles(prPaths, prData.pull.headSha),
+  ]);
+
   const overlay = new Map<string, { en?: OverlayText; zh?: OverlayText }>();
-  if (prData !== null) {
-    const headTexts = await Promise.all(
-      prLangs
-        .filter((parsed) => parsed.namespace === namespace)
-        .map(async (parsed) => {
-          const text = await gh.getFile(parsed.path, prData.pull.headSha);
-          return text === null ? null : { parsed, text };
-        }),
-    );
-    for (const hit of headTexts) {
-      if (!hit) continue;
-      const slot = overlay.get(hit.parsed.version) ?? {};
-      slot[hit.parsed.locale === "en_us" ? "en" : "zh"] = { text: hit.text, format: hit.parsed.format };
-      overlay.set(hit.parsed.version, slot);
-      if (!byVersion.has(hit.parsed.version)) byVersion.set(hit.parsed.version, {});
+  if (prTexts !== null) {
+    for (const parsed of prLangs) {
+      if (parsed.namespace !== namespace) continue;
+      const text = prTexts.get(parsed.path);
+      if (text === undefined) continue;
+      const slot = overlay.get(parsed.version) ?? {};
+      slot[parsed.locale === "en_us" ? "en" : "zh"] = { text, format: parsed.format };
+      overlay.set(parsed.version, slot);
+      if (!byVersion.has(parsed.version)) byVersion.set(parsed.version, {});
     }
   }
 
   const versions = [...byVersion.keys()].sort(compareMc);
-  const inputs = await Promise.all(
-    versions.map(async (version) => {
-      const slot = byVersion.get(version) ?? {};
-      const patch = overlay.get(version);
-      const load = async (file: LangPath | undefined) => {
-        const text = file ? await mirror.read(file.path) : null;
-        return text === null || !file ? undefined : parseLang(text, file.format).entries;
-      };
-      const baseEn = await load(slot.en);
-      const baseZh = await load(slot.zh);
-      const en = patch?.en ? parseLang(patch.en.text, patch.en.format).entries : baseEn;
-      const zh = patch?.zh ? parseLang(patch.zh.text, patch.zh.format).entries : baseZh;
-      if (!patch) return { version, en, zh };
-      const touched = changedKeys(baseEn, patch.en ? en : undefined);
-      for (const key of changedKeys(baseZh, patch.zh ? zh : undefined)) touched.add(key);
-      return { version, en, zh, touched };
-    }),
-  );
+  const inputs = versions.map((version) => {
+    const slot = byVersion.get(version) ?? {};
+    const patch = overlay.get(version);
+    const load = (file: LangPath | undefined): Map<string, string> | undefined => {
+      if (!file) return undefined;
+      const text = baseTexts.get(file.path);
+      return text === undefined ? undefined : parseLang(text, file.format).entries;
+    };
+    const baseEn = load(slot.en);
+    const baseZh = load(slot.zh);
+    const en = patch?.en ? parseLang(patch.en.text, patch.en.format).entries : baseEn;
+    const zh = patch?.zh ? parseLang(patch.zh.text, patch.zh.format).entries : baseZh;
+    if (!patch) return { version, en, zh };
+    const touched = changedKeys(baseEn, patch.en ? en : undefined);
+    for (const key of changedKeys(baseZh, patch.zh ? zh : undefined)) touched.add(key);
+    return { version, en, zh, touched };
+  });
 
   const { keyCount, issues } = crossVersion(inputs);
   return {
@@ -394,6 +407,12 @@ export async function crossVersionResult(slug: string, opts: { namespace?: strin
     issues,
     ...(prNumber === undefined ? {} : { prNumber }),
   };
+}
+
+export async function crossVersionResult(slug: string, opts: { namespace?: string; pr?: number }): Promise<CrossVersionResult> {
+  const [head, prData] = await Promise.all([mirror.headSha(), opts.pr === undefined ? null : prdata.files(opts.pr)]);
+  const key = JSON.stringify([head, opts.pr ?? null, prData?.pull.headSha ?? null, slug, opts.namespace ?? null]);
+  return crossCache.wrap(key, () => buildCrossVersion(slug, opts, head, prData));
 }
 
 export function textCompare(req: TextCompareRequest): TextCompareResult {

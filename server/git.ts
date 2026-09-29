@@ -17,17 +17,18 @@ export interface Workspace {
   push(): Promise<void>;
 }
 
-export async function runGit(cwd: string, args: string[], token: string | null): Promise<string> {
+export async function runGitBytes(cwd: string, args: string[], token: string | null, stdin: Uint8Array | null): Promise<ArrayBuffer> {
   const proc = Bun.spawn(["git", ...args], {
     cwd,
     env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    stdin,
     stdout: "pipe",
     stderr: "pipe",
   });
   const timer = setTimeout(() => proc.kill(), GIT_TIMEOUT_MS);
   try {
     const [out, err, code] = await Promise.all([
-      new Response(proc.stdout).text(),
+      new Response(proc.stdout).arrayBuffer(),
       new Response(proc.stderr).text(),
       proc.exited,
     ]);
@@ -39,6 +40,10 @@ export async function runGit(cwd: string, args: string[], token: string | null):
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function runGit(cwd: string, args: string[], token: string | null): Promise<string> {
+  return new TextDecoder().decode(await runGitBytes(cwd, args, token, null));
 }
 
 function makeWorkspace(dir: string, token: string | null): Workspace {

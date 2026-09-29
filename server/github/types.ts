@@ -74,6 +74,7 @@ export interface GitHubClient {
   findPullByHead(ownerColonBranch: string): Promise<GhPull | null>;
   listPullFiles(n: number): Promise<GhFile[]>;
   getFile(path: string, ref: string): Promise<string | null>;
+  getFiles(paths: readonly string[], ref: string): Promise<Map<string, string>>;
   listComments(n: number): Promise<GhComment[]>;
   createComment(n: number, body: string): Promise<GhComment>;
   updateComment(id: number, body: string): Promise<void>;

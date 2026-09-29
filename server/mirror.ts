@@ -2,7 +2,7 @@ import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { compareMc, parseLangPath, type LangPath } from "./domain/path.ts";
 import { repo } from "./env.ts";
-import { runGit } from "./git.ts";
+import { runGit, runGitBytes } from "./git.ts";
 import { logger } from "./log.ts";
 import { getModsByIds } from "./mods/curseforge.ts";
 import { mappings } from "./mods/mappings.ts";
@@ -19,13 +19,33 @@ function git(args: string[], cwd = paths.mirror): Promise<string> {
   return runGit(cwd, args, null);
 }
 
-async function headSha(): Promise<string | null> {
+async function readHeadSha(): Promise<string | null> {
   if (!(await stat(join(paths.mirror, ".git")).catch(() => null))) return null;
   try {
     return (await git(["rev-parse", "HEAD"])).trim() || null;
   } catch {
     return null;
   }
+}
+
+let knownHead: string | null = null;
+let listing: { head: string; files: Promise<readonly LangPath[]> } | null = null;
+
+async function headSha(): Promise<string | null> {
+  knownHead ??= await readHeadSha();
+  return knownHead;
+}
+
+async function listLangFiles(rev: string): Promise<readonly LangPath[]> {
+  const out = await git(["ls-tree", "-r", "--name-only", rev]);
+  const files: LangPath[] = [];
+  for (const line of out.split("\n")) {
+    const path = line.trim();
+    if (!path) continue;
+    const parsed = parseLangPath(path);
+    if (parsed) files.push(parsed);
+  }
+  return files;
 }
 
 async function ensureMirror(): Promise<void> {
@@ -65,37 +85,51 @@ async function curseforgeNames(ids: number[]): Promise<Map<number, string>> {
 export const mirror = {
   async sync(): Promise<{ headSha: string; changed: boolean }> {
     return withLock("mirror", async () => {
-      const before = await headSha();
+      const before = await readHeadSha();
       await ensureMirror();
       if (before !== null) {
         await git(["fetch", "--depth", "1", "origin", repo.defaultBranch]);
         await git(["update-ref", `refs/heads/${repo.defaultBranch}`, "FETCH_HEAD"]);
       }
-      const after = await headSha();
+      const after = await readHeadSha();
+      knownHead = after;
       return { headSha: after ?? "", changed: after !== before };
     });
   },
 
   headSha,
 
-  async langFiles(): Promise<LangPath[]> {
-    const out = await git(["ls-tree", "-r", "--name-only", "HEAD"]);
-    const files: LangPath[] = [];
-    for (const line of out.split("\n")) {
-      const path = line.trim();
-      if (!path) continue;
-      const parsed = parseLangPath(path);
-      if (parsed) files.push(parsed);
+  async langFiles(): Promise<readonly LangPath[]> {
+    const head = await headSha();
+    if (head === null) return listLangFiles("HEAD");
+    if (listing?.head !== head) {
+      const files = listLangFiles(head);
+      listing = { head, files };
+      files.catch(() => {
+        if (listing?.files === files) listing = null;
+      });
     }
-    return files;
+    return listing.files;
   },
 
-  async read(path: string): Promise<string | null> {
-    try {
-      return await git(["show", `HEAD:${path}`]);
-    } catch {
-      return null;
+  async readMany(rev: string, files: readonly string[]): Promise<Map<string, string>> {
+    const texts = new Map<string, string>();
+    if (files.length === 0) return texts;
+    const input = new TextEncoder().encode(files.map((path) => `${rev}:${path}\n`).join(""));
+    const out = new Uint8Array(await runGitBytes(paths.mirror, ["cat-file", "--batch"], null, input));
+    const decoder = new TextDecoder();
+    let pos = 0;
+    for (const path of files) {
+      const eol = out.indexOf(0x0a, pos);
+      if (eol < 0) break;
+      const header = /^[0-9a-f]+ (\w+) (\d+)$/.exec(decoder.decode(out.subarray(pos, eol)));
+      pos = eol + 1;
+      if (!header) continue;
+      const size = Number(header[2]);
+      if (header[1] === "blob") texts.set(path, decoder.decode(out.subarray(pos, pos + size)));
+      pos += size + 1;
     }
+    return texts;
   },
 
   async modList(): Promise<ModList> {
