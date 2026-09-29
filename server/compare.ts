@@ -1,6 +1,6 @@
 import { extname } from "node:path";
 import { parseLang, guessFormat } from "./domain/langfile.ts";
-import { compareLang, compareTwo, crossVersion } from "./domain/diff.ts";
+import { compareLang, compareTwo, crossVersion, withLiteralNewlines } from "./domain/diff.ts";
 import { buildLangPath, parseLangPath, compareMc, langPathFor, workspacesOf } from "./domain/path.ts";
 import type { LangFormat, LangPath, Locale } from "./domain/path.ts";
 import { gh } from "./github/client.ts";
@@ -223,8 +223,8 @@ export async function modSource(n: number, key: WorkspaceKey): Promise<ModSource
   const prFormat = prSide?.format ?? jarLang.format;
   const prPath = prSide?.head ?? buildLangPath(key.slug, key.version, key.namespace, "en_us", prFormat);
   const prText = prSide?.head === null ? null : await readLang(prPath, "en_us", pull.headSha);
-  const jarEntries = parseLang(jarLang.content, jarLang.format).entries;
-  const prEntries = prText === null ? null : parseLang(prText, prFormat).entries;
+  const jarEntries = withLiteralNewlines(parseLang(jarLang.content, jarLang.format).entries);
+  const prEntries = prText === null ? null : withLiteralNewlines(parseLang(prText, prFormat).entries);
 
   const keys = new Set<string>([...jarEntries.keys(), ...(prEntries?.keys() ?? [])]);
   const rows = [...keys].sort().map((k) => {

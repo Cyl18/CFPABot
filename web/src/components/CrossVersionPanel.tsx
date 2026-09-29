@@ -3,6 +3,7 @@ import { diffChars, diffWordsWithSpace } from "diff";
 import { Check, CircleCheck, Copy, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn.ts";
+import { expandNewlines } from "@/lib/format.ts";
 import { useVersions } from "@/lib/queries.ts";
 import { Badge, type BadgeTone } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
@@ -218,8 +219,10 @@ function VersionChip({ version, highlight }: { version: string; highlight: boole
 }
 
 function Highlight({ text, reference, words }: { text: string; reference: string | null; words: boolean }) {
-  if (reference === null || reference === text) return <>{text}</>;
-  const changes = words ? diffWordsWithSpace(reference, text) : diffChars(reference, text);
+  if (reference === null || reference === text) return <>{expandNewlines(text)}</>;
+  const left = expandNewlines(reference);
+  const right = expandNewlines(text);
+  const changes = words ? diffWordsWithSpace(left, right) : diffChars(left, right);
   return (
     <>
       {changes.map((change, index) =>
@@ -273,7 +276,7 @@ function IssueCard({ issue, prVersions, showTouched }: { issue: CrossVersionIssu
         {sameEn && first !== undefined && (
           <p className="flex gap-3 text-sm">
             <span className="w-10 shrink-0 text-xs leading-5 text-muted">英文</span>
-            <span className="min-w-0 whitespace-pre-wrap break-words">{first.en}</span>
+            <span className="min-w-0 whitespace-pre-wrap break-words">{expandNewlines(first.en)}</span>
           </p>
         )}
         <ul aria-label="各版本文本" className="flex flex-col gap-1.5">

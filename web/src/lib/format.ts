@@ -37,3 +37,7 @@ export function formatJson(value: unknown): string {
     return String(value);
   }
 }
+
+export function expandNewlines(value: string): string {
+  return value.replaceAll("\\n", "\\n\n");
+}

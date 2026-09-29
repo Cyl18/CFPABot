@@ -71,6 +71,25 @@ test("crossVersion reports conflicts, changed EN and untranslated gaps", () => {
   ]);
 });
 
+test("literal and real newlines compare equal in compareLang, compareTwo and crossVersion", () => {
+  const langSide = parseLang("a=a\\nb", "lang");
+  const jsonSide = parseLang('{"a": "a\\nb"}', "json");
+  expect(compareLang({ en: langSide }, { en: jsonSide })).toEqual([
+    { key: "a", baseEn: "a\\nb", headEn: "a\\nb", enStatus: "same", zhStatus: "same" },
+  ]);
+
+  expect(compareTwo(new Map([["a", "a\\nb"]]), new Map([["a", "a\nb"]]))).toEqual([
+    { key: "a", left: "a\\nb", right: "a\\nb", status: "same" },
+  ]);
+
+  const result = crossVersion([
+    { version: "1.19", en: new Map([["a", "a\\nb"]]), zh: new Map([["a", "甲\\n乙"]]) },
+    { version: "1.20", en: new Map([["a", "a\nb"]]), zh: new Map([["a", "甲\n乙"]]) },
+  ]);
+  expect(result.keyCount).toBe(1);
+  expect(result.issues).toEqual([]);
+});
+
 test("patchHunks and patchAddedLines read the new side", () => {
   const patch = [
     "@@ -1,3 +1,4 @@",

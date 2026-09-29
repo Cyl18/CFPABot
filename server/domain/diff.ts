@@ -14,6 +14,12 @@ export interface Hunk {
 
 type LangPair = { en?: ParsedLang | null; zh?: ParsedLang | null };
 
+export function withLiteralNewlines(entries: Map<string, string> | undefined): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [key, value] of entries ?? []) out.set(key, value.replaceAll("\n", "\\n"));
+  return out;
+}
+
 function statusOf(from: Map<string, string>, to: Map<string, string>, key: string): RowStatus {
   const inFrom = from.has(key);
   const inTo = to.has(key);
@@ -23,10 +29,10 @@ function statusOf(from: Map<string, string>, to: Map<string, string>, key: strin
 }
 
 export function compareLang(base: LangPair, head: LangPair): CompareRow[] {
-  const baseEn = base.en?.entries ?? new Map<string, string>();
-  const baseZh = base.zh?.entries ?? new Map<string, string>();
-  const headEn = head.en?.entries ?? new Map<string, string>();
-  const headZh = head.zh?.entries ?? new Map<string, string>();
+  const baseEn = withLiteralNewlines(base.en?.entries);
+  const baseZh = withLiteralNewlines(base.zh?.entries);
+  const headEn = withLiteralNewlines(head.en?.entries);
+  const headZh = withLiteralNewlines(head.zh?.entries);
 
   const keys: string[] = [];
   const seen = new Set<string>();
@@ -65,10 +71,12 @@ export function compareTwo(
   left: Map<string, string>,
   right: Map<string, string>,
 ): TextCompareResult["rows"] {
-  const keys = [...new Set([...left.keys(), ...right.keys()])].sort();
+  const leftEntries = withLiteralNewlines(left);
+  const rightEntries = withLiteralNewlines(right);
+  const keys = [...new Set([...leftEntries.keys(), ...rightEntries.keys()])].sort();
   return keys.map((key) => {
-    const l = left.get(key);
-    const r = right.get(key);
+    const l = leftEntries.get(key);
+    const r = rightEntries.get(key);
     const status: RowStatus =
       l === undefined && r !== undefined
         ? "add"
@@ -96,8 +104,14 @@ export interface CrossVersionInput {
 const KIND_ORDER: Record<CrossVersionIssue["kind"], number> = { conflict: 0, changed: 1, untranslated: 2 };
 
 export function crossVersion(input: readonly CrossVersionInput[]): { keyCount: number; issues: CrossVersionIssue[] } {
+  const entries = input.map((entry) => ({
+    ...entry,
+    ...(entry.en === undefined ? {} : { en: withLiteralNewlines(entry.en) }),
+    ...(entry.zh === undefined ? {} : { zh: withLiteralNewlines(entry.zh) }),
+  }));
+
   const keys = new Set<string>();
-  for (const entry of input) {
+  for (const entry of entries) {
     for (const key of entry.en?.keys() ?? []) keys.add(key);
   }
 
@@ -108,7 +122,7 @@ export function crossVersion(input: readonly CrossVersionInput[]): { keyCount: n
       return raw === undefined || raw === "" ? null : raw;
     };
     const byEn = new Map<string, CrossVersionInput[]>();
-    for (const entry of input) {
+    for (const entry of entries) {
       const en = entry.en?.get(key);
       if (en === undefined || en === "") continue;
       const group = byEn.get(en) ?? [];
@@ -118,7 +132,7 @@ export function crossVersion(input: readonly CrossVersionInput[]): { keyCount: n
 
     if (byEn.size > 1) {
       const byPair = new Map<string, CrossVersionVariant>();
-      for (const entry of input) {
+      for (const entry of entries) {
         const en = entry.en?.get(key);
         if (en === undefined || en === "") continue;
         const zh = zhOf(entry);
@@ -127,7 +141,7 @@ export function crossVersion(input: readonly CrossVersionInput[]): { keyCount: n
         variant.versions.push(entry.version);
         byPair.set(id, variant);
       }
-      const touched = input.some((entry) => entry.touched?.has(key) === true && entry.en?.has(key) === true);
+      const touched = entries.some((entry) => entry.touched?.has(key) === true && entry.en?.has(key) === true);
       issues.push({ key, kind: "changed", variants: [...byPair.values()], touched });
     }
 
