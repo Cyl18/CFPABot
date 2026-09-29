@@ -105,7 +105,7 @@ export function AppShell() {
         title={collapsed ? item.label : undefined}
         className={cn(
           "flex items-center gap-2.5 overflow-hidden rounded-md px-2.5 py-1.5 text-sm text-muted transition-colors hover:bg-elevated hover:text-fg",
-          active && "bg-accent/15 text-accent hover:bg-accent/15 hover:text-accent",
+          active && "bg-accent-soft text-accent hover:bg-accent-soft hover:text-accent",
         )}
         aria-current={active ? "page" : undefined}
       >
@@ -136,7 +136,7 @@ export function AppShell() {
       >
         <div className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-3">
           <Link to="/" className="flex min-w-0 items-center gap-2 text-sm font-semibold" title="CFPA 翻译面板">
-            <span className="grid size-7 shrink-0 place-items-center rounded-md bg-accent text-accent-fg">CF</span>
+            <span className="grid size-7 shrink-0 place-items-center rounded-md bg-brand text-brand-fg">CF</span>
             <span className={cn("whitespace-nowrap transition-opacity duration-200", collapsedOn(collapsed, "lg:opacity-0"))}>CFPA 翻译面板</span>
           </Link>
           <button
@@ -223,7 +223,7 @@ export function AppShell() {
             <Menu aria-hidden="true" className="size-5" />
           </button>
           <Link to="/" className="flex items-center gap-2 text-sm font-semibold">
-            <span className="grid size-7 place-items-center rounded-md bg-accent text-accent-fg">CF</span>
+            <span className="grid size-7 place-items-center rounded-md bg-brand text-brand-fg">CF</span>
             CFPA 翻译面板
           </Link>
           <button

@@ -103,7 +103,7 @@ export function Checkbox({ label, hint, className, id, ...rest }: CheckboxProps)
   const fieldId = id ?? generated;
   return (
     <div className="flex items-start gap-2">
-      <input id={fieldId} type="checkbox" className={cn("mt-0.5 size-4 accent-[var(--accent)]", className)} {...rest} />
+      <input id={fieldId} type="checkbox" className={cn("mt-0.5 size-4 accent-[var(--brand)]", className)} {...rest} />
       <div className="flex flex-col">
         <label htmlFor={fieldId} className="text-sm">
           {label}

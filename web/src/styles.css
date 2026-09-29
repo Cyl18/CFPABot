@@ -8,37 +8,45 @@
 }
 
 :root {
-  --bg: #fafafa;
+  --bg: #f6f7f7;
   --surface: #ffffff;
-  --elevated: #f2f2f4;
-  --fg: #1f1f23;
-  --muted: #52525b;
-  --line: #e2e2e7;
-  --accent: #059669;
-  --accent-fg: #ffffff;
-  --accent-soft: #d1fae5;
-  --ok: #15803d;
-  --warn: #b45309;
-  --danger: #b91c1c;
-  --info: #1d4ed8;
-  --shadow-panel: 0 1px 2px rgb(24 24 27 / 0.06), 0 8px 24px -16px rgb(24 24 27 / 0.25);
+  --elevated: #edeeee;
+  --fg: #1e201f;
+  --muted: #575958;
+  --line: #d7dad8;
+  --brand: #a7e8cb;
+  --brand-fg: #012115;
+  --accent: #2f6f56;
+  --accent-soft: #d2e4db;
+  --ok: #007433;
+  --warn: #975000;
+  --danger: #b23731;
+  --info: #2e5fbe;
+  --shadow-panel: 0 1px 2px rgb(55 56 55 / 0.06), 0 8px 24px -16px rgb(55 56 55 / 0.25);
 }
 
 .dark {
-  --bg: #0b0b0d;
-  --surface: #18181b;
-  --elevated: #232327;
-  --fg: #e7e7ea;
-  --muted: #a1a1aa;
-  --line: #2f2f36;
-  --accent: #10b981;
-  --accent-fg: #04140d;
-  --accent-soft: #06301f;
-  --ok: #4ade80;
-  --warn: #fbbf24;
-  --danger: #f87171;
-  --info: #60a5fa;
+  --bg: #0a0b0b;
+  --surface: #171818;
+  --elevated: #222322;
+  --fg: #e6e8e7;
+  --muted: #a5a7a6;
+  --line: #2e2f2f;
+  --brand: #539a7c;
+  --brand-fg: #012115;
+  --accent: #70b799;
+  --accent-soft: #23352d;
+  --ok: #3ebf67;
+  --warn: #f98d22;
+  --danger: #ff8579;
+  --info: #7aa8ff;
   --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 30px -18px rgb(0 0 0 / 0.9);
+}
+
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
 }
 
 @theme inline {
@@ -48,8 +56,9 @@
   --color-fg: var(--fg);
   --color-muted: var(--muted);
   --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-fg: var(--brand-fg);
   --color-accent: var(--accent);
-  --color-accent-fg: var(--accent-fg);
   --color-accent-soft: var(--accent-soft);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
@@ -79,11 +88,6 @@
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
-  }
-
-  ::selection {
-    background-color: var(--accent-soft);
-    color: var(--fg);
   }
 
   * {

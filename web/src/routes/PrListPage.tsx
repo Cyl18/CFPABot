@@ -79,7 +79,7 @@ export function PrListPage() {
       id: "title",
       header: "标题",
       cell: (row) => (
-        <Link to="/pr/$n" params={{ n: String(row.number) }} className="line-clamp-2 font-medium hover:underline" title={row.title}>
+        <Link to="/pr/$n" params={{ n: String(row.number) }} className="line-clamp-2 font-medium text-fg/85 hover:underline" title={row.title}>
           {row.title}
         </Link>
       ),

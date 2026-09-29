@@ -202,7 +202,7 @@ export function LlmEndpointForm({ initial, onCancel, onSubmit }: LlmEndpointForm
                   <li key={item}>
                     <button
                       type="button"
-                      className={cn("w-full rounded px-2 py-1 text-left font-mono text-xs hover:bg-elevated", model === item && "bg-accent/15 text-accent")}
+                      className={cn("w-full rounded px-2 py-1 text-left font-mono text-xs hover:bg-elevated", model === item && "bg-accent-soft text-accent")}
                       onClick={() => {
                         setModel(item);
                         setIdentityChanged(true);

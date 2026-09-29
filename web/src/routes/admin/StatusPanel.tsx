@@ -51,7 +51,7 @@ export function StatusPanel() {
                 className="mt-2 h-1.5 overflow-hidden rounded-full bg-elevated"
               >
                 <div
-                  className="h-full rounded-full bg-accent"
+                  className="h-full rounded-full bg-brand"
                   style={{ width: `${rate.limit > 0 ? (rate.remaining / rate.limit) * 100 : 0}%` }}
                 />
               </div>

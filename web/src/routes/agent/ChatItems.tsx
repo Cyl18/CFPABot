@@ -56,7 +56,7 @@ export function ChatItemView({ item }: { item: ChatItem }) {
     return (
       <div className="flex flex-col items-end gap-1">
         <span className="text-[11px] text-muted">你</span>
-        <div className="max-w-[80%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm text-accent-fg">
+        <div className="max-w-[80%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-brand px-3 py-2 text-sm text-brand-fg">
           {item.text}
         </div>
       </div>
@@ -80,9 +80,9 @@ export function ChatItemView({ item }: { item: ChatItem }) {
       )}
       {item.text.trim() === "" && item.streaming === true ? (
         <span className="flex items-center gap-1 px-1 py-1" aria-label="正在生成">
-          <span className="size-1.5 animate-bounce rounded-full bg-accent" />
-          <span className="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:120ms]" />
-          <span className="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:240ms]" />
+          <span className="size-1.5 animate-bounce rounded-full bg-brand" />
+          <span className="size-1.5 animate-bounce rounded-full bg-brand [animation-delay:120ms]" />
+          <span className="size-1.5 animate-bounce rounded-full bg-brand [animation-delay:240ms]" />
         </span>
       ) : (
         <Markdown>{item.text}</Markdown>

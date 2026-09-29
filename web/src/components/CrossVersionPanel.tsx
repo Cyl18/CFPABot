@@ -210,7 +210,7 @@ function VersionChip({ version, highlight }: { version: string; highlight: boole
       title={highlight ? "本 PR 修改了这个版本" : undefined}
       className={cn(
         "inline-flex h-5 items-center whitespace-nowrap rounded border px-1.5 font-mono text-xs",
-        highlight ? "border-accent/50 bg-accent/15 text-accent" : "border-line bg-elevated text-muted",
+        highlight ? "border-accent/50 bg-accent-soft font-medium text-accent" : "border-line bg-elevated text-muted",
       )}
     >
       {version}
@@ -227,7 +227,7 @@ function Highlight({ text, reference, words }: { text: string; reference: string
     <>
       {changes.map((change, index) =>
         change.added ? (
-          <mark key={index} className="rounded-sm bg-warn/20 px-0.5 text-warn">
+          <mark key={index} className="rounded-sm bg-accent-soft px-0.5 text-accent">
             {change.value}
           </mark>
         ) : change.removed ? (
@@ -259,8 +259,8 @@ function IssueCard({ issue, prVersions, showTouched }: { issue: CrossVersionIssu
   const stale = issue.kind === "changed" && staleZh(issue.variants);
 
   return (
-    <li className="rounded-lg border border-line bg-surface">
-      <header className="flex min-w-0 items-center gap-2 border-b border-line px-4 py-2">
+    <li className="overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow-panel)]">
+      <header className="flex min-w-0 items-center gap-2 border-b border-line bg-elevated/35 px-4 py-2">
         <Badge tone={KIND_TONE[issue.kind]}>{KIND_LABEL[issue.kind]}</Badge>
         {stale && (
           <Badge tone="danger" title="英文改了，但有版本的中文和旧英文版本一模一样">
@@ -283,8 +283,13 @@ function IssueCard({ issue, prVersions, showTouched }: { issue: CrossVersionIssu
           {issue.variants.map((variant, index) => {
             const previous = sameEn ? first : issue.variants[index - 1];
             return (
-              <li key={`${variant.en}\u0000${variant.zh ?? "\u0001"}`} className="flex gap-3 rounded-md bg-elevated/60 px-2 py-1.5">
-                <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
+              <li key={`${variant.en}\u0000${variant.zh ?? "\u0001"}`} className="flex gap-3 rounded-md border border-line/60 bg-elevated/55 px-2 py-1.5">
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <span className="flex flex-wrap items-center gap-1">
+                    {variant.versions.map((version) => (
+                      <VersionChip key={version} version={version} highlight={prVersions.has(version)} />
+                    ))}
+                  </span>
                   <div className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
                     {!sameEn && (
                       <p className="flex gap-3">
@@ -305,11 +310,6 @@ function IssueCard({ issue, prVersions, showTouched }: { issue: CrossVersionIssu
                       </span>
                     </p>
                   </div>
-                  <span className="flex shrink-0 flex-wrap items-center gap-1 sm:max-w-[45%] sm:justify-end">
-                    {variant.versions.map((version) => (
-                      <VersionChip key={version} version={version} highlight={prVersions.has(version)} />
-                    ))}
-                  </span>
                 </div>
                 {variant.zh !== null && <CopyButton text={variant.zh} />}
               </li>

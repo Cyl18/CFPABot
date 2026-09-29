@@ -12,13 +12,13 @@ export function tabClass(active: boolean, variant: TabVariant = "segmented", cla
   if (variant === "underline") {
     return cn(
       "inline-flex h-10 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 text-sm transition-colors",
-      active ? "border-accent font-medium text-fg" : "border-transparent text-muted hover:border-line hover:text-fg",
+      active ? "border-brand font-medium text-fg" : "border-transparent text-muted hover:border-line hover:text-fg",
       className,
     );
   }
   return cn(
     "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm transition-colors",
-    active ? "bg-accent/15 font-medium text-accent" : "text-muted hover:bg-elevated hover:text-fg",
+    active ? "bg-accent-soft font-medium text-accent" : "text-muted hover:bg-elevated hover:text-fg",
     className,
   );
 }
