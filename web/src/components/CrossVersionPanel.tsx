@@ -1,10 +1,10 @@
-import type { CrossVersionIssue, CrossVersionIssueKind, CrossVersionVariant } from "@shared/api.ts";
+import type { CrossVersionIssue, CrossVersionIssueKind, CrossVersionKeyRow, CrossVersionVariant } from "@shared/api.ts";
 import { diffChars, diffWordsWithSpace } from "diff";
 import { Check, CircleCheck, Copy, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/cn.ts";
 import { expandNewlines } from "@/lib/format.ts";
-import { useVersions } from "@/lib/queries.ts";
+import { useVersions, useVersionsKeys } from "@/lib/queries.ts";
 import { Badge, type BadgeTone } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
 import { Card, CardBody } from "@/ui/Card.tsx";
@@ -12,14 +12,22 @@ import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
 import { Checkbox, Input } from "@/ui/Input.tsx";
 import { SkeletonTable } from "@/ui/Spinner.tsx";
+import { DataTable, type Column } from "@/ui/Table.tsx";
 import { Tabs } from "@/ui/Tabs.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
 type KindFilter = CrossVersionIssueKind | "all";
+type View = "issues" | "keys";
 
 const PAGE = 50;
+const KEY_PAGE = 50;
 
 const KINDS: readonly CrossVersionIssueKind[] = ["conflict", "changed", "untranslated"];
+
+const VIEWS: readonly { id: View; label: string }[] = [
+  { id: "issues", label: "跨版本问题" },
+  { id: "keys", label: "全部 key 对齐" },
+];
 
 const KIND_LABEL: Record<KindFilter, string> = { conflict: "冲突", changed: "有变化", untranslated: "未翻译", all: "全部" };
 
@@ -33,13 +41,25 @@ export interface CrossVersionPanelProps {
 }
 
 export function CrossVersionPanel({ slug, namespace, pr, onNamespaceChange }: CrossVersionPanelProps) {
-  const versions = useVersions(slug, namespace, pr);
+  const [view, setView] = useState<View>("issues");
+  const [selection, setSelection] = useState<readonly string[] | null>(null);
   const [kind, setKind] = useState<KindFilter>("conflict");
   const [prOnly, setPrOnly] = useState(pr !== undefined);
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(PAGE);
+  const [keyQuery, setKeyQuery] = useState("");
+  const [keyOffset, setKeyOffset] = useState(0);
+
+  const versions = useVersions(slug, { namespace, pr, versions: selection ?? undefined });
+  const search = useDebounced(keyQuery, 200);
+  const keys = useVersionsKeys(
+    slug,
+    { namespace, pr, versions: selection ?? undefined, q: search, offset: keyOffset, limit: KEY_PAGE },
+    view === "keys",
+  );
 
   const data = versions.data;
+  const activeVersions = data?.activeVersions ?? [];
   const prVersions = useMemo(() => new Set(data?.prVersions ?? []), [data]);
 
   const scoped = useMemo(() => {
@@ -64,17 +84,41 @@ export function CrossVersionPanel({ slug, namespace, pr, onNamespaceChange }: Cr
   const visible = filtered.slice(0, limit);
   const touchedTotal = useMemo(() => (data?.issues ?? []).filter((issue) => issue.touched).length, [data]);
 
-  const reset = () => setLimit(PAGE);
+  const reset = () => {
+    setLimit(PAGE);
+    setKeyOffset(0);
+  };
+
+  const toggleVersion = (version: string) => {
+    if (data === undefined) return;
+    const next = activeVersions.includes(version)
+      ? activeVersions.filter((item) => item !== version)
+      : data.versions.filter((item) => item === version || activeVersions.includes(item));
+    if (next.length === 0) return;
+    setSelection(next.length === data.versions.length ? null : next);
+    reset();
+  };
 
   if (versions.error !== null) return <ErrorState error={versions.error} onRetry={() => void versions.refetch()} />;
-  if (versions.isPending || !data) return <SkeletonTable rows={6} columns={3} />;
+  if (data === undefined) return <SkeletonTable rows={6} columns={3} />;
 
-  const hasIssues = data.versions.length >= 2 && data.issues.length > 0;
+  const hasIssues = activeVersions.length >= 2 && data.issues.length > 0;
+  const keyData = keys.data;
 
   return (
     <div className="flex flex-col gap-4">
       <Card>
         <CardBody className="flex flex-col gap-3">
+          <Tabs
+            ariaLabel="视图"
+            value={view}
+            onChange={setView}
+            items={VIEWS.map((item) => ({
+              id: item.id,
+              label: `${item.label} ${item.id === "issues" ? data.issues.length : data.keyCount}`,
+            }))}
+          />
+
           {data.namespaces.length > 1 && (
             <div role="group" aria-label="命名空间" className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs text-muted">命名空间</span>
@@ -89,66 +133,129 @@ export function CrossVersionPanel({ slug, namespace, pr, onNamespaceChange }: Cr
           <div className="flex flex-wrap items-center gap-1">
             <span className="mr-1 text-xs text-muted">参与比较的版本</span>
             {data.versions.map((version) => (
-              <VersionChip key={version} version={version} highlight={prVersions.has(version)} />
+              <ToggleChip
+                key={version}
+                mono
+                pressed={activeVersions.includes(version)}
+                title={prVersions.has(version) ? "本 PR 修改了这个版本" : undefined}
+                onClick={() => toggleVersion(version)}
+              >
+                {version}
+              </ToggleChip>
             ))}
             <span className="ml-1 text-xs text-muted">· {data.keyCount} 个 key</span>
           </div>
 
-          {hasIssues && (
-            <>
-              <div className="flex flex-wrap items-center gap-2">
-                <Tabs
-                  ariaLabel="问题类型"
-                  value={kind}
-                  onChange={(next) => {
-                    setKind(next);
-                    reset();
-                  }}
-                  items={[...KINDS, "all" as const].map((id) => ({ id, label: `${KIND_LABEL[id]} ${counts[id]}` }))}
-                />
-                {pr !== undefined && (
-                  <Checkbox
-                    label="只看本 PR 改动的 key"
-                    checked={prOnly}
+          {view === "keys" ? (
+            <Input
+              aria-label="搜索 key 或译文"
+              placeholder="搜索 key / 英文 / 中文"
+              icon={<Search />}
+              wrapperClassName="w-full sm:w-72"
+              value={keyQuery}
+              onChange={(event) => {
+                setKeyQuery(event.target.value);
+                setKeyOffset(0);
+              }}
+            />
+          ) : (
+            hasIssues && (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Tabs
+                    ariaLabel="问题类型"
+                    value={kind}
+                    onChange={(next) => {
+                      setKind(next);
+                      reset();
+                    }}
+                    items={[...KINDS, "all" as const].map((id) => ({ id, label: `${KIND_LABEL[id]} ${counts[id]}` }))}
+                  />
+                  {pr !== undefined && (
+                    <Checkbox
+                      label="只看本 PR 改动的 key"
+                      checked={prOnly}
+                      onChange={(event) => {
+                        setPrOnly(event.target.checked);
+                        reset();
+                      }}
+                    />
+                  )}
+                  <Input
+                    aria-label="搜索 key 或译文"
+                    placeholder="搜索 key / 英文 / 中文"
+                    icon={<Search />}
+                    wrapperClassName="w-full sm:ml-auto sm:w-72"
+                    value={query}
                     onChange={(event) => {
-                      setPrOnly(event.target.checked);
+                      setQuery(event.target.value);
                       reset();
                     }}
                   />
-                )}
-                <Input
-                  aria-label="搜索 key 或译文"
-                  placeholder="搜索 key / 英文 / 中文"
-                  icon={<Search />}
-                  wrapperClassName="w-full sm:ml-auto sm:w-72"
-                  value={query}
-                  onChange={(event) => {
-                    setQuery(event.target.value);
-                    reset();
-                  }}
-                />
-              </div>
+                </div>
 
-              <p className="text-xs text-muted">
-                <span className="text-danger">冲突</span>：同一句英文在不同版本译法不同；
-                <span className="text-warn">有变化</span>：英文原文在版本之间改过，逐版本对照看译文有没有跟上；
-                <span className="text-info">未翻译</span>：同一句英文有的版本已翻译，有的还空着。
-              </p>
-            </>
+                <p className="text-xs text-muted">
+                  <span className="text-danger">冲突</span>：同一句英文在不同版本译法不同；
+                  <span className="text-warn">有变化</span>：英文原文在版本之间改过，逐版本对照看译文有没有跟上；
+                  <span className="text-info">未翻译</span>：同一句英文有的版本已翻译，有的还空着。
+                </p>
+              </>
+            )
           )}
         </CardBody>
       </Card>
 
-      {data.versions.length < 2 ? (
+      {view === "keys" ? (
+        keys.error !== null ? (
+          <ErrorState error={keys.error} onRetry={() => void keys.refetch()} />
+        ) : keyData === undefined ? (
+          <SkeletonTable rows={8} columns={3} />
+        ) : keyData.total === 0 ? (
+          <EmptyState
+            icon={<Search aria-hidden="true" className="size-5" />}
+            title="没有匹配的 key"
+            description={keyQuery.trim() === "" ? "这个命名空间下没有可对齐的 key。" : "换个搜索词试试。"}
+          />
+        ) : (
+          <>
+            <AlignTable
+              rows={keyData.rows}
+              versions={activeVersions}
+              prVersions={prVersions}
+              showTouched={pr !== undefined}
+            />
+            <div className="flex items-center justify-center gap-3 text-xs text-muted">
+              <Button size="sm" disabled={keyOffset === 0} onClick={() => setKeyOffset(Math.max(0, keyOffset - KEY_PAGE))}>
+                上一页
+              </Button>
+              <span>
+                {keyOffset + 1}–{keyOffset + keyData.rows.length} / {keyData.total}
+              </span>
+              <Button
+                size="sm"
+                disabled={keyOffset + keyData.rows.length >= keyData.total}
+                onClick={() => setKeyOffset(keyOffset + KEY_PAGE)}
+              >
+                下一页
+              </Button>
+            </div>
+          </>
+        )
+      ) : activeVersions.length < 2 ? (
         <EmptyState
           title="只有一个版本，无从比较"
-          description={`${data.namespace} 目前只有 ${data.versions[0] ?? "—"} 这一个版本的语言文件。出现第二个版本后，这里会列出跨版本的冲突、变化和未翻译。`}
+          description={`${data.namespace} 当前只选了 ${activeVersions[0] ?? "—"} 这一个版本。至少选中两个版本，这里才会列出跨版本的冲突、变化和未翻译。`}
         />
       ) : !hasIssues ? (
         <EmptyState
           icon={<CircleCheck aria-hidden="true" className="size-5 text-ok" />}
           title="各版本一致"
-          description={`${data.versions.length} 个版本、${data.keyCount} 个 key 里没有发现冲突、英文变化或未翻译。`}
+          description={`${activeVersions.length} 个版本、${data.keyCount} 个 key 里没有发现冲突、英文变化或未翻译。切到「全部 key 对齐」可以逐条看英文和译文的对应。`}
+          action={
+            <Button size="sm" onClick={() => setView("keys")}>
+              看全部 key 对齐
+            </Button>
+          }
         />
       ) : filtered.length === 0 ? (
         prOnly && pr !== undefined && touchedTotal === 0 && query.trim() === "" ? (
@@ -200,6 +307,84 @@ export function CrossVersionPanel({ slug, namespace, pr, onNamespaceChange }: Cr
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function useDebounced<T>(value: T, delay: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSettled(value), delay);
+    return () => window.clearTimeout(timer);
+  }, [value, delay]);
+  return settled;
+}
+
+function AlignTable({
+  rows,
+  versions,
+  prVersions,
+  showTouched,
+}: {
+  rows: readonly CrossVersionKeyRow[];
+  versions: readonly string[];
+  prVersions: ReadonlySet<string>;
+  showTouched: boolean;
+}) {
+  const columns = useMemo<Column<CrossVersionKeyRow>[]>(
+    () => [
+      {
+        id: "key",
+        header: "key",
+        width: 280,
+        cell: (row) => (
+          <div className="flex flex-col items-start gap-1">
+            <code className="break-all font-mono text-xs text-muted">{row.key}</code>
+            {row.cells.length < versions.length && (
+              <Badge tone="neutral" title="这个 key 只出现在部分版本里">
+                仅 {row.cells.map((cell) => cell.version).join("、")} 有
+              </Badge>
+            )}
+            {showTouched && row.touched && <Badge tone="accent">本 PR 改动</Badge>}
+          </div>
+        ),
+      },
+      ...versions.map((version) => ({
+        id: version,
+        header: <VersionChip version={version} highlight={prVersions.has(version)} />,
+        width: 320,
+        cell: (row: CrossVersionKeyRow) => <AlignCell row={row} version={version} />,
+      })),
+    ],
+    [prVersions, showTouched, versions],
+  );
+
+  return (
+    <DataTable
+      ariaLabel="全部 key 对齐"
+      columns={columns}
+      rows={rows}
+      rowKey={(row) => row.key}
+      scroll="contained"
+      height="70vh"
+    />
+  );
+}
+
+function AlignCell({ row, version }: { row: CrossVersionKeyRow; version: string }) {
+  const cell = row.cells.find((item) => item.version === version);
+  if (cell === undefined) return <span className="text-muted">—</span>;
+  const enDiffers = new Set(row.cells.map((item) => item.en)).size > 1;
+  const zhDiffers = new Set(row.cells.map((item) => item.zh)).size > 1;
+  const zhReference = row.cells.find((item) => item.zh !== null)?.zh ?? null;
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs leading-5">
+        <Highlight text={cell.en} reference={enDiffers ? (row.cells[0]?.en ?? null) : null} words />
+      </span>
+      <span className={cn("text-sm", cell.zh === null && "italic text-muted")}>
+        {cell.zh === null ? "未翻译" : <Highlight text={cell.zh} reference={zhDiffers ? zhReference : null} words={false} />}
+      </span>
     </div>
   );
 }

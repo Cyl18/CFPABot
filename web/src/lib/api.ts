@@ -2,6 +2,7 @@ import type {
   CheckReport,
   CompareResult,
   CreateSessionRequest,
+  CrossVersionKeysResult,
   CrossVersionResult,
   LlmConfigUpdate,
   LlmConfigView,
@@ -135,8 +136,31 @@ export const api = {
   modSource: (n: number, key: CompareKey, signal?: AbortSignal) =>
     get<ModSourceResult>(`/api/prs/${n}/mod-source${query({ slug: key.slug, version: key.version, namespace: key.namespace })}`, signal),
   special: (n: number, signal?: AbortSignal) => get<SpecialFile[]>(`/api/prs/${n}/special`, signal),
-  versions: (slug: string, namespace: string | undefined, pr: number | undefined, signal?: AbortSignal) =>
-    get<CrossVersionResult>(`/api/versions/${encodeURIComponent(slug)}${query({ namespace, pr })}`, signal),
+  versions: (slug: string, opts: { namespace?: string; pr?: number; versions?: readonly string[] }, signal?: AbortSignal) =>
+    get<CrossVersionResult>(
+      `/api/versions/${encodeURIComponent(slug)}${query({
+        namespace: opts.namespace,
+        pr: opts.pr,
+        versions: opts.versions === undefined || opts.versions.length === 0 ? undefined : opts.versions.join(","),
+      })}`,
+      signal,
+    ),
+  versionsKeys: (
+    slug: string,
+    opts: { namespace?: string; pr?: number; versions?: readonly string[]; q: string; offset: number; limit: number },
+    signal?: AbortSignal,
+  ) =>
+    get<CrossVersionKeysResult>(
+      `/api/versions/${encodeURIComponent(slug)}/keys${query({
+        namespace: opts.namespace,
+        pr: opts.pr,
+        versions: opts.versions === undefined || opts.versions.length === 0 ? undefined : opts.versions.join(","),
+        q: opts.q,
+        offset: opts.offset,
+        limit: opts.limit,
+      })}`,
+      signal,
+    ),
   compareText: (body: TextCompareRequest) => send<TextCompareResult>("POST", "/api/compare/text", body),
   mods: (q: string, signal?: AbortSignal) => get<ModList>(`/api/mods${query({ q })}`, signal),
 

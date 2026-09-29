@@ -11,7 +11,7 @@ import { mods } from "../mods/index.ts";
 import { prdata } from "../prdata.ts";
 import { getCheckReport, refreshInfoComment } from "../bot/index.ts";
 import { llm } from "../agent/index.ts";
-import { compareWorkspace, crossVersionResult, modSource, prDetail, specialFiles, textCompare } from "../compare.ts";
+import { compareWorkspace, crossVersionKeys, crossVersionResult, modSource, prDetail, specialFiles, textCompare } from "../compare.ts";
 import { currentUser, requireAdmin } from "./auth.ts";
 import type { AppContext, AppEnv } from "./auth.ts";
 import { HttpError, isUpstreamNotFound, notFound, parseBody, parseQuery } from "./errors.ts";
@@ -28,6 +28,22 @@ const workspaceQuery = z.object({
 const versionsQuery = z.object({
   namespace: z.string().min(1).optional(),
   pr: z.coerce.number().int().positive().optional(),
+  versions: z.string().optional(),
+});
+
+function versionSelection(raw: string | undefined): string[] | undefined {
+  if (raw === undefined) return undefined;
+  const list = raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item !== "");
+  return list.length === 0 ? undefined : list;
+}
+
+const versionsKeysQuery = versionsQuery.extend({
+  q: z.string().optional(),
+  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 const textCompareSchema = z.object({
   left: z.object({ name: z.string().min(1), content: z.string().max(5_000_000) }),
@@ -117,8 +133,21 @@ prRoutes.get("/prs/:n/mod-source", async (c) => {
 prRoutes.get("/prs/:n/special", async (c) => c.json(await withPull(() => specialFiles(prNumber(c)))));
 
 prRoutes.get("/versions/:slug", async (c) => {
-  const { namespace, pr } = parseQuery(c, versionsQuery);
-  return c.json(await crossVersionResult(c.req.param("slug"), { namespace, pr }));
+  const { namespace, pr, versions } = parseQuery(c, versionsQuery);
+  return c.json(
+    await crossVersionResult(c.req.param("slug"), { namespace, pr, versions: versionSelection(versions) }),
+  );
+});
+
+prRoutes.get("/versions/:slug/keys", async (c) => {
+  const { namespace, pr, versions, q, offset, limit } = parseQuery(c, versionsKeysQuery);
+  return c.json(
+    await crossVersionKeys(
+      c.req.param("slug"),
+      { namespace, pr, versions: versionSelection(versions) },
+      { q, offset, limit },
+    ),
+  );
 });
 
 prRoutes.post("/compare/text", async (c) => {

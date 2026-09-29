@@ -1,4 +1,4 @@
-import type { CheckReport, CompareResult, CrossVersionResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, ModSourceResult, PrDetail, PrState, PrSummary, SessionDetail, SessionSummary, SpecialFile, SystemStatus } from "@shared/api.ts";
+import type { CheckReport, CompareResult, CrossVersionKeysResult, CrossVersionResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, ModSourceResult, PrDetail, PrState, PrSummary, SessionDetail, SessionSummary, SpecialFile, SystemStatus } from "@shared/api.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type CompareKey } from "@/lib/api.ts";
 
@@ -11,7 +11,22 @@ export const qk = {
   compare: (n: number, key: string) => ["compare", n, key] as const,
   modSource: (n: number, key: string) => ["mod-source", n, key] as const,
   special: (n: number) => ["special", n] as const,
-  versions: (slug: string, namespace: string | undefined, pr: number | undefined) => ["versions", slug, namespace ?? null, pr ?? null] as const,
+  versions: (slug: string, opts: { namespace?: string; pr?: number; versions?: readonly string[] }) =>
+    ["versions", slug, opts.namespace ?? null, opts.pr ?? null, opts.versions?.join(",") ?? null] as const,
+  versionsKeys: (
+    slug: string,
+    opts: { namespace?: string; pr?: number; versions?: readonly string[]; q: string; offset: number; limit: number },
+  ) =>
+    [
+      "versions-keys",
+      slug,
+      opts.namespace ?? null,
+      opts.pr ?? null,
+      opts.versions?.join(",") ?? null,
+      opts.q,
+      opts.offset,
+      opts.limit,
+    ] as const,
   mods: (q: string) => ["mods", q] as const,
   sessions: ["sessions"] as const,
   session: (id: string) => ["session", id] as const,
@@ -63,11 +78,24 @@ export function useSpecial(n: number, enabled = true) {
   return useQuery<SpecialFile[]>({ queryKey: qk.special(n), queryFn: ({ signal }) => api.special(n, signal), enabled });
 }
 
-export function useVersions(slug: string, namespace: string | undefined, pr: number | undefined) {
+export function useVersions(slug: string, opts: { namespace?: string; pr?: number; versions?: readonly string[] }) {
   return useQuery<CrossVersionResult>({
-    queryKey: qk.versions(slug, namespace, pr),
-    queryFn: ({ signal }) => api.versions(slug, namespace, pr, signal),
+    queryKey: qk.versions(slug, opts),
+    queryFn: ({ signal }) => api.versions(slug, opts, signal),
     enabled: slug.length > 0,
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useVersionsKeys(
+  slug: string,
+  opts: { namespace?: string; pr?: number; versions?: readonly string[]; q: string; offset: number; limit: number },
+  enabled: boolean,
+) {
+  return useQuery<CrossVersionKeysResult>({
+    queryKey: qk.versionsKeys(slug, opts),
+    queryFn: ({ signal }) => api.versionsKeys(slug, opts, signal),
+    enabled: enabled && slug.length > 0,
   });
 }
 

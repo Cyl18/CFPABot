@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { compareLang, compareTwo, crossVersion, inHunks, patchAddedLines, patchHunks } from "./diff.ts";
+import { alignKeys, compareLang, compareTwo, crossVersion, inHunks, patchAddedLines, patchHunks } from "./diff.ts";
 import { parseLang } from "./langfile.ts";
 
 test("compareLang orders head-en keys first then the rest sorted", () => {
@@ -67,6 +67,34 @@ test("crossVersion reports conflicts, changed EN and untranslated gaps", () => {
       kind: "changed",
       touched: false,
       variants: [{ en: "Old", zh: "旧", versions: ["1.19"] }, { en: "New", zh: "新", versions: ["1.20", "1.21"] }],
+    },
+  ]);
+});
+
+test("alignKeys lists every key with a cell per version that has it", () => {
+  const rows = alignKeys([
+    { version: "1.19", en: new Map([["a", "Stone"], ["b", "Dirt"]]), zh: new Map([["a", "石头"]]) },
+    { version: "1.20", en: new Map([["a", "Stone"], ["b", ""]]), zh: new Map([["a", "石块"]]), touched: new Set(["a"]) },
+    { version: "1.21", en: new Map([["c", "Sand"]]), zh: new Map([["c", "沙子"]]) },
+  ]);
+  expect(rows).toEqual([
+    {
+      key: "a",
+      touched: true,
+      cells: [
+        { version: "1.19", en: "Stone", zh: "石头" },
+        { version: "1.20", en: "Stone", zh: "石块" },
+      ],
+    },
+    {
+      key: "b",
+      touched: false,
+      cells: [{ version: "1.19", en: "Dirt", zh: null }],
+    },
+    {
+      key: "c",
+      touched: false,
+      cells: [{ version: "1.21", en: "Sand", zh: "沙子" }],
     },
   ]);
 });

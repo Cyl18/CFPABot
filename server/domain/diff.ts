@@ -1,6 +1,8 @@
 import type {
   CompareRow,
   CrossVersionIssue,
+  CrossVersionKeyCell,
+  CrossVersionKeyRow,
   CrossVersionVariant,
   RowStatus,
   TextCompareResult,
@@ -172,6 +174,33 @@ export function crossVersion(input: readonly CrossVersionInput[]): { keyCount: n
       (a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
   );
   return { keyCount: keys.size, issues };
+}
+
+export function alignKeys(input: readonly CrossVersionInput[]): CrossVersionKeyRow[] {
+  const entries = input.map((entry) => ({
+    version: entry.version,
+    ...(entry.en === undefined ? {} : { en: withLiteralNewlines(entry.en) }),
+    ...(entry.zh === undefined ? {} : { zh: withLiteralNewlines(entry.zh) }),
+    ...(entry.touched === undefined ? {} : { touched: entry.touched }),
+  }));
+
+  const keys = new Set<string>();
+  for (const entry of entries) {
+    for (const key of entry.en?.keys() ?? []) keys.add(key);
+  }
+
+  return [...keys].sort().map((key) => {
+    const cells: CrossVersionKeyCell[] = [];
+    let touched = false;
+    for (const entry of entries) {
+      const en = entry.en?.get(key);
+      if (en === undefined || en === "") continue;
+      const zh = entry.zh?.get(key);
+      cells.push({ version: entry.version, en, zh: zh === undefined || zh === "" ? null : zh });
+      if (entry.touched?.has(key) === true) touched = true;
+    }
+    return { key, touched, cells };
+  });
 }
 
 const HUNK_RE = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;

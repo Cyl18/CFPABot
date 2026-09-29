@@ -141,10 +141,29 @@ export interface CrossVersionResult {
   namespace: string;
   namespaces: string[];
   versions: string[];
+  activeVersions: string[];
   prVersions: string[];
   keyCount: number;
   issues: CrossVersionIssue[];
   prNumber?: number;
+}
+
+export interface CrossVersionKeyCell {
+  version: string;
+  en: string;
+  zh: string | null;
+}
+
+export interface CrossVersionKeyRow {
+  key: string;
+  touched: boolean;
+  cells: CrossVersionKeyCell[];
+}
+
+export interface CrossVersionKeysResult {
+  total: number;
+  offset: number;
+  rows: CrossVersionKeyRow[];
 }
 
 export interface TextCompareRequest {

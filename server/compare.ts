@@ -1,6 +1,7 @@
 import { extname } from "node:path";
 import { parseLang, guessFormat } from "./domain/langfile.ts";
-import { compareLang, compareTwo, crossVersion, withLiteralNewlines } from "./domain/diff.ts";
+import { alignKeys, compareLang, compareTwo, crossVersion, withLiteralNewlines } from "./domain/diff.ts";
+import type { CrossVersionInput } from "./domain/diff.ts";
 import { buildLangPath, parseLangPath, compareMc, langPathFor, workspacesOf } from "./domain/path.ts";
 import type { LangFormat, LangPath, Locale } from "./domain/path.ts";
 import { gh } from "./github/client.ts";
@@ -11,6 +12,7 @@ import { prdata } from "./prdata.ts";
 import { ttlCache } from "./ttl.ts";
 import type {
   CompareResult,
+  CrossVersionKeysResult,
   CrossVersionResult,
   ModSourceResult,
   PrDetail,
@@ -322,15 +324,27 @@ function changedKeys(base: Map<string, string> | undefined, head: Map<string, st
 }
 
 const CROSS_TTL_MS = 30 * 60_000;
-const CROSS_CACHE_MAX = 100;
-const crossCache = ttlCache<CrossVersionResult>(CROSS_TTL_MS, CROSS_CACHE_MAX);
+const CROSS_CACHE_MAX = 16;
+
+interface CrossVersionBuild {
+  slug: string;
+  namespace: string;
+  namespaces: string[];
+  versions: string[];
+  activeVersions: string[];
+  prVersions: string[];
+  entries: CrossVersionInput[];
+  prNumber?: number;
+}
+
+const crossCache = ttlCache<CrossVersionBuild>(CROSS_TTL_MS, CROSS_CACHE_MAX);
 
 async function buildCrossVersion(
   slug: string,
-  opts: { namespace?: string; pr?: number },
+  opts: { namespace?: string; pr?: number; versions?: readonly string[] },
   head: string | null,
   prData: { pull: GhPull; files: GhFile[] } | null,
-): Promise<CrossVersionResult> {
+): Promise<CrossVersionBuild> {
   const prNumber = opts.pr;
   const all = await mirror.langFiles();
   const prLangs = (prData?.files ?? [])
@@ -352,13 +366,25 @@ async function buildCrossVersion(
     else slot.zh ??= file;
     byVersion.set(file.version, slot);
   }
+  for (const parsed of prLangs) {
+    if (parsed.namespace !== namespace || byVersion.has(parsed.version)) continue;
+    byVersion.set(parsed.version, {});
+  }
+
+  const versions = [...byVersion.keys()].sort(compareMc);
+  const wanted = opts.versions === undefined || opts.versions.length === 0 ? null : new Set(opts.versions);
+  const kept = wanted === null ? versions : versions.filter((version) => wanted.has(version));
+  const activeVersions = kept.length === 0 ? versions : kept;
 
   const basePaths: string[] = [];
-  for (const slot of byVersion.values()) {
+  for (const version of activeVersions) {
+    const slot = byVersion.get(version) ?? {};
     if (slot.en) basePaths.push(slot.en.path);
     if (slot.zh) basePaths.push(slot.zh.path);
   }
-  const prPaths = prLangs.filter((parsed) => parsed.namespace === namespace).map((parsed) => parsed.path);
+  const prPaths = prLangs
+    .filter((parsed) => parsed.namespace === namespace && activeVersions.includes(parsed.version))
+    .map((parsed) => parsed.path);
   const [baseTexts, prTexts] = await Promise.all([
     mirror.readMany(head ?? "HEAD", basePaths),
     prData === null ? null : gh.getFiles(prPaths, prData.pull.headSha),
@@ -373,12 +399,10 @@ async function buildCrossVersion(
       const slot = overlay.get(parsed.version) ?? {};
       slot[parsed.locale === "en_us" ? "en" : "zh"] = { text, format: parsed.format };
       overlay.set(parsed.version, slot);
-      if (!byVersion.has(parsed.version)) byVersion.set(parsed.version, {});
     }
   }
 
-  const versions = [...byVersion.keys()].sort(compareMc);
-  const inputs = versions.map((version) => {
+  const entries = activeVersions.map((version) => {
     const slot = byVersion.get(version) ?? {};
     const patch = overlay.get(version);
     const load = (file: LangPath | undefined): Map<string, string> | undefined => {
@@ -396,23 +420,69 @@ async function buildCrossVersion(
     return { version, en, zh, touched };
   });
 
-  const { keyCount, issues } = crossVersion(inputs);
   return {
     slug,
     namespace,
     namespaces,
     versions,
+    activeVersions,
     prVersions: [...overlay.keys()].sort(compareMc),
-    keyCount,
-    issues,
+    entries,
     ...(prNumber === undefined ? {} : { prNumber }),
   };
 }
 
-export async function crossVersionResult(slug: string, opts: { namespace?: string; pr?: number }): Promise<CrossVersionResult> {
+async function crossVersionBuild(
+  slug: string,
+  opts: { namespace?: string; pr?: number; versions?: readonly string[] },
+): Promise<CrossVersionBuild> {
   const [head, prData] = await Promise.all([mirror.headSha(), opts.pr === undefined ? null : prdata.files(opts.pr)]);
-  const key = JSON.stringify([head, opts.pr ?? null, prData?.pull.headSha ?? null, slug, opts.namespace ?? null]);
+  const selection =
+    opts.versions === undefined || opts.versions.length === 0 ? null : [...new Set(opts.versions)].sort(compareMc);
+  const key = JSON.stringify([
+    head,
+    opts.pr ?? null,
+    prData?.pull.headSha ?? null,
+    slug,
+    opts.namespace ?? null,
+    selection,
+  ]);
   return crossCache.wrap(key, () => buildCrossVersion(slug, opts, head, prData));
+}
+
+export async function crossVersionResult(
+  slug: string,
+  opts: { namespace?: string; pr?: number; versions?: readonly string[] },
+): Promise<CrossVersionResult> {
+  const build = await crossVersionBuild(slug, opts);
+  const { keyCount, issues } = crossVersion(build.entries);
+  return {
+    slug: build.slug,
+    namespace: build.namespace,
+    namespaces: build.namespaces,
+    versions: build.versions,
+    activeVersions: build.activeVersions,
+    prVersions: build.prVersions,
+    keyCount,
+    issues,
+    ...(build.prNumber === undefined ? {} : { prNumber: build.prNumber }),
+  };
+}
+
+export async function crossVersionKeys(
+  slug: string,
+  opts: { namespace?: string; pr?: number; versions?: readonly string[] },
+  page: { q?: string; offset: number; limit: number },
+): Promise<CrossVersionKeysResult> {
+  const build = await crossVersionBuild(slug, opts);
+  const needle = page.q?.trim().toLowerCase() ?? "";
+  const rows = alignKeys(build.entries).filter(
+    (row) =>
+      needle === "" ||
+      row.key.toLowerCase().includes(needle) ||
+      row.cells.some((cell) => cell.en.toLowerCase().includes(needle) || cell.zh?.toLowerCase().includes(needle) === true),
+  );
+  return { total: rows.length, offset: page.offset, rows: rows.slice(page.offset, page.offset + page.limit) };
 }
 
 export function textCompare(req: TextCompareRequest): TextCompareResult {
