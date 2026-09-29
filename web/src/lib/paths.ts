@@ -1,3 +1,5 @@
+import type { Workspace } from "@shared/api.ts";
+
 export interface ParsedLangFile {
   slug: string;
   version: string;
@@ -42,4 +44,32 @@ export function parseLangFile(path: string): ParsedLangFile | null {
 
 export function workspaceParam(slug: string, version: string, namespace: string): string {
   return `${slug}/${version}/${namespace}`;
+}
+
+export interface NamespaceGroup {
+  namespace: string;
+  workspaces: Workspace[];
+}
+
+export interface ModGroup {
+  slug: string;
+  namespaces: NamespaceGroup[];
+}
+
+export function groupWorkspaces(workspaces: readonly Workspace[]): ModGroup[] {
+  const mods: ModGroup[] = [];
+  for (const workspace of workspaces) {
+    let mod = mods.find((item) => item.slug === workspace.slug);
+    if (mod === undefined) {
+      mod = { slug: workspace.slug, namespaces: [] };
+      mods.push(mod);
+    }
+    let group = mod.namespaces.find((item) => item.namespace === workspace.namespace);
+    if (group === undefined) {
+      group = { namespace: workspace.namespace, workspaces: [] };
+      mod.namespaces.push(group);
+    }
+    group.workspaces.push(workspace);
+  }
+  return mods;
 }

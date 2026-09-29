@@ -1,9 +1,9 @@
 import type { PrDetail } from "@shared/api.ts";
 import { Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { CheckReportView } from "@/components/CheckReport.tsx";
 import { formatDateTime } from "@/lib/format.ts";
-import { workspaceParam } from "@/lib/paths.ts";
+import { groupWorkspaces, workspaceParam } from "@/lib/paths.ts";
 import { useChecks } from "@/lib/queries.ts";
 import { Badge } from "@/ui/Badge.tsx";
 import { Card, CardBody, CardHeader, Stat } from "@/ui/Card.tsx";
@@ -40,18 +40,33 @@ export function OverviewTab({ pr }: { pr: PrDetail }) {
 
       {pr.workspaces.length > 0 && (
         <Card>
-          <CardHeader title="工作区" description="点击进入该工作区的翻译比较。" />
-          <CardBody className="flex flex-wrap gap-2">
-            {pr.workspaces.map((workspace) => (
-              <Link
-                key={`${workspace.slug}/${workspace.version}/${workspace.namespace}`}
-                to="/pr/$n/$tab"
-                params={{ n: String(pr.number), tab: "compare" }}
-                search={{ ws: workspaceParam(workspace.slug, workspace.version, workspace.namespace) }}
-                className="inline-flex h-7 items-center rounded-md border border-line bg-elevated px-2.5 font-mono text-xs hover:border-accent/50 hover:text-accent"
-              >
-                {workspace.slug} · {workspace.version} / {workspace.namespace} ({workspace.files.length})
-              </Link>
+          <CardHeader title="工作区" description="按模组、命名空间分组，点版本号进入该工作区的翻译比较。" />
+          <CardBody className="flex flex-col gap-4">
+            {groupWorkspaces(pr.workspaces).map((mod) => (
+              <section key={mod.slug} aria-label={mod.slug} className="flex flex-col gap-2">
+                <h3 className="font-mono text-xs font-semibold">{mod.slug}</h3>
+                <div className="grid grid-cols-[max-content_1fr] items-start gap-x-3 gap-y-2 border-l border-line pl-3">
+                  {mod.namespaces.map((group) => (
+                    <Fragment key={group.namespace}>
+                      <span className="pt-1 font-mono text-xs text-muted">{group.namespace}</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {group.workspaces.map((workspace) => (
+                          <Link
+                            key={workspace.version}
+                            to="/pr/$n/$tab"
+                            params={{ n: String(pr.number), tab: "compare" }}
+                            search={{ ws: workspaceParam(workspace.slug, workspace.version, workspace.namespace) }}
+                            title={workspace.files.join("\n")}
+                            className="inline-flex h-6 items-center rounded-md border border-line bg-elevated px-2 font-mono text-xs hover:border-accent/50 hover:text-accent"
+                          >
+                            {workspace.version}
+                          </Link>
+                        ))}
+                      </div>
+                    </Fragment>
+                  ))}
+                </div>
+              </section>
             ))}
           </CardBody>
         </Card>

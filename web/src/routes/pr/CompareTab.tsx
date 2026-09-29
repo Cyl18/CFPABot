@@ -1,10 +1,10 @@
 import type { CompareRow, ModSourceResult, RowStatus, Workspace } from "@shared/api.ts";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeftRight, Layers, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { InlineTextDiff } from "@/components/InlineTextDiff.tsx";
 import { cn } from "@/lib/cn.ts";
-import { workspaceParam } from "@/lib/paths.ts";
+import { groupWorkspaces, workspaceParam } from "@/lib/paths.ts";
 import { useCompare, useModSource } from "@/lib/queries.ts";
 import { Badge } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
@@ -66,6 +66,20 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
         : undefined;
     return match ?? workspaces[0] ?? null;
   }, [ws, workspaces]);
+
+  const groups = useMemo(() => groupWorkspaces(workspaces), [workspaces]);
+  const mod = groups.find((item) => item.slug === selected?.slug);
+  const group = mod?.namespaces.find((item) => item.namespace === selected?.namespace);
+
+  const open = (candidates: readonly Workspace[]) => {
+    const target = candidates.find((item) => item.version === selected?.version) ?? candidates[0];
+    if (target === undefined) return;
+    void navigate({
+      to: "/pr/$n/$tab",
+      params: { n: String(n), tab: "compare" },
+      search: { ws: workspaceParam(target.slug, target.version, target.namespace) },
+    });
+  };
 
   const key = selected === null ? null : { slug: selected.slug, version: selected.version, namespace: selected.namespace };
   const compare = useCompare(n, key);
@@ -170,28 +184,39 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
     <div className="flex flex-col gap-4">
       <Card>
         <CardBody className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted">工作区</span>
-            {workspaces.map((workspace) => {
-              const param = workspaceParam(workspace.slug, workspace.version, workspace.namespace);
-              const isSelected =
-                selected !== null &&
-                selected.slug === workspace.slug &&
-                selected.version === workspace.version &&
-                selected.namespace === workspace.namespace;
-              return (
-                <ToggleChip
-                  key={param}
-                  mono
-                  pressed={isSelected}
-                  onClick={() =>
-                    void navigate({ to: "/pr/$n/$tab", params: { n: String(n), tab: "compare" }, search: { ws: param } })
-                  }
-                >
-                  {workspace.slug} · {workspace.version}/{workspace.namespace}
-                </ToggleChip>
-              );
-            })}
+          <div className="grid grid-cols-[max-content_1fr] items-start gap-x-3 gap-y-2">
+            {groups.length > 1 && (
+              <SelectorRow label="模组">
+                {groups.map((item) => (
+                  <ToggleChip
+                    key={item.slug}
+                    mono
+                    pressed={item === mod}
+                    onClick={() => open(item.namespaces.flatMap((entry) => entry.workspaces))}
+                  >
+                    {item.slug}
+                  </ToggleChip>
+                ))}
+              </SelectorRow>
+            )}
+            {mod !== undefined && mod.namespaces.length > 1 && (
+              <SelectorRow label="命名空间">
+                {mod.namespaces.map((item) => (
+                  <ToggleChip key={item.namespace} mono pressed={item === group} onClick={() => open(item.workspaces)}>
+                    {item.namespace}
+                  </ToggleChip>
+                ))}
+              </SelectorRow>
+            )}
+            {group !== undefined && (
+              <SelectorRow label="版本">
+                {group.workspaces.map((item) => (
+                  <ToggleChip key={item.version} mono pressed={item === selected} onClick={() => open([item])}>
+                    {item.version}
+                  </ToggleChip>
+                ))}
+              </SelectorRow>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -261,5 +286,16 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
         行内差异在浏览器本地计算，仅针对当前可见行。
       </p>
     </div>
+  );
+}
+
+function SelectorRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <>
+      <span className="pt-1.5 text-xs text-muted">{label}</span>
+      <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
+        {children}
+      </div>
+    </>
   );
 }
