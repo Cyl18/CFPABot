@@ -1,4 +1,4 @@
-import { useId, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/cn.ts";
 
 export interface FieldProps {
@@ -11,12 +11,23 @@ export interface FieldProps {
 const FIELD_BASE =
   "w-full rounded-md border border-line bg-surface px-2.5 text-sm text-fg placeholder:text-muted/70 disabled:opacity-60 focus:border-accent focus:outline-none";
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement>, FieldProps {}
+export interface InputProps extends InputHTMLAttributes<HTMLInputElement>, FieldProps {
+  icon?: ReactNode;
+}
 
-export function Input({ label, hint, error, wrapperClassName, className, id, ...rest }: InputProps) {
+export function Input({ label, hint, error, wrapperClassName, className, id, icon, ...rest }: InputProps) {
   const generated = useId();
   const fieldId = id ?? generated;
   const describedBy = error !== undefined ? `${fieldId}-error` : hint !== undefined ? `${fieldId}-hint` : undefined;
+  const input = (
+    <input
+      id={fieldId}
+      aria-invalid={error !== undefined ? true : undefined}
+      aria-describedby={describedBy}
+      className={cn(FIELD_BASE, "h-9", icon !== undefined && "pl-8", error !== undefined && "border-danger", className)}
+      {...rest}
+    />
+  );
   return (
     <div className={cn("flex flex-col gap-1", wrapperClassName)}>
       {label !== undefined && (
@@ -24,13 +35,16 @@ export function Input({ label, hint, error, wrapperClassName, className, id, ...
           {label}
         </label>
       )}
-      <input
-        id={fieldId}
-        aria-invalid={error !== undefined ? true : undefined}
-        aria-describedby={describedBy}
-        className={cn(FIELD_BASE, "h-9", error !== undefined && "border-danger", className)}
-        {...rest}
-      />
+      {icon === undefined ? (
+        input
+      ) : (
+        <div className="relative">
+          <span aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted [&>svg]:size-4">
+            {icon}
+          </span>
+          {input}
+        </div>
+      )}
       {hint !== undefined && error === undefined && (
         <p id={`${fieldId}-hint`} className="text-xs text-muted">
           {hint}

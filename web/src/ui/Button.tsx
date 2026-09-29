@@ -18,6 +18,15 @@ const SIZES: Record<Size, string> = {
   icon: "h-8 w-8 justify-center",
 };
 
+export function buttonClass(variant: Variant = "secondary", size: Size = "md", className?: string): string {
+  return cn(
+    "inline-flex select-none items-center whitespace-nowrap rounded-md font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
+    VARIANTS[variant],
+    SIZES[size],
+    className,
+  );
+}
+
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
@@ -30,12 +39,7 @@ export function Button({ variant = "secondary", size = "md", loading = false, ic
     <button
       type={type}
       disabled={disabled || loading}
-      className={cn(
-        "inline-flex select-none items-center whitespace-nowrap rounded-md font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
-        VARIANTS[variant],
-        SIZES[size],
-        className,
-      )}
+      className={buttonClass(variant, size, className)}
       {...rest}
     >
       {loading ? <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" /> : icon}

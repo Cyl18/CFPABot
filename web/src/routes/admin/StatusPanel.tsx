@@ -12,10 +12,11 @@ export function StatusPanel() {
   if (status.isPending || !status.data) return <SkeletonText lines={6} />;
 
   const data = status.data;
+  const rate = data.github.rateLimit;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="GitHub 模式" value={data.github.mode} tone={data.github.mode === "anonymous" ? "warn" : "ok"} />
         <Stat label="PR 缓存" value={data.prCache.openCount} />
         <Stat label="模组数量" value={data.modList.count} />
@@ -24,7 +25,7 @@ export function StatusPanel() {
 
       <Card>
         <CardHeader title="集成状态" />
-        <CardBody className="grid gap-2 sm:grid-cols-2">
+        <CardBody className="grid gap-x-8 gap-y-1 sm:grid-cols-2">
           <Row label="Webhook 密钥" ok={data.webhook} />
           <Row label="CurseForge API" ok={data.curseforge} />
           <Row label="术语工具（GLOSSARY_BIN）" ok={data.glossary} />
@@ -34,33 +35,50 @@ export function StatusPanel() {
       </Card>
 
       <Card>
-        <CardHeader title="GitHub 配额" description={data.github.rateLimit ? `重置于 ${formatDateTime(data.github.rateLimit.resetAt)}` : "未获取到配额信息"} />
-        <CardBody className="text-sm">
-          {data.github.rateLimit ? (
-            <span className="tabular-nums">
-              {data.github.rateLimit.remaining} / {data.github.rateLimit.limit}
-            </span>
+        <CardHeader title="GitHub 配额" description={rate ? `重置于 ${formatDateTime(rate.resetAt)}` : "未获取到配额信息"} />
+        <CardBody>
+          {rate ? (
+            <>
+              <div className="text-lg font-semibold tabular-nums">
+                {rate.remaining} / {rate.limit}
+              </div>
+              <div
+                role="meter"
+                aria-valuemin={0}
+                aria-valuemax={rate.limit}
+                aria-valuenow={rate.remaining}
+                aria-label="GitHub 剩余配额"
+                className="mt-2 h-1.5 overflow-hidden rounded-full bg-elevated"
+              >
+                <div
+                  className="h-full rounded-full bg-accent"
+                  style={{ width: `${rate.limit > 0 ? (rate.remaining / rate.limit) * 100 : 0}%` }}
+                />
+              </div>
+            </>
           ) : (
-            <span className="text-muted">-</span>
+            <span className="text-sm text-muted">-</span>
           )}
         </CardBody>
       </Card>
 
       <Card>
         <CardHeader title="缓存时间" />
-        <CardBody className="grid gap-2 text-xs sm:grid-cols-3">
-          <div>
-            <div className="text-muted">PR 索引刷新</div>
-            <div>{formatRelative(data.prCache.refreshedAt)}</div>
-          </div>
-          <div>
-            <div className="text-muted">模组列表更新</div>
-            <div>{formatRelative(data.modList.updatedAt)}</div>
-          </div>
-          <div>
-            <div className="text-muted">映射更新</div>
-            <div>{formatRelative(data.mappings.updatedAt)}</div>
-          </div>
+        <CardBody>
+          <dl className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <dt className="text-xs text-muted">PR 索引刷新</dt>
+              <dd className="mt-0.5 text-sm">{formatRelative(data.prCache.refreshedAt)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">模组列表更新</dt>
+              <dd className="mt-0.5 text-sm">{formatRelative(data.modList.updatedAt)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">映射更新</dt>
+              <dd className="mt-0.5 text-sm">{formatRelative(data.mappings.updatedAt)}</dd>
+            </div>
+          </dl>
         </CardBody>
       </Card>
     </div>
@@ -68,11 +86,18 @@ export function StatusPanel() {
 }
 
 function Row({ label, ok, text }: { label: string; ok: boolean; text?: string }) {
+  const badge = ok ? "可用" : "未配置";
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className="text-muted">{label}</span>
-      <Badge tone={ok ? "ok" : "warn"}>{ok ? "可用" : "未配置"}</Badge>
-      {text !== undefined && <code className="truncate font-mono text-xs text-muted">{text}</code>}
+    <div className="flex min-w-0 items-center justify-between gap-3 py-1.5 text-sm">
+      <span className="truncate text-muted">{label}</span>
+      <span className="flex min-w-0 items-center gap-2">
+        {text !== undefined && text !== badge && (
+          <code title={text} className="truncate font-mono text-xs text-muted">
+            {text}
+          </code>
+        )}
+        <Badge tone={ok ? "ok" : "warn"}>{badge}</Badge>
+      </span>
     </div>
   );
 }

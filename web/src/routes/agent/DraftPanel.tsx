@@ -36,7 +36,7 @@ export function DraftPanel({ draft, stale, saving, publishing, error, onChange, 
       <Card>
         <CardHeader title="审查草稿" />
         <CardBody>
-          <EmptyState title="还没有草稿" description="让 Agent 运行 review_load 与 multi_review 后即可生成草稿。" />
+          <EmptyState compact title="还没有草稿" description="让 Agent 运行 review_load 与 multi_review 后即可生成草稿。" />
         </CardBody>
       </Card>
     );
@@ -93,7 +93,7 @@ export function DraftPanel({ draft, stale, saving, publishing, error, onChange, 
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <SeverityBadge severity={comment.severity} />
                   <Badge tone="info">{comment.mqm}</Badge>
-                  <code className="font-mono text-[11px] text-muted">
+                  <code className="font-mono text-xs text-muted">
                     {comment.path}:{comment.line}
                   </code>
                   {comment.suspected === true && <Badge tone="warn">疑似</Badge>}
@@ -109,7 +109,7 @@ export function DraftPanel({ draft, stale, saving, publishing, error, onChange, 
                     <Trash2 aria-hidden="true" className="size-3.5" />
                   </Button>
                 </div>
-                <code className="mb-1 block truncate font-mono text-[11px] text-muted" title={comment.key}>
+                <code className="mb-1 block truncate font-mono text-xs text-muted" title={comment.key}>
                   {comment.key}
                 </code>
                 {(comment.en !== undefined || comment.zh !== undefined) && (
@@ -228,7 +228,7 @@ export function DraftPanel({ draft, stale, saving, publishing, error, onChange, 
                   <div className="flex flex-wrap items-center gap-2">
                     <SeverityBadge severity={comment.severity} />
                     <Badge tone="info">{comment.mqm}</Badge>
-                    <code className="font-mono text-[11px] text-muted">
+                    <code className="font-mono text-xs text-muted">
                       {comment.path}:{comment.line}
                     </code>
                   </div>

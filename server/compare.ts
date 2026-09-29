@@ -78,7 +78,6 @@ export async function prDetail(n: number): Promise<PrDetail> {
   const { pull, files } = await prdata.files(n);
   return {
     ...summaryOf(pull, files),
-    body: pull.body,
     htmlUrl: pull.htmlUrl,
     baseRef: pull.baseRef,
     baseSha: pull.baseSha,
@@ -288,9 +287,53 @@ interface OverlayText {
   format: LangFormat;
 }
 
+function namespaceVersions(files: readonly LangPath[], slug: string): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>();
+  for (const file of files) {
+    if (file.slug !== slug) continue;
+    if (file.locale !== "en_us" && file.locale !== "zh_cn") continue;
+    const versions = result.get(file.namespace) ?? new Set<string>();
+    versions.add(file.version);
+    result.set(file.namespace, versions);
+  }
+  return result;
+}
+
+function widestNamespace(candidates: Iterable<string>, versionsOf: Map<string, Set<string>>): string | null {
+  let best: string | null = null;
+  let bestCount = -1;
+  for (const namespace of candidates) {
+    const count = versionsOf.get(namespace)?.size ?? 0;
+    if (count > bestCount || (count === bestCount && best !== null && namespace < best)) {
+      best = namespace;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+function changedKeys(base: Map<string, string> | undefined, head: Map<string, string> | undefined): Set<string> {
+  const keys = new Set<string>();
+  for (const [key, value] of head ?? []) {
+    if (base?.get(key) !== value) keys.add(key);
+  }
+  return keys;
+}
+
 export async function crossVersionResult(slug: string, opts: { namespace?: string; pr?: number }): Promise<CrossVersionResult> {
-  const namespace = opts.namespace ?? slug;
+  const prNumber = opts.pr;
+  const prData = prNumber === undefined ? null : await prdata.files(prNumber);
   const all = await mirror.langFiles();
+  const prLangs = (prData?.files ?? [])
+    .filter((file) => file.status !== "removed")
+    .map((file) => parseLangPath(file.path))
+    .filter((parsed): parsed is LangPath => parsed !== null && parsed.slug === slug && (parsed.locale === "en_us" || parsed.locale === "zh_cn"));
+  const versionsOf = namespaceVersions([...all, ...prLangs], slug);
+  const namespaces = [...versionsOf.keys()].sort();
+  const prNamespaces = new Set(prLangs.map((file) => file.namespace));
+  const namespace =
+    opts.namespace ?? widestNamespace(prNamespaces.size > 0 ? prNamespaces : namespaces, versionsOf) ?? slug;
+
   const byVersion = new Map<string, { en?: LangPath; zh?: LangPath }>();
   for (const file of all) {
     if (file.slug !== slug || file.namespace !== namespace) continue;
@@ -302,28 +345,21 @@ export async function crossVersionResult(slug: string, opts: { namespace?: strin
   }
 
   const overlay = new Map<string, { en?: OverlayText; zh?: OverlayText }>();
-  let prNumber: number | undefined;
-  if (opts.pr !== undefined) {
-    const { pull, files } = await prdata.files(opts.pr);
-    prNumber = opts.pr;
+  if (prData !== null) {
     const headTexts = await Promise.all(
-      files.map(async (file) => {
-        const parsed = parseLangPath(file.path);
-        if (!parsed || parsed.slug !== slug || parsed.namespace !== namespace) return null;
-        const locale = parsed.locale;
-        if (locale !== "en_us" && locale !== "zh_cn") return null;
-        if (file.status === "removed") return null;
-        const text = await gh.getFile(file.path, pull.headSha);
-        if (text === null) return null;
-        return { version: parsed.version, locale, format: parsed.format, text };
-      }),
+      prLangs
+        .filter((parsed) => parsed.namespace === namespace)
+        .map(async (parsed) => {
+          const text = await gh.getFile(parsed.path, prData.pull.headSha);
+          return text === null ? null : { parsed, text };
+        }),
     );
     for (const hit of headTexts) {
       if (!hit) continue;
-      const slot = overlay.get(hit.version) ?? {};
-      slot[hit.locale === "en_us" ? "en" : "zh"] = { text: hit.text, format: hit.format };
-      overlay.set(hit.version, slot);
-      if (!byVersion.has(hit.version)) byVersion.set(hit.version, {});
+      const slot = overlay.get(hit.parsed.version) ?? {};
+      slot[hit.parsed.locale === "en_us" ? "en" : "zh"] = { text: hit.text, format: hit.parsed.format };
+      overlay.set(hit.parsed.version, slot);
+      if (!byVersion.has(hit.parsed.version)) byVersion.set(hit.parsed.version, {});
     }
   }
 
@@ -332,15 +368,32 @@ export async function crossVersionResult(slug: string, opts: { namespace?: strin
     versions.map(async (version) => {
       const slot = byVersion.get(version) ?? {};
       const patch = overlay.get(version);
-      const enText = patch?.en?.text ?? (slot.en ? await mirror.read(slot.en.path) : null);
-      const zhText = patch?.zh?.text ?? (slot.zh ? await mirror.read(slot.zh.path) : null);
-      const en = enText === null ? undefined : parseLang(enText, patch?.en?.format ?? slot.en?.format ?? "json").entries;
-      const zh = zhText === null ? undefined : parseLang(zhText, patch?.zh?.format ?? slot.zh?.format ?? "json").entries;
-      return { version, ...(en === undefined ? {} : { en }), ...(zh === undefined ? {} : { zh }) };
+      const load = async (file: LangPath | undefined) => {
+        const text = file ? await mirror.read(file.path) : null;
+        return text === null || !file ? undefined : parseLang(text, file.format).entries;
+      };
+      const baseEn = await load(slot.en);
+      const baseZh = await load(slot.zh);
+      const en = patch?.en ? parseLang(patch.en.text, patch.en.format).entries : baseEn;
+      const zh = patch?.zh ? parseLang(patch.zh.text, patch.zh.format).entries : baseZh;
+      if (!patch) return { version, en, zh };
+      const touched = changedKeys(baseEn, patch.en ? en : undefined);
+      for (const key of changedKeys(baseZh, patch.zh ? zh : undefined)) touched.add(key);
+      return { version, en, zh, touched };
     }),
   );
 
-  return { slug, namespace, versions, rows: crossVersion(inputs), ...(prNumber === undefined ? {} : { prNumber }) };
+  const { keyCount, issues } = crossVersion(inputs);
+  return {
+    slug,
+    namespace,
+    namespaces,
+    versions,
+    prVersions: [...overlay.keys()].sort(compareMc),
+    keyCount,
+    issues,
+    ...(prNumber === undefined ? {} : { prNumber }),
+  };
 }
 
 export function textCompare(req: TextCompareRequest): TextCompareResult {

@@ -20,7 +20,7 @@ export function AdminPage({ tab, onTabChange }: { tab: AdminTab; onTabChange: (t
   return (
     <>
       <PageHeader title="管理" description="系统状态、模型配置、映射与日志。" />
-      <Tabs items={TABS} value={tab} onChange={onTabChange} ariaLabel="管理页面分区" className="mb-3" />
+      <Tabs items={TABS} value={tab} onChange={onTabChange} ariaLabel="管理页面分区" variant="underline" className="mb-5" />
 
       {tab === "status" && <StatusPanel />}
       {tab === "llm" && <LlmPanel />}

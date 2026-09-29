@@ -1,11 +1,12 @@
 import type { PrDetail, PrFile } from "@shared/api.ts";
 import { Link } from "@tanstack/react-router";
+import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { FileStatusBadge } from "@/ui/Badge.tsx";
-import { Card, CardBody } from "@/ui/Card.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { Input } from "@/ui/Input.tsx";
 import { DataTable, type Column } from "@/ui/Table.tsx";
+import { ToggleChip } from "@/ui/ToggleChip.tsx";
 import { parseLangFile, workspaceParam } from "@/lib/paths.ts";
 
 const STATUS_OPTIONS = [
@@ -61,12 +62,13 @@ export function FilesTab({ pr }: { pr: PrDetail }) {
       width: 90,
       cell: (file) => <FileStatusBadge status={file.status} />,
     },
-    { id: "additions", header: "+", width: 70, align: "right", cell: (file) => <span className="text-ok">+{file.additions}</span> },
-    { id: "deletions", header: "-", width: 70, align: "right", cell: (file) => <span className="text-danger">-{file.deletions}</span> },
+    { id: "additions", header: "+", width: 64, align: "right", cell: (file) => <span className="text-ok">+{file.additions}</span> },
+    { id: "deletions", header: "-", width: 64, align: "right", cell: (file) => <span className="text-danger">-{file.deletions}</span> },
     {
       id: "previous",
       header: "原路径",
       width: 320,
+      hideBelow: "xl",
       cell: (file) =>
         file.previousPath !== undefined ? (
           <code className="block truncate font-mono text-xs text-muted" title={file.previousPath}>
@@ -79,46 +81,32 @@ export function FilesTab({ pr }: { pr: PrDetail }) {
   ];
 
   return (
-    <Card>
-      <CardBody className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="w-full sm:w-80">
-            <Input aria-label="搜索文件路径" placeholder="搜索文件路径" value={query} onChange={(event) => setQuery(event.target.value)} />
-          </div>
-          <div role="group" aria-label="文件状态筛选" className="flex flex-wrap gap-1">
-            {STATUS_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={status === option.value}
-                onClick={() => setStatus(option.value)}
-                className={
-                  status === option.value
-                    ? "rounded border border-accent/50 bg-accent/15 px-2 py-0.5 text-xs text-accent"
-                    : "rounded border border-line bg-elevated px-2 py-0.5 text-xs text-muted hover:text-fg"
-                }
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <span className="text-xs text-muted">
-            {rows.length} / {pr.files.length} 个文件
-          </span>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          wrapperClassName="w-full sm:w-80"
+          icon={<Search />}
+          aria-label="搜索文件路径"
+          placeholder="搜索文件路径"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <div role="group" aria-label="文件状态筛选" className="flex flex-wrap gap-1.5">
+          {STATUS_OPTIONS.map((option) => (
+            <ToggleChip key={option.value} pressed={status === option.value} onClick={() => setStatus(option.value)}>
+              {option.label}
+            </ToggleChip>
+          ))}
         </div>
-        {rows.length === 0 ? (
-          <EmptyState title="没有匹配的文件" description="试试调整搜索条件或状态筛选。" />
-        ) : (
-          <DataTable
-            columns={columns}
-            rows={rows}
-            rowKey={(file) => file.path}
-            ariaLabel="变更文件列表"
-            className="border-0"
-            height="60vh"
-          />
-        )}
-      </CardBody>
-    </Card>
+        <span className="text-xs text-muted sm:ml-auto">
+          {rows.length} / {pr.files.length} 个文件
+        </span>
+      </div>
+      {rows.length === 0 ? (
+        <EmptyState title="没有匹配的文件" description="试试调整搜索条件或状态筛选。" />
+      ) : (
+        <DataTable columns={columns} rows={rows} rowKey={(file) => file.path} ariaLabel="变更文件列表" valign="middle" />
+      )}
+    </div>
   );
 }

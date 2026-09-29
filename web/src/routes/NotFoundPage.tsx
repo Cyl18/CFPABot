@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Compass } from "lucide-react";
+import { buttonClass } from "@/ui/Button.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 
 export function NotFoundPage() {
@@ -10,7 +11,7 @@ export function NotFoundPage() {
       title="页面未找到"
       description="你访问的页面不存在或已被移除。"
       action={
-        <Link to="/" className="inline-flex h-9 items-center rounded-md bg-accent px-3.5 text-sm font-medium text-accent-fg hover:brightness-110">
+        <Link to="/" className={buttonClass("primary")}>
           返回 PR 列表
         </Link>
       }

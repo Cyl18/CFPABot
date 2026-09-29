@@ -17,8 +17,8 @@ export function OverviewTab({ pr }: { pr: PrDetail }) {
   const deletions = pr.files.reduce((sum, file) => sum + file.deletions, 0);
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="文件" value={pr.files.length} />
         <Stat label="新增行" value={`+${additions}`} tone="ok" />
         <Stat label="删除行" value={`-${deletions}`} tone="danger" />
@@ -27,20 +27,14 @@ export function OverviewTab({ pr }: { pr: PrDetail }) {
 
       <Card>
         <CardHeader title="元信息" />
-        <CardBody className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Head SHA" value={<code className="font-mono">{pr.headSha.slice(0, 10)}</code>} />
-          <Field label="Base SHA" value={<code className="font-mono">{pr.baseSha.slice(0, 10)}</code>} />
-          <Field label="分支" value={<code className="font-mono">{pr.headRepo}:{pr.headRef}</code>} />
-          <Field label="创建时间" value={formatDateTime(pr.createdAt)} />
-          <Field label="更新时间" value={formatDateTime(pr.updatedAt)} />
-          {pr.body.trim() !== "" && (
-            <div className="sm:col-span-2 lg:col-span-3">
-              <div className="mb-1 text-muted">描述</div>
-              <pre className="scroll-thin max-h-40 overflow-auto whitespace-pre-wrap rounded border border-line bg-elevated p-2 font-sans text-xs">
-                {pr.body}
-              </pre>
-            </div>
-          )}
+        <CardBody>
+          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-5">
+            <Field label="Head SHA" value={<code className="font-mono">{pr.headSha.slice(0, 10)}</code>} />
+            <Field label="Base SHA" value={<code className="font-mono">{pr.baseSha.slice(0, 10)}</code>} />
+            <Field label="分支" title={`${pr.headRepo}:${pr.headRef}`} value={<code className="font-mono">{pr.headRepo}:{pr.headRef}</code>} />
+            <Field label="创建时间" value={formatDateTime(pr.createdAt)} />
+            <Field label="更新时间" value={formatDateTime(pr.updatedAt)} />
+          </dl>
         </CardBody>
       </Card>
 
@@ -54,7 +48,7 @@ export function OverviewTab({ pr }: { pr: PrDetail }) {
                 to="/pr/$n/$tab"
                 params={{ n: String(pr.number), tab: "compare" }}
                 search={{ ws: workspaceParam(workspace.slug, workspace.version, workspace.namespace) }}
-                className="rounded border border-line bg-elevated px-2 py-1 font-mono text-xs hover:border-accent/50 hover:text-accent"
+                className="inline-flex h-7 items-center rounded-md border border-line bg-elevated px-2.5 font-mono text-xs hover:border-accent/50 hover:text-accent"
               >
                 {workspace.slug} · {workspace.version} / {workspace.namespace} ({workspace.files.length})
               </Link>
@@ -80,15 +74,17 @@ export function OverviewTab({ pr }: { pr: PrDetail }) {
         <CardHeader title="相关 PR" description="触碰相同模组的其它开放 PR。" />
         <CardBody>
           {pr.related.length === 0 ? (
-            <EmptyState title="没有相关 PR" />
+            <EmptyState compact title="没有相关 PR" />
           ) : (
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col divide-y divide-line">
               {pr.related.map((related) => (
-                <li key={related.number} className="flex flex-wrap items-center gap-2 text-sm">
+                <li key={related.number} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm first:pt-0 last:pb-0">
                   <Link to="/pr/$n" params={{ n: String(related.number) }} className="font-mono text-accent hover:underline">
                     #{related.number}
                   </Link>
-                  <span className="min-w-0 flex-1 truncate">{related.title}</span>
+                  <span className="min-w-0 flex-1 truncate" title={related.title}>
+                    {related.title}
+                  </span>
                   <code className="font-mono text-xs text-muted">{related.slug}</code>
                   <span className="flex flex-wrap gap-1">
                     {related.versions.map((version) => (
@@ -105,11 +101,13 @@ export function OverviewTab({ pr }: { pr: PrDetail }) {
   );
 }
 
-function Field({ label, value }: { label: string; value: ReactNode }) {
+function Field({ label, value, title }: { label: string; value: ReactNode; title?: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-muted">{label}</span>
-      <span className="min-w-0 truncate">{value}</span>
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <dt className="whitespace-nowrap text-xs text-muted">{label}</dt>
+      <dd className="truncate text-sm" title={title}>
+        {value}
+      </dd>
     </div>
   );
 }

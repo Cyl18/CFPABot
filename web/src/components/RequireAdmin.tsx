@@ -2,6 +2,7 @@ import { LogIn } from "lucide-react";
 import type { ReactNode } from "react";
 import { loginUrl } from "@/lib/api.ts";
 import { useMe } from "@/lib/queries.ts";
+import { buttonClass } from "@/ui/Button.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
 import { SkeletonTable } from "@/ui/Spinner.tsx";
@@ -19,10 +20,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
         description="此页面仅对仓库协作者开放，请先使用 GitHub 登录。"
         icon={<LogIn aria-hidden="true" className="size-6" />}
         action={
-          <a
-            href={loginUrl()}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-transparent bg-accent px-3.5 text-sm font-medium text-accent-fg hover:brightness-110"
-          >
+          <a href={loginUrl()} className={buttonClass("primary")}>
             <LogIn aria-hidden="true" className="size-4" />
             使用 GitHub 登录
           </a>

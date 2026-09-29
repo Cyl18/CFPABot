@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { api, errorMessage } from "@/lib/api.ts";
 import { qk, useMappings } from "@/lib/queries.ts";
@@ -46,7 +46,7 @@ export function MappingsPanel() {
   const valid = slug.trim() !== "" && Number.isInteger(Number(curseforgeId)) && Number(curseforgeId) > 0;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <Card>
         <CardHeader title="添加映射" description="把模组 slug 手动指向 CurseForge 项目 ID，写入后立即生效。" />
         <CardBody className="flex flex-wrap items-end gap-2">
@@ -78,18 +78,23 @@ export function MappingsPanel() {
           title="未映射 Slug"
           description={`${mappings.data?.unmapped.length ?? 0} 个`}
           actions={
-            <div className="w-56">
-              <Input aria-label="筛选 slug" placeholder="筛选 slug…" value={filter} onChange={(event) => setFilter(event.target.value)} />
-            </div>
+            <Input
+              aria-label="筛选 slug"
+              placeholder="筛选 slug…"
+              icon={<Search />}
+              wrapperClassName="w-56"
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+            />
           }
         />
         <CardBody>
           {unmapped.length === 0 ? (
-            <EmptyState title={filter === "" ? "全部已映射" : "无匹配结果"} />
+            <EmptyState title={filter === "" ? "全部已映射" : "无匹配结果"} compact />
           ) : (
-            <ul className="scroll-thin flex max-h-72 flex-wrap gap-1 overflow-y-auto">
+            <ul className="scroll-thin flex max-h-72 flex-wrap gap-1.5 overflow-y-auto">
               {unmapped.map((item) => (
-                <li key={item} className="rounded border border-line bg-elevated px-1.5 py-0.5 font-mono text-[11px]">
+                <li key={item} className="inline-flex h-6 items-center rounded border border-line bg-elevated px-2 font-mono text-xs">
                   {item}
                 </li>
               ))}
@@ -98,19 +103,17 @@ export function MappingsPanel() {
         </CardBody>
       </Card>
 
-      <Card>
+      <Card className="overflow-clip">
         <CardHeader title="已有映射" description={`${mappings.data?.mappings.length ?? 0} 条`} />
-        <CardBody>
-          <DataTable
-            columns={columns}
-            rows={mappings.data?.mappings ?? []}
-            rowKey={(row) => row.slug}
-            ariaLabel="CurseForge 映射表"
-            empty="暂无映射"
-            className="border-0"
-            height="50vh"
-          />
-        </CardBody>
+        <DataTable
+          columns={columns}
+          rows={mappings.data?.mappings ?? []}
+          rowKey={(row) => row.slug}
+          ariaLabel="CurseForge 映射表"
+          empty="暂无映射"
+          framed={false}
+          valign="middle"
+        />
       </Card>
     </div>
   );

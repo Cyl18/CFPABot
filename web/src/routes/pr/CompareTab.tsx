@@ -14,6 +14,8 @@ import { ErrorState } from "@/ui/ErrorState.tsx";
 import { Checkbox, Input } from "@/ui/Input.tsx";
 import { SkeletonTable } from "@/ui/Spinner.tsx";
 import { DataTable, type Column } from "@/ui/Table.tsx";
+import { Tabs } from "@/ui/Tabs.tsx";
+import { ToggleChip } from "@/ui/ToggleChip.tsx";
 import { parseWorkspaceKey } from "@/lib/api.ts";
 
 type FilterMode = "changed" | "all" | "zh-only" | "untranslated";
@@ -114,9 +116,9 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
       {
         id: "key",
         header: "Key",
-        width: 300,
+        width: 280,
         cell: (row) => (
-          <code className="block max-w-[300px] truncate font-mono text-xs" title={row.key}>
+          <code className="block truncate font-mono text-xs" title={row.key}>
             {row.key}
           </code>
         ),
@@ -144,7 +146,7 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
       list.push({
         id: "mod",
         header: "模组 en_us",
-        width: 320,
+        width: 300,
         cell: (row) => {
           const hit = modByKey.get(row.key);
           if (!hit) return <span className="text-muted">-</span>;
@@ -165,66 +167,47 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <Card>
         <CardBody className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted">工作区</span>
-            {workspaces.map((workspace) => (
-              <button
-                key={workspaceParam(workspace.slug, workspace.version, workspace.namespace)}
-                type="button"
-                aria-pressed={selected?.slug === workspace.slug && selected.version === workspace.version && selected.namespace === workspace.namespace}
-                onClick={() =>
-                  void navigate({
-                    to: "/pr/$n/$tab",
-                    params: { n: String(n), tab: "compare" },
-                    search: { ws: workspaceParam(workspace.slug, workspace.version, workspace.namespace) },
-                  })
-                }
-                className={cn(
-                  "rounded border px-2 py-1 font-mono text-xs",
-                  selected?.slug === workspace.slug && selected.version === workspace.version && selected.namespace === workspace.namespace
-                    ? "border-accent/50 bg-accent/15 text-accent"
-                    : "border-line bg-elevated text-muted hover:text-fg",
-                )}
-              >
-                {workspace.slug} · {workspace.version}/{workspace.namespace}
-              </button>
-            ))}
+            {workspaces.map((workspace) => {
+              const param = workspaceParam(workspace.slug, workspace.version, workspace.namespace);
+              const isSelected =
+                selected !== null &&
+                selected.slug === workspace.slug &&
+                selected.version === workspace.version &&
+                selected.namespace === workspace.namespace;
+              return (
+                <ToggleChip
+                  key={param}
+                  mono
+                  pressed={isSelected}
+                  onClick={() =>
+                    void navigate({ to: "/pr/$n/$tab", params: { n: String(n), tab: "compare" }, search: { ws: param } })
+                  }
+                >
+                  {workspace.slug} · {workspace.version}/{workspace.namespace}
+                </ToggleChip>
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div role="group" aria-label="差异筛选" className="flex flex-wrap gap-1">
-              {FILTERS.map((filter) => (
-                <button
-                  key={filter.id}
-                  type="button"
-                  aria-pressed={mode === filter.id}
-                  onClick={() => setMode(filter.id)}
-                  className={
-                    mode === filter.id
-                      ? "rounded border border-accent/50 bg-accent/15 px-2 py-0.5 text-xs text-accent"
-                      : "rounded border border-line bg-elevated px-2 py-0.5 text-xs text-muted hover:text-fg"
-                  }
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-            <div className="w-full sm:w-72">
-              <Input
-                aria-label="搜索 key 或文本"
-                placeholder="搜索 key / 英文 / 中文"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                wrapperClassName="gap-0"
-              />
-            </div>
+            <Tabs items={FILTERS} value={mode} onChange={setMode} ariaLabel="差异筛选" />
+            <Input
+              wrapperClassName="w-full sm:w-72"
+              icon={<Search />}
+              aria-label="搜索 key 或文本"
+              placeholder="搜索 key / 英文 / 中文"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
             <Checkbox label="叠加模组 en_us" checked={overlay} onChange={(event) => setOverlay(event.target.checked)} />
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label="Key 总数" value={stats.total} />
             <Stat label="EN 新增 / 删除 / 修改" value={`${stats.enAdd} / ${stats.enRemove} / ${stats.enModify}`} tone="info" />
             <Stat label="ZH 新增 / 删除 / 修改" value={`${stats.zhAdd} / ${stats.zhRemove} / ${stats.zhModify}`} tone="warn" />
@@ -232,7 +215,7 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
           </div>
 
           {compare.data && compare.data.missing.length > 0 && (
-            <p className="rounded border border-warn/40 bg-warn/10 px-2 py-1 text-xs text-warn">
+            <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
               缺失文件：{compare.data.missing.join("、")}
             </p>
           )}
@@ -267,7 +250,6 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
           rowKey={(row) => row.key}
           ariaLabel="工作区翻译差异"
           virtualize
-          height="65vh"
           rowHeight={40}
         />
       )}

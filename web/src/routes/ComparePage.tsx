@@ -54,7 +54,7 @@ export function ComparePage() {
       header: "Key",
       width: 280,
       cell: (row) => (
-        <code className="block max-w-72 truncate font-mono text-xs" title={row.key}>
+        <code className="block truncate font-mono text-xs" title={row.key}>
           {row.key}
         </code>
       ),
@@ -62,20 +62,24 @@ export function ComparePage() {
     {
       id: "status",
       header: "状态",
-      width: 80,
+      width: 72,
       cell: (row) => {
         const meta = STATUS_META[row.status] ?? { label: row.status, tone: "neutral" as BadgeTone };
         return <Badge tone={meta.tone}>{meta.label}</Badge>;
       },
     },
-    { id: "diff", header: `${left.name} → ${right.name}`, cell: (row) => <InlineTextDiff before={row.left} after={row.right} /> },
+    {
+      id: "diff",
+      header: <span className="block truncate">{`${left.name} → ${right.name}`}</span>,
+      cell: (row) => <InlineTextDiff before={row.left} after={row.right} />,
+    },
   ];
 
   return (
     <>
       <PageHeader title="文本对比" description="粘贴或上传两份语言文件，按 key 比较内容差异（不会写入仓库）。" />
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {(["left", "right"] as const).map((side) => {
           const file = side === "left" ? left : right;
           const ref = side === "left" ? leftFile : rightFile;
@@ -113,7 +117,7 @@ export function ComparePage() {
         })}
       </div>
 
-      <div className="my-3 flex flex-wrap items-center gap-2">
+      <div className="my-4 flex flex-wrap items-center gap-2">
         <Button
           variant="primary"
           icon={<ArrowLeftRight aria-hidden="true" className="size-4" />}
@@ -138,9 +142,9 @@ export function ComparePage() {
       {compare.isError ? (
         <ErrorState error={compare.error} onRetry={() => compare.mutate()} />
       ) : compare.data ? (
-        <>
+        <div className="flex flex-col gap-4">
           {compare.data.errors.length > 0 && (
-            <Card className="mb-3">
+            <Card>
               <CardHeader title="解析提示" />
               <CardBody>
                 <ul className="list-disc space-y-1 pl-5 text-xs text-warn">
@@ -152,7 +156,7 @@ export function ComparePage() {
             </Card>
           )}
           <DataTable columns={columns} rows={compare.data.rows} rowKey={(row) => row.key} ariaLabel="文本对比结果" empty="没有可比较的 key" />
-        </>
+        </div>
       ) : (
         <EmptyState title="还没有对比结果" description="填入两份内容后点击「开始对比」。" />
       )}

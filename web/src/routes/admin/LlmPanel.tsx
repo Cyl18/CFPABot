@@ -114,17 +114,17 @@ export function LlmPanel() {
         />
         <CardBody className="flex flex-col gap-2">
           {endpoints.length === 0 ? (
-            <EmptyState title="还没有端点" description="添加至少两个端点后才能配置审查模型集。" />
+            <EmptyState title="还没有端点" description="添加至少两个端点后才能配置审查模型集。" compact />
           ) : (
             endpoints.map((endpoint) => (
-              <div key={endpoint.id} className="flex flex-wrap items-center gap-2 rounded border border-line bg-elevated/40 px-2.5 py-2">
+              <div key={endpoint.id} className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-elevated/40 px-3 py-2">
                 <code className="font-mono text-xs">{endpoint.id}</code>
                 <Badge>{endpoint.protocol}</Badge>
                 {endpoint.hasKey || (endpoint.apiKey ?? "") !== "" ? <Badge tone="ok">有密钥</Badge> : <Badge tone="danger">缺密钥</Badge>}
-                {endpoint.contextWindow !== undefined && <span className="text-[11px] text-muted">in {endpoint.contextWindow}</span>}
-                {endpoint.maxOutput !== undefined && <span className="text-[11px] text-muted">out {endpoint.maxOutput}</span>}
+                {endpoint.contextWindow !== undefined && <span className="text-xs text-muted">in {endpoint.contextWindow}</span>}
+                {endpoint.maxOutput !== undefined && <span className="text-xs text-muted">out {endpoint.maxOutput}</span>}
                 {testResult[endpoint.id] !== undefined && (
-                  <span className={testResult[endpoint.id]?.startsWith("✓") === true ? "text-[11px] text-ok" : "text-[11px] text-danger"}>
+                  <span className={testResult[endpoint.id]?.startsWith("✓") === true ? "text-xs text-ok" : "text-xs text-danger"}>
                     {testResult[endpoint.id]}
                   </span>
                 )}

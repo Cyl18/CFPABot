@@ -135,7 +135,7 @@ export const api = {
   modSource: (n: number, key: CompareKey, signal?: AbortSignal) =>
     get<ModSourceResult>(`/api/prs/${n}/mod-source${query({ slug: key.slug, version: key.version, namespace: key.namespace })}`, signal),
   special: (n: number, signal?: AbortSignal) => get<SpecialFile[]>(`/api/prs/${n}/special`, signal),
-  versions: (slug: string, namespace: string, pr: number | undefined, signal?: AbortSignal) =>
+  versions: (slug: string, namespace: string | undefined, pr: number | undefined, signal?: AbortSignal) =>
     get<CrossVersionResult>(`/api/versions/${encodeURIComponent(slug)}${query({ namespace, pr })}`, signal),
   compareText: (body: TextCompareRequest) => send<TextCompareResult>("POST", "/api/compare/text", body),
   mods: (q: string, signal?: AbortSignal) => get<ModList>(`/api/mods${query({ q })}`, signal),

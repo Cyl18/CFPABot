@@ -58,7 +58,6 @@ export interface RelatedPr {
 }
 
 export interface PrDetail extends PrSummary {
-  body: string;
   htmlUrl: string;
   baseRef: string;
   baseSha: string;
@@ -122,23 +121,29 @@ export interface SpecialFile {
   truncated: boolean;
 }
 
-export interface CrossVersionCell {
-  en?: string;
-  zh?: string;
+export interface CrossVersionVariant {
+  en: string;
+  zh: string | null;
+  versions: string[];
 }
 
-export interface CrossVersionRow {
+export type CrossVersionIssueKind = "conflict" | "changed" | "untranslated";
+
+export interface CrossVersionIssue {
   key: string;
-  cells: Record<string, CrossVersionCell>;
-  enConsistent: boolean;
-  zhConsistent: boolean;
+  kind: CrossVersionIssueKind;
+  variants: CrossVersionVariant[];
+  touched: boolean;
 }
 
 export interface CrossVersionResult {
   slug: string;
   namespace: string;
+  namespaces: string[];
   versions: string[];
-  rows: CrossVersionRow[];
+  prVersions: string[];
+  keyCount: number;
+  issues: CrossVersionIssue[];
   prNumber?: number;
 }
 

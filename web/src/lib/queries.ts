@@ -11,7 +11,7 @@ export const qk = {
   compare: (n: number, key: string) => ["compare", n, key] as const,
   modSource: (n: number, key: string) => ["mod-source", n, key] as const,
   special: (n: number) => ["special", n] as const,
-  versions: (slug: string, namespace: string, pr: number | undefined) => ["versions", slug, namespace, pr ?? null] as const,
+  versions: (slug: string, namespace: string | undefined, pr: number | undefined) => ["versions", slug, namespace ?? null, pr ?? null] as const,
   mods: (q: string) => ["mods", q] as const,
   sessions: ["sessions"] as const,
   session: (id: string) => ["session", id] as const,
@@ -63,7 +63,7 @@ export function useSpecial(n: number, enabled = true) {
   return useQuery<SpecialFile[]>({ queryKey: qk.special(n), queryFn: ({ signal }) => api.special(n, signal), enabled });
 }
 
-export function useVersions(slug: string, namespace: string, pr: number | undefined) {
+export function useVersions(slug: string, namespace: string | undefined, pr: number | undefined) {
   return useQuery<CrossVersionResult>({
     queryKey: qk.versions(slug, namespace, pr),
     queryFn: ({ signal }) => api.versions(slug, namespace, pr, signal),

@@ -1,16 +1,15 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
 import type { ReactNode } from "react";
-import { useRef } from "react";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/cn.ts";
-
-const CELL = "border-b border-line px-3 py-1.5 align-top";
 
 export interface Column<T> {
   id: string;
   header: ReactNode;
   cell: (row: T, index: number) => ReactNode;
-  width?: number | string;
+  width?: number;
   align?: "left" | "right" | "center";
+  hideBelow?: "md" | "lg" | "xl";
   className?: string;
   headerClassName?: string;
 }
@@ -22,13 +21,30 @@ export interface DataTableProps<T> {
   ariaLabel: string;
   empty?: ReactNode;
   virtualize?: boolean;
+  scroll?: "page" | "contained";
   height?: string;
   rowHeight?: number;
+  valign?: "top" | "middle";
+  framed?: boolean;
   rowClassName?: (row: T) => string | undefined;
-  className?: string;
 }
 
 const VIRTUAL_THRESHOLD = 200;
+const FLEX_MIN_WIDTH = 240;
+
+const BREAKPOINT_RANK = { md: 1, lg: 2, xl: 3 } as const satisfies Record<NonNullable<Column<unknown>["hideBelow"]>, number>;
+
+function subscribeResize(callback: () => void): () => void {
+  window.addEventListener("resize", callback);
+  return () => window.removeEventListener("resize", callback);
+}
+
+function viewportRank(): number {
+  if (window.innerWidth >= 1280) return 3;
+  if (window.innerWidth >= 1024) return 2;
+  if (window.innerWidth >= 768) return 1;
+  return 0;
+}
 
 export function DataTable<T>({
   columns,
@@ -37,36 +53,63 @@ export function DataTable<T>({
   ariaLabel,
   empty,
   virtualize,
+  scroll = "page",
   height = "70vh",
-  rowHeight = 34,
+  rowHeight = 37,
+  valign = "top",
+  framed = true,
   rowClassName,
-  className,
 }: DataTableProps<T>) {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const tableRef = useRef<HTMLTableElement | null>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
   const virtual = virtualize ?? rows.length > VIRTUAL_THRESHOLD;
-  const virtualizer = useVirtualizer<HTMLDivElement, HTMLTableRowElement>({
+  const contained = scroll === "contained";
+
+  useLayoutEffect(() => {
+    if (contained || !virtual) return;
+    const top = (tableRef.current?.getBoundingClientRect().top ?? 0) + window.scrollY;
+    if (Math.abs(top - scrollMargin) > 1) setScrollMargin(top);
+  });
+
+  const shared = {
     count: rows.length,
-    getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: 12,
-    enabled: virtual,
-    getItemKey: (index) => rowKey(rows[index] as T, index),
+    getItemKey: (index: number) => rowKey(rows[index] as T, index),
+  };
+  const elementVirtualizer = useVirtualizer<HTMLDivElement, HTMLTableRowElement>({
+    ...shared,
+    getScrollElement: () => wrapperRef.current,
+    enabled: virtual && contained,
   });
+  const windowVirtualizer = useWindowVirtualizer<HTMLTableRowElement>({
+    ...shared,
+    scrollMargin,
+    enabled: virtual && !contained,
+  });
+  const virtualizer = contained ? elementVirtualizer : windowVirtualizer;
+  const margin = contained ? 0 : scrollMargin;
+
+  const rank = useSyncExternalStore(subscribeResize, viewportRank);
+  const visible = columns.filter((column) => column.hideBelow === undefined || rank >= BREAKPOINT_RANK[column.hideBelow]);
+  const minWidth = visible.reduce((sum, column) => sum + (column.width ?? FLEX_MIN_WIDTH), 0);
+  const columnClasses = visible.map((column) => cn(column.align === "right" && "text-right tabular-nums", column.align === "center" && "text-center"));
 
   const renderRow = (row: T, index: number, measured: boolean) => (
     <tr
       key={rowKey(row, index)}
       ref={measured ? virtualizer.measureElement : undefined}
       data-index={measured ? index : undefined}
-      className={cn("hover:bg-elevated/60", rowClassName?.(row))}
+      className={cn("group/row transition-colors hover:bg-elevated/60", rowClassName?.(row))}
     >
-      {columns.map((column) => (
+      {visible.map((column, columnIndex) => (
         <td
           key={column.id}
           className={cn(
-            CELL,
-            column.align === "right" && "text-right tabular-nums",
-            column.align === "center" && "text-center",
+            "border-b border-line px-3 py-2 group-last/row:border-b-0",
+            valign === "middle" ? "align-middle" : "align-top",
+            columnClasses[columnIndex],
             column.className,
           )}
         >
@@ -79,27 +122,36 @@ export function DataTable<T>({
   const virtualItems = virtual ? virtualizer.getVirtualItems() : [];
   const first = virtualItems[0];
   const last = virtualItems[virtualItems.length - 1];
-  const padTop = first ? first.start : 0;
-  const padBottom = last ? virtualizer.getTotalSize() - last.end : 0;
+  const padTop = first ? first.start - margin : 0;
+  const padBottom = last ? virtualizer.getTotalSize() - (last.end - margin) : 0;
 
   return (
     <div
-      ref={scrollRef}
-      className={cn("scroll-thin relative overflow-auto rounded-lg border border-line bg-surface", className)}
-      style={virtual ? { maxHeight: height } : undefined}
+      ref={wrapperRef}
+      className={cn(
+        "scroll-thin relative bg-surface",
+        framed && "rounded-lg border border-line",
+        contained ? "overflow-auto" : "max-md:overflow-x-auto",
+      )}
+      style={contained ? { maxHeight: height } : undefined}
     >
-      <table className="w-full border-collapse text-sm" aria-label={ariaLabel}>
-        <thead className="sticky top-0 z-10 bg-elevated">
+      <table
+        ref={tableRef}
+        className={cn("w-full border-separate border-spacing-0 text-sm", !contained && "table-fixed")}
+        style={contained ? undefined : { minWidth }}
+        aria-label={ariaLabel}
+      >
+        <thead className={cn("sticky z-10", contained ? "top-0" : "top-0 max-lg:top-14 max-md:top-0")}>
           <tr>
-            {columns.map((column) => (
+            {visible.map((column, columnIndex) => (
               <th
                 key={column.id}
                 scope="col"
                 style={column.width !== undefined ? { width: column.width } : undefined}
                 className={cn(
-                  "whitespace-nowrap border-b border-line px-3 py-2 text-left text-xs font-semibold text-muted",
-                  column.align === "right" && "text-right",
-                  column.align === "center" && "text-center",
+                  "h-9 whitespace-nowrap border-b border-line bg-elevated px-3 text-left align-middle text-xs font-medium text-muted",
+                  framed && "first:rounded-tl-lg last:rounded-tr-lg",
+                  columnClasses[columnIndex],
                   column.headerClassName,
                 )}
               >
@@ -111,20 +163,20 @@ export function DataTable<T>({
         <tbody>
           {rows.length === 0 && (
             <tr>
-              <td colSpan={columns.length} className="px-3 py-10 text-center text-sm text-muted">
+              <td colSpan={visible.length} className="px-3 py-10 text-center text-sm text-muted">
                 {empty ?? "暂无数据"}
               </td>
             </tr>
           )}
           {padTop > 0 && (
             <tr aria-hidden="true">
-              <td colSpan={columns.length} style={{ height: padTop, padding: 0, border: "none" }} />
+              <td colSpan={visible.length} style={{ height: padTop, padding: 0, border: "none" }} />
             </tr>
           )}
           {virtual ? virtualItems.map((item) => renderRow(rows[item.index] as T, item.index, true)) : rows.map((row, index) => renderRow(row, index, false))}
           {padBottom > 0 && (
             <tr aria-hidden="true">
-              <td colSpan={columns.length} style={{ height: padBottom, padding: 0, border: "none" }} />
+              <td colSpan={visible.length} style={{ height: padBottom, padding: 0, border: "none" }} />
             </tr>
           )}
         </tbody>

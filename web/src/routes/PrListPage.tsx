@@ -8,15 +8,15 @@ import { PrStateBadge } from "@/components/StatusBadges.tsx";
 import { cn } from "@/lib/cn.ts";
 import { formatRelative } from "@/lib/format.ts";
 import { qk, usePrs } from "@/lib/queries.ts";
-import { Badge, LabelChip } from "@/ui/Badge.tsx";
+import { TagList } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
-import { Card, CardBody } from "@/ui/Card.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
 import { Input } from "@/ui/Input.tsx";
 import { SkeletonTable } from "@/ui/Spinner.tsx";
 import { Tabs, type TabItem } from "@/ui/Tabs.tsx";
 import { DataTable, type Column } from "@/ui/Table.tsx";
+import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
 type StateTab = PrState | "all";
 
@@ -27,10 +27,13 @@ const TABS: readonly TabItem<StateTab>[] = [
   { id: "all", label: "全部" },
 ];
 
+const LABEL_FILTER_LIMIT = 10;
+
 export function PrListPage() {
   const [state, setState] = useState<StateTab>("open");
   const [query, setQuery] = useState("");
   const [selectedLabels, setSelectedLabels] = useState<readonly string[]>([]);
+  const [allLabels, setAllLabels] = useState(false);
   const client = useQueryClient();
   const { data, isPending, error, refetch, isFetching } = usePrs(state);
 
@@ -41,6 +44,11 @@ export function PrListPage() {
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   }, [data]);
+
+  const visibleLabels = allLabels
+    ? labels
+    : labels.filter(([label], index) => index < LABEL_FILTER_LIMIT || selectedLabels.includes(label));
+  const hiddenLabelCount = labels.length - visibleLabels.length;
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -60,7 +68,7 @@ export function PrListPage() {
     {
       id: "number",
       header: "#",
-      width: 90,
+      width: 76,
       cell: (row) => (
         <Link to="/pr/$n" params={{ n: String(row.number) }} className="font-mono text-accent hover:underline">
           #{row.number}
@@ -71,55 +79,21 @@ export function PrListPage() {
       id: "title",
       header: "标题",
       cell: (row) => (
-        <Link to="/pr/$n" params={{ n: String(row.number) }} className="line-clamp-2 hover:underline">
+        <Link to="/pr/$n" params={{ n: String(row.number) }} className="line-clamp-2 font-medium hover:underline" title={row.title}>
           {row.title}
         </Link>
       ),
     },
-    { id: "author", header: "作者", width: 140, cell: (row) => <span className="text-muted">{row.author}</span> },
-    {
-      id: "state",
-      header: "状态",
-      width: 110,
-      cell: (row) => <PrStateBadge state={row.state} draft={row.draft} />,
-    },
-    {
-      id: "slugs",
-      header: "模组",
-      width: 240,
-      cell: (row) =>
-        row.slugs.length === 0 ? (
-          <span className="text-muted">-</span>
-        ) : (
-          <span className="flex flex-wrap gap-1">
-            {row.slugs.slice(0, 3).map((slug) => (
-              <LabelChip key={slug} label={slug} />
-            ))}
-            {row.slugs.length > 3 && <Badge>+{row.slugs.length - 3}</Badge>}
-          </span>
-        ),
-    },
-    {
-      id: "labels",
-      header: "标签",
-      width: 220,
-      cell: (row) =>
-        row.labels.length === 0 ? (
-          <span className="text-muted">-</span>
-        ) : (
-          <span className="flex flex-wrap gap-1">
-            {row.labels.map((label) => (
-              <LabelChip key={label} label={label} />
-            ))}
-          </span>
-        ),
-    },
+    { id: "author", header: "作者", width: 128, hideBelow: "xl", cell: (row) => <span className="block truncate text-muted">{row.author}</span> },
+    { id: "state", header: "状态", width: 116, cell: (row) => <PrStateBadge state={row.state} draft={row.draft} /> },
+    { id: "slugs", header: "模组", width: 200, hideBelow: "xl", cell: (row) => <TagList items={row.slugs} max={2} label={`#${row.number} 的模组`} /> },
+    { id: "labels", header: "标签", width: 200, cell: (row) => <TagList items={row.labels} max={2} label={`#${row.number} 的标签`} /> },
     {
       id: "updated",
       header: "更新",
-      width: 110,
+      width: 96,
       cell: (row) => (
-        <span className="text-muted" title={row.updatedAt}>
+        <span className="whitespace-nowrap text-muted" title={row.updatedAt}>
           {formatRelative(row.updatedAt)}
         </span>
       ),
@@ -145,42 +119,39 @@ export function PrListPage() {
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Tabs items={TABS} value={state} onChange={setState} ariaLabel="PR 状态筛选" />
-        <div className="w-full sm:w-72">
-          <Input
-            aria-label="搜索 PR"
-            placeholder="搜索标题 / 编号 / 作者 / 模组 slug"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
-        <Search aria-hidden="true" className="hidden size-4 text-muted sm:block" />
+        <Input
+          wrapperClassName="w-full sm:ml-auto sm:w-80"
+          icon={<Search />}
+          aria-label="搜索 PR"
+          placeholder="搜索标题 / 编号 / 作者 / 模组 slug"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
       </div>
 
       {labels.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted">标签：</span>
-          {labels.slice(0, 14).map(([label, count]) => {
-            const active = selectedLabels.includes(label);
-            return (
-              <button
-                key={label}
-                type="button"
-                aria-pressed={active}
-                onClick={() =>
-                  setSelectedLabels((previous) => (previous.includes(label) ? previous.filter((item) => item !== label) : [...previous, label]))
-                }
-                className={cn(
-                  "rounded border px-1.5 py-0.5 text-[11px] font-medium transition-colors",
-                  active ? "border-accent/50 bg-accent/15 text-accent" : "border-line bg-elevated text-muted hover:text-fg",
-                )}
-              >
-                {label} <span className="opacity-70">{count}</span>
-              </button>
-            );
-          })}
+        <div role="group" aria-label="按标签筛选" className="mb-4 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-xs text-muted">标签</span>
+          {visibleLabels.map(([label, count]) => (
+            <ToggleChip
+              key={label}
+              pressed={selectedLabels.includes(label)}
+              onClick={() =>
+                setSelectedLabels((previous) => (previous.includes(label) ? previous.filter((item) => item !== label) : [...previous, label]))
+              }
+            >
+              {label}
+              <span className="tabular-nums opacity-60">{count}</span>
+            </ToggleChip>
+          ))}
+          {(hiddenLabelCount > 0 || allLabels) && (
+            <Button size="sm" variant="ghost" aria-expanded={allLabels} onClick={() => setAllLabels((value) => !value)}>
+              {allLabels ? "收起" : `+${hiddenLabelCount} 个标签`}
+            </Button>
+          )}
           {selectedLabels.length > 0 && (
             <Button size="sm" variant="ghost" onClick={() => setSelectedLabels([])}>
-              清除
+              清除筛选
             </Button>
           )}
         </div>
@@ -191,17 +162,13 @@ export function PrListPage() {
       ) : isPending ? (
         <SkeletonTable rows={8} columns={6} />
       ) : rows.length === 0 ? (
-        <Card>
-          <CardBody>
-            <EmptyState
-              icon={<GitPullRequest aria-hidden="true" className="size-6" />}
-              title={data && data.length > 0 ? "没有匹配的 PR" : "暂无 PR"}
-              description={data && data.length > 0 ? "试试调整搜索条件或标签筛选。" : "当前状态下没有 PR 数据。"}
-            />
-          </CardBody>
-        </Card>
+        <EmptyState
+          icon={<GitPullRequest aria-hidden="true" className="size-6" />}
+          title={data && data.length > 0 ? "没有匹配的 PR" : "暂无 PR"}
+          description={data && data.length > 0 ? "试试调整搜索条件或标签筛选。" : "当前状态下没有 PR 数据。"}
+        />
       ) : (
-        <DataTable columns={columns} rows={rows} rowKey={(row) => String(row.number)} ariaLabel="PR 列表" />
+        <DataTable columns={columns} rows={rows} rowKey={(row) => String(row.number)} ariaLabel="PR 列表" valign="middle" rowHeight={45} />
       )}
     </>
   );

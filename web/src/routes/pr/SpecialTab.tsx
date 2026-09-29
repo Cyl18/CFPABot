@@ -8,6 +8,8 @@ import { Card, CardBody } from "@/ui/Card.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
 import { SkeletonText } from "@/ui/Spinner.tsx";
+import { Tabs, type TabItem } from "@/ui/Tabs.tsx";
+import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
 const ROW_BG: Record<DiffKind, string> = {
   equal: "",
@@ -21,7 +23,12 @@ const TEXT_COLOR: Record<DiffKind, string> = {
   delete: "text-danger",
 };
 
-const GUTTER = "select-none border-r border-line px-2 text-right text-[11px] text-muted";
+const MODES: readonly TabItem<"unified" | "side">[] = [
+  { id: "unified", label: "统一" },
+  { id: "side", label: "并排" },
+];
+
+const GUTTER = "select-none border-r border-line px-2 text-right text-xs text-muted";
 
 export function SpecialTab({ n, paths }: { n: number; paths: string[] }) {
   const special = useSpecial(n);
@@ -48,39 +55,16 @@ export function SpecialTab({ n, paths }: { n: number; paths: string[] }) {
   return (
     <Card>
       <CardBody className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-1">
-          {files.map((item, index) => (
-            <button
-              key={item.path}
-              type="button"
-              aria-pressed={index === active}
-              onClick={() => setActive(index)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs",
-                index === active ? "border-accent/50 bg-accent/15 text-accent" : "border-line bg-elevated text-muted hover:text-fg",
-              )}
-              title={item.path}
-            >
-              {item.path.split("/").pop()}
-              <FileStatusBadge status={item.status} />
-            </button>
-          ))}
-          <div role="group" aria-label="差异视图模式" className="ml-auto flex gap-1">
-            {(["unified", "side"] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={mode === option}
-                onClick={() => setMode(option)}
-                className={cn(
-                  "rounded border px-2 py-1 text-xs",
-                  mode === option ? "border-accent/50 bg-accent/15 text-accent" : "border-line bg-elevated text-muted hover:text-fg",
-                )}
-              >
-                {option === "unified" ? "统一" : "并排"}
-              </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {files.map((item, index) => (
+              <ToggleChip key={item.path} pressed={index === active} onClick={() => setActive(index)} title={item.path}>
+                {item.path.split("/").pop()}
+                <FileStatusBadge status={item.status} />
+              </ToggleChip>
             ))}
           </div>
+          <Tabs items={MODES} value={mode} onChange={setMode} ariaLabel="差异视图模式" className="ml-auto" />
         </div>
 
         {file && (
@@ -91,7 +75,7 @@ export function SpecialTab({ n, paths }: { n: number; paths: string[] }) {
               {file.truncated && <span className="text-warn">内容过大，已截断</span>}
             </div>
 
-            <div className="scroll-thin max-h-[65vh] overflow-auto rounded border border-line bg-surface">
+            <div className="overflow-hidden rounded-md border border-line bg-surface">
               {mode === "unified" ? (
                 <table className="w-full border-collapse font-mono text-xs">
                   <caption className="sr-only">统一差异视图</caption>

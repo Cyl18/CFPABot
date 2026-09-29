@@ -1,7 +1,7 @@
 import { LogIn, RefreshCw, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/cn.ts";
 import { errorMessage, isApiError, loginUrl } from "@/lib/api.ts";
-import { Button } from "@/ui/Button.tsx";
+import { Button, buttonClass } from "@/ui/Button.tsx";
 
 export interface ErrorStateProps {
   error: unknown;
@@ -29,10 +29,7 @@ export function ErrorState({ error, onRetry, title, className }: ErrorStateProps
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
         {unauthorized && (
-          <a
-            href={loginUrl()}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-transparent bg-accent px-3.5 text-sm font-medium text-accent-fg hover:brightness-110"
-          >
+          <a href={loginUrl()} className={buttonClass("primary")}>
             <LogIn aria-hidden="true" className="size-4" />
             使用 GitHub 登录
           </a>

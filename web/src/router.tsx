@@ -12,7 +12,7 @@ import { PrListPage } from "@/routes/PrListPage.tsx";
 import { SessionListPage } from "@/routes/agent/SessionListPage.tsx";
 import { VersionsPage } from "@/routes/VersionsPage.tsx";
 
-const PR_TABS: readonly PrTab[] = ["overview", "files", "compare", "special", "reviews"];
+const PR_TABS: readonly PrTab[] = ["overview", "files", "compare", "versions", "special", "reviews"];
 const ADMIN_TABS: readonly AdminTab[] = ["status", "llm", "mappings", "logs", "cache"];
 
 const rootRoute = createRootRoute({ component: AppShell, notFoundComponent: NotFoundPage });
@@ -22,7 +22,11 @@ const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", com
 const prRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/pr/$n",
-  validateSearch: (search: Record<string, unknown>): { ws?: string } => (typeof search.ws === "string" ? { ws: search.ws } : {}),
+  validateSearch: (search: Record<string, unknown>): { ws?: string; slug?: string; ns?: string } => ({
+    ...(typeof search.ws === "string" ? { ws: search.ws } : {}),
+    ...(typeof search.slug === "string" ? { slug: search.slug } : {}),
+    ...(typeof search.ns === "string" ? { ns: search.ns } : {}),
+  }),
 });
 
 const prIndexRoute = createRoute({ getParentRoute: () => prRoute, path: "/", component: PrOverviewRoot });
@@ -32,10 +36,8 @@ const prTabRoute = createRoute({ getParentRoute: () => prRoute, path: "$tab", co
 const versionsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/versions/$slug",
-  validateSearch: (search: Record<string, unknown>): { namespace?: string; pr?: number } => ({
-    ...(typeof search.namespace === "string" ? { namespace: search.namespace } : {}),
-    ...(typeof search.pr === "number" ? { pr: search.pr } : typeof search.pr === "string" && search.pr !== "" ? { pr: Number(search.pr) } : {}),
-  }),
+  validateSearch: (search: Record<string, unknown>): { namespace?: string } =>
+    typeof search.namespace === "string" ? { namespace: search.namespace } : {},
   component: VersionsRoot,
 });
 
@@ -60,15 +62,15 @@ function PrOverviewRoot() {
 function PrTabRoot() {
   const { n } = prRoute.useParams();
   const { tab } = prTabRoute.useParams();
-  const { ws } = prTabRoute.useSearch();
+  const { ws, slug, ns } = prTabRoute.useSearch();
   const resolved = PR_TABS.find((item) => item === tab) ?? "overview";
-  return <PrDetailPage n={Number(n)} tab={resolved} ws={ws} />;
+  return <PrDetailPage n={Number(n)} tab={resolved} ws={ws} slug={slug} ns={ns} />;
 }
 
 function VersionsRoot() {
   const { slug } = versionsRoute.useParams();
-  const { namespace, pr } = versionsRoute.useSearch();
-  return <VersionsPage slug={slug} namespace={namespace} pr={pr} />;
+  const { namespace } = versionsRoute.useSearch();
+  return <VersionsPage slug={slug} namespace={namespace} />;
 }
 
 function AgentRoot() {

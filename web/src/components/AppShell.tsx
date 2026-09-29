@@ -236,7 +236,7 @@ export function AppShell() {
           </button>
         </header>
 
-        <main id="main" className="mx-auto w-full max-w-[1500px] px-3 py-4 sm:px-4">
+        <main id="main" className="mx-auto w-full max-w-[1500px] px-4 py-5 sm:px-6 lg:px-8">
           <Outlet />
         </main>
       </div>

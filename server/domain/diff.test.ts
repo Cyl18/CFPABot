@@ -41,18 +41,34 @@ test("compareTwo reports add/remove/modify/same", () => {
   ]);
 });
 
-test("crossVersion builds a consistency matrix", () => {
-  const rows = crossVersion([
-    { version: "1.19", en: new Map([["k", "Stone"]]), zh: new Map([["k", "石头"]]) },
-    { version: "1.20", en: new Map([["k", "Stone"]]), zh: new Map([["k", "石块"]]) },
-    { version: "1.21", en: new Map([["k", "Stone"]]), zh: new Map() },
+test("crossVersion reports conflicts, changed EN and untranslated gaps", () => {
+  const result = crossVersion([
+    { version: "1.19", en: new Map([["a", "Stone"], ["b", "Dirt"], ["c", "Old"]]), zh: new Map([["a", "石头"], ["b", "泥土"], ["c", "旧"]]) },
+    { version: "1.20", en: new Map([["a", "Stone"], ["b", "Dirt"], ["c", "New"]]), zh: new Map([["a", "石块"], ["c", "新"]]), touched: new Set(["b"]) },
+    { version: "1.21", en: new Map([["a", "Stone"], ["b", "Dirt"], ["c", "New"]]), zh: new Map([["a", "石头"], ["b", "泥土"], ["c", "新"]]) },
+    { version: "1.22", en: new Map([["a", "Stone"]]) },
   ]);
-  expect(rows.length).toBe(1);
-  const row = rows[0];
-  expect(row?.enConsistent).toBe(true);
-  expect(row?.zhConsistent).toBe(false);
-  expect(row?.cells["1.21"]).toEqual({ en: "Stone" });
-  expect(row?.cells["1.19"]).toEqual({ en: "Stone", zh: "石头" });
+  expect(result.keyCount).toBe(3);
+  expect(result.issues).toEqual([
+    {
+      key: "b",
+      kind: "untranslated",
+      touched: true,
+      variants: [{ en: "Dirt", zh: "泥土", versions: ["1.19", "1.21"] }, { en: "Dirt", zh: null, versions: ["1.20"] }],
+    },
+    {
+      key: "a",
+      kind: "conflict",
+      touched: false,
+      variants: [{ en: "Stone", zh: "石头", versions: ["1.19", "1.21"] }, { en: "Stone", zh: "石块", versions: ["1.20"] }],
+    },
+    {
+      key: "c",
+      kind: "changed",
+      touched: false,
+      variants: [{ en: "Old", zh: "旧", versions: ["1.19"] }, { en: "New", zh: "新", versions: ["1.20", "1.21"] }],
+    },
+  ]);
 });
 
 test("patchHunks and patchAddedLines read the new side", () => {

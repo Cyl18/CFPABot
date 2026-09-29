@@ -10,6 +10,7 @@ import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
 import { Checkbox } from "@/ui/Input.tsx";
 import { SkeletonText } from "@/ui/Spinner.tsx";
+import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
 const LEVELS: readonly { value: LogLevel | "all"; label: string }[] = [
   { value: "all", label: "全部" },
@@ -40,18 +41,9 @@ export function LogsPanel() {
           <>
             <div role="group" aria-label="日志级别筛选" className="flex flex-wrap gap-1">
               {LEVELS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  aria-pressed={level === option.value}
-                  onClick={() => setLevel(option.value)}
-                  className={cn(
-                    "rounded border px-2 py-0.5 text-xs",
-                    level === option.value ? "border-accent/50 bg-accent/15 text-accent" : "border-line bg-elevated text-muted hover:text-fg",
-                  )}
-                >
+                <ToggleChip key={option.value} pressed={level === option.value} onClick={() => setLevel(option.value)}>
                   {option.label}
-                </button>
+                </ToggleChip>
               ))}
             </div>
             <Checkbox label="自动刷新" checked={autoRefresh} onChange={(event) => setAutoRefresh(event.target.checked)} />
@@ -67,9 +59,9 @@ export function LogsPanel() {
         ) : logs.isPending ? (
           <SkeletonText lines={10} />
         ) : (logs.data?.length ?? 0) === 0 ? (
-          <EmptyState title="暂无日志" />
+          <EmptyState title="暂无日志" compact />
         ) : (
-          <ul className="scroll-thin max-h-[60vh] overflow-y-auto rounded border border-line bg-elevated/40 p-2 font-mono text-[11px]">
+          <ul className="rounded-md border border-line bg-elevated/40 p-2 font-mono text-xs">
             {logs.data?.map((entry, index) => (
               <li key={`${entry.at}-${index}`} className="border-b border-line/60 py-1 last:border-b-0">
                 <details className="group">

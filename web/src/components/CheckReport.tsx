@@ -33,7 +33,7 @@ function CheckItemRow({ item }: { item: CheckItem }) {
 
 export function CheckReportView({ report, className }: { report: CheckReport | null; className?: string }) {
   if (report === null) {
-    return <EmptyState title="暂无检查结果" description="信息评论尚未生成，或该 PR 还没有被检查过。" className={className} />;
+    return <EmptyState compact title="暂无检查结果" description="信息评论尚未生成，或该 PR 还没有被检查过。" className={className} />;
   }
 
   const counts = ORDER.map((level) => ({ level, count: report.items.filter((item) => item.level === level).length }));
@@ -52,7 +52,7 @@ export function CheckReportView({ report, className }: { report: CheckReport | n
         </span>
       </div>
       {sorted.length === 0 ? (
-        <EmptyState title="没有检查项" />
+        <EmptyState compact title="没有检查项" />
       ) : (
         <ul className="overflow-hidden rounded-lg border border-line bg-surface">
           {sorted.map((item, index) => (

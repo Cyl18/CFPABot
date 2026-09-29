@@ -10,7 +10,6 @@ import { formatRelative } from "@/lib/format.ts";
 import { qk, useSessions } from "@/lib/queries.ts";
 import { Badge } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
-import { Card, CardBody } from "@/ui/Card.tsx";
 import { Dialog } from "@/ui/Dialog.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
@@ -55,9 +54,9 @@ export function SessionListPage() {
       id: "title",
       header: "会话",
       cell: (row) => (
-        <Link to="/agent/$id" params={{ id: row.id }} className="flex flex-col hover:underline">
-          <span className="truncate">{row.title || row.id}</span>
-          <code className="truncate font-mono text-[11px] text-muted">{row.id}</code>
+        <Link to="/agent/$id" params={{ id: row.id }} className="flex min-w-0 flex-col hover:underline" title={row.title || row.id}>
+          <span className="block truncate">{row.title || row.id}</span>
+          <code className="block truncate font-mono text-xs text-muted">{row.id}</code>
         </Link>
       ),
     },
@@ -76,8 +75,8 @@ export function SessionListPage() {
     },
     { id: "status", header: "状态", width: 100, cell: (row) => <SessionStatusBadge status={row.status} /> },
     { id: "draft", header: "草稿", width: 90, cell: (row) => (row.hasDraft ? <Badge tone="ok">有</Badge> : <Badge>无</Badge>) },
-    { id: "model", header: "模型", width: 220, cell: (row) => <code className="block truncate font-mono text-xs text-muted">{row.model}</code> },
-    { id: "by", header: "创建者", width: 130, cell: (row) => row.createdBy },
+    { id: "model", header: "模型", width: 200, hideBelow: "lg", cell: (row) => <code className="block truncate font-mono text-xs text-muted">{row.model}</code> },
+    { id: "by", header: "创建者", width: 120, hideBelow: "xl", cell: (row) => row.createdBy },
     { id: "updated", header: "更新", width: 110, cell: (row) => <span className="text-muted">{formatRelative(row.updatedAt)}</span> },
     {
       id: "actions",
@@ -120,22 +119,18 @@ export function SessionListPage() {
       ) : sessions.isPending ? (
         <SkeletonTable rows={6} columns={6} />
       ) : rows.length === 0 ? (
-        <Card>
-          <CardBody>
-            <EmptyState
-              icon={<Bot aria-hidden="true" className="size-6" />}
-              title="没有会话"
-              description="新建一个会话，或在 PR 评论中发送 /agent 或 /agent-review。"
-              action={
-                <Button variant="primary" onClick={() => setNewOpen(true)}>
-                  新建会话
-                </Button>
-              }
-            />
-          </CardBody>
-        </Card>
+        <EmptyState
+          icon={<Bot aria-hidden="true" className="size-6" />}
+          title="没有会话"
+          description="新建一个会话，或在 PR 评论中发送 /agent 或 /agent-review。"
+          action={
+            <Button variant="primary" onClick={() => setNewOpen(true)}>
+              新建会话
+            </Button>
+          }
+        />
       ) : (
-        <DataTable columns={columns} rows={rows} rowKey={(row) => row.id} ariaLabel="Agent 会话列表" />
+        <DataTable columns={columns} rows={rows} rowKey={(row) => row.id} ariaLabel="Agent 会话列表" valign="middle" />
       )}
 
       <NewSessionDialog
