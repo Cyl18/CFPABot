@@ -1,0 +1,326 @@
+import { readFileSync } from "node:fs";
+import { Octokit } from "@octokit/rest";
+import { createAppAuth } from "@octokit/auth-app";
+import { retry } from "@octokit/plugin-retry";
+import { throttling, type ThrottlingOptions } from "@octokit/plugin-throttling";
+import { env, repo } from "../env.ts";
+import { logger } from "../log.ts";
+import { asRecord, httpStatus, mapComment, mapFile, mapPull, mapReviewComment, mapRun } from "./mappers.ts";
+import type { GhArtifact, GhComment, GhFile, GhPull, GhReviewComment, GhRun, GitHubClient } from "./types.ts";
+
+export type { GhArtifact, GhComment, GhFile, GhPull, GhReviewComment, GhRun, GitHubClient } from "./types.ts";
+
+const log = logger("github");
+const USER_AGENT = "CFPAAgent2 (github.com/CFPAOrg)";
+const PLUGIN_OCTOKIT = Octokit.plugin(retry, throttling);
+const PACKER_WORKFLOW = "pr-packer.yml";
+const FILE_PAGE_SIZE = 100;
+
+function readPrivateKey(): string | null {
+  try {
+    return readFileSync(env.GITHUB_APP_PRIVATE_KEY_PATH, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+const appConfig =
+  env.GITHUB_APP_ID && env.GITHUB_APP_INSTALLATION_ID
+    ? (() => {
+        const privateKey = readPrivateKey();
+        if (!privateKey) return null;
+        return { appId: env.GITHUB_APP_ID, privateKey, installationId: env.GITHUB_APP_INSTALLATION_ID };
+      })()
+    : null;
+
+const mode: GitHubClient["mode"] = appConfig ? "app" : env.GITHUB_PAT ? "pat" : "anonymous";
+
+function throttleOptions(): ThrottlingOptions {
+  return {
+    onRateLimit: (retryAfter, options, _octokit, retryCount) => {
+      log.warn("GitHub 速率限制", { method: options.method, url: options.url, retryAfter, retryCount });
+      return retryCount < 2 && retryAfter <= 60;
+    },
+    onSecondaryRateLimit: (retryAfter, options, _octokit, retryCount) => {
+      log.warn("GitHub 二级速率限制", {
+        method: options.method,
+        url: options.url,
+        retryAfter,
+        retryCount,
+      });
+      return retryCount < 2 && retryAfter <= 60;
+    },
+  };
+}
+
+const octokit = appConfig
+  ? new PLUGIN_OCTOKIT({
+      userAgent: USER_AGENT,
+      throttle: throttleOptions(),
+      authStrategy: createAppAuth,
+      auth: appConfig,
+    })
+  : env.GITHUB_PAT
+    ? new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions(), auth: env.GITHUB_PAT })
+    : new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions() });
+
+const patOctokit = env.GITHUB_PAT
+  ? new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions(), auth: env.GITHUB_PAT })
+  : null;
+
+log.info("GitHub 客户端已初始化", { mode, repo: repo.fullName });
+
+export const gh: GitHubClient = {
+  mode,
+
+  async getPull(n) {
+    const r = await octokit.rest.pulls.get({ owner: repo.owner, repo: repo.name, pull_number: n });
+    return mapPull(r.data);
+  },
+
+  async listPulls(state, opts) {
+    const maxPages = opts?.maxPages ?? (state === "open" ? Number.POSITIVE_INFINITY : 1);
+    const pulls: GhPull[] = [];
+    for (let page = 1; page <= maxPages; page++) {
+      const r = await octokit.rest.pulls.list({
+        owner: repo.owner,
+        repo: repo.name,
+        state,
+        sort: state === "closed" ? "updated" : "created",
+        direction: "desc",
+        per_page: FILE_PAGE_SIZE,
+        page,
+      });
+      for (const item of r.data) pulls.push(mapPull(item));
+      if (r.data.length < FILE_PAGE_SIZE) break;
+    }
+    return pulls;
+  },
+
+  async findPullByHead(ownerColonBranch) {
+    const r = await octokit.rest.search.issuesAndPullRequests({
+      q: `type:pr head:${ownerColonBranch} repo:${repo.fullName}`,
+      per_page: 5,
+    });
+    const hit = r.data.items.find((item) => "pull_request" in item && item.pull_request != null);
+    if (!hit) return null;
+    return gh.getPull(hit.number);
+  },
+
+  async listPullFiles(n) {
+    const all = await octokit.paginate(octokit.rest.pulls.listFiles, {
+      owner: repo.owner,
+      repo: repo.name,
+      pull_number: n,
+      per_page: FILE_PAGE_SIZE,
+    });
+    return all.slice(0, 3000).map(mapFile);
+  },
+
+  async getFile(path, ref) {
+    let data: unknown;
+    try {
+      const r = await octokit.rest.repos.getContent({
+        owner: repo.owner,
+        repo: repo.name,
+        path: path.split("/").map((segment) => encodeURIComponent(segment)).join("/"),
+        ref,
+      });
+      data = r.data;
+    } catch (err) {
+      if (httpStatus(err) === 404) return null;
+      throw err;
+    }
+    const record = asRecord(data);
+    if (!record) return null;
+    if (typeof record.content === "string" && record.content.length > 0) {
+      const text = Buffer.from(record.content, "base64").toString("utf8");
+      return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+    }
+    const downloadUrl = record.download_url;
+    if (typeof downloadUrl !== "string" || !downloadUrl) return null;
+    const res = await fetch(downloadUrl, { headers: { "user-agent": USER_AGENT } });
+    if (!res.ok) return null;
+    const text = await res.text();
+    return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  },
+
+  async listComments(n) {
+    const all = await octokit.paginate(octokit.rest.issues.listComments, {
+      owner: repo.owner,
+      repo: repo.name,
+      issue_number: n,
+      per_page: FILE_PAGE_SIZE,
+    });
+    return all.map(mapComment);
+  },
+
+  async createComment(n, body) {
+    const r = await octokit.rest.issues.createComment({
+      owner: repo.owner,
+      repo: repo.name,
+      issue_number: n,
+      body,
+      request: { retries: 0 },
+    });
+    return mapComment(r.data);
+  },
+
+  async updateComment(id, body) {
+    await octokit.rest.issues.updateComment({
+      owner: repo.owner,
+      repo: repo.name,
+      comment_id: id,
+      body,
+      request: { retries: 0 },
+    });
+  },
+
+  async listReviewComments(n) {
+    const all = await octokit.paginate(octokit.rest.pulls.listReviewComments, {
+      owner: repo.owner,
+      repo: repo.name,
+      pull_number: n,
+      per_page: FILE_PAGE_SIZE,
+    });
+    return all.map(mapReviewComment);
+  },
+
+  async createReview(n, input) {
+    const r = await octokit.rest.pulls.createReview({
+      owner: repo.owner,
+      repo: repo.name,
+      pull_number: n,
+      commit_id: input.commitId,
+      body: input.body,
+      event: input.event,
+      comments: input.comments.map((c) => ({ path: c.path, line: c.line, side: c.side, body: c.body })),
+      request: { retries: 0 },
+    });
+    return { id: r.data.id, htmlUrl: r.data.html_url };
+  },
+
+  async addLabels(n, labels) {
+    await octokit.rest.issues.addLabels({
+      owner: repo.owner,
+      repo: repo.name,
+      issue_number: n,
+      labels,
+      request: { retries: 0 },
+    });
+  },
+
+  async removeLabel(n, label) {
+    try {
+      await octokit.rest.issues.removeLabel({
+        owner: repo.owner,
+        repo: repo.name,
+        issue_number: n,
+        name: label,
+        request: { retries: 0 },
+      });
+    } catch (err) {
+      if (httpStatus(err) !== 404) throw err;
+    }
+  },
+
+  async createCheckRun(input) {
+    await octokit.rest.checks.create({
+      owner: repo.owner,
+      repo: repo.name,
+      name: input.name,
+      head_sha: input.headSha,
+      status: "completed",
+      conclusion: input.conclusion,
+      output: { title: input.title, summary: input.summary },
+      request: { retries: 0 },
+    });
+  },
+
+  async listPackerRuns(headSha) {
+    const r = await octokit.rest.actions.listWorkflowRuns({
+      owner: repo.owner,
+      repo: repo.name,
+      workflow_id: PACKER_WORKFLOW,
+      head_sha: headSha,
+      event: "pull_request",
+      per_page: 20,
+    });
+    return (r.data.workflow_runs ?? [])
+      .map(mapRun)
+      .filter((run) => run.name.includes("PR Packer"))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+
+  async listArtifacts(runId) {
+    const all = await octokit.paginate(octokit.rest.actions.listWorkflowRunArtifacts, {
+      owner: repo.owner,
+      repo: repo.name,
+      run_id: runId,
+      per_page: FILE_PAGE_SIZE,
+    });
+    return all.map((a) => ({
+      id: a.id,
+      name: a.name,
+      expired: a.expired,
+      url: a.archive_download_url.replace("/zip", ".zip").replace("api.github.com/repos", "nightly.link"),
+    }));
+  },
+
+  async approveRun(runId) {
+    await octokit.rest.actions.approveWorkflowRun({
+      owner: repo.owner,
+      repo: repo.name,
+      run_id: runId,
+      request: { retries: 0 },
+    });
+  },
+
+  async isCollaborator(login) {
+    try {
+      await octokit.rest.repos.checkCollaborator({ owner: repo.owner, repo: repo.name, username: login });
+      return true;
+    } catch (err) {
+      const status = httpStatus(err);
+      if (status === 404) return false;
+      if (status === 403 && err instanceof Error && err.message.includes("Must have push access")) return false;
+      throw err;
+    }
+  },
+
+  async getUser(login) {
+    try {
+      const r = await octokit.rest.users.getByUsername({ username: login });
+      return { login: r.data.login, id: r.data.id };
+    } catch (err) {
+      if (httpStatus(err) === 404) return null;
+      throw err;
+    }
+  },
+
+  async createGist(description, fileName, content) {
+    if (!patOctokit) throw new Error("未配置 GITHUB_PAT");
+    const r = await patOctokit.rest.gists.create({
+      description,
+      files: { [fileName]: { content } },
+      public: false,
+      request: { retries: 0 },
+    });
+    if (!r.data.html_url) throw new Error("创建 Gist 失败：响应缺少 html_url");
+    return r.data.html_url;
+  },
+
+  async rateLimit() {
+    const r = await octokit.rest.rateLimit.get();
+    const core = r.data.rate;
+    return { remaining: core.remaining, limit: core.limit, resetAt: new Date(core.reset * 1000).toISOString() };
+  },
+
+  async gitToken() {
+    if (appConfig) {
+      const auth = await createAppAuth(appConfig)({ type: "installation" });
+      return auth.token;
+    }
+    return env.GITHUB_PAT ?? null;
+  },
+};

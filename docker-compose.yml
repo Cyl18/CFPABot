@@ -1,0 +1,14 @@
+services:
+  cfpa-agent:
+    build: .
+    image: cfpa-agent2
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      TZ: Asia/Shanghai
+    volumes:
+      - ./config:/app/config
+      - ./runtime:/app/runtime

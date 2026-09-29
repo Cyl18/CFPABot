@@ -1,0 +1,14 @@
+.git/
+node_modules/
+web/node_modules/
+dist/
+public/
+runtime/
+logs/
+temp/
+.env
+config/llm.json
+config/*.pem
+config/secret.key
+desktop.ini
+*.tsbuildinfo

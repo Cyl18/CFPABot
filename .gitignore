@@ -1,0 +1,12 @@
+node_modules/
+dist/
+public/
+runtime/
+logs/
+.env
+config/llm.json
+config/*.pem
+config/secret.key
+*.tsbuildinfo
+temp/
+desktop.ini

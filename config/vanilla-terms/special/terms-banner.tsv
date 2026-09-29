@@ -1,0 +1,45 @@
+en	zh	reason	comment
+Field	底		来源：block.minecraft.banner.base；旗帜图案原子
+Bordure	方框边		来源：block.minecraft.banner.border；旗帜图案原子
+Field Masoned	砖纹		来源：block.minecraft.banner.bricks；旗帜图案原子
+Roundel	圆形		来源：block.minecraft.banner.circle；旗帜图案原子
+Creeper Charge	苦力怕盾徽		来源：block.minecraft.banner.creeper；旗帜图案原子
+Saltire	斜十字		来源：block.minecraft.banner.cross；旗帜图案原子
+Bordure Indented	波纹边		来源：block.minecraft.banner.curly_border；旗帜图案原子
+Per Bend Sinister	右上三角		来源：block.minecraft.banner.diagonal_left；旗帜图案原子
+Per Bend	左上三角		来源：block.minecraft.banner.diagonal_right；旗帜图案原子
+Per Bend Inverted	右下三角		来源：block.minecraft.banner.diagonal_up_left；旗帜图案原子
+Per Bend Sinister Inverted	左下三角		来源：block.minecraft.banner.diagonal_up_right；旗帜图案原子
+Flow	涡流		来源：block.minecraft.banner.flow；旗帜图案原子
+Flower Charge	花朵盾徽		来源：block.minecraft.banner.flower；旗帜图案原子
+Globe	地球		来源：block.minecraft.banner.globe；旗帜图案原子
+Gradient	自上渐淡		来源：block.minecraft.banner.gradient；旗帜图案原子
+Base Gradient	自下渐淡		来源：block.minecraft.banner.gradient_up；旗帜图案原子
+Guster	旋风		来源：block.minecraft.banner.guster；旗帜图案原子
+Per Fess	上半方形		来源：block.minecraft.banner.half_horizontal；旗帜图案原子
+Per Fess Inverted	下半方形		来源：block.minecraft.banner.half_horizontal_bottom；旗帜图案原子
+Per Pale	右半方形		来源：block.minecraft.banner.half_vertical；旗帜图案原子
+Per Pale Inverted	左半方形		来源：block.minecraft.banner.half_vertical_right；旗帜图案原子
+Thing	Mojang徽标		来源：block.minecraft.banner.mojang；旗帜图案原子
+Snout	猪鼻		来源：block.minecraft.banner.piglin；旗帜图案原子
+Lozenge	菱形		来源：block.minecraft.banner.rhombus；旗帜图案原子
+Skull Charge	头颅盾徽		来源：block.minecraft.banner.skull；旗帜图案原子
+Paly	竖条纹		来源：block.minecraft.banner.small_stripes；旗帜图案原子
+Base Dexter Canton	右底…方		来源：block.minecraft.banner.square_bottom_left；旗帜图案原子；颜色用省略号
+Base Sinister Canton	左底…方		来源：block.minecraft.banner.square_bottom_right；旗帜图案原子；颜色用省略号
+Chief Dexter Canton	右顶…方		来源：block.minecraft.banner.square_top_left；旗帜图案原子；颜色用省略号
+Chief Sinister Canton	左顶…方		来源：block.minecraft.banner.square_top_right；旗帜图案原子；颜色用省略号
+Cross	正十字		来源：block.minecraft.banner.straight_cross；旗帜图案原子
+Base	底…横条		来源：block.minecraft.banner.stripe_bottom；旗帜图案原子；颜色用省略号
+Pale	中…竖条		来源：block.minecraft.banner.stripe_center；旗帜图案原子；颜色用省略号
+Bend Sinister	左…斜条		来源：block.minecraft.banner.stripe_downleft；旗帜图案原子；颜色用省略号
+Bend	右…斜条		来源：block.minecraft.banner.stripe_downright；旗帜图案原子；颜色用省略号
+Pale Dexter	右…竖条		来源：block.minecraft.banner.stripe_left；旗帜图案原子；颜色用省略号
+Fess	中…横条		来源：block.minecraft.banner.stripe_middle；旗帜图案原子；颜色用省略号
+Pale Sinister	左…竖条		来源：block.minecraft.banner.stripe_right；旗帜图案原子；颜色用省略号
+Chief	顶…横条		来源：block.minecraft.banner.stripe_top；旗帜图案原子；颜色用省略号
+Chevron	底…三角		来源：block.minecraft.banner.triangle_bottom；旗帜图案原子；颜色用省略号
+Inverted Chevron	顶…三角		来源：block.minecraft.banner.triangle_top；旗帜图案原子；颜色用省略号
+Base Indented	底波纹		来源：block.minecraft.banner.triangles_bottom；旗帜图案原子
+Chief Indented	顶波纹		来源：block.minecraft.banner.triangles_top；旗帜图案原子
+Banner Pattern	旗帜图案		来源：item.minecraft.*_banner_pattern；旗帜图案

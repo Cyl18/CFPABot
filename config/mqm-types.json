@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "source": "MQM FULL 精选 + CFPA 实战校准（PR4579/6123/6129，2026-09-07 self-loop；v2 补齐 CORE 对齐类）",
+  "note": "粒度原则：join key 保持 ~20（对齐 GEMBA-MQM 十余类的实践；太细跨 reviewer/跨模型对不上，聚合失效）。FULL 级细分写进各条 desc，不单独立键。开新键门槛：连续两个 PR 出现无法归类的同类 finding。severity 四档 neutral/minor/major/critical，不罚分。",
+  "dropped": "Verity（法律/专利断言类，游戏文本无）整维不要；Design/text-length（UI 空间限制） fold 进 Locale/format-code desc；MT hallucination fold 进 Style/awkward desc（CFPA“生硬翻译”是溯源 verdict，不是错误类型）。",
+  "dimensions": [
+    {
+      "id": "Terminology",
+      "zh": "术语",
+      "types": [
+        { "id": "wrong-term", "zh": "错术语", "desc": "FULL Terminology/Wrong term（含 collocation 搭配错）。用词本身在领域内是错的：违反原版译名标准化、学科正式译名、模组既有术语。", "defaultSeverity": "major", "example": "Advancements→成就（应为进度）；dark_oak_cupboard→云杉木橱柜" },
+        { "id": "inappropriate-for-context", "zh": "术语误用于语境", "desc": "FULL Terminology 语境维度（对 GEMBA terminology/inappropriate-for-context）。词本身是对的术语，放错了语境：原版一词多译按语境取错、附属模组没跟主模组语境。", "defaultSeverity": "major", "example": "速度争议（属性速度 vs 状态迅捷）；Multitank→多功能罐（货不对板）" },
+        { "id": "inconsistent-use", "zh": "术语不一致", "desc": "FULL Terminology/Inconsistent use（含 abbreviations 缩写不一）。同一概念多译，或不同术语同译导致无法区分、搜不到。", "defaultSeverity": "major", "example": "common/rare 古迹废墟同译；Flare 三译；whirr 不统一；Tick 三译两制" },
+        { "id": "inconsistent-with-resource", "zh": "违反术语资源", "desc": "FULL Terminology/Inconsistent with termbase（含 organization/third-party）。与 TM/词典/已定术语库冲突；词典仅参考，误报可杀（须留证）。", "defaultSeverity": "minor", "example": "Catwalk 未用施工步道；glossary 回流污染（钢板金属滑道）不采信" }
+      ]
+    },
+    {
+      "id": "Accuracy",
+      "zh": "准确",
+      "types": [
+        { "id": "mistranslation", "zh": "错译", "desc": "FULL Accuracy/Mistranslation（含 technical-relationship 技术关系错、false-friend 假朋友、over/under-translation 过泛/过窄、entity 专有实体错）。译文与原文命题内容不符，含 neta/双关误读、窄化（toggle→启用）。", "defaultSeverity": "major", "example": "buy_oremap→X标记位置；toggle→启用；Windmill Sail→风帆（应为风车帆）" },
+        { "id": "omission", "zh": "漏译", "desc": "FULL Accuracy/Omission（含 omitted-variable 变量漏译）。原文内容译文缺失：限定词、单词、占位符变量。", "defaultSeverity": "major", "example": "Scaffold Covered Ladder 漏 Covered；common/rare 限定词丢失" },
+        { "id": "addition", "zh": "擅加", "desc": "FULL Accuracy/Addition。原文没有的内容；看图加料必须有纹理/游戏佐证，否则回退。", "defaultSeverity": "minor", "example": "Bench→花园长椅；Money→美元符号（待纹理验证）" },
+        { "id": "untranslated", "zh": "应译未译", "desc": "FULL Accuracy 漏译维度。该译未译：分栏名/标签页/应汉化条目留英文；半成品故意删除按 TransRules 放行但须 PR 注明。", "defaultSeverity": "major", "example": "itemGroup GiftyPresent 未译；secret_drillbreak 的 BREAK 裸奔" },
+        { "id": "overly-literal", "zh": "死译", "desc": "FULL Accuracy/Mistranslation/Overly-literal。逐词硬译，语义对但完全不合中文。", "defaultSeverity": "minor", "example": "xxx充满（应为已装填25%）" }
+      ]
+    },
+    {
+      "id": "Fluency",
+      "zh": "流畅",
+      "types": [
+        { "id": "punctuation", "zh": "标点", "desc": "FULL Fluency/Punctuation（含 spacing 空格）。全半角、顿号、中英混排空格、首尾空格、双空格；坐标逗号半角是 6129 定案惯例不算错。", "defaultSeverity": "minor", "example": "行首空格黄铜矿；!!更新新闻；948 行坐标逗号（合规）" },
+        { "id": "grammar", "zh": "语法", "desc": "FULL Fluency/Grammar（除语序外的病句：成分残缺、搭配、被动/定语从句未调）。", "defaultSeverity": "minor", "example": "对成就界面的进行改进（赘的）" },
+        { "id": "word-order", "zh": "语序", "desc": "FULL Fluency/Word order（EN→ZH 高频）。定语/状语堆叠、被动句直搬、占位符跨语言换序需求。", "defaultSeverity": "minor", "example": "survey hint 占位符语序；There is no more…→此矿脉已无更多可发现信息" },
+        { "id": "typo", "zh": "错字", "desc": "FULL Fluency/Spelling。用字错误、错别字；炭/碳类须按原文 Carbon/Coal 裁决。", "defaultSeverity": "minor", "example": "炭集中 vs 碳集中（按原文 Carbon 定）" },
+        { "id": "character-encoding", "zh": "字符编码", "desc": "FULL Fluency/Character encoding。CFPA 特色：UTF-8 BOM、全角％、[[钅卢]]类特殊字符标记、⋯⋯/⸺替换体例。", "defaultSeverity": "minor", "example": "全角％误用；省略号……未按打包体例" }
+      ]
+    },
+    {
+      "id": "Style",
+      "zh": "风格",
+      "types": [
+        { "id": "awkward", "zh": "生硬", "desc": "FULL Style/Awkward（含 unidiomatic 不合习惯；MT hallucination 机翻腔 fold 在此：CFPA“生硬翻译”是溯源 verdict，落到文本上就是此类）。语法对但不像人话、拗口堆叠。", "defaultSeverity": "minor", "example": "可叠起堆放的书；猫猫表情石牌" },
+        { "id": "inconsistent-style", "zh": "体例不一", "desc": "FULL Style 跨条一致性。同 PR/同模组内同一功能体例分裂（与术语 inconsistent-use 的区别：这里是句式/体例不是术语）。", "defaultSeverity": "minor", "example": "L-Click→破坏空礼盒 vs R-Click→右键；右键单击×9；分栏译留分裂" },
+        { "id": "company-style", "zh": "违反自家体例", "desc": "FULL Style/Company-style。违反 TransRules/翻译共识/原版惯例的明文体例（鼠标、字幕、单位、树木名三表等）。", "defaultSeverity": "minor", "example": "裸右键（应右击/右键点击）；字幕不用主体：声音；Tick 不统一刻" }
+      ]
+    },
+    {
+      "id": "Locale",
+      "zh": "本地化格式",
+      "types": [
+        { "id": "units", "zh": "单位", "desc": "FULL Locale 度量衡。Tick/能量单位（FE/RF/MB 保留，Tick 统一刻）；国际单位译中文。", "defaultSeverity": "minor", "example": "IF/tick 残留；7 km→7千米" },
+        { "id": "number-format", "zh": "数字日期格式", "desc": "FULL Locale/Number-Date-Time-Currency formats。TransRules 明文：日期时间货币度量衡一并转中文习惯，可直写转换后数据或括注。", "defaultSeverity": "minor", "example": "日期/货币未转换；数字与单位缩写空格体例不统一" },
+        { "id": "format-code", "zh": "格式代码", "desc": "FULL Mechanical + Design/Length。占位符/色码/tellraw 只译 text/字幕冒号体例/EOF 换行；占位符丢失=critical；UI 空间装不下 fold 在此（neutral 提示）。", "defaultSeverity": "major", "example": "占位符丢失；tellraw 非 text 键被译；文件末无换行=neutral" }
+      ]
+    }
+  ]
+}

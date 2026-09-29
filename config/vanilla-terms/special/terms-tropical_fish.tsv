@@ -1,0 +1,36 @@
+en	zh	reason	comment
+Tropical Fish	热带鱼		来源：entity.minecraft.tropical_fish
+Anemone	海葵鱼		来源：entity.minecraft.tropical_fish.predefined.0；热带鱼种名
+Black Tang	黑刺尾鲷		来源：entity.minecraft.tropical_fish.predefined.1；热带鱼种名
+Blue Tang	蓝刺尾鲷		来源：entity.minecraft.tropical_fish.predefined.2；热带鱼种名
+Butterflyfish	蝴蝶鱼		来源：entity.minecraft.tropical_fish.predefined.3；热带鱼种名
+Cichlid	丽鱼		来源：entity.minecraft.tropical_fish.predefined.4；热带鱼种名
+Clownfish	小丑鱼		来源：entity.minecraft.tropical_fish.predefined.5；热带鱼种名
+Cotton Candy Betta	五彩搏鱼		来源：entity.minecraft.tropical_fish.predefined.6；热带鱼种名
+Dottyback	绣雀鲷		来源：entity.minecraft.tropical_fish.predefined.7；热带鱼种名
+Emperor Red Snapper	川纹笛鲷		来源：entity.minecraft.tropical_fish.predefined.8；热带鱼种名
+Goatfish	拟羊鱼		来源：entity.minecraft.tropical_fish.predefined.9；热带鱼种名
+Moorish Idol	镰鱼		来源：entity.minecraft.tropical_fish.predefined.10；热带鱼种名
+Ornate Butterflyfish	华丽蝴蝶鱼		来源：entity.minecraft.tropical_fish.predefined.11；热带鱼种名
+Parrotfish	鹦嘴鱼		来源：entity.minecraft.tropical_fish.predefined.12；热带鱼种名
+Queen Angelfish	额斑刺蝶鱼		来源：entity.minecraft.tropical_fish.predefined.13；热带鱼种名
+Red Cichlid	红丽鱼		来源：entity.minecraft.tropical_fish.predefined.14；热带鱼种名
+Red Lipped Blenny	红唇真蛇鳚		来源：entity.minecraft.tropical_fish.predefined.15；热带鱼种名
+Red Snapper	红边笛鲷		来源：entity.minecraft.tropical_fish.predefined.16；热带鱼种名
+Threadfin	马鲅		来源：entity.minecraft.tropical_fish.predefined.17；热带鱼种名
+Tomato Clownfish	白条双锯鱼		来源：entity.minecraft.tropical_fish.predefined.18；热带鱼种名
+Triggerfish	鳞鲀		来源：entity.minecraft.tropical_fish.predefined.19；热带鱼种名
+Yellowtail Parrotfish	高鳍鹦嘴鱼		来源：entity.minecraft.tropical_fish.predefined.20；热带鱼种名
+Yellow Tang	黄刺尾鲷		来源：entity.minecraft.tropical_fish.predefined.21；热带鱼种名
+Betty	背蒂类		来源：entity.minecraft.tropical_fish.type.betty；热带鱼体型
+Blockfish	方身类		来源：entity.minecraft.tropical_fish.type.blockfish；热带鱼体型
+Brinely	咸水类		来源：entity.minecraft.tropical_fish.type.brinely；热带鱼体型
+Clayfish	陶鱼类		来源：entity.minecraft.tropical_fish.type.clayfish；热带鱼体型
+Dasher	速跃类		来源：entity.minecraft.tropical_fish.type.dasher；热带鱼体型
+Flopper	飞翼类		来源：entity.minecraft.tropical_fish.type.flopper；热带鱼体型
+Glitter	闪鳞类		来源：entity.minecraft.tropical_fish.type.glitter；热带鱼体型
+Kob	石首类		来源：entity.minecraft.tropical_fish.type.kob；热带鱼体型
+Snooper	窥伺类		来源：entity.minecraft.tropical_fish.type.snooper；热带鱼体型
+Spotty	多斑类		来源：entity.minecraft.tropical_fish.type.spotty；热带鱼体型
+Stripey	条纹类		来源：entity.minecraft.tropical_fish.type.stripey；热带鱼体型
+Sunstreak	日纹类		来源：entity.minecraft.tropical_fish.type.sunstreak；热带鱼体型

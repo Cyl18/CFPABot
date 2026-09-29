@@ -1,0 +1,30 @@
+versions	en	zh	reason	comment
+1.12.2	Armorer	盔甲商	较新版本译为“盔甲匠”，不要按最新版术语检查	来源：entity.Villager.armor；原文：Armorer -> 盔甲商
+1.12.2	Azure Bluet	茜草花	较新版本译为“蓝花美耳草”，不要按最新版术语检查	来源：tile.flower2.houstonia.name；原文：Azure Bluet -> 茜草花
+1.12.2	Clay	粘土	较新版本改用“黏土”，不要按最新版用字检查	来源：tile.clay.name、item.clay.name；原文：Clay -> 粘土块、粘土
+1.12.2	Clock	(?:^|[^时])钟	较新版本译为“时钟”，不要按最新版术语检查	来源：item.clock.name；原文：Clock -> 钟；笔记：zh 排除较新版本的“时钟”
+1.12.2	Creeper	爬行者	较新版本译为“苦力怕”，不要按最新版术语检查	来源：entity.Creeper.name；原文：Creeper -> 爬行者
+1.12.2	Monster Egg	怪物蛋	较新版本已改用其他英文名称	来源：tile.monsterStoneEgg.name；原文：Stone Monster Egg -> 石头怪物蛋；提取：Monster Egg -> 怪物蛋
+1.12.2	Monster Spawner	刷怪箱	较新版本译为“刷怪笼”，不要按最新版术语检查	来源：tile.mobSpawner.name；原文：Monster Spawner -> 刷怪箱
+1.12.2	Moss Stone	苔石	较新版本已改用“Mossy Cobblestone”等名称	来源：tile.stoneMoss.name；原文：Moss Stone -> 苔石
+1.12.2	Nether Brick	地狱砖	较新版本改用“下界砖”，不要按最新版术语检查	来源：tile.netherBrick.name；原文：Nether Brick -> 地狱砖；笔记：1.12.2 中 Nether 并非一律译为“地狱”
+1.12.2	Nether Wart	地狱疣	较新版本改用“下界疣”，不要按最新版术语检查	来源：tile.netherStalk.name；原文：Nether Wart -> 地狱疣；笔记：1.12.2 中 Nether 并非一律译为“地狱”
+1.12.2	Netherrack	地狱岩	较新版本译为“下界岩”，不要按最新版术语检查	来源：tile.hellrock.name；原文：Netherrack -> 地狱岩
+1.12.2	Powered Rail	充能铁轨	较新版本译为“动力铁轨”，不要按最新版术语检查	来源：tile.goldenRail.name；原文：Powered Rail -> 充能铁轨
+1.12.2	Sheep	(?:^|[^绵])羊	较新版本译为“绵羊”，不要按最新版术语检查	来源：entity.Sheep.name；原文：Sheep -> 羊；笔记：zh 排除较新版本的“绵羊”
+1.12.2	Slime Block	粘液块	较新版本改用“黏液块”，不要按最新版用字检查	来源：tile.slime.name；原文：Slime Block -> 粘液块
+1.12.2	Sticky Piston	粘性活塞	较新版本改用“黏性活塞”，不要按最新版用字检查	来源：tile.pistonStickyBase.name；原文：Sticky Piston -> 粘性活塞
+1.12.2	Stray	流髑	较新版本译为“流浪者”，不要按最新版术语检查	来源：entity.Stray.name；原文：Stray -> 流髑
+1.12.2	Tool Smith	工具商	较新版本已将英文名称改为“Toolsmith”	来源：entity.Villager.tool；原文：Tool Smith -> 工具商
+1.12.2	Weapon Smith	武器商	较新版本已将英文名称改为“Weaponsmith”	来源：entity.Villager.weapon；原文：Weapon Smith -> 武器商
+1.12.2	Zombie Pigman	僵尸猪人	较新版本已改用“Zombified Piglin”等名称	来源：entity.PigZombie.name；原文：Zombie Pigman -> 僵尸猪人
+1.12.2,1.16.5	Grass Path	草径	较新版本已将英文名称改为“Dirt Path”	来源：tile.grassPath.name、block.minecraft.grass_path；原文：Grass Path -> 草径
+1.12.2,1.16.5	End Crystal	末影水晶	较新版本译为“末地水晶”，不要按最新版术语检查	来源：item.end_crystal.name、item.minecraft.end_crystal；原文：End Crystal -> 末影水晶
+1.16.5	(?:Creeper|Player|Zombie) Wall Head	头颅	较新版本将这些墙上头颅名称改为“……的头”结构	来源：block.minecraft.creeper_wall_head、block.minecraft.player_wall_head、block.minecraft.zombie_wall_head；原文：Creeper/Player/Zombie Wall Head -> 墙上的……头颅
+1.16.5	Player Head	玩家头颅	较新版本译为“玩家的头”，不要按最新版术语检查	来源：block.minecraft.player_head；原文：Player Head -> 玩家头颅
+1.12.2,1.16.5,1.18.2,1.19.2	Chiseled	錾制	较新版本改用“雕纹”，不要按最新版术语检查	来源：block.minecraft.chiseled_stone_bricks；原文：Chiseled Stone Bricks -> 錾制石砖；提取：Chiseled -> 錾制
+1.12.2,1.16.5,1.18.2,1.19.2	Feather Falling	摔落保护	较新版本译为“摔落缓冲”，不要按最新版术语检查	来源：enchantment.protect.fall、enchantment.minecraft.feather_falling；原文：Feather Falling -> 摔落保护
+1.12.2,1.16.5,1.18.2,1.19.2	^Fire Resistance$	^防火$	仅检查独立的状态效果名称；较新版本译为“抗火”	来源：effect.fireResistance、effect.minecraft.fire_resistance；原文：Fire Resistance -> 防火；笔记：同版本药水和箭中的 Fire Resistance 已译为“抗火”
+1.12.2,1.16.5,1.18.2,1.19.2	Mycelium	菌丝	较新版本译为“菌丝体”，不要按最新版术语检查	来源：tile.mycel.name、block.minecraft.mycelium；原文：Mycelium -> 菌丝
+1.16.5,1.18.2,1.19.2	Suspicious Stew	迷之炖菜	较新版本改用“谜之炖菜”，不要按最新版用字检查	来源：item.minecraft.suspicious_stew；原文：Suspicious Stew -> 迷之炖菜
+1.16.5,1.18.2,1.19.2	Wither Rose	凋零玫瑰	较新版本改用“凋灵玫瑰”，不要按最新版术语检查	来源：block.minecraft.wither_rose；原文：Wither Rose -> 凋零玫瑰

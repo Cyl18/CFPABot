@@ -1,0 +1,129 @@
+en	zh	reason	comment
+baahs	咩~		来源：subtitles；unique声音
+barks	吠叫		来源：subtitles；unique声音
+bubbles	冒泡		来源：subtitles.block.brewing_stand.brew；字幕动词，名词 Bubble 仍是气泡
+Burp	打嗝		来源：subtitles.entity.player.burp；unique声音
+buzzes	嗡嗡		来源：subtitles；unique声音
+chimes	叮铃		来源：subtitles.block.amethyst_block.chime；unique声音
+chirps	啾啾		来源：官方TBX；unique声音
+chitters	啾啾		来源：subtitles；unique声音
+clacks	咔哒		来源：subtitles；unique声音
+clanks	铿锵		来源：subtitles；unique声音
+clinks	叮当		来源：subtitles；unique声音
+clonks	哐咚		来源：subtitles；unique声音
+clucks	咯咯叫		来源：subtitles；unique声音
+coos	咕咕		来源：subtitles.entity.ghastling；unique声音
+crackles	噼啪作响|咯咯声		来源：官方TBX；unique声音
+creaks	嘎吱作响		来源：subtitles；unique声音
+croaks	咕呱		来源：subtitles；unique声音
+Dry sounds	干枯声		来源：subtitles.block.deadbush.idle；unique声音
+Eerie noise	怪异的噪声		来源：subtitles.ambient.cave；unique声音
+Explosion	爆炸		来源：subtitles.entity.generic.explode；unique声音
+flops	扑腾		来源：subtitles；unique声音
+Footsteps	脚步声		来源：subtitles.block.generic.footsteps；unique声音
+gargles	咕噜		来源：subtitles；unique声音
+giggles	暗笑		来源：subtitles；unique声音
+groans	低吼		来源：subtitles；unique声音
+grumphs	咕哝		来源：subtitles；unique声音
+grunt	呼噜		来源：官方TBX；unique声音
+grunts	呼噜		来源：subtitles；unique声音
+gurgles	呻吟		来源：subtitles；unique声音
+hisses	嘶嘶声|嘶嘶|嘶~		来源：subtitles；unique声音
+hums	嗡嗡作响|哼哼		来源：官方TBX；unique声音
+Lightning strikes	电闪		来源：subtitles.entity.lightning_bolt.impact；unique声音
+meows	喵~		来源：subtitles；unique声音
+moans	低鸣		来源：官方TBX；unique声音
+moos	哞~		来源：subtitles；unique声音
+murmurs	咕哝		来源：官方TBX；unique声音
+neighs	嘶鸣		来源：官方TBX；unique声音
+oinks	哼叫		来源：subtitles；unique声音
+peeps	叽叽叫		来源：subtitles；unique声音
+purrs	呼噜声		来源：subtitles；unique声音
+rattles	咯咯声		来源：subtitles；unique声音
+roars	咆哮|雷鸣		来源：官方TBX；unique声音
+Rowing	划船		来源：subtitles.entity.boat.paddle_water；unique声音
+Sandy sounds	沙沙声		来源：subtitles.block.sand.idle；unique声音
+screeches	尖声叫		来源：官方TBX；unique声音
+snores	打鼾		来源：官方TBX；unique声音
+snorts	哼叫		来源：subtitles；unique声音
+Sounds of dryness	干燥声		来源：subtitles.block.dried_ghast.ambient；unique声音
+Splashes	溅起水花		来源：subtitles.entity.fish.swim；unique声音
+squeaks	吱吱叫		来源：subtitles；unique声音
+Swoosh	呼啸声		来源：subtitles.item.elytra.flying；unique声音
+Thunder roars	雷鸣		来源：subtitles.entity.lightning_bolt.thunder；unique声音
+thunks	咕咚		来源：subtitles；unique声音
+vwoops	低鸣		来源：subtitles；unique声音
+warbles	颤鸣		来源：subtitles；unique声音
+whistles	吹口哨		来源：subtitles；unique声音
+whooshes	呼啸		来源：subtitles；unique声音
+Windy sounds	风声		来源：subtitles.block.dry_grass.ambient；unique声音
+yips	嗷~		来源：subtitles.entity.baby_wolf；unique声音
+beats	心跳声		来源：subtitles.entity.warden.heartbeat；unique声音
+bellows	喊叫		来源：subtitles；unique声音
+bites	撕咬		来源：官方TBX；unique声音
+blares	鸣响		来源：subtitles；unique声音
+bleats	咩~|吼叫|哀鸣		来源：subtitles；unique声音
+burbles	嗡嗡作响|咕噜		来源：subtitles；unique声音
+cheers	欢呼		来源：官方TBX；unique声音
+chortles	嬉笑		来源：subtitles；unique声音
+clangs	碰擦|铿锵		来源：官方TBX；unique声音
+clicks	咔哒		来源：官方TBX；unique声音
+cries	哭泣|嘶叫		来源：subtitles；unique声音
+croons	哼唱		来源：subtitles；unique声音
+flutters	扑翼		来源：subtitles；unique声音
+gallops	奔腾		来源：subtitles；unique声音
+growls	嚎叫|吼叫|咆哮		来源：subtitles；unique声音
+grumbles	咕哝		来源：subtitles；unique声音
+hee-haws	嘶叫|鸣叫		来源：subtitles；unique声音
+jangles	哐啷作响		来源：subtitles；unique声音
+jingles	碰擦		来源：官方TBX；unique声音
+mumbles	喃喃自语		来源：官方TBX；unique声音
+mutters	低语		来源：subtitles；unique声音
+Noise	噪声		来源：官方TBX；unique声音
+rumbles	轰鸣		来源：subtitles；unique声音
+scents	嗅闻		来源：subtitles；unique声音
+screams	尖叫		来源：subtitles；unique声音
+shrieks	尖啸|尖叫		来源：subtitles；unique声音
+sniffs	嗅探|嗅闻		来源：官方TBX；unique声音
+Steps	脚步声		来源：官方TBX；unique声音
+whines	呜咽|呻吟		来源：subtitles；unique声音
+whirs	呼啸		来源：subtitles；unique声音
+Baby Nautilus	幼年鹦鹉螺		来源：subtitles.entity.baby_nautilus；unique实体
+Baby Pig	幼年猪		来源：subtitles.entity.baby_pig；unique实体
+Blaze	烈焰人		来源：entity.minecraft.blaze；unique实体
+Camel Husk	骆驼尸壳		来源：entity.minecraft.camel_husk；unique实体
+Chick	幼年鸡		来源：subtitles.entity.baby_chicken；unique实体
+Cod	鳕鱼		来源：entity.minecraft.cod；unique实体
+Copper Golem	铜傀儡		来源：entity.minecraft.copper_golem；unique实体
+Creaking	嘎枝		来源：entity.minecraft.creaking；unique实体
+Elder Guardian	远古守卫者		来源：entity.minecraft.elder_guardian；unique实体
+Ender Dragon	末影龙		来源：entity.minecraft.ender_dragon；unique实体
+Evoker Fangs	唤魔者尖牙		来源：entity.minecraft.evoker_fangs；unique实体
+Foal	幼年马		来源：subtitles.entity.baby_horse；unique实体
+Ghast	恶魂		来源：entity.minecraft.ghast；unique实体
+Ghastling	小恶魂		来源：subtitles.entity.ghastling；unique实体
+Glow Squid	发光鱿鱼		来源：entity.minecraft.glow_squid；unique实体
+Illusioner	幻术师		来源：entity.minecraft.illusioner；unique实体
+Kitten	幼年猫		来源：subtitles.entity.baby_cat；unique实体
+Lightning Bolt	闪电束		来源：entity.minecraft.lightning_bolt；unique实体
+Llama	羊驼		来源：entity.minecraft.llama；unique实体
+Magma Cube	岩浆怪		来源：entity.minecraft.magma_cube；unique实体
+Mooshroom	哞菇		来源：entity.minecraft.mooshroom；unique实体
+Parched	焦骸		来源：entity.minecraft.parched；unique实体
+Piglin Brute	猪灵蛮兵		来源：entity.minecraft.piglin_brute；unique实体
+Pufferfish	河豚		来源：entity.minecraft.pufferfish；unique实体
+Puppy	幼年狼		来源：subtitles.entity.baby_wolf；unique实体
+Rabbit	兔子		来源：entity.minecraft.rabbit；unique实体
+Salmon	鲑鱼		来源：entity.minecraft.salmon；unique实体
+Sheep	绵羊		来源：entity.minecraft.sheep；unique实体
+Skeleton Horse	骷髅马		来源：entity.minecraft.skeleton_horse；unique实体
+Small Sulfur Cube	小型硫方怪		来源：subtitles.entity.small_sulfur_cube；unique实体
+Snow Golem	雪傀儡		来源：entity.minecraft.snow_golem；unique实体
+Strider	炽足兽		来源：entity.minecraft.strider；unique实体
+Tadpole	蝌蚪		来源：entity.minecraft.tadpole；unique实体
+Tropical Fish	热带鱼		来源：entity.minecraft.tropical_fish；unique实体
+Wandering Trader	流浪商人		来源：entity.minecraft.wandering_trader；unique实体
+Wind Charge	风弹		来源：entity.minecraft.wind_charge；unique实体
+Zoglin	僵尸疣猪兽		来源：entity.minecraft.zoglin；unique实体
+Zombie Horse	僵尸马		来源：entity.minecraft.zombie_horse；unique实体
+Zombified Piglin	僵尸猪灵		来源：entity.minecraft.zombified_piglin；unique实体

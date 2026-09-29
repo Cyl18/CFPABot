@@ -1,0 +1,161 @@
+[
+  {
+    "term": "萤石",
+    "message": "请注意区分`荧石`（下界的一种发光方块）与`萤石`（氟化钙）",
+    "level": "warn"
+  },
+  {
+    "term": "凋零",
+    "message": "请注意区分`凋零`（药水效果）与`凋灵`（敌对生物）",
+    "level": "warn"
+  },
+  {
+    "term": "下届",
+    "message": "可能是`下界`",
+    "level": "warn"
+  },
+  {
+    "term": "合成台",
+    "message": "可能是`工作台`",
+    "level": "warn"
+  },
+  {
+    "term": "岩浆",
+    "message": "可能是`熔岩`，具体请**参考英文原文**（`magma`/`lava`）",
+    "level": "warn",
+    "unless": ["岩浆块", "岩浆怪", "岩浆膏"]
+  },
+  {
+    "term": "粉色",
+    "message": "原版译名采用`粉红色`，**如果上下文中有原版的 16 色才需要更改**",
+    "level": "warn",
+    "unless": ["浅粉色", "艳粉色", "亮粉色"]
+  },
+  {
+    "term": "地狱",
+    "message": "`地狱`在 1.16 后更名为`下界`",
+    "level": "warn",
+    "skipLegacy": true
+  },
+  {
+    "term": "漂浮",
+    "message": "请注意区分`漂浮`和`飘浮`",
+    "level": "warn"
+  },
+  {
+    "term": "錾制",
+    "message": "在 1.19.2 后更名为`雕纹`，**如果原文为 Chiseled 则需要更改**",
+    "level": "warn",
+    "minVersion": "1.19"
+  },
+  {
+    "term": "菌丝",
+    "message": "在 1.19.2 后更名为`菌丝体`",
+    "level": "warn",
+    "minVersion": "1.19"
+  },
+  {
+    "term": "速度",
+    "message": "请注意区分 1.19.4 后的`速度`（属性）与`迅捷`（状态效果）",
+    "level": "warn",
+    "minVersion": "1.19"
+  },
+  {
+    "term": "迅捷",
+    "message": "请注意区分 1.19.4 后的`速度`（属性）与`迅捷`（状态效果）",
+    "level": "warn",
+    "minVersion": "1.19"
+  },
+  {
+    "term": "防火",
+    "message": "在 1.19.4 后更名为`抗火`",
+    "level": "warn",
+    "minVersion": "1.19"
+  },
+  {
+    "term": "末影",
+    "message": "可能是`末地`，具体请**参考英文原文**（`Ender/End`）",
+    "level": "warn",
+    "minVersion": "1.19"
+  },
+  {
+    "term": "潜声",
+    "message": "你想说的可能是`幽匿（Sculk）`？",
+    "level": "warn",
+    "minVersion": "1.19"
+  },
+  {
+    "term": "粘土",
+    "message": "在 1.16.5 后更名为 `黏土`",
+    "level": "warn",
+    "skipLegacy": true
+  },
+  {
+    "term": "粘液",
+    "message": "在 1.16.5 后更名为 `黏液`",
+    "level": "warn",
+    "skipLegacy": true
+  },
+  {
+    "term": "猪人",
+    "message": "你想说的可能是`猪灵（Piglin）`？",
+    "level": "warn",
+    "skipLegacy": true
+  },
+  {
+    "term": "循声守卫",
+    "message": "你想说的可能是`监守者（Warden）？`",
+    "level": "warn",
+    "minVersion": "1.19"
+  },
+  {
+    "term": "成就",
+    "message": "你想说的可能是`进度（Advancement）`",
+    "level": "warn"
+  },
+  {
+    "term": "附魔",
+    "message": "请注意区分`附魔（Enchant/Enchanting）`和`魔咒（Enchantment）`",
+    "level": "warn"
+  },
+  {
+    "term": "魔咒",
+    "message": "请注意区分`附魔（Enchant/Enchanting）`和`魔咒（Enchantment）`",
+    "level": "warn"
+  },
+  {
+    "term": "爬行者",
+    "message": "`爬行者`在 1.15 后更名为`苦力怕`",
+    "level": "error",
+    "skipLegacy": true
+  },
+  {
+    "term": "刷怪箱",
+    "message": "`刷怪箱`在 1.16 后更名为`刷怪笼`",
+    "level": "error",
+    "skipLegacy": true
+  },
+  {
+    "term": "浅灰色",
+    "message": "原版译名采用`淡灰色`",
+    "level": "error"
+  },
+  {
+    "term": "迷之炖菜",
+    "message": "在 1.19.2 后更名为`谜之炖菜`",
+    "level": "error",
+    "minVersion": "1.19"
+  },
+  {
+    "term": "摔落保护",
+    "message": "在 1.19.4 后更名为`摔落缓冲`",
+    "level": "error",
+    "minVersion": "1.19"
+  },
+  {
+    "term": "黏土块",
+    "message": "在 1.19.3 后译名为 `黏土`",
+    "level": "error",
+    "minVersion": "1.19"
+  }
+]

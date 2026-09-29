@@ -1,0 +1,11 @@
+id	key	except_key	en	require	forbid	mode	except_en	comment
+deepslate-ore			Deepslate(?: \S+){0,3} Ore	深层		count		Deepslate 后最多 3 词再 Ore，次数对深层
+deepslate-block			Deepslate	深板岩		count	Deepslate(?: \S+){0,3} Ore	非矿石短语的 Deepslate 次数对深板岩
+wall-mod	wall_(hanging_sign|sign|banner|torch|fan|skull|head)		Wall \S+	墙上的				墙上附着方块
+exposed-de			Exposed(?: \S+){0,4} Copper	斑驳的			Waxed Exposed(?: \S+){0,4} Copper	Exposed Copper 须斑驳的；涂蜡嵌套除外
+weathered-de			Weathered(?: \S+){0,4} Copper	锈蚀的			Waxed Weathered(?: \S+){0,4} Copper	Weathered Copper 须锈蚀的；涂蜡嵌套除外
+oxidized-de			Oxidized(?: \S+){0,4} Copper	氧化的			Waxed Oxidized(?: \S+){0,4} Copper	Oxidized Copper 须氧化的；涂蜡嵌套除外
+waxed-de	waxed_.*copper		Waxed(?: \S+){0,4} Copper	涂蜡				Waxed Copper；涂蜡可无「的」
+raw-metal	raw_(iron|gold|copper)		Raw \S+	粗				raw_iron/gold/copper 须粗
+dead-coral			Dead(?: \S+){0,3} Coral	失活				Dead Coral 为失活
+suspicious-block			Suspicious \S+	可疑的		string	Suspicious Stew	Suspicious X 须可疑的；谜之炖菜除外
