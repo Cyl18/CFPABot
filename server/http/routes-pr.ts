@@ -11,7 +11,7 @@ import { mods } from "../mods/index.ts";
 import { prdata } from "../prdata.ts";
 import { getCheckReport, refreshInfoComment } from "../bot/index.ts";
 import { llm } from "../agent/index.ts";
-import { compareWorkspace, crossVersionKeys, modSource, prDetail, specialFiles, textCompare } from "../compare.ts";
+import { compareWorkspace, crossVersionKeys, prDetail, specialFiles, textCompare } from "../compare.ts";
 import { currentUser, requireAdmin } from "./auth.ts";
 import type { AppContext, AppEnv } from "./auth.ts";
 import { HttpError, isUpstreamNotFound, notFound, parseBody, parseQuery } from "./errors.ts";
@@ -117,12 +117,6 @@ prRoutes.get("/prs/:n/compare", async (c) => {
   const key = parseQuery(c, workspaceQuery);
   const n = prNumber(c);
   return c.json(await withPull(() => compareWorkspace(n, key)));
-});
-
-prRoutes.get("/prs/:n/mod-source", async (c) => {
-  const key = parseQuery(c, workspaceQuery);
-  const n = prNumber(c);
-  return c.json(await withPull(() => modSource(n, key)));
 });
 
 prRoutes.get("/prs/:n/special", async (c) => c.json(await withPull(() => specialFiles(prNumber(c)))));

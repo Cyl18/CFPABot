@@ -78,11 +78,28 @@ export interface CheckItem {
   path?: string;
 }
 
+export type ModFileStatus = "ok" | "mismatch" | "extra" | "unavailable";
+
+export interface ModFileCheck {
+  slug: string;
+  namespace: string;
+  version: string;
+  provider?: "curseforge" | "modrinth";
+  fileName?: string;
+  fetchedAt?: string;
+  status: ModFileStatus;
+  note?: string;
+  missing: string[];
+  extra: string[];
+  changed: string[];
+}
+
 export interface CheckReport {
   prNumber: number;
   headSha: string;
   generatedAt: string;
   items: CheckItem[];
+  modFiles: ModFileCheck[];
 }
 
 export type RowStatus = "add" | "remove" | "modify" | "same";
@@ -104,13 +121,6 @@ export interface CompareResult {
   format: "json" | "lang";
   rows: CompareRow[];
   missing: string[];
-}
-
-export interface ModSourceResult {
-  workspace: Omit<Workspace, "files">;
-  source: { provider: "curseforge" | "modrinth"; fileName: string; fileUrl: string } | null;
-  rows: { key: string; pr?: string; mod?: string; status: RowStatus }[];
-  note?: string;
 }
 
 export interface SpecialFile {

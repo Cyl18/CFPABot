@@ -33,11 +33,26 @@ const checkItemSchema = z.object({
   path: z.string().optional(),
 });
 
+const modFileSchema = z.object({
+  slug: z.string(),
+  namespace: z.string(),
+  version: z.string(),
+  provider: z.enum(["curseforge", "modrinth"]).optional(),
+  fileName: z.string().optional(),
+  fetchedAt: z.string().optional(),
+  status: z.enum(["ok", "mismatch", "extra", "unavailable"]),
+  note: z.string().optional(),
+  missing: z.array(z.string()).default([]),
+  extra: z.array(z.string()).default([]),
+  changed: z.array(z.string()).default([]),
+});
+
 const checkReportSchema = z.object({
   prNumber: z.number(),
   headSha: z.string(),
   generatedAt: z.string(),
   items: z.array(checkItemSchema),
+  modFiles: z.array(modFileSchema).default([]),
 });
 
 const stateSchema = z.object({

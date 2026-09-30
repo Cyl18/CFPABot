@@ -1,23 +1,20 @@
 import { extname } from "node:path";
 import { parseLang, guessFormat } from "./domain/langfile.ts";
-import { alignKeys, compareLang, compareTwo, withLiteralNewlines } from "./domain/diff.ts";
+import { alignKeys, compareLang, compareTwo } from "./domain/diff.ts";
 import type { CrossVersionInput } from "./domain/diff.ts";
 import { buildLangPath, parseLangPath, compareMc, langPathFor, workspacesOf } from "./domain/path.ts";
 import type { LangFormat, LangPath, Locale } from "./domain/path.ts";
 import { gh } from "./github/client.ts";
 import type { GhFile, GhPull } from "./github/client.ts";
-import { mods } from "./mods/index.ts";
 import { mirror } from "./mirror.ts";
 import { prdata } from "./prdata.ts";
 import { ttlCache } from "./ttl.ts";
 import type {
   CompareResult,
   CrossVersionKeysResult,
-  ModSourceResult,
   PrDetail,
   PrState,
   PrSummary,
-  RowStatus,
   SpecialFile,
   TextCompareRequest,
   TextCompareResult,
@@ -128,14 +125,6 @@ function pickLang(files: GhFile[], key: WorkspaceKey, locale: Locale): LangSide 
   };
 }
 
-async function readLang(path: string, locale: Locale, ref: string): Promise<string | null> {
-  for (const candidate of langPathFor(path, locale)) {
-    const text = await gh.getFile(candidate, ref);
-    if (text !== null) return text;
-  }
-  return null;
-}
-
 export async function compareWorkspace(n: number, key: WorkspaceKey): Promise<CompareResult> {
   const { pull, files } = await prdata.files(n);
   const missing: string[] = [];
@@ -198,57 +187,6 @@ export async function compareWorkspace(n: number, key: WorkspaceKey): Promise<Co
     format,
     rows: compareLang(base, head),
     missing,
-  };
-}
-
-export async function modSource(n: number, key: WorkspaceKey): Promise<ModSourceResult> {
-  const { pull, files } = await prdata.files(n);
-  const mod = await mods.resolve(key.slug);
-  if (!mod) {
-    return { workspace: key, source: null, rows: [], note: `未找到 Mod ${key.slug} 的下载信息` };
-  }
-  const file = await mods.pickFile(mod, key.version);
-  if (!file) {
-    return {
-      workspace: key,
-      source: { provider: mod.provider, fileName: mod.slug, fileUrl: mod.url },
-      rows: [],
-      note: `未找到适用于 ${key.version} 的 Mod 文件`,
-    };
-  }
-  const source = { provider: mod.provider, fileName: file.fileName, fileUrl: file.url ?? mod.url };
-  const jar = await mods.readJar(file);
-  if (!jar) {
-    return { workspace: key, source, rows: [], note: "无法下载或解析该 Mod 文件" };
-  }
-  const jarLang = jar.lang.find((entry) => entry.locale === "en_us" && entry.domain === key.namespace) ?? jar.lang.find((entry) => entry.locale === "en_us");
-  if (!jarLang) {
-    return { workspace: key, source, rows: [], note: "该 Mod 文件不包含英文语言文件" };
-  }
-
-  const prSide = pickLang(files, key, "en_us");
-  const prFormat = prSide?.format ?? jarLang.format;
-  const prPath = prSide?.head ?? buildLangPath(key.slug, key.version, key.namespace, "en_us", prFormat);
-  const prText = prSide?.head === null ? null : await readLang(prPath, "en_us", pull.headSha);
-  const jarEntries = withLiteralNewlines(parseLang(jarLang.content, jarLang.format).entries);
-  const prEntries = prText === null ? null : withLiteralNewlines(parseLang(prText, prFormat).entries);
-
-  const keys = new Set<string>([...jarEntries.keys(), ...(prEntries?.keys() ?? [])]);
-  const rows = [...keys].sort().map((k) => {
-    const pr = prEntries?.get(k);
-    const jar = jarEntries.get(k);
-    let status: RowStatus;
-    if (pr === undefined) status = "remove";
-    else if (jar === undefined) status = "add";
-    else status = pr === jar ? "same" : "modify";
-    return { key: k, ...(pr === undefined ? {} : { pr }), ...(jar === undefined ? {} : { mod: jar }), status };
-  });
-
-  return {
-    workspace: key,
-    source,
-    rows,
-    ...(prEntries === null ? { note: "PR 中未找到该工作区的英文语言文件" } : {}),
   };
 }
 

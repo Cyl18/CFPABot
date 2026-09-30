@@ -12,12 +12,12 @@ const MAX_JAR_BYTES = 200 * 1024 * 1024;
 const LANG_ENTRY = /^assets\/([^/]+)\/lang\/([^/]+)$/i;
 const LOCALE_BY_FILE: Record<string, Locale> = { "en_us.json": "en_us", "en_us.lang": "en_us", "zh_cn.json": "zh_cn", "zh_cn.lang": "zh_cn" };
 
-async function jarBytes(file: ModFile): Promise<Uint8Array | null> {
+async function jarBytes(file: ModFile): Promise<{ bytes: Uint8Array; fetchedAt: string } | null> {
   if (!file.url) return null;
   const cachePath = join(paths.jars, `${file.provider}-${file.id.replace(/[^a-zA-Z0-9._-]/g, "_")}.jar`);
   const cached = await stat(cachePath).catch(() => null);
   if (cached && cached.size > 0 && cached.size <= MAX_JAR_BYTES) {
-    return new Uint8Array(await readFile(cachePath));
+    return { bytes: new Uint8Array(await readFile(cachePath)), fetchedAt: new Date(cached.mtimeMs).toISOString() };
   }
   const bytes = await downloadBytes(file.url, MAX_JAR_BYTES);
   if (!bytes) return null;
@@ -25,15 +25,15 @@ async function jarBytes(file: ModFile): Promise<Uint8Array | null> {
   const tmpPath = `${cachePath}.${process.pid}.${Date.now()}.tmp`;
   await writeFile(tmpPath, bytes);
   await rename(tmpPath, cachePath);
-  return bytes;
+  return { bytes, fetchedAt: new Date().toISOString() };
 }
 
 export async function readJar(file: ModFile): Promise<JarInfo | null> {
-  const bytes = await jarBytes(file);
-  if (!bytes) return null;
+  const cached = await jarBytes(file);
+  if (!cached) return null;
   let entries: Record<string, Uint8Array>;
   try {
-    entries = unzipSync(bytes);
+    entries = unzipSync(cached.bytes);
   } catch (err) {
     log.warn("无法解析 Mod 压缩包", { file: file.fileName, err });
     return null;
@@ -58,5 +58,5 @@ export async function readJar(file: ModFile): Promise<JarInfo | null> {
       content: decoder.decode(data),
     });
   }
-  return { file, domains: [...domains].sort(), lang };
+  return { file, fetchedAt: cached.fetchedAt, domains: [...domains].sort(), lang };
 }

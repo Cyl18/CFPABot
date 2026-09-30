@@ -27,7 +27,7 @@ function thumbnail(mod: cf.CfMod): string | undefined {
 }
 
 async function curseforgeDependencies(mod: cf.CfMod): Promise<ModDep[]> {
-  const files = mod.latestFiles.length > 0 ? mod.latestFiles : await cf.getFiles(mod.id);
+  const files = mod.latestFiles.length > 0 ? mod.latestFiles : await cf.getAllFiles(mod.id);
   const newest = [...files].sort((a, b) => b.fileDate.localeCompare(a.fileDate)).find((f) => f.dependencies.length > 0);
   const requiredIds = [
     ...new Set((newest?.dependencies ?? []).filter((d) => d.relationType === REQUIRED_DEPENDENCY).map((d) => d.modId)),
@@ -96,7 +96,7 @@ async function pickModrinthFile(mod: ModInfo, mc: string, loaders: string[]): Pr
   if (versions.length === 0) versions = await mr.getVersions(mod.slug, { loaders });
   if (versions.length === 0) versions = await mr.getVersions(mod.slug, {});
   const exact = versions.filter((version) => version.game_versions.some((gv) => mcMatches(mc, gv)));
-  const version = exact[0] ?? versions[0];
+  const version = exact.sort((a, b) => b.date_published.localeCompare(a.date_published))[0];
   if (!version) return null;
   const file = version.files.find((f) => f.primary) ?? version.files[0];
   if (!file) return null;
@@ -114,14 +114,12 @@ async function pickModrinthFile(mod: ModInfo, mc: string, loaders: string[]): Pr
 async function pickCurseforgeFile(mod: ModInfo, mc: string, loaders: string[]): Promise<ModFile | null> {
   const modId = Number(mod.id);
   if (!Number.isInteger(modId)) return null;
-  let files = await cf.getFiles(modId, mc);
-  if (files.length === 0) files = await cf.getFiles(modId);
+  const files = await cf.getAllFiles(modId);
   const matched = files.filter((file) => file.gameVersions.some((gv) => mcMatches(mc, gv)));
-  const pool = matched.length > 0 ? matched : files;
-  const byLoader = pool.filter((file) => file.gameVersions.some((gv) => loaders.includes(gv.toLowerCase())));
-  const candidates = (byLoader.length > 0 ? byLoader : pool).sort((a, b) => b.fileDate.localeCompare(a.fileDate));
+  const byLoader = matched.filter((file) => file.gameVersions.some((gv) => loaders.includes(gv.toLowerCase())));
+  const candidates = (byLoader.length > 0 ? byLoader : matched).sort((a, b) => b.fileDate.localeCompare(a.fileDate));
   const file = candidates[0];
-  if (!file) return null;
+  if (file === undefined) return null;
   return {
     provider: "curseforge",
     id: String(file.id),

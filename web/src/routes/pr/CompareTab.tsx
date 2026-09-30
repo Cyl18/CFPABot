@@ -5,11 +5,9 @@ import { type ReactNode, useMemo } from "react";
 import { DiffViewer } from "@/components/DiffViewer.tsx";
 import { parseWorkspaceKey } from "@/lib/api.ts";
 import { groupWorkspaces, pickCompareFiles, workspaceParam } from "@/lib/paths.ts";
-import { useCompare, useModSource } from "@/lib/queries.ts";
+import { useCompare } from "@/lib/queries.ts";
 import type { PrSearch, SearchPatch } from "@/lib/search.ts";
 import { EmptyState } from "@/ui/EmptyState.tsx";
-import { ErrorState } from "@/ui/ErrorState.tsx";
-import { Checkbox } from "@/ui/Input.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
 function cellOf(en: string | undefined, zh: string | undefined): DiffCell | null {
@@ -28,7 +26,6 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
   const ws = search.ws;
   const filter = parseDiffFilter(search.filter);
   const query = search.q ?? "";
-  const overlay = search.overlay === "1";
 
   const selected = useMemo(() => {
     const parsed = ws !== undefined ? parseWorkspaceKey(ws) : null;
@@ -51,7 +48,6 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
 
   const key = selected === null ? null : { slug: selected.slug, version: selected.version, namespace: selected.namespace };
   const compare = useCompare(n, key);
-  const modSource = useModSource(n, key, overlay);
 
   const sources = useMemo(() => {
     if (selected === null) return [];
@@ -60,14 +56,12 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
   }, [files, selected]);
 
   const rows: readonly CompareRow[] = compare.data?.rows ?? [];
-  const modByKey = useMemo(() => new Map((modSource.data?.rows ?? []).map((row) => [row.key, row])), [modSource.data]);
 
   const lanes: DiffLane[] = useMemo(() => {
     const hasZh = (side: "base" | "head") => rows.some((row) => (side === "base" ? row.baseZh : row.headZh) !== undefined);
     const base = rows.some((row) => row.baseEn !== undefined || row.baseZh !== undefined);
     const head = rows.some((row) => row.headEn !== undefined || row.headZh !== undefined);
     const whole = base === head ? null : head ? ("insert" as const) : ("delete" as const);
-    const source = modSource.data?.source ?? null;
     return [
       {
         id: "base",
@@ -88,33 +82,19 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
         absent: !head,
         ...(whole === "insert" ? { whole } : {}),
       },
-      ...(overlay
-        ? [
-            {
-              id: "jar",
-              label: "模组 jar",
-              role: "extra" as const,
-              title: source === null ? "模组 jar 里的 en_us" : `${source.provider} · ${source.fileName}`,
-            },
-          ]
-        : []),
     ];
-  }, [rows, overlay, n, modSource.data]);
+  }, [rows, n]);
 
   const entries: DiffEntry[] = useMemo(
     () =>
-      rows.map((row) => {
-        const hit = modByKey.get(row.key);
-        return {
-          key: row.key,
-          cells: {
-            base: cellOf(row.baseEn, row.baseZh),
-            head: cellOf(row.headEn, row.headZh),
-            jar: hit?.mod === undefined ? null : { en: hit.mod, zh: null },
-          },
-        };
-      }),
-    [rows, modByKey],
+      rows.map((row) => ({
+        key: row.key,
+        cells: {
+          base: cellOf(row.baseEn, row.baseZh),
+          head: cellOf(row.headEn, row.headZh),
+        },
+      })),
+    [rows],
   );
 
   if (workspaces.length === 0) {
@@ -163,24 +143,11 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
     </div>
   );
 
-  const note =
-    !overlay ? undefined : modSource.error !== null ? (
-      <ErrorState error={modSource.error} onRetry={() => void modSource.refetch()} />
-    ) : modSource.isPending ? (
-      <p className="text-xs text-muted">正在读取模组 en_us…</p>
-    ) : (
-      <p className="text-xs text-muted">
-        {modSource.data?.note !== undefined
-          ? `模组来源：${modSource.data.note}`
-          : `对比来源：${modSource.data?.source?.provider ?? "-"} · ${modSource.data?.source?.fileName ?? "-"}`}
-      </p>
-    );
-
   return (
     <DiffViewer
       mode="compare"
       lanes={lanes}
-      active={overlay && modSource.data !== undefined ? ["base", "head", "jar"] : ["base", "head"]}
+      active={["base", "head"]}
       entries={entries}
       filter={filter}
       onFilterChange={(next) => onSearchChange({ filter: formatDiffFilter(next) })}
@@ -188,8 +155,6 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
       onQueryChange={(next) => onSearchChange({ q: next === "" ? undefined : next })}
       defaultLayout="merge"
       leading={leading}
-      controls={<Checkbox label="叠加模组 en_us" checked={overlay} onChange={(event) => onSearchChange({ overlay: event.target.checked ? "1" : undefined })} />}
-      note={note}
       pending={compare.isPending}
       error={compare.error}
       onRetry={() => void compare.refetch()}

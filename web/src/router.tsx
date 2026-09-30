@@ -16,7 +16,7 @@ import { VersionsPage } from "@/routes/VersionsPage.tsx";
 const PR_TABS: readonly PrTab[] = ["overview", "files", "compare", "versions", "special", "reviews"];
 const ADMIN_TABS: readonly AdminTab[] = ["status", "llm", "mappings", "logs", "cache"];
 
-const PR_SEARCH_KEYS = ["ws", "slug", "ns", "status", "filter", "overlay", "file", "layout", "versions", "prOnly", "q"] as const;
+const PR_SEARCH_KEYS = ["ws", "slug", "ns", "status", "filter", "file", "layout", "versions", "prOnly", "q"] as const;
 
 function pickStrings<T extends string>(search: Record<string, unknown>, keys: readonly T[]): Partial<Record<T, string>> {
   const result: Partial<Record<T, string>> = {};

@@ -5,6 +5,7 @@ import { CheckReportView } from "@/components/CheckReport.tsx";
 import { formatDateTime, formatDelta } from "@/lib/format.ts";
 import { groupWorkspaces, workspaceParam } from "@/lib/paths.ts";
 import { useChecks } from "@/lib/queries.ts";
+import { ModFilesCard } from "@/routes/pr/ModFilesCard.tsx";
 import { Badge } from "@/ui/Badge.tsx";
 import { Card, CardBody, CardHeader, Stat } from "@/ui/Card.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
@@ -57,7 +58,7 @@ export function OverviewTab({ pr }: { pr: PrDetail }) {
                             params={{ n: String(pr.number), tab: "compare" }}
                             search={{ ws: workspaceParam(workspace.slug, workspace.version, workspace.namespace) }}
                             title={workspace.files.join("\n")}
-                            className="inline-flex h-6 items-center rounded-md border border-line bg-elevated px-2 font-mono text-xs hover:border-accent/50 hover:text-accent"
+                            className="inline-flex h-6 items-center rounded-md border border-accent/50 bg-accent-soft px-2 font-mono text-xs text-accent hover:border-accent"
                           >
                             {workspace.version}
                           </Link>
@@ -71,6 +72,8 @@ export function OverviewTab({ pr }: { pr: PrDetail }) {
           </CardBody>
         </Card>
       )}
+
+      {pr.workspaces.length > 0 && <ModFilesCard n={pr.number} report={checks.data ?? null} pending={checks.isPending} />}
 
       <Card>
         <CardHeader title="检查报告" description="来自 Bot 的信息评论检查段。" />

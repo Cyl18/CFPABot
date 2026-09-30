@@ -10,7 +10,6 @@ import type {
   MappingEntry,
   Me,
   ModList,
-  ModSourceResult,
   PrDetail,
   PrState,
   PrSummary,
@@ -132,8 +131,6 @@ export const api = {
   refreshPr: (n: number) => send<{ ok: true }>("POST", `/api/prs/${n}/refresh`),
   compare: (n: number, key: CompareKey, signal?: AbortSignal) =>
     get<CompareResult>(`/api/prs/${n}/compare${query({ slug: key.slug, version: key.version, namespace: key.namespace })}`, signal),
-  modSource: (n: number, key: CompareKey, signal?: AbortSignal) =>
-    get<ModSourceResult>(`/api/prs/${n}/mod-source${query({ slug: key.slug, version: key.version, namespace: key.namespace })}`, signal),
   special: (n: number, signal?: AbortSignal) => get<SpecialFile[]>(`/api/prs/${n}/special`, signal),
   versionsKeys: (
     slug: string,

@@ -1,12 +1,16 @@
+import { join } from "node:path";
 import { z } from "zod";
 import { env } from "../env.ts";
 import { asRecord } from "../github/mappers.ts";
+import { paths } from "../paths.ts";
+import { readJson, withLock, writeJson } from "../store.ts";
 import { requestJson } from "./http.ts";
 
 const BASE = "https://api.curseforge.com/v1";
 const GAME_ID = 432;
 const MOD_CLASS_ID = 6;
-const FILE_PAGE_SIZE = 50;
+const FILE_PAGE_SIZE = 10000;
+const FILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export const cfFileSchema = z.object({
   id: z.number(),
@@ -65,12 +69,20 @@ export async function getMod(id: number): Promise<CfMod | null> {
   return unwrap(await cfGet(`/mods/${id}`), cfModSchema);
 }
 
-export async function getFiles(id: number, gameVersion?: string): Promise<CfFile[]> {
-  const body = await cfGet(`/mods/${id}/files`, {
-    pageSize: String(FILE_PAGE_SIZE),
-    ...(gameVersion ? { gameVersion } : {}),
+const fileCacheSchema = z.object({ fetchedAt: z.string(), files: z.array(cfFileSchema) });
+
+export async function getAllFiles(id: number): Promise<CfFile[]> {
+  const cachePath = join(paths.cache, "cf-files", `${id}.json`);
+  const cached = await readJson(cachePath, fileCacheSchema);
+  if (cached && Date.now() - Date.parse(cached.fetchedAt) < FILE_CACHE_TTL_MS) return cached.files;
+  return withLock(cachePath, async () => {
+    const fresh = await readJson(cachePath, fileCacheSchema);
+    if (fresh && Date.now() - Date.parse(fresh.fetchedAt) < FILE_CACHE_TTL_MS) return fresh.files;
+    const body = await cfGet(`/mods/${id}/files`, { pageSize: String(FILE_PAGE_SIZE) });
+    const files = unwrap(body, z.array(cfFileSchema)) ?? [];
+    if (files.length > 0) await writeJson(cachePath, { fetchedAt: new Date().toISOString(), files });
+    return files;
   });
-  return unwrap(body, z.array(cfFileSchema)) ?? [];
 }
 
 export async function getModsByIds(ids: number[]): Promise<CfMod[]> {

@@ -37,11 +37,10 @@ const FACET_LABELS: Record<DiffFacet, string> = {
   remove: "删除",
   partial: "部分版本缺",
   untranslated: "未翻译",
-  extra: "与模组不一致",
 };
 
 const MODE_FACETS: Record<"compare" | "versions", readonly DiffFacet[]> = {
-  compare: ["changed", "en", "zhAny", "add", "remove", "untranslated", "extra"],
+  compare: ["changed", "en", "zhAny", "add", "remove", "untranslated"],
   versions: ["changed", "en", "zhAny", "partial", "untranslated"],
 };
 
@@ -161,7 +160,6 @@ function LaneChip({ lane }: { lane: DiffLane }) {
       className={cn(
         "inline-flex h-5 w-fit items-center whitespace-nowrap rounded border px-1.5 font-mono text-xs",
         lane.highlight === true ? "border-accent/50 bg-accent-soft font-medium text-accent" : "border-line bg-elevated text-muted",
-        lane.role === "extra" && "border-dashed",
       )}
     >
       {lane.label}
@@ -189,7 +187,7 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function FactBadges({ facts, compare, touched, extra }: { facts: DiffFacts; compare: boolean; touched: boolean; extra: boolean }) {
+function FactBadges({ facts, compare, touched }: { facts: DiffFacts; compare: boolean; touched: boolean }) {
   return (
     <div className="flex flex-wrap items-center gap-1">
       {facts.missing === "add" && <Badge tone="ok">新增</Badge>}
@@ -207,19 +205,18 @@ function FactBadges({ facts, compare, touched, extra }: { facts: DiffFacts; comp
         </Badge>
       )}
       {facts.untranslated && <Badge tone="info">未翻译</Badge>}
-      {extra && facts.extra && <Badge tone="warn">与模组不一致</Badge>}
       {touched && <Badge tone="accent">本 PR 改动</Badge>}
     </div>
   );
 }
 
-function KeyColumn({ entry, facts, compare, extra, hint }: { entry: DiffEntry; facts: DiffFacts; compare: boolean; extra: boolean; hint?: ReactNode }) {
+function KeyColumn({ entry, facts, compare, hint }: { entry: DiffEntry; facts: DiffFacts; compare: boolean; hint?: ReactNode }) {
   return (
     <div className={KEYCOL}>
       <code className="break-all font-mono text-xs text-muted" title={entry.key}>
         {entry.key}
       </code>
-      <FactBadges facts={facts} compare={compare} touched={entry.touched === true} extra={extra} />
+      <FactBadges facts={facts} compare={compare} touched={entry.touched === true} />
       {hint}
     </div>
   );
@@ -228,30 +225,27 @@ function KeyColumn({ entry, facts, compare, extra, hint }: { entry: DiffEntry; f
 function MergeRow({
   entry,
   facts,
-  core,
-  extra,
+  lanes,
   compare,
   onShowLanes,
 }: {
   entry: DiffEntry;
   facts: DiffFacts;
-  core: readonly DiffLane[];
-  extra: DiffLane | null;
+  lanes: readonly DiffLane[];
   compare: boolean;
   onShowLanes: () => void;
 }) {
-  const from = core[0];
-  const to = core[core.length - 1];
+  const from = lanes[0];
+  const to = lanes[lanes.length - 1];
   if (from === undefined || to === undefined) return null;
   const fromCell = entry.cells[from.id] ?? null;
   const toCell = entry.cells[to.id] ?? null;
-  const wholeLane = core.find((lane) => lane.whole !== undefined) ?? null;
+  const wholeLane = lanes.find((lane) => lane.whole !== undefined) ?? null;
   const whole = wholeLane?.whole ?? null;
   const wholeCell = wholeLane === null ? null : (entry.cells[wholeLane.id] ?? null);
-  const jar = extra === null ? null : (entry.cells[extra.id] ?? null);
   const hidden =
-    core.length > 2 &&
-    core
+    lanes.length > 2 &&
+    lanes
       .slice(1, -1)
       .some((lane) => JSON.stringify(entry.cells[lane.id] ?? null) !== JSON.stringify(fromCell) && JSON.stringify(entry.cells[lane.id] ?? null) !== JSON.stringify(toCell));
   return (
@@ -260,7 +254,6 @@ function MergeRow({
         entry={entry}
         facts={facts}
         compare={compare}
-        extra={extra !== null}
         hint={
           hidden ? (
             <button type="button" className="w-fit text-xs text-accent hover:underline" onClick={onShowLanes}>
@@ -289,11 +282,6 @@ function MergeRow({
           </>
         )}
       </div>
-      {extra !== null && (
-        <div className={cn(CELL, "text-xs text-muted")}>
-          {jar === null ? "模组里没有这个 key" : <Inline before={toCell?.en ?? null} after={jar.en} />}
-        </div>
-      )}
     </article>
   );
 }
@@ -304,14 +292,12 @@ function GridRow({
   lanes,
   display,
   compare,
-  extra,
 }: {
   entry: DiffEntry;
   facts: DiffFacts;
   lanes: readonly DiffLane[];
   display: readonly DiffLane[];
   compare: boolean;
-  extra: boolean;
 }) {
   const nodes = new Map<string, ReactNode>();
   let beforeCell: DiffCell | null = null;
@@ -341,18 +327,16 @@ function GridRow({
       lane.id,
       <div key={lane.id} className={cn(CELL, "relative pr-6", same && "opacity-55")}>
         <Inline {...(lane.whole === undefined ? { before: previousLane === null ? undefined : (previousCell?.en ?? null), after: cell?.en ?? null } : wholeEdge(lane.whole, cell?.en ?? null))} />
-        {lane.role === "extra" ? null : (
-          <div className="mt-0.5 text-sm">
-            <ZhText lane={lane} cell={cell} before={zhReference(previousLane, previousCell)} />
-          </div>
-        )}
+        <div className="mt-0.5 text-sm">
+          <ZhText lane={lane} cell={cell} before={zhReference(previousLane, previousCell)} />
+        </div>
         {cell?.zh != null && <CopyButton text={cell.zh} />}
       </div>,
     );
   }
   return (
     <article className={cn(ROW, BORDER[toneOf(facts, compare)])}>
-      <KeyColumn entry={entry} facts={facts} compare={compare} extra={extra} />
+      <KeyColumn entry={entry} facts={facts} compare={compare} />
       {display.map((lane) => nodes.get(lane.id))}
     </article>
   );
@@ -370,19 +354,17 @@ function LaneCard({
   lanes,
   display,
   compare,
-  extra,
 }: {
   entry: DiffEntry;
   facts: DiffFacts;
   lanes: readonly DiffLane[];
   display: readonly DiffLane[];
   compare: boolean;
-  extra: boolean;
 }) {
   const groups: LaneGroup[] = [];
   for (const lane of lanes) {
     const cell = entry.cells[lane.id] ?? null;
-    const wild = lane.role === "extra" || lane.zhFile === false;
+    const wild = lane.zhFile === false;
     const found =
       cell === null
         ? groups.find((group) => group.cell === null)
@@ -413,7 +395,7 @@ function LaneCard({
         <code className="break-all font-mono text-xs text-muted" title={entry.key}>
           {entry.key}
         </code>
-        <FactBadges facts={facts} compare={compare} touched={entry.touched === true} extra={extra} />
+        <FactBadges facts={facts} compare={compare} touched={entry.touched === true} />
       </div>
       {sameEn && (
         <p className="flex gap-2 text-sm">
@@ -449,11 +431,7 @@ function LaneCard({
                   <span className="w-7 shrink-0 text-xs leading-5 text-muted">中文</span>
                   <span className="min-w-0 whitespace-pre-wrap break-words">
                     {group.wild ? (
-                      group.lanes.every((lane) => lane.role === "extra") ? (
-                        <span className="text-xs text-muted">模组 jar 只有英文</span>
-                      ) : (
-                        <span className="text-xs italic text-muted">无中文文件</span>
-                      )
+                      <span className="text-xs italic text-muted">无中文文件</span>
                     ) : direction === null ? (
                       <ZhText lane={group.lanes[0]!} cell={group.cell} before={zhBefore} />
                     ) : (
@@ -558,16 +536,15 @@ export function DiffViewer({
   const compare = mode === "compare";
   const display = useMemo(() => {
     if (!compare || !swapped) return activeLanes;
-    const sources = activeLanes.filter((lane) => lane.role !== "extra");
-    const rest = activeLanes.filter((lane) => lane.role === "extra");
-    return [...sources].reverse().concat(rest);
+    return [...activeLanes].reverse();
   }, [activeLanes, compare, swapped]);
-  const core = activeLanes.filter((lane) => lane.role !== "extra");
-  const extra = activeLanes.find((lane) => lane.role === "extra") ?? null;
-  const present = core.filter((lane) => lane.absent !== true);
-  const mergeLabel = present.length === core.length ? `${core[0]?.label} → ${core[core.length - 1]?.label}` : present.map((lane) => lane.label).join(" → ");
-  const left = swapped ? core[core.length - 1] : core[0];
-  const right = swapped ? core[0] : core[core.length - 1];
+  const present = activeLanes.filter((lane) => lane.absent !== true);
+  const mergeLabel =
+    present.length === activeLanes.length
+      ? `${activeLanes[0]?.label} → ${activeLanes[activeLanes.length - 1]?.label}`
+      : present.map((lane) => lane.label).join(" → ");
+  const left = swapped ? activeLanes[activeLanes.length - 1] : activeLanes[0];
+  const right = swapped ? activeLanes[0] : activeLanes[activeLanes.length - 1];
   const needle = query.trim().toLowerCase();
 
   const all = useMemo(
@@ -597,7 +574,7 @@ export function DiffViewer({
     return { counts: tally, visible: rows };
   }, [scoped, filter]);
 
-  const facets = MODE_FACETS[mode].filter((facet) => facet !== "extra" || extra !== null);
+  const facets = MODE_FACETS[mode];
   const isDefault = DIFF_FACETS.every((facet) => filter[facet] === DEFAULT_DIFF_FILTER[facet]);
 
   function cycleFacet(facet: DiffFacet) {
@@ -660,7 +637,7 @@ export function DiffViewer({
                 }}
               >
                 <ArrowLeftRight aria-hidden="true" className="size-3.5" />
-                交换 {core[0]?.label} / {core[core.length - 1]?.label}
+                交换 {activeLanes[0]?.label} / {activeLanes[activeLanes.length - 1]?.label}
               </ToggleChip>
             )}
             <DiffModePicker />
@@ -676,7 +653,7 @@ export function DiffViewer({
             <span>行内差异在浏览器本地计算</span>
           </p>
           <p className="text-xs text-muted">
-            显示 <span className="font-medium text-fg">{visible.length}</span> / {scoped.length} 个 key · {core.length} 个{compare ? "来源" : "版本"}参与比较
+            显示 <span className="font-medium text-fg">{visible.length}</span> / {scoped.length} 个 key · {activeLanes.length} 个{compare ? "来源" : "版本"}参与比较
             {scope !== undefined && outside > 0 && <> · 范围外还有 {outside} 处差异</>}
           </p>
           {note}
@@ -689,10 +666,10 @@ export function DiffViewer({
         <SkeletonTable rows={8} columns={3} />
       ) : entries.length === 0 ? (
         (empty ?? <EmptyState title="没有可比较的内容" description="这个范围里没有找到可以对照的语言文件。" />)
-      ) : core.length < 2 ? (
+      ) : activeLanes.length < 2 ? (
         <EmptyState
           title="只有一个版本，无从比较"
-          description={`当前只选了 ${core[0]?.label ?? "—"}。至少选中两个版本，这里才有差异可看。`}
+          description={`当前只选了 ${activeLanes[0]?.label ?? "—"}。至少选中两个版本，这里才有差异可看。`}
         />
       ) : scoped.length === 0 ? (
         scope !== undefined && inScope.length === 0 && all.length > 0 ? (
@@ -735,7 +712,6 @@ export function DiffViewer({
               <span className="md:flex-1">
                 中文 <span className="font-mono">{mergeLabel}</span>
               </span>
-              {extra !== null && <span className="md:flex-1">模组 jar en_us（对比 PR）</span>}
             </div>
           )}
           {layout === "grid" && (
@@ -761,11 +737,11 @@ export function DiffViewer({
                   style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
                 >
                   {layout === "merge" ? (
-                    <MergeRow entry={row.entry} facts={row.facts} core={core} extra={extra} compare={compare} onShowLanes={() => setLayout("lanes")} />
+                    <MergeRow entry={row.entry} facts={row.facts} lanes={activeLanes} compare={compare} onShowLanes={() => setLayout("lanes")} />
                   ) : layout === "grid" ? (
-                    <GridRow entry={row.entry} facts={row.facts} lanes={activeLanes} display={display} compare={compare} extra={extra !== null} />
+                    <GridRow entry={row.entry} facts={row.facts} lanes={activeLanes} display={display} compare={compare} />
                   ) : (
-                    <LaneCard entry={row.entry} facts={row.facts} lanes={activeLanes} display={display} compare={compare} extra={extra !== null} />
+                    <LaneCard entry={row.entry} facts={row.facts} lanes={activeLanes} display={display} compare={compare} />
                   )}
                 </div>
               );

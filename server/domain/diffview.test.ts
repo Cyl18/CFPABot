@@ -105,24 +105,6 @@ test("整份没有中文文件的来源不算未翻译，也不产生中文差�
   expect(diffFacts(entries.get("a")!, lanes)).toMatchObject({ zh: false, zhAny: false, untranslated: false, differs: false });
 });
 
-test("模组 jar 和对照来源的英文不一样才算与模组不一致", () => {
-  const lanes: readonly DiffLane[] = [
-    { id: "main", label: "main", role: "ref" },
-    { id: "pr", label: "PR", role: "real" },
-    { id: "jar", label: "模组 jar", role: "extra" },
-  ];
-  const entries: Record<string, DiffEntry> = {
-    same: { key: "same", cells: { main: { en: "A", zh: "甲" }, pr: { en: "A", zh: "甲" }, jar: { en: "A", zh: null } } },
-    drift: { key: "drift", cells: { main: { en: "A", zh: "甲" }, pr: { en: "A", zh: "甲" }, jar: { en: "B", zh: null } } },
-    absent: { key: "absent", cells: { main: { en: "A", zh: "甲" }, pr: { en: "A", zh: "甲" }, jar: null } },
-  };
-  expect(diffFacts(entries.same!, lanes)).toMatchObject({ extra: false, differs: false });
-  expect(diffFacts(entries.drift!, lanes)).toMatchObject({ extra: true, differs: false });
-  expect(diffFacts(entries.absent!, lanes)).toMatchObject({ extra: true, differs: false });
-  expect(matchesFilter(diffFacts(entries.drift!, lanes), { extra: true })).toBe(true);
-  expect(matchesFilter(diffFacts(entries.same!, lanes), { extra: true })).toBe(false);
-});
-
 test("搜索覆盖 key、英文和中文", () => {
   const lanes: readonly DiffLane[] = [
     { id: "main", label: "main", role: "ref" },

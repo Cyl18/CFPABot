@@ -1,4 +1,4 @@
-export type DiffLaneRole = "ref" | "real" | "extra";
+export type DiffLaneRole = "ref" | "real";
 
 export interface DiffLane {
   id: string;
@@ -23,12 +23,12 @@ export interface DiffEntry {
   cells: Record<string, DiffCell | null>;
 }
 
-export type DiffFacet = "changed" | "en" | "zhAny" | "add" | "remove" | "partial" | "untranslated" | "extra";
+export type DiffFacet = "changed" | "en" | "zhAny" | "add" | "remove" | "partial" | "untranslated";
 
 /** 每个开关：true 只看，false 排除，没写就是不限。 */
 export type DiffFilterState = Partial<Record<DiffFacet, boolean>>;
 
-export const DIFF_FACETS: readonly DiffFacet[] = ["changed", "en", "zhAny", "add", "remove", "partial", "untranslated", "extra"];
+export const DIFF_FACETS: readonly DiffFacet[] = ["changed", "en", "zhAny", "add", "remove", "partial", "untranslated"];
 
 export const DEFAULT_DIFF_FILTER: DiffFilterState = { changed: true };
 
@@ -39,18 +39,14 @@ export interface DiffFacts {
   zh: boolean;
   stale: boolean;
   untranslated: boolean;
-  extra: boolean;
   differs: boolean;
 }
 
 export function diffFacts(entry: DiffEntry, lanes: readonly DiffLane[]): DiffFacts {
-  const core = lanes.filter((lane) => lane.role !== "extra");
-  const extra = lanes.find((lane) => lane.role === "extra") ?? null;
-  const present = core.filter((lane) => entry.cells[lane.id] != null);
-  const first = core[0];
-  const last = core[core.length - 1];
+  const present = lanes.filter((lane) => entry.cells[lane.id] != null);
+  const first = lanes[0];
   const missing =
-    first === undefined || present.length === 0 || present.length === core.length
+    first === undefined || present.length === 0 || present.length === lanes.length
       ? null
       : first.role === "ref"
         ? entry.cells[first.id] != null
@@ -81,10 +77,6 @@ export function diffFacts(entry: DiffEntry, lanes: readonly DiffLane[]): DiffFac
     return cell.en.trim() !== "" && (cell.zh ?? "").trim() === "";
   });
 
-  const jar = extra === null ? null : (entry.cells[extra.id] ?? null);
-  const peer = last === undefined ? null : (entry.cells[last.id] ?? null);
-  const extraMismatch = extra !== null && ((jar === null) !== (peer === null) || (jar !== null && peer !== null && jar.en !== peer.en));
-
   return {
     missing,
     en,
@@ -92,7 +84,6 @@ export function diffFacts(entry: DiffEntry, lanes: readonly DiffLane[]): DiffFac
     zh: [...zhByEn.values()].some((values) => values.size > 1),
     stale: [...enByZh.values()].some((sources) => sources.size > 1),
     untranslated,
-    extra: extraMismatch,
     differs: en || zhAny,
   };
 }
@@ -105,7 +96,6 @@ export const FACET_MATCH: Record<DiffFacet, (facts: DiffFacts) => boolean> = {
   remove: (facts) => facts.missing === "remove",
   partial: (facts) => facts.missing === "partial",
   untranslated: (facts) => facts.untranslated,
-  extra: (facts) => facts.extra,
 };
 
 export function matchesFilter(facts: DiffFacts, state: DiffFilterState): boolean {

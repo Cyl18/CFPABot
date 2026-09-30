@@ -1,11 +1,11 @@
 import { join } from "node:path";
 import { z } from "zod";
-import type { CheckItem, CheckReport } from "../../shared/api.ts";
+import type { CheckItem, CheckReport, ModFileCheck } from "../../shared/api.ts";
 import { entryFindings, keyParity, pathChecks, typoCheck, type TypoRule } from "../domain/checks.ts";
-import { patchAddedLines } from "../domain/diff.ts";
+import { patchAddedLines, withLiteralNewlines } from "../domain/diff.ts";
 import { parseLang, type ParsedLang } from "../domain/langfile.ts";
 import { parseLangPath } from "../domain/path.ts";
-import type { JarInfo, JarLang } from "../mods/index.ts";
+import type { JarInfo, JarLang, ModFile } from "../mods/index.ts";
 import { mods } from "../mods/index.ts";
 import { paths } from "../paths.ts";
 import { prdata } from "../prdata.ts";
@@ -34,6 +34,7 @@ interface ModTarget {
   version: string;
   namespace: string;
   data: WorkspaceData;
+  all: WorkspaceData[];
 }
 
 let typoRulesCache: TypoRule[] | null = null;
@@ -126,13 +127,18 @@ async function autoDomainItems(ctx: PrContext): Promise<CheckItem[]> {
 
 function modTargets(data: WorkspaceData[]): ModTarget[] {
   const out: ModTarget[] = [];
-  const seen = new Set<string>();
+  const byKey = new Map<string, ModTarget>();
   for (const item of data) {
     const { slug, version, namespace } = item.workspace;
     const key = `${slug}@${version}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ slug, version, namespace, data: item });
+    const existing = byKey.get(key);
+    if (existing !== undefined) {
+      existing.all.push(item);
+      continue;
+    }
+    const target: ModTarget = { slug, version, namespace, data: item, all: [item] };
+    byKey.set(key, target);
+    out.push(target);
   }
   return out;
 }
@@ -149,6 +155,58 @@ export function sameKeySet(left: Set<string>, right: Set<string>): boolean {
     if (!right.has(key)) return false;
   }
   return true;
+}
+
+function compareEntries(headEn: ParsedLang, jarLang: JarLang, skipUnderscore: boolean): Pick<ModFileCheck, "missing" | "extra" | "changed"> {
+  const jar = withLiteralNewlines(parseLang(jarLang.content, jarLang.format).entries);
+  const pr = withLiteralNewlines(headEn.entries);
+  const missing: string[] = [];
+  const extra: string[] = [];
+  const changed: string[] = [];
+  for (const [key, value] of jar) {
+    if (skipUnderscore && key.startsWith("_")) continue;
+    const mine = pr.get(key);
+    if (mine === undefined) missing.push(key);
+    else if (mine !== value) changed.push(key);
+  }
+  for (const key of pr.keys()) {
+    if (skipUnderscore && key.startsWith("_")) continue;
+    if (!jar.has(key)) extra.push(key);
+  }
+  return { missing: missing.sort(), extra: extra.sort(), changed: changed.sort() };
+}
+
+function modFileRow(item: WorkspaceData, file: ModFile, jar: JarInfo): ModFileCheck {
+  const { slug, namespace, version } = item.workspace;
+  const base = { slug, namespace, version, provider: file.provider, fileName: file.fileName, fetchedAt: jar.fetchedAt };
+  const empty = { missing: [], extra: [], changed: [] };
+  const candidates = jar.lang.filter((entry) => entry.locale === "en_us" && entry.domain === namespace);
+  if (candidates.length === 0) {
+    return { ...base, ...empty, status: "unavailable", note: "jar 里没有这个命名空间的英文语言文件" };
+  }
+  const preferred = candidates.filter((entry) => entry.format === item.format);
+  if (preferred.length > 1 || (preferred.length === 0 && candidates.length > 1)) {
+    return { ...base, ...empty, status: "unavailable", note: "找到了多个语言文件，跳过检查" };
+  }
+  if (item.headEn === null) {
+    return { ...base, ...empty, status: "unavailable", note: "PR 中未找到该工作区的英文语言文件" };
+  }
+  const diff = compareEntries(item.headEn, preferred[0] ?? candidates[0]!, item.format === "json");
+  const status = diff.missing.length > 0 || diff.changed.length > 0 ? "mismatch" : diff.extra.length > 0 ? "extra" : "ok";
+  return { ...base, ...diff, status };
+}
+
+function unavailableRows(target: ModTarget, note: string): ModFileCheck[] {
+  return target.all.map((item) => ({
+    slug: item.workspace.slug,
+    namespace: item.workspace.namespace,
+    version: item.workspace.version,
+    status: "unavailable" as const,
+    note,
+    missing: [],
+    extra: [],
+    changed: [],
+  }));
 }
 
 function modEnItems(target: ModTarget, jar: JarInfo): CheckItem[] {
@@ -186,13 +244,15 @@ function modEnItems(target: ModTarget, jar: JarInfo): CheckItem[] {
   ];
 }
 
-async function targetItems(target: ModTarget): Promise<{ items: CheckItem[]; mcreator: boolean }> {
+async function targetItems(target: ModTarget): Promise<{ items: CheckItem[]; mcreator: boolean; modFiles: ModFileCheck[] }> {
   const items: CheckItem[] = [];
-  if (target.slug === "1UNKNOWN" || target.slug === "0-modrinth-mod") return { items, mcreator: false };
+  if (target.slug === "1UNKNOWN" || target.slug === "0-modrinth-mod") {
+    return { items, mcreator: false, modFiles: unavailableRows(target, "未找到 Mod 下载信息") };
+  }
   const info = await mods.resolve(target.slug).catch(() => null);
   if (!info) {
     items.push({ level: "warn", code: "mod_not_found", message: `⚠ 找不到模组: ${target.slug}-${target.version}。` });
-    return { items, mcreator: false };
+    return { items, mcreator: false, modFiles: unavailableRows(target, `未找到 Mod ${target.slug} 的下载信息`) };
   }
   const expectedSlug = target.slug.startsWith("modrinth-") ? target.slug.slice("modrinth-".length) : target.slug;
   if (info.slug !== expectedSlug) {
@@ -203,8 +263,8 @@ async function targetItems(target: ModTarget): Promise<{ items: CheckItem[]; mcr
     });
   }
   const file = await mods.pickFile(info, target.version).catch(() => null);
-  const jar = file ? await mods.readJar(file).catch(() => null) : null;
-  if (!jar) {
+  const jar = file === null ? null : await mods.readJar(file).catch(() => null);
+  if (file === null || jar === null) {
     items.push(
       info.allowDistribution === false
         ? {
@@ -218,7 +278,8 @@ async function targetItems(target: ModTarget): Promise<{ items: CheckItem[]; mcr
             message: `ℹ 无法找到 \`${target.namespace}\` 的 Mod Domain。这不一定代表需要更改。`,
           },
     );
-    return { items, mcreator: info.isMCreator };
+    const note = file === null ? `未找到适用于 ${target.version} 的发布文件` : info.allowDistribution === false ? "模组作者不允许自动下载" : "无法下载或解析该 Mod 文件";
+    return { items, mcreator: info.isMCreator, modFiles: unavailableRows(target, note) };
   }
   if (jar.domains.includes(target.namespace)) {
     items.push({ level: "ok", code: "mod_domain", message: `✔ \`${target.namespace}\` Mod Domain 验证通过。` });
@@ -236,17 +297,19 @@ async function targetItems(target: ModTarget): Promise<{ items: CheckItem[]; mcr
     });
   }
   items.push(...modEnItems(target, jar));
-  return { items, mcreator: info.isMCreator };
+  return { items, mcreator: info.isMCreator, modFiles: target.all.map((item) => modFileRow(item, file, jar)) };
 }
 
 export async function collectChecks(prNumber: number, ctx: PrContext, data: WorkspaceData[]): Promise<ChecksResult> {
   const items: CheckItem[] = [];
+  const modFiles: ModFileCheck[] = [];
   const extraLabels: string[] = [];
   const report = (list: CheckItem[]): CheckReport => ({
     prNumber,
     headSha: ctx.pull.headSha,
     generatedAt: new Date().toISOString(),
     items: list,
+    modFiles,
   });
   if (ctx.files.length > MAX_CHECK_FILES) {
     return { report: report([{ level: "warn", code: "too_many_files", message: TOO_MANY_FILES }]), extraLabels };
@@ -265,6 +328,7 @@ export async function collectChecks(prNumber: number, ctx: PrContext, data: Work
   for (const target of modTargets(data)) {
     const result = await targetItems(target);
     items.push(...result.items);
+    modFiles.push(...result.modFiles);
     if (result.mcreator && !extraLabels.includes("MCreator")) extraLabels.push("MCreator");
   }
 

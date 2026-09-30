@@ -41,6 +41,7 @@ export interface JarLang {
 
 export interface JarInfo {
   file: ModFile;
+  fetchedAt: string;
   domains: string[];
   lang: JarLang[];
 }

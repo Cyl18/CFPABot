@@ -12,7 +12,6 @@ export type PrSearch = {
   ns?: string;
   status?: string;
   filter?: string;
-  overlay?: string;
   file?: string;
   layout?: string;
   versions?: string;

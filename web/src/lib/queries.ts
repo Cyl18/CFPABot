@@ -1,4 +1,4 @@
-import type { CheckReport, CompareResult, CrossVersionKeysResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, ModSourceResult, PrDetail, PrState, PrSummary, SessionDetail, SessionSummary, SpecialFile, SystemStatus } from "@shared/api.ts";
+import type { CheckReport, CompareResult, CrossVersionKeysResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, PrDetail, PrState, PrSummary, SessionDetail, SessionSummary, SpecialFile, SystemStatus } from "@shared/api.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type CompareKey } from "@/lib/api.ts";
 
@@ -9,7 +9,6 @@ export const qk = {
   pr: (n: number) => ["pr", n] as const,
   checks: (n: number) => ["checks", n] as const,
   compare: (n: number, key: string) => ["compare", n, key] as const,
-  modSource: (n: number, key: string) => ["mod-source", n, key] as const,
   special: (n: number) => ["special", n] as const,
   versionsKeys: (slug: string, opts: { namespace?: string; pr?: number; versions?: readonly string[] }) =>
     ["versions-keys", slug, opts.namespace ?? null, opts.pr ?? null, opts.versions?.join(",") ?? null] as const,
@@ -47,16 +46,6 @@ export function useCompare(n: number, key: CompareKey | null) {
     queryKey: qk.compare(n, id),
     queryFn: ({ signal }) => api.compare(n, key as CompareKey, signal),
     enabled: key !== null,
-  });
-}
-
-export function useModSource(n: number, key: CompareKey | null, enabled: boolean) {
-  const id = key ? `${key.slug}/${key.version}/${key.namespace}` : "";
-  return useQuery<ModSourceResult>({
-    queryKey: qk.modSource(n, id),
-    queryFn: ({ signal }) => api.modSource(n, key as CompareKey, signal),
-    enabled: enabled && key !== null,
-    retry: 0,
   });
 }
 
