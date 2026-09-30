@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { alignKeys, compareLang, compareTwo, crossVersion, inHunks, patchAddedLines, patchHunks } from "./diff.ts";
+import { alignKeys, compareLang, compareTwo, inHunks, patchAddedLines, patchHunks } from "./diff.ts";
 import { parseLang } from "./langfile.ts";
 
 test("compareLang orders head-en keys first then the rest sorted", () => {
@@ -41,36 +41,6 @@ test("compareTwo reports add/remove/modify/same", () => {
   ]);
 });
 
-test("crossVersion reports conflicts, changed EN and untranslated gaps", () => {
-  const result = crossVersion([
-    { version: "1.19", en: new Map([["a", "Stone"], ["b", "Dirt"], ["c", "Old"]]), zh: new Map([["a", "石头"], ["b", "泥土"], ["c", "旧"]]) },
-    { version: "1.20", en: new Map([["a", "Stone"], ["b", "Dirt"], ["c", "New"]]), zh: new Map([["a", "石块"], ["c", "新"]]), touched: new Set(["b"]) },
-    { version: "1.21", en: new Map([["a", "Stone"], ["b", "Dirt"], ["c", "New"]]), zh: new Map([["a", "石头"], ["b", "泥土"], ["c", "新"]]) },
-    { version: "1.22", en: new Map([["a", "Stone"]]) },
-  ]);
-  expect(result.keyCount).toBe(3);
-  expect(result.issues).toEqual([
-    {
-      key: "b",
-      kind: "untranslated",
-      touched: true,
-      variants: [{ en: "Dirt", zh: "泥土", versions: ["1.19", "1.21"] }, { en: "Dirt", zh: null, versions: ["1.20"] }],
-    },
-    {
-      key: "a",
-      kind: "conflict",
-      touched: false,
-      variants: [{ en: "Stone", zh: "石头", versions: ["1.19", "1.21"] }, { en: "Stone", zh: "石块", versions: ["1.20"] }],
-    },
-    {
-      key: "c",
-      kind: "changed",
-      touched: false,
-      variants: [{ en: "Old", zh: "旧", versions: ["1.19"] }, { en: "New", zh: "新", versions: ["1.20", "1.21"] }],
-    },
-  ]);
-});
-
 test("alignKeys lists every key with a cell per version that has it", () => {
   const rows = alignKeys([
     { version: "1.19", en: new Map([["a", "Stone"], ["b", "Dirt"]]), zh: new Map([["a", "石头"]]) },
@@ -99,7 +69,7 @@ test("alignKeys lists every key with a cell per version that has it", () => {
   ]);
 });
 
-test("literal and real newlines compare equal in compareLang, compareTwo and crossVersion", () => {
+test("literal and real newlines compare equal in compareLang, compareTwo and alignKeys", () => {
   const langSide = parseLang("a=a\\nb", "lang");
   const jsonSide = parseLang('{"a": "a\\nb"}', "json");
   expect(compareLang({ en: langSide }, { en: jsonSide })).toEqual([
@@ -110,12 +80,21 @@ test("literal and real newlines compare equal in compareLang, compareTwo and cro
     { key: "a", left: "a\\nb", right: "a\\nb", status: "same" },
   ]);
 
-  const result = crossVersion([
-    { version: "1.19", en: new Map([["a", "a\\nb"]]), zh: new Map([["a", "甲\\n乙"]]) },
-    { version: "1.20", en: new Map([["a", "a\nb"]]), zh: new Map([["a", "甲\n乙"]]) },
+  expect(
+    alignKeys([
+      { version: "1.19", en: new Map([["a", "a\\nb"]]), zh: new Map([["a", "甲\\n乙"]]) },
+      { version: "1.20", en: new Map([["a", "a\nb"]]), zh: new Map([["a", "甲\n乙"]]) },
+    ]),
+  ).toEqual([
+    {
+      key: "a",
+      touched: false,
+      cells: [
+        { version: "1.19", en: "a\\nb", zh: "甲\\n乙" },
+        { version: "1.20", en: "a\\nb", zh: "甲\\n乙" },
+      ],
+    },
   ]);
-  expect(result.keyCount).toBe(1);
-  expect(result.issues).toEqual([]);
 });
 
 test("patchHunks and patchAddedLines read the new side", () => {

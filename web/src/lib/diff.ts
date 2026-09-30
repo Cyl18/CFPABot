@@ -113,6 +113,8 @@ function splitSentences(text: string): string[] {
 const REFINE_SHARED_RATIO = 0.5;
 const AUTO_MIN_RUNS = 10;
 const AUTO_CHARS_PER_RUN = 25;
+const AUTO_MIN_SHARED_RATIO = 1 / 3;
+const AUTO_SHORT_CHARS = 12;
 
 function similarTokens(left: string, right: string): boolean {
   const min = Math.min(left.length, right.length);
@@ -183,7 +185,14 @@ function autoDiff(before: string, after: string): DiffSegment[] {
       const sentenceAfter = added[at] ?? "";
       const segments = fineDiff(sentenceBefore, sentenceAfter);
       const limit = Math.max(AUTO_MIN_RUNS, (sentenceBefore.length + sentenceAfter.length) / 2 / AUTO_CHARS_PER_RUN);
-      if (changeRunCount(segments) <= limit) out.push(...segments);
+      const shared = segments
+        .filter((segment) => segment.type === "equal")
+        .map((segment) => segment.text)
+        .join("")
+        .replace(/\s/g, "").length;
+      const base = Math.min(sentenceBefore.replace(/\s/g, "").length, sentenceAfter.replace(/\s/g, "").length);
+      const worthSplitting = base < AUTO_SHORT_CHARS || shared / base >= AUTO_MIN_SHARED_RATIO;
+      if (worthSplitting && changeRunCount(segments) <= limit) out.push(...segments);
       else out.push({ type: "delete", text: sentenceBefore }, { type: "insert", text: sentenceAfter });
     }
     for (let at = paired; at < removed.length; at += 1) out.push({ type: "delete", text: removed[at] ?? "" });

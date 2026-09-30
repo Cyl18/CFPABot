@@ -16,7 +16,7 @@ import { VersionsPage } from "@/routes/VersionsPage.tsx";
 const PR_TABS: readonly PrTab[] = ["overview", "files", "compare", "versions", "special", "reviews"];
 const ADMIN_TABS: readonly AdminTab[] = ["status", "llm", "mappings", "logs", "cache"];
 
-const PR_SEARCH_KEYS = ["ws", "slug", "ns", "status", "mode", "overlay", "file", "layout", "view", "versions", "kind", "prOnly", "q", "kq"] as const;
+const PR_SEARCH_KEYS = ["ws", "slug", "ns", "status", "filter", "overlay", "file", "layout", "versions", "prOnly", "q"] as const;
 
 function pickStrings<T extends string>(search: Record<string, unknown>, keys: readonly T[]): Partial<Record<T, string>> {
   const result: Partial<Record<T, string>> = {};
@@ -49,7 +49,7 @@ const prTabRoute = createRoute({ getParentRoute: () => prRoute, path: "$tab", co
 const versionsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/versions/$slug",
-  validateSearch: (search: Record<string, unknown>): VersionsSearch => pickStrings(search, ["namespace", "view", "versions", "kind", "q", "kq"]),
+  validateSearch: (search: Record<string, unknown>): VersionsSearch => pickStrings(search, ["namespace", "versions", "filter", "q"]),
   component: VersionsRoot,
 });
 

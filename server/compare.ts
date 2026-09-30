@@ -1,6 +1,6 @@
 import { extname } from "node:path";
 import { parseLang, guessFormat } from "./domain/langfile.ts";
-import { alignKeys, compareLang, compareTwo, crossVersion, withLiteralNewlines } from "./domain/diff.ts";
+import { alignKeys, compareLang, compareTwo, withLiteralNewlines } from "./domain/diff.ts";
 import type { CrossVersionInput } from "./domain/diff.ts";
 import { buildLangPath, parseLangPath, compareMc, langPathFor, workspacesOf } from "./domain/path.ts";
 import type { LangFormat, LangPath, Locale } from "./domain/path.ts";
@@ -12,8 +12,7 @@ import { prdata } from "./prdata.ts";
 import { ttlCache } from "./ttl.ts";
 import type {
   CompareResult,
-  CrossVersionKeyRow,
-  CrossVersionResult,
+  CrossVersionKeysResult,
   ModSourceResult,
   PrDetail,
   PrState,
@@ -339,6 +338,7 @@ interface CrossVersionBuild {
   versions: string[];
   activeVersions: string[];
   prVersions: string[];
+  zhVersions: string[];
   entries: CrossVersionInput[];
   prNumber?: number;
 }
@@ -433,6 +433,7 @@ async function buildCrossVersion(
     versions,
     activeVersions,
     prVersions: [...overlay.keys()].sort(compareMc),
+    zhVersions: versions.filter((version) => byVersion.get(version)?.zh !== undefined),
     entries,
     ...(prNumber === undefined ? {} : { prNumber }),
   };
@@ -456,12 +457,11 @@ async function crossVersionBuild(
   return crossCache.wrap(key, () => buildCrossVersion(slug, opts, head, prData));
 }
 
-export async function crossVersionResult(
+export async function crossVersionKeys(
   slug: string,
   opts: { namespace?: string; pr?: number; versions?: readonly string[] },
-): Promise<CrossVersionResult> {
+): Promise<CrossVersionKeysResult> {
   const build = await crossVersionBuild(slug, opts);
-  const { keyCount, issues } = crossVersion(build.entries);
   return {
     slug: build.slug,
     namespace: build.namespace,
@@ -469,18 +469,9 @@ export async function crossVersionResult(
     versions: build.versions,
     activeVersions: build.activeVersions,
     prVersions: build.prVersions,
-    keyCount,
-    issues,
-    ...(build.prNumber === undefined ? {} : { prNumber: build.prNumber }),
+    zhVersions: build.zhVersions,
+    rows: alignKeys(build.entries),
   };
-}
-
-export async function crossVersionKeys(
-  slug: string,
-  opts: { namespace?: string; pr?: number; versions?: readonly string[] },
-): Promise<CrossVersionKeyRow[]> {
-  const build = await crossVersionBuild(slug, opts);
-  return alignKeys(build.entries);
 }
 
 export function textCompare(req: TextCompareRequest): TextCompareResult {

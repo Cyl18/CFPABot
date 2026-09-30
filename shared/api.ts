@@ -121,34 +121,7 @@ export interface SpecialFile {
   truncated: boolean;
 }
 
-export interface CrossVersionVariant {
-  en: string;
-  zh: string | null;
-  versions: string[];
-}
-
-export type CrossVersionIssueKind = "conflict" | "changed" | "untranslated";
-
-export interface CrossVersionIssue {
-  key: string;
-  kind: CrossVersionIssueKind;
-  variants: CrossVersionVariant[];
-  touched: boolean;
-}
-
 export const MAX_COMPARE_VERSIONS = 3;
-
-export interface CrossVersionResult {
-  slug: string;
-  namespace: string;
-  namespaces: string[];
-  versions: string[];
-  activeVersions: string[];
-  prVersions: string[];
-  keyCount: number;
-  issues: CrossVersionIssue[];
-  prNumber?: number;
-}
 
 export interface CrossVersionKeyCell {
   version: string;
@@ -160,6 +133,17 @@ export interface CrossVersionKeyRow {
   key: string;
   touched: boolean;
   cells: CrossVersionKeyCell[];
+}
+
+export interface CrossVersionKeysResult {
+  slug: string;
+  namespace: string;
+  namespaces: string[];
+  versions: string[];
+  activeVersions: string[];
+  prVersions: string[];
+  zhVersions: string[];
+  rows: CrossVersionKeyRow[];
 }
 
 export interface TextCompareRequest {

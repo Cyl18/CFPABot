@@ -1,67 +1,19 @@
-import type { CompareRow, ModSourceResult, RowStatus, Workspace } from "@shared/api.ts";
-import { ArrowLeftRight, Layers, Search } from "lucide-react";
+import type { CompareRow, Workspace } from "@shared/api.ts";
+import type { DiffCell, DiffEntry, DiffLane } from "@shared/diffview.ts";
+import { isDiffFilter, type DiffFilter } from "@shared/diffview.ts";
 import { type ReactNode, useMemo } from "react";
-import { DiffModePicker } from "@/components/DiffModePicker.tsx";
-import { InlineTextDiff } from "@/components/InlineTextDiff.tsx";
-import { cn } from "@/lib/cn.ts";
-import { PAIR_LAYOUTS, usePairLayout } from "@/lib/pairLayout.ts";
+import { DiffViewer } from "@/components/DiffViewer.tsx";
+import { parseWorkspaceKey } from "@/lib/api.ts";
 import { groupWorkspaces, workspaceParam } from "@/lib/paths.ts";
 import { useCompare, useModSource } from "@/lib/queries.ts";
 import type { PrSearch, SearchPatch } from "@/lib/search.ts";
-import { Badge } from "@/ui/Badge.tsx";
-import { Button } from "@/ui/Button.tsx";
-import { Card, CardBody, Stat } from "@/ui/Card.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
-import { Checkbox, Input } from "@/ui/Input.tsx";
-import { SkeletonTable } from "@/ui/Spinner.tsx";
-import { DataTable, type Column } from "@/ui/Table.tsx";
-import { Tabs } from "@/ui/Tabs.tsx";
+import { Checkbox } from "@/ui/Input.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
-import { parseWorkspaceKey } from "@/lib/api.ts";
 
-type FilterMode = "changed" | "all" | "zh-only" | "untranslated";
-
-const FILTERS: readonly { id: FilterMode; label: string }[] = [
-  { id: "changed", label: "有变更" },
-  { id: "all", label: "全部" },
-  { id: "zh-only", label: "仅中文变更" },
-  { id: "untranslated", label: "未翻译" },
-];
-
-const BORDER: Record<RowStatus, string> = {
-  add: "border-l-ok",
-  remove: "border-l-danger",
-  modify: "border-l-warn",
-  same: "border-l-transparent",
-};
-
-const STATUS_LABEL: Record<RowStatus, string> = { add: "新增", remove: "删除", modify: "修改", same: "未变" };
-
-function EnBlock({ row }: { row: CompareRow }) {
-  return (
-    <div className={cn("border-l-2 pl-2", BORDER[row.enStatus])}>
-      <InlineTextDiff before={row.baseEn} after={row.headEn} />
-    </div>
-  );
-}
-
-function ZhBlock({ row }: { row: CompareRow }) {
-  return (
-    <div className={cn("border-l-2 pl-2", BORDER[row.zhStatus])}>
-      <InlineTextDiff before={row.baseZh} after={row.headZh} />
-    </div>
-  );
-}
-
-function isChanged(row: CompareRow): boolean {
-  return row.enStatus !== "same" || row.zhStatus !== "same";
-}
-
-function isUntranslated(row: CompareRow): boolean {
-  const en = row.headEn ?? row.baseEn ?? "";
-  const zh = row.headZh ?? row.baseZh ?? "";
-  return en.trim() !== "" && zh.trim() === "";
+function cellOf(en: string | undefined, zh: string | undefined): DiffCell | null {
+  return en === undefined && zh === undefined ? null : { en: en ?? "", zh: zh ?? null };
 }
 
 export interface CompareTabProps {
@@ -73,10 +25,9 @@ export interface CompareTabProps {
 
 export function CompareTab({ n, workspaces, search, onSearchChange }: CompareTabProps) {
   const ws = search.ws;
+  const filter: DiffFilter = isDiffFilter(search.filter) ? search.filter : "diff";
   const query = search.q ?? "";
-  const mode: FilterMode = FILTERS.some((item) => item.id === search.mode) ? (search.mode as FilterMode) : "changed";
   const overlay = search.overlay === "1";
-  const [layout, setLayout] = usePairLayout();
 
   const selected = useMemo(() => {
     const parsed = ws !== undefined ? parseWorkspaceKey(ws) : null;
@@ -101,208 +52,136 @@ export function CompareTab({ n, workspaces, search, onSearchChange }: CompareTab
   const compare = useCompare(n, key);
   const modSource = useModSource(n, key, overlay);
 
-  const rows = useMemo(() => {
-    const all = compare.data?.rows ?? [];
-    const needle = query.trim().toLowerCase();
-    return all.filter((row) => {
-      if (mode === "changed" && !isChanged(row)) return false;
-      if (mode === "zh-only" && row.zhStatus === "same") return false;
-      if (mode === "untranslated" && !isUntranslated(row)) return false;
-      if (needle === "") return true;
-      return (
-        row.key.toLowerCase().includes(needle) ||
-        (row.baseEn ?? "").toLowerCase().includes(needle) ||
-        (row.headEn ?? "").toLowerCase().includes(needle) ||
-        (row.baseZh ?? "").toLowerCase().includes(needle) ||
-        (row.headZh ?? "").toLowerCase().includes(needle)
-      );
-    });
-  }, [compare.data, mode, query]);
+  const rows: readonly CompareRow[] = compare.data?.rows ?? [];
+  const modByKey = useMemo(() => new Map((modSource.data?.rows ?? []).map((row) => [row.key, row])), [modSource.data]);
 
-  const stats = useMemo(() => {
-    const all = compare.data?.rows ?? [];
-    const count = (status: RowStatus, side: "en" | "zh") =>
-      all.filter((row) => (side === "en" ? row.enStatus : row.zhStatus) === status).length;
-    return {
-      total: all.length,
-      enAdd: count("add", "en"),
-      enRemove: count("remove", "en"),
-      enModify: count("modify", "en"),
-      zhAdd: count("add", "zh"),
-      zhRemove: count("remove", "zh"),
-      zhModify: count("modify", "zh"),
-      untranslated: all.filter(isUntranslated).length,
-    };
-  }, [compare.data]);
-
-  const modByKey = useMemo(() => {
-    const map = new Map<string, ModSourceResult["rows"][number]>();
-    for (const row of modSource.data?.rows ?? []) map.set(row.key, row);
-    return map;
-  }, [modSource.data]);
-
-  const columns = useMemo(() => {
-    const list: Column<CompareRow>[] = [
+  const lanes: DiffLane[] = useMemo(() => {
+    const hasZh = (side: "base" | "head") => rows.some((row) => (side === "base" ? row.baseZh : row.headZh) !== undefined);
+    const base = rows.some((row) => row.baseEn !== undefined || row.baseZh !== undefined);
+    const head = rows.some((row) => row.headEn !== undefined || row.headZh !== undefined);
+    const whole = base === head ? null : head ? ("insert" as const) : ("delete" as const);
+    const source = modSource.data?.source ?? null;
+    return [
       {
-        id: "key",
-        header: "Key",
-        width: 280,
-        cell: (row) => (
-          <code className="block truncate font-mono text-xs" title={row.key}>
-            {row.key}
-          </code>
-        ),
+        id: "base",
+        label: "main",
+        role: "ref",
+        zhFile: hasZh("base"),
+        title: "main 分支的这份文件",
+        absent: !base,
+        ...(whole === "delete" ? { whole } : {}),
       },
+      {
+        id: "head",
+        label: "PR",
+        role: "real",
+        highlight: true,
+        zhFile: hasZh("head"),
+        title: `PR #${n} 里的这份文件`,
+        absent: !head,
+        ...(whole === "insert" ? { whole } : {}),
+      },
+      ...(overlay
+        ? [
+            {
+              id: "jar",
+              label: "模组 jar",
+              role: "extra" as const,
+              title: source === null ? "模组 jar 里的 en_us" : `${source.provider} · ${source.fileName}`,
+            },
+          ]
+        : []),
     ];
-    if (layout === "split") {
-      list.push(
-        { id: "en", header: "英文", cell: (row) => <EnBlock row={row} /> },
-        { id: "zh", header: "中文", cell: (row) => <ZhBlock row={row} /> },
-      );
-    } else {
-      list.push({
-        id: "pair",
-        header: "英文 / 中文",
-        cell: (row) => (
-          <div className="flex flex-col gap-1">
-            <EnBlock row={row} />
-            <ZhBlock row={row} />
-          </div>
-        ),
-      });
-    }
-    if (overlay) {
-      list.push({
-        id: "mod",
-        header: "模组 en_us",
-        width: 300,
-        cell: (row) => {
-          const hit = modByKey.get(row.key);
-          if (!hit) return <span className="text-muted">-</span>;
-          return (
-            <div className={cn("flex flex-col gap-1 border-l-2 pl-2", BORDER[hit.status])}>
-              <Badge tone={hit.status === "same" ? "neutral" : "warn"}>{STATUS_LABEL[hit.status]}</Badge>
-              <InlineTextDiff before={hit.mod} after={hit.pr} />
-            </div>
-          );
-        },
-      });
-    }
-    return list;
-  }, [layout, overlay, modByKey]);
+  }, [rows, overlay, n, modSource.data]);
+
+  const entries: DiffEntry[] = useMemo(
+    () =>
+      rows.map((row) => {
+        const hit = modByKey.get(row.key);
+        return {
+          key: row.key,
+          cells: {
+            base: cellOf(row.baseEn, row.baseZh),
+            head: cellOf(row.headEn, row.headZh),
+            jar: hit?.mod === undefined ? null : { en: hit.mod, zh: null },
+          },
+        };
+      }),
+    [rows, modByKey],
+  );
 
   if (workspaces.length === 0) {
     return <EmptyState title="没有可比较的工作区" description="此 PR 没有检测到可比较的语言文件工作区。" />;
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <CardBody className="flex flex-col gap-3">
-          <div className="grid grid-cols-[max-content_1fr] items-start gap-x-3 gap-y-2">
-            {groups.length > 1 && (
-              <SelectorRow label="模组">
-                {groups.map((item) => (
-                  <ToggleChip
-                    key={item.slug}
-                    mono
-                    pressed={item === mod}
-                    onClick={() => open(item.namespaces.flatMap((entry) => entry.workspaces))}
-                  >
-                    {item.slug}
-                  </ToggleChip>
-                ))}
-              </SelectorRow>
-            )}
-            {mod !== undefined && mod.namespaces.length > 1 && (
-              <SelectorRow label="命名空间">
-                {mod.namespaces.map((item) => (
-                  <ToggleChip key={item.namespace} mono pressed={item === group} onClick={() => open(item.workspaces)}>
-                    {item.namespace}
-                  </ToggleChip>
-                ))}
-              </SelectorRow>
-            )}
-            {group !== undefined && (
-              <SelectorRow label="版本">
-                {group.workspaces.map((item) => (
-                  <ToggleChip key={item.version} mono pressed={item === selected} onClick={() => open([item])}>
-                    {item.version}
-                  </ToggleChip>
-                ))}
-              </SelectorRow>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Tabs items={FILTERS} value={mode} onChange={(next) => onSearchChange({ mode: next === "changed" ? undefined : next })} ariaLabel="差异筛选" />
-            <Tabs items={PAIR_LAYOUTS} value={layout} onChange={setLayout} ariaLabel="对照布局" />
-            <Input
-              wrapperClassName="w-full sm:w-72"
-              icon={<Search />}
-              aria-label="搜索 key 或文本"
-              placeholder="搜索 key / 英文 / 中文"
-              value={query}
-              onChange={(event) => onSearchChange({ q: event.target.value === "" ? undefined : event.target.value })}
-            />
-            <Checkbox label="叠加模组 en_us" checked={overlay} onChange={(event) => onSearchChange({ overlay: event.target.checked ? "1" : undefined })} />
-            <DiffModePicker />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="Key 总数" value={stats.total} />
-            <Stat label="EN 新增 / 删除 / 修改" value={`${stats.enAdd} / ${stats.enRemove} / ${stats.enModify}`} tone="info" />
-            <Stat label="ZH 新增 / 删除 / 修改" value={`${stats.zhAdd} / ${stats.zhRemove} / ${stats.zhModify}`} tone="warn" />
-            <Stat label="未翻译" value={stats.untranslated} tone="danger" />
-          </div>
-
-          {compare.data && compare.data.missing.length > 0 && (
-            <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
-              缺失文件：{compare.data.missing.join("、")}
-            </p>
-          )}
-          {overlay && modSource.data?.note !== undefined && <p className="text-xs text-muted">模组来源：{modSource.data.note}</p>}
-          {overlay && modSource.data?.source !== null && modSource.data !== undefined && (
-            <p className="text-xs text-muted">
-              对比来源：{modSource.data.source?.provider} · {modSource.data.source?.fileName}
-            </p>
-          )}
-        </CardBody>
-      </Card>
-
-      {compare.error !== null ? (
-        <ErrorState error={compare.error} onRetry={() => void compare.refetch()} />
-      ) : compare.isPending ? (
-        <SkeletonTable rows={10} columns={3} />
-      ) : rows.length === 0 ? (
-        <EmptyState
-          icon={<Search aria-hidden="true" className="size-5" />}
-          title="没有匹配的行"
-          description="当前筛选条件下没有差异行。"
-          action={
-            <Button size="sm" onClick={() => onSearchChange({ mode: "all" })} icon={<Layers aria-hidden="true" className="size-3.5" />}>
-              查看全部
-            </Button>
-          }
-        />
-      ) : (
-        <DataTable
-          columns={columns}
-          rows={rows}
-          rowKey={(row) => row.key}
-          ariaLabel="工作区翻译差异"
-          virtualize
-          rowHeight={layout === "stacked" ? 64 : 40}
-        />
+  const leading = (
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-[max-content_1fr] items-start gap-x-3 gap-y-2">
+        {groups.length > 1 && (
+          <SelectorRow label="模组">
+            {groups.map((item) => (
+              <ToggleChip key={item.slug} mono pressed={item === mod} onClick={() => open(item.namespaces.flatMap((entry) => entry.workspaces))}>
+                {item.slug}
+              </ToggleChip>
+            ))}
+          </SelectorRow>
+        )}
+        {mod !== undefined && mod.namespaces.length > 1 && (
+          <SelectorRow label="命名空间">
+            {mod.namespaces.map((item) => (
+              <ToggleChip key={item.namespace} mono pressed={item === group} onClick={() => open(item.workspaces)}>
+                {item.namespace}
+              </ToggleChip>
+            ))}
+          </SelectorRow>
+        )}
+        {group !== undefined && (
+          <SelectorRow label="版本">
+            {group.workspaces.map((item) => (
+              <ToggleChip key={item.version} mono pressed={item === selected} onClick={() => open([item])}>
+                {item.version}
+              </ToggleChip>
+            ))}
+          </SelectorRow>
+        )}
+      </div>
+      {compare.data !== undefined && compare.data.missing.length > 0 && (
+        <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">缺失文件：{compare.data.missing.join("、")}</p>
       )}
-
-      {overlay && modSource.error !== null && <ErrorState error={modSource.error} onRetry={() => void modSource.refetch()} />}
-
-      <p className="flex items-center gap-1.5 text-xs text-muted">
-        <ArrowLeftRight aria-hidden="true" className="size-3.5" />
-        行内差异在浏览器本地计算，仅针对当前可见行。
-      </p>
     </div>
+  );
+
+  const note =
+    !overlay ? undefined : modSource.error !== null ? (
+      <ErrorState error={modSource.error} onRetry={() => void modSource.refetch()} />
+    ) : modSource.isPending ? (
+      <p className="text-xs text-muted">正在读取模组 en_us…</p>
+    ) : (
+      <p className="text-xs text-muted">
+        {modSource.data?.note !== undefined
+          ? `模组来源：${modSource.data.note}`
+          : `对比来源：${modSource.data?.source?.provider ?? "-"} · ${modSource.data?.source?.fileName ?? "-"}`}
+      </p>
+    );
+
+  return (
+    <DiffViewer
+      mode="compare"
+      lanes={lanes}
+      active={overlay && modSource.data !== undefined ? ["base", "head", "jar"] : ["base", "head"]}
+      entries={entries}
+      filter={filter}
+      onFilterChange={(next) => onSearchChange({ filter: next === "diff" ? undefined : next })}
+      query={query}
+      onQueryChange={(next) => onSearchChange({ q: next === "" ? undefined : next })}
+      defaultLayout="merge"
+      leading={leading}
+      controls={<Checkbox label="叠加模组 en_us" checked={overlay} onChange={(event) => onSearchChange({ overlay: event.target.checked ? "1" : undefined })} />}
+      note={note}
+      pending={compare.isPending}
+      error={compare.error}
+      onRetry={() => void compare.refetch()}
+    />
   );
 }
 

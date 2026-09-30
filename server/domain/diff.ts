@@ -1,9 +1,7 @@
 import type {
   CompareRow,
-  CrossVersionIssue,
   CrossVersionKeyCell,
   CrossVersionKeyRow,
-  CrossVersionVariant,
   RowStatus,
   TextCompareResult,
 } from "../../shared/api.ts";
@@ -101,79 +99,6 @@ export interface CrossVersionInput {
   en?: Map<string, string>;
   zh?: Map<string, string>;
   touched?: ReadonlySet<string>;
-}
-
-const KIND_ORDER: Record<CrossVersionIssue["kind"], number> = { conflict: 0, changed: 1, untranslated: 2 };
-
-export function crossVersion(input: readonly CrossVersionInput[]): { keyCount: number; issues: CrossVersionIssue[] } {
-  const entries = input.map((entry) => ({
-    ...entry,
-    ...(entry.en === undefined ? {} : { en: withLiteralNewlines(entry.en) }),
-    ...(entry.zh === undefined ? {} : { zh: withLiteralNewlines(entry.zh) }),
-  }));
-
-  const keys = new Set<string>();
-  for (const entry of entries) {
-    for (const key of entry.en?.keys() ?? []) keys.add(key);
-  }
-
-  const issues: CrossVersionIssue[] = [];
-  for (const key of keys) {
-    const zhOf = (entry: CrossVersionInput) => {
-      const raw = entry.zh?.get(key);
-      return raw === undefined || raw === "" ? null : raw;
-    };
-    const byEn = new Map<string, CrossVersionInput[]>();
-    for (const entry of entries) {
-      const en = entry.en?.get(key);
-      if (en === undefined || en === "") continue;
-      const group = byEn.get(en) ?? [];
-      group.push(entry);
-      byEn.set(en, group);
-    }
-
-    if (byEn.size > 1) {
-      const byPair = new Map<string, CrossVersionVariant>();
-      for (const entry of entries) {
-        const en = entry.en?.get(key);
-        if (en === undefined || en === "") continue;
-        const zh = zhOf(entry);
-        const id = `${en}\u0000${zh ?? "\u0001"}`;
-        const variant = byPair.get(id) ?? { en, zh, versions: [] };
-        variant.versions.push(entry.version);
-        byPair.set(id, variant);
-      }
-      const touched = entries.some((entry) => entry.touched?.has(key) === true && entry.en?.has(key) === true);
-      issues.push({ key, kind: "changed", variants: [...byPair.values()], touched });
-    }
-
-    for (const [en, all] of byEn) {
-      const group = all.filter((entry) => entry.zh !== undefined);
-      if (group.length < 2) continue;
-      const byZh = new Map<string | null, string[]>();
-      for (const entry of group) {
-        const zh = zhOf(entry);
-        const list = byZh.get(zh) ?? [];
-        list.push(entry.version);
-        byZh.set(zh, list);
-      }
-      const translated = [...byZh.keys()].filter((zh) => zh !== null).length;
-      const kind = translated >= 2 ? "conflict" : translated === 1 && byZh.has(null) ? "untranslated" : null;
-      if (kind === null) continue;
-      const variants: CrossVersionVariant[] = [...byZh].map(([zh, versions]) => ({ en, zh, versions }));
-      variants.sort((a, b) => (a.zh === null ? 1 : 0) - (b.zh === null ? 1 : 0) || b.versions.length - a.versions.length);
-      const touched = group.some((entry) => entry.touched?.has(key) === true);
-      issues.push({ key, kind, variants, touched });
-    }
-  }
-
-  issues.sort(
-    (a, b) =>
-      Number(b.touched) - Number(a.touched) ||
-      KIND_ORDER[a.kind] - KIND_ORDER[b.kind] ||
-      (a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
-  );
-  return { keyCount: keys.size, issues };
 }
 
 export function alignKeys(input: readonly CrossVersionInput[]): CrossVersionKeyRow[] {
