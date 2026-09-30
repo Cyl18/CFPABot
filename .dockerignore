@@ -10,5 +10,6 @@ temp/
 config/llm.json
 config/*.pem
 config/secret.key
+config/vanilla-terms/
 desktop.ini
 *.tsbuildinfo

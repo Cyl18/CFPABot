@@ -105,7 +105,7 @@ export function useRefreshPr(n: number) {
 export function useRefreshCache() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (what: "prs" | "mirror" | "mappings") => api.refreshCache(what),
+    mutationFn: (what: "prs" | "mirror" | "mappings" | "glossary") => api.refreshCache(what),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: qk.status });
       void client.invalidateQueries({ queryKey: qk.prs("all") });

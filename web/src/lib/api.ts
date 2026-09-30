@@ -167,7 +167,7 @@ export const api = {
     get<LogEntry[]>(`/api/admin/logs${query({ level: level === "all" ? undefined : level, limit })}`, signal),
   mappings: (signal?: AbortSignal) => get<{ mappings: MappingEntry[]; unmapped: string[] }>("/api/admin/mappings", signal),
   addMapping: (slug: string, curseforgeId: number) => send<{ ok: true }>("PUT", "/api/admin/mappings", { slug, curseforgeId }),
-  refreshCache: (what: "prs" | "mirror" | "mappings") => send<{ ok: true }>("POST", `/api/admin/cache/${what}`),
+  refreshCache: (what: "prs" | "mirror" | "mappings" | "glossary") => send<{ ok: true }>("POST", `/api/admin/cache/${what}`),
 };
 
 export type Api = typeof api;

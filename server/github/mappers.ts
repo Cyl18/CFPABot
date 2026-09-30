@@ -16,6 +16,7 @@ export interface RawPull {
   html_url: string;
   base: { ref: string; sha: string };
   head: { ref: string; sha: string; repo?: { name: string; owner?: { login: string } | null } | null };
+  maintainer_can_modify?: boolean | null;
 }
 
 export interface RawFile {
@@ -81,6 +82,7 @@ export function mapPull(d: RawPull): GhPull {
     headSha: d.head.sha,
     headRepoOwner: d.head.repo?.owner?.login ?? null,
     headRepoName: d.head.repo?.name ?? null,
+    maintainerCanModify: d.maintainer_can_modify ?? null,
   };
 }
 

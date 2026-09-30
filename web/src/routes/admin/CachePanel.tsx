@@ -9,6 +9,7 @@ const TARGETS = [
   { id: "prs", label: "PR 缓存", description: "重新拉取开放 PR 列表并刷新文件缓存。" },
   { id: "mirror", label: "镜像仓库", description: "同步 main 分支镜像，用于跨版本与模组列表。" },
   { id: "mappings", label: "映射扫描", description: "扫描 CurseForge 补全 slug 映射（需要 API Key）。" },
+  { id: "glossary", label: "术语表", description: "从 CFPAOrg/Glossary 拉取原版术语表。" },
 ] as const;
 
 export function CachePanel() {
@@ -36,6 +37,7 @@ export function CachePanel() {
             {target.id === "prs" && `开放 PR：${status.data?.prCache.openCount ?? "-"} · 上次刷新 ${formatRelative(status.data?.prCache.refreshedAt)}`}
             {target.id === "mirror" && `模组索引：${status.data?.modList.count ?? "-"} 个 · 更新于 ${formatRelative(status.data?.modList.updatedAt)}`}
             {target.id === "mappings" && `映射：${status.data?.mappings.count ?? "-"} 条 · 更新于 ${formatRelative(status.data?.mappings.updatedAt)}`}
+            {target.id === "glossary" && `写入 config/vanilla-terms，启动与每日自动同步，失败时沿用上次数据。`}
           </CardBody>
         </Card>
       ))}

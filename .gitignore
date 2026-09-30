@@ -7,6 +7,7 @@ logs/
 config/llm.json
 config/*.pem
 config/secret.key
+config/vanilla-terms/
 *.tsbuildinfo
 temp/
 desktop.ini

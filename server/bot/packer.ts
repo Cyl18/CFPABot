@@ -1,7 +1,9 @@
 import type { PrFile } from "../../shared/api.ts";
+import { repo } from "../env.ts";
 import type { GhPull } from "../github/client.ts";
 import { gh } from "../github/client.ts";
 import { logger } from "../log.ts";
+import { BRANCH_NOT_MAIN, Lines, MAINTAINER_IMAGE, MAINTAINER_WARNING, messageOf } from "./render.ts";
 
 export const PACKER_WORKFLOW_NAME = "PR Packer";
 export const PACKER_CLOSED = ":milky_way: PR 已经关闭。";
@@ -24,21 +26,52 @@ export async function autoApprovePacker(pull: GhPull, files: PrFile[]): Promise<
   log.info("已自动批准打包器", { pr: pull.number, run: run.id });
 }
 
-export async function collectPacker(pull: GhPull, files: PrFile[]): Promise<{ lines: string[] }> {
-  const run = (await gh.listPackerRuns(pull.headSha))[0];
-  const open = pull.state === "open";
-  if (!run) return { lines: [open ? "⚠ 暂时没有检测到 workflow." : PACKER_CLOSED] };
-  if (run.conclusion === "action_required") {
-    if (touchesSource(files)) {
-      return { lines: ["ℹ 由于修改了源代码，不能自动批准执行 PR Packer."] };
+export async function collectPacker(pull: GhPull, files: PrFile[]): Promise<string> {
+  const sb = new Lines();
+  try {
+    if (pull.baseRef !== repo.defaultBranch) {
+      sb.line(BRANCH_NOT_MAIN);
+      sb.line();
+      sb.line("---");
+      sb.line();
     }
-    await gh.approveRun(run.id);
-    return { lines: ["ℹ 已经自动批准打包器执行，可能需要等待一段时间。"] };
+    if (pull.maintainerCanModify === false && pull.headRepoOwner !== repo.owner && pull.state === "open") {
+      sb.line(MAINTAINER_WARNING);
+      sb.line(MAINTAINER_IMAGE);
+      sb.line();
+      sb.line("---");
+      sb.line();
+    }
+    const run = (await gh.listPackerRuns(pull.headSha))[0];
+    const open = pull.state === "open";
+    if (!run) {
+      sb.line(open ? "⚠ 暂时没有检测到 workflow." : PACKER_CLOSED);
+      return sb.text();
+    }
+    if (run.conclusion === "action_required") {
+      if (touchesSource(files)) {
+        sb.line("ℹ 由于修改了源代码，不能自动批准执行 PR Packer。");
+        return sb.text();
+      }
+      await gh.approveRun(run.id);
+      sb.line("ℹ 已经自动批准打包器执行，可能需要等待一段时间。");
+      return sb.text();
+    }
+    if (run.status === "queued" || run.status === "in_progress") {
+      sb.line(open ? ":milky_way: 打包器正在执行, 请耐心等待。" : PACKER_CLOSED);
+      return sb.text();
+    }
+    const artifacts = await gh.listArtifacts(run.id);
+    if (artifacts.length === 0) {
+      sb.line("ℹ 此 PR 没有更改语言文件或者 PR-Packer 出现了问题。");
+      return sb.text();
+    }
+    sb.line(":floppy_disk: 基于此 PR 所打包的资源包：");
+    for (const artifact of artifacts) sb.line(`- [${artifact.name}.zip](${artifact.url})`);
+    return sb.text();
+  } catch (err) {
+    log.error("更新编译 artifacts 出错", { error: err });
+    sb.line(`⚠ 更新编译 artifacts 出错: ${messageOf(err)}`);
+    return sb.text();
   }
-  if (run.status === "queued" || run.status === "in_progress") {
-    return { lines: [open ? ":milky_way: 打包器正在执行, 请耐心等待。" : PACKER_CLOSED] };
-  }
-  const artifacts = await gh.listArtifacts(run.id);
-  if (artifacts.length === 0) return { lines: ["ℹ 此 PR 没有更改语言文件或者 PR-Packer 出现了问题。"] };
-  return { lines: [":floppy_disk: 基于此 PR 所打包的资源包：", ...artifacts.map((a) => `- [${a.name}.zip](${a.url})`)] };
 }

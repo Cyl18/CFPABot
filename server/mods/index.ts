@@ -1,4 +1,4 @@
-import { mcMatches, modRefOf, parseVersionDir } from "../domain/path.ts";
+import { mcMatches, modRefOf, parseVersionDir, standardVersionOf } from "../domain/path.ts";
 import { env } from "../env.ts";
 import { logger } from "../log.ts";
 import { ttlCache } from "../ttl.ts";
@@ -58,18 +58,21 @@ async function curseforgeInfo(slug: string): Promise<ModInfo | null> {
   let mod = mappedId === undefined ? null : await cf.getMod(mappedId);
   mod ??= await cf.searchBySlug(slug);
   if (!mod) return null;
+  return { ...cfInfoFromMod(mod, slug), dependencies: await curseforgeDependencies(mod) };
+}
+
+function cfInfoFromMod(mod: cf.CfMod, fallbackSlug: string): Omit<ModInfo, "dependencies"> {
   const iconUrl = thumbnail(mod);
   return {
     provider: "curseforge",
     id: String(mod.id),
-    slug: mod.slug || slug,
+    slug: mod.slug || fallbackSlug,
     name: mod.name,
-    url: curseforgeUrl(mod, slug),
+    url: curseforgeUrl(mod, fallbackSlug),
     ...(iconUrl ? { iconUrl } : {}),
     ...(mod.links?.sourceUrl ? { sourceUrl: mod.links.sourceUrl } : {}),
     allowDistribution: mod.allowModDistribution !== false,
     isMCreator: mod.categories.some((category) => category.id === MCREATOR_CATEGORY_ID),
-    dependencies: await curseforgeDependencies(mod),
   };
 }
 
@@ -152,6 +155,123 @@ export const mods = {
     return mod.provider === "modrinth"
       ? pickModrinthFile(mod, parsed.mc, loaders)
       : pickCurseforgeFile(mod, parsed.mc, loaders);
+  },
+
+  async pickCheckCfFile(raw: cf.CfMod, versionString: string, mode: "moden" | "domain" | "lang"): Promise<ModFile | null> {
+    const standard = standardVersionOf(versionString);
+    const fabric = versionString.endsWith("-fabric");
+    const rank = (file: cf.CfFile): number =>
+      fabric ? (file.gameVersions.includes("Fabric") ? 0 : 1) : file.gameVersions.includes("Fabric") ? 1 : 0;
+    const select = (files: cf.CfFile[]): cf.CfFile | null => {
+      const sorted = [...files];
+      if (mode === "moden") sorted.sort((a, b) => b.id - a.id || rank(a) - rank(b));
+      else if (mode === "domain") sorted.sort((a, b) => rank(a) - rank(b));
+      return (
+        sorted.find((file) =>
+          (file.gameVersions.find((version) => version.includes(".")) ?? "x").startsWith(standard),
+        ) ?? null
+      );
+    };
+    const file = select(raw.latestFiles) ?? select(await cf.getAllFiles(raw.id));
+    if (file === null) return null;
+    return {
+      provider: "curseforge",
+      id: String(file.id),
+      fileName: file.fileName,
+      url: file.downloadUrl ?? (await cf.downloadUrl(raw.id, file.id)),
+      gameVersions: file.gameVersions,
+      loaders: file.gameVersions.filter((gv) => LOADER_NAMES.includes(gv.toLowerCase())).map((gv) => gv.toLowerCase()),
+      date: file.fileDate,
+    };
+  },
+
+  async pickCheckModrinthFile(mod: { slug: string }, versionString: string): Promise<ModFile | null> {
+    const standard = standardVersionOf(versionString);
+    const fabric = versionString.endsWith("-fabric");
+    const versions = await mr.getVersions(mod.slug, { loaders: [fabric ? "fabric" : "forge"] });
+    const version = versions.find((entry) => entry.game_versions.some((gv) => gv.startsWith(standard)));
+    if (version === undefined) return null;
+    const file = (fabric ? version.files.find((f) => f.filename.toLowerCase().includes("fabric")) : undefined) ?? version.files[0];
+    if (file === undefined) return null;
+    return {
+      provider: "modrinth",
+      id: file.hashes?.sha1 ?? version.id,
+      fileName: file.filename,
+      url: file.url,
+      gameVersions: version.game_versions,
+      loaders: version.loaders,
+      date: version.date_published,
+    };
+  },
+
+  async resolveByMapping(slug: string): Promise<{ raw: cf.CfMod; name: string; url: string; iconUrl?: string; sourceUrl?: string; allowDistribution: boolean } | null> {
+    const mappedId = await mappings.get(slug);
+    if (mappedId === undefined) return null;
+    const raw = await cf.getMod(mappedId);
+    if (raw === null) throw new Error(`找不到 CurseForge 模组 ${mappedId}`);
+    const info = cfInfoFromMod(raw, slug);
+    return {
+      raw,
+      name: info.name,
+      url: info.url,
+      ...(info.iconUrl ? { iconUrl: info.iconUrl } : {}),
+      ...(info.sourceUrl ? { sourceUrl: info.sourceUrl } : {}),
+      allowDistribution: info.allowDistribution,
+    };
+  },
+
+  async cfLangDomain(raw: cf.CfMod, versionString: string): Promise<string> {
+    try {
+      const file = await mods.pickCheckCfFile(raw, versionString, "lang");
+      if (file === null) return "未知";
+      const jar = await readJar(file);
+      return jar?.langDirs[0] ?? "未知";
+    } catch {
+      return "未知";
+    }
+  },
+
+  async modrinthLangDomain(slug: string, versionString: string): Promise<string> {
+    try {
+      const file = await mods.pickCheckModrinthFile({ slug }, versionString);
+      if (file === null) return "未知";
+      const jar = await readJar(file);
+      return jar?.langDirs[0] ?? "未知";
+    } catch {
+      return "未知";
+    }
+  },
+
+  async modrinthProject(slug: string): Promise<ModInfo | null> {
+    return modrinthInfo(slug);
+  },
+
+  async commentDependencies(raw: cf.CfMod): Promise<ModDep[]> {
+    const newest = [...raw.latestFiles]
+      .sort((a, b) => b.fileDate.localeCompare(a.fileDate))
+      .find((file) => file.dependencies.length > 0);
+    const ids = [
+      ...new Set(
+        (newest?.dependencies ?? []).filter((dep) => dep.relationType === REQUIRED_DEPENDENCY).map((dep) => dep.modId),
+      ),
+    ];
+    if (ids.length === 0) return [];
+    const found = await cf.getModsByIds(ids);
+    const byId = new Map(found.map((mod) => [mod.id, mod]));
+    return ids.flatMap((id) => {
+      const dep = byId.get(id);
+      if (dep === undefined) return [];
+      const iconUrl = thumbnail(dep);
+      return [
+        {
+          id: String(dep.id),
+          slug: dep.slug,
+          name: dep.name,
+          url: curseforgeUrl(dep, dep.slug),
+          ...(iconUrl ? { iconUrl } : {}),
+        },
+      ];
+    });
   },
 
   readJar(file: ModFile): Promise<JarInfo | null> {

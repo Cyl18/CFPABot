@@ -152,3 +152,96 @@ export function langPathFor(path: string, locale: Locale): string[] {
   const names = locale === "en_us" ? ["en_us", "en_US"] : ["zh_cn", "zh_CN"];
   return names.map((name) => path.replace(/[^/]*$/, (file) => file.replace(/^(?:zh_cn|zh_CN|en_us|en_US)(?=\.)/, name)));
 }
+
+const MC_ORDER = ["1.12", "1.16", "1.18", "1.19", ...Array.from({ length: 21 }, (_, i) => `1.${20 + i}`), "26.1"];
+
+export interface CommentVersionDir {
+  dir: string;
+  mc: string;
+  loader: "forge" | "fabric";
+  index: number;
+  label: string;
+}
+
+export function commentVersionDir(dir: string): CommentVersionDir | null {
+  if (dir === "1.12.2") return { dir, mc: "1.12", loader: "forge", index: 0, label: "1.12" };
+  const match = /^(\d+\.\d+)(-fabric)?$/.exec(dir);
+  const mc = match?.[1];
+  if (mc === undefined) return null;
+  const index = MC_ORDER.indexOf(mc);
+  if (index < 0 || mc === "1.12") return null;
+  const loader = match?.[2] ? ("fabric" as const) : ("forge" as const);
+  if (loader === "fabric" && mc === "1.19") return null;
+  return { dir, mc, loader, index, label: dir };
+}
+
+export function invalidVersionError(versionString: string): Error {
+  return new Error(
+    `Specified argument was out of the range of valid values. (Parameter 'version')\nActual value was ${versionString}.`,
+  );
+}
+
+export function standardVersionOf(dir: string): string {
+  return dir === "1.12.2" ? "1.12.2" : dir.replace(/-fabric$/, "");
+}
+
+export interface CommentModPath {
+  slug: string;
+  versionString: string;
+  domain: string;
+}
+
+export function commentModPathOf(path: string): CommentModPath | null {
+  const parts = path.split("/");
+  if (parts.length < 7 || parts[0] !== "projects") return null;
+  const slug = parts[2] as string;
+  const versionString = parts[3] as string;
+  const domain = parts[4] as string;
+  if (commentVersionDir(versionString) === null) throw invalidVersionError(versionString);
+  return { slug, versionString, domain };
+}
+
+export function modInfosOf(paths: readonly string[]): CommentModPath[] {
+  const seen = new Set<string>();
+  const infos: CommentModPath[] = [];
+  for (const path of paths) {
+    const info = commentModPathOf(path);
+    if (info === null || info.slug === "1UNKNOWN") continue;
+    const key = `${info.domain}\u0000${info.slug}\u0000${info.versionString}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    infos.push(info);
+  }
+  return infos;
+}
+
+export interface DiffModPath {
+  slug: string;
+  dir: string;
+  domain: string;
+}
+
+export function diffModPathOf(path: string): DiffModPath | null {
+  const parts = path.split("/");
+  if (parts.length < 7 || parts[0] !== "projects") return null;
+  const standard = parts[1] === "assets";
+  const dir = (standard ? parts[3] : parts[1]) as string;
+  const slug = (standard ? parts[2] : parts[3]) as string;
+  const domain = parts[4] as string;
+  if (commentVersionDir(dir) === null) throw invalidVersionError(dir);
+  return { slug, dir, domain };
+}
+
+export function diffModPathsOf(paths: readonly string[]): DiffModPath[] {
+  const seen = new Set<string>();
+  const out: DiffModPath[] = [];
+  for (const path of paths) {
+    const parsed = diffModPathOf(path);
+    if (parsed === null) continue;
+    const key = `${parsed.dir}\u0000${parsed.slug}\u0000${parsed.domain}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(parsed);
+  }
+  return out;
+}

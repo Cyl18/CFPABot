@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
+import { mcMatches } from "./path.ts";
 
 export interface TermHit {
   en: string;
@@ -131,7 +132,7 @@ function applies(entry: IndexEntry, key: string, scopes: { domain: string; re: R
   }
   if (entry.versions !== undefined) {
     const v = version ?? versionOf(key);
-    if (v === null || !entry.versions.includes(v)) return false;
+    if (v === null || !entry.versions.some((game) => mcMatches(v, game))) return false;
   }
   return true;
 }

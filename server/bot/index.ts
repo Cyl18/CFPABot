@@ -57,10 +57,10 @@ async function step(name: string, fn: () => Promise<void>): Promise<void> {
   }
 }
 
-async function refreshPull(prNumber: number, staleSha: string | null): Promise<void> {
+async function refreshPull(prNumber: number, staleSha: string | null, refreshPacker: boolean): Promise<void> {
   await step("prdata.refresh", () => prdata.refresh(prNumber));
   if (staleSha) await step("agent.markStale", () => agent.markStale(prNumber, staleSha));
-  await step("info-comment", () => refreshInfoComment(prNumber));
+  await step("info-comment", () => refreshInfoComment(prNumber, { refreshPacker }));
   await step("labels", () => syncLabels(prNumber));
   await step("label-check", () => labelCheck(prNumber));
   await step("packer", async () => {
@@ -77,7 +77,13 @@ async function onPullRequest(payload: unknown): Promise<void> {
   }
   const { action, number, pull_request } = parsed.data;
   if (action === "opened" || action === "reopened" || action === "synchronize") {
-    track(refreshPull(number, action === "synchronize" ? pull_request.head.sha : null));
+    track(
+      refreshPull(
+        number,
+        action === "synchronize" ? pull_request.head.sha : null,
+        action !== "opened",
+      ),
+    );
     return;
   }
   if (action === "edited") {
@@ -122,7 +128,7 @@ async function onIssueComment(payload: unknown): Promise<void> {
   if (!comment.body.startsWith(CYBOT_MARKER)) return;
   if (comment.user.login !== env.BOT_LOGIN && comment.user.login !== "Cyl18-Bot") return;
   if (!comment.body.includes("- [x] 🔄") && !comment.body.includes("- [x] 🔃")) return;
-  track(refreshInfoComment(issue.number, { force: true }));
+  track(refreshInfoComment(issue.number, { force: true, refreshPacker: true }));
 }
 
 async function onWorkflowRun(payload: unknown): Promise<void> {
@@ -146,7 +152,7 @@ async function onWorkflowRun(payload: unknown): Promise<void> {
         if (!pull) return;
         const { files } = await prdata.files(pull.number);
         await autoApprovePacker(pull, files);
-        await refreshInfoComment(pull.number);
+        await refreshInfoComment(pull.number, { refreshPacker: true });
       } catch (err) {
         log.error("处理 workflow_run 失败", { error: err });
       }

@@ -2,7 +2,7 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import { lookupTerm } from "../../domain/terms.ts";
 import { glossaryLookup } from "../glossary.ts";
-import { vanillaTerms } from "../terms.ts";
+import { glossaryTerms } from "../../domain/glossary.ts";
 import { jsonResult } from "./shared.ts";
 
 const GLOSSARY_PARAMS = Type.Object({
@@ -18,7 +18,7 @@ export function glossaryTool(): AgentTool<typeof GLOSSARY_PARAMS> {
     parameters: GLOSSARY_PARAMS,
     execute: async (_toolCallId, params) => {
       const limit = Math.min(50, Math.max(1, Math.floor(params.limit ?? 10)));
-      const terms = await vanillaTerms();
+      const terms = await glossaryTerms();
       const vanilla = terms ? lookupTerm(terms, params.query, limit) : [];
       const external = await glossaryLookup(params.query, limit);
       return jsonResult({

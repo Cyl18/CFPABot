@@ -5,6 +5,7 @@ import { mirror } from "../mirror.ts";
 import { mods } from "../mods/index.ts";
 import { prdata } from "../prdata.ts";
 import { llm } from "../agent/index.ts";
+import { syncGlossary } from "../domain/glossary.ts";
 import { requireAdmin } from "./auth.ts";
 import type { AppEnv } from "./auth.ts";
 import { HttpError, parseBody, parseQuery } from "./errors.ts";
@@ -82,6 +83,7 @@ adminRoutes.post("/cache/:what", (c) => {
   if (what === "prs") background("PR 缓存", () => prdata.refreshAll());
   else if (what === "mirror") background("镜像", () => mirror.sync());
   else if (what === "mappings") background("映射", () => mods.mappings.scan());
+  else if (what === "glossary") background("术语表", () => syncGlossary());
   else throw new HttpError(400, "未知的缓存类型", "invalid_cache");
   return c.json({ ok: true });
 });

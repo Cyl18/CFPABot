@@ -4,7 +4,7 @@ import { unzipSync } from "fflate";
 import { paths } from "../paths.ts";
 import { logger } from "../log.ts";
 import { downloadBytes } from "./http.ts";
-import type { JarInfo, JarLang, ModFile } from "./types.ts";
+import type { JarInfo, JarLang, JarLangLoose, ModFile } from "./types.ts";
 import type { Locale } from "../domain/path.ts";
 
 const log = logger("mods");
@@ -40,23 +40,50 @@ export async function readJar(file: ModFile): Promise<JarInfo | null> {
   }
   const decoder = new TextDecoder("utf-8");
   const domains = new Set<string>();
+  const assetDirs: string[] = [];
+  const assetSeen = new Set<string>();
+  const langDirs: string[] = [];
+  const langSeen = new Set<string>();
   const lang: JarLang[] = [];
+  const langLoose: JarLangLoose[] = [];
   for (const [name, data] of Object.entries(entries)) {
-    if (name.endsWith("/") || !name.startsWith("assets/")) continue;
+    if (name.endsWith("/")) continue;
+    const segments = name.split("/");
+    const fileName = (segments[segments.length - 1] ?? "").toLowerCase();
+    const looseLocale = LOCALE_BY_FILE[fileName];
+    if (looseLocale !== undefined) {
+      langLoose.push({
+        path: name,
+        name: segments[segments.length - 1] as string,
+        locale: looseLocale,
+        format: fileName.endsWith(".lang") ? "lang" : "json",
+        content: decoder.decode(data),
+      });
+    }
+    if (!name.startsWith("assets")) continue;
+    const first = segments[1];
+    if (first !== undefined && first !== "" && first !== "minecraft") {
+      if (!assetSeen.has(first)) {
+        assetSeen.add(first);
+        assetDirs.push(first);
+      }
+      if (name.includes("lang") && first !== "icon.png" && !langSeen.has(first)) {
+        langSeen.add(first);
+        langDirs.push(first);
+      }
+    }
     const match = LANG_ENTRY.exec(name);
-    const domain = match?.[1] ?? name.split("/")[1];
+    const domain = match?.[1] ?? first;
     if (!domain) continue;
     if (domain !== "minecraft") domains.add(domain);
-    const fileName = match?.[2]?.toLowerCase();
-    const locale = fileName ? LOCALE_BY_FILE[fileName] : undefined;
-    if (!match || !locale) continue;
+    if (!match || looseLocale === undefined) continue;
     lang.push({
       path: name,
       domain,
-      locale,
-      format: fileName?.endsWith(".lang") ? "lang" : "json",
+      locale: looseLocale,
+      format: fileName.endsWith(".lang") ? "lang" : "json",
       content: decoder.decode(data),
     });
   }
-  return { file, fetchedAt: cached.fetchedAt, domains: [...domains].sort(), lang };
+  return { file, fetchedAt: cached.fetchedAt, domains: [...domains].sort(), assetDirs, langDirs, lang, langLoose };
 }

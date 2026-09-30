@@ -19,6 +19,7 @@ export interface GhPull {
   headSha: string;
   headRepoOwner: string | null;
   headRepoName: string | null;
+  maintainerCanModify: boolean | null;
 }
 
 export interface GhFile extends PrFile {

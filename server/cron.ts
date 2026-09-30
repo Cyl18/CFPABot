@@ -1,5 +1,6 @@
 import { readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { syncGlossary } from "./domain/glossary.ts";
 import { env } from "./env.ts";
 import { logger } from "./log.ts";
 import { paths } from "./paths.ts";
@@ -39,6 +40,7 @@ function pruneJars(): number {
 
 export function startCron(): () => void {
   const tasks: CronTask[] = [
+    { name: "glossary-sync", intervalMs: DAY, run: () => syncGlossary() },
     { name: "pr-cache-refresh", intervalMs: HOUR, run: () => prdata.refreshAll() },
     { name: "mirror-sync", intervalMs: 6 * HOUR, run: () => mirror.sync() },
     { name: "jar-cache-prune", intervalMs: DAY, run: () => Promise.resolve(pruneJars()) },

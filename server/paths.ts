@@ -21,3 +21,7 @@ export function ensureDirs(): void {
     mkdirSync(dir, { recursive: true });
   }
 }
+
+export function checkReportPath(prNumber: number, headSha: string): string {
+  return join(paths.state, "reports", `${prNumber}-${headSha.slice(0, 7)}.txt`);
+}

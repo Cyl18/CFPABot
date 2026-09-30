@@ -1,6 +1,6 @@
 import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { compareMc, parseLangPath, type LangPath } from "./domain/path.ts";
+import { commentVersionDir, compareMc, parseLangPath, type LangPath } from "./domain/path.ts";
 import { repo } from "./env.ts";
 import { runGit, runGitBytes } from "./git.ts";
 import { logger } from "./log.ts";
@@ -142,6 +142,36 @@ export const mirror = {
       pos += size + 1;
     }
     return texts;
+  },
+
+  async modVersions(slug: string): Promise<{ version: string; namespaces: string[] }[]> {
+    const rev = (await headSha()) ?? "HEAD";
+    const out = await git(["ls-tree", "-r", "--name-only", rev, `projects/assets/${slug}`]);
+    const zhFiles: LangPath[] = [];
+    for (const line of out.split("\n")) {
+      const parsed = parseLangPath(line.trim());
+      if (parsed && parsed.locale === "zh_cn" && parsed.slug === slug) zhFiles.push(parsed);
+    }
+    const texts = await mirror.readMany(rev, zhFiles.map((file) => file.path));
+    const grouped = new Map<string, Set<string>>();
+    for (const file of zhFiles) {
+      const text = texts.get(file.path);
+      if (text === undefined || text.trim() === "{}") continue;
+      const namespaces = grouped.get(file.version) ?? new Set<string>();
+      namespaces.add(file.namespace);
+      grouped.set(file.version, namespaces);
+    }
+    return [...grouped.entries()]
+      .flatMap(([version, namespaces]) => {
+        const parsed = commentVersionDir(version);
+        return parsed === null ? [] : [{ parsed, version, namespaces: [...namespaces].sort() }];
+      })
+      .sort(
+        (a, b) =>
+          a.parsed.index - b.parsed.index ||
+          (a.parsed.loader === "fabric" ? 1 : 0) - (b.parsed.loader === "fabric" ? 1 : 0),
+      )
+      .map(({ version, namespaces }) => ({ version, namespaces }));
   },
 
   async modList(): Promise<ModList> {

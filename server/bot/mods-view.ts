@@ -1,124 +1,167 @@
-import type { Workspace } from "../../shared/api.ts";
+import type { PrFile } from "../../shared/api.ts";
+import { modInfosOf } from "../domain/path.ts";
 import { repo } from "../env.ts";
 import { logger } from "../log.ts";
 import { mirror } from "../mirror.ts";
 import { mods } from "../mods/index.ts";
-import { MODRINTH_NOTE, type ModLink, type ModsView } from "./render.ts";
-import { workspaceKey } from "./collect.ts";
+import type { CfMod } from "../mods/curseforge.ts";
+import { Lines, messageOf, MODRINTH_NOTE, NO_MODS, TOO_MANY_MODS, urlEncodeDotNet } from "./render.ts";
 
 const MAX_MODS = 20;
 
 const log = logger("bot/mods");
 
-function mapErrorNote(slug: string): string {
-  const lines = [
-    `⚠ 无法找到 ${slug} 的 CurseForge 项目名到 CurseForge ID 的映射。请检查此[链接](https://www.curseforge.com/minecraft/mc-mods/${slug})是否可以正常打开，如果不能，或者网页被重定向，请修改你的文件路径。`,
-    "如果可以，请联系 [Cyl18](https://github.com/Cyl18) 解决。",
-  ];
-  if (slug.toLowerCase() !== slug) lines.push("此外在项目名中检测到了大写字母，请调整为小写。");
-  lines.push(
-    `可以在上面的链接中右方找到 About Project -> Project ID 然后使用命令 \`/add-mapping ${slug} [CURSEFORGE_PROJECT_ID]\`. 如果路径有误则使用 \`/mv "projects/assets/${slug}/[GAME_VERSION]/" "projects/assets/[NEW_DIR]/[GAME_VERSION]/"\`.`,
-  );
-  return lines.join("\n");
+interface CfAddon {
+  raw: CfMod;
+  name: string;
+  url: string;
+  iconUrl?: string;
+  sourceUrl?: string;
 }
 
-async function repoLinksFor(slug: string): Promise<{ version: string; url: string }[]> {
+function thumbnailCell(iconUrl: string | undefined): string {
+  return iconUrl === undefined ? "✨" : `<image src="${iconUrl}" width="32"/>`;
+}
+
+async function repoLinkCell(slug: string): Promise<string> {
+  const parts = ["<details> <summary>语言文件链接</summary>"];
   try {
-    const list = await mirror.modList();
-    const entry = list.mods.find((mod) => mod.slug === slug);
-    if (!entry) return [];
-    return entry.versions.map((item) => ({
-      version: item.version,
-      url: `https://github.com/${repo.owner}/${repo.name}/tree/${repo.defaultBranch}/projects/assets/${slug}/${item.version}`,
-    }));
+    for (const version of await mirror.modVersions(slug)) {
+      const label = version.version === "1.12.2" ? "1.12" : version.version;
+      for (const domain of version.namespaces) {
+        parts.push(
+          `[${label}](https://github.com/${repo.owner}/${repo.name}/tree/${repo.defaultBranch}/projects/assets/${slug}/${version.version}/${domain}/lang/) <br/>`,
+        );
+      }
+    }
   } catch (err) {
-    log.warn("读取模组列表失败", { slug, error: err });
-    return [];
+    parts.push(`❌ ${messageOf(err)}`);
+    log.error("GetModRepoLinkText", { slug, err });
   }
+  parts.push("</details>");
+  return parts.join("");
 }
 
-export async function collectMods(workspaces: Workspace[]): Promise<ModsView> {
-  const slugs = [...new Set(workspaces.map((workspace) => workspace.slug))];
-  if (slugs.length === 0) return { kind: "empty" };
-  if (slugs.length > MAX_MODS) return { kind: "tooMany" };
-
-  const notes: string[] = [];
-  const links: ModLink[] = [];
-  const firstWorkspace = new Map<string, Workspace>();
-  for (const workspace of workspaces) {
-    if (!firstWorkspace.has(workspace.slug)) firstWorkspace.set(workspace.slug, workspace);
-  }
-
-  const curseforge = slugs.filter((slug) => slug !== "1UNKNOWN" && slug !== "0-modrinth-mod" && !slug.startsWith("modrinth-"));
-  const modrinth = slugs.filter((slug) => slug.startsWith("modrinth-"));
-  const unknownDomains = workspaces.filter((workspace) => workspace.slug === "0-modrinth-mod");
-
-  for (const slug of curseforge) {
-    const info = await mods.resolve(slug).catch(() => null);
-    if (!info) {
-      notes.push(mapErrorNote(slug));
-      continue;
+export async function collectMods(files: PrFile[], prNumber: number, publicUrl: string): Promise<string> {
+  const sb = new Lines();
+  const table = new Lines();
+  try {
+    const modInfos = modInfosOf(files.map((file) => file.path));
+    const modids = [...new Set(modInfos.map((info) => info.slug))];
+    if (modids.length > MAX_MODS) {
+      sb.line(TOO_MANY_MODS);
+      return sb.text();
     }
-    const workspace = firstWorkspace.get(slug);
-    links.push({
-      provider: "curseforge",
-      name: info.name,
-      url: info.url,
-      iconUrl: info.iconUrl,
-      sourceUrl: info.sourceUrl,
-      compareWs: workspace ? workspaceKey(workspace) : undefined,
-      repoLinks: await repoLinksFor(slug),
-    });
-    for (const dep of info.dependencies) {
-      links.push({
-        provider: "curseforge",
-        name: dep.name,
-        url: dep.url,
-        iconUrl: dep.iconUrl,
-        sourceUrl: info.sourceUrl,
-        dependency: true,
+
+    const addons: CfAddon[] = [];
+    for (const slug of modids) {
+      if (slug === "1UNKNOWN" || slug === "0-modrinth-mod" || slug.startsWith("modrinth-")) continue;
+      const resolved = await mods.resolveByMapping(slug);
+      if (resolved === null) {
+        sb.line(
+          `⚠ 无法找到 ${slug} 的 CurseForge 项目名到 CurseForge ID 的映射。请检查此[链接](https://www.curseforge.com/minecraft/mc-mods/${slug})是否可以正常打开，如果不能，或者网页被重定向，请修改你的文件路径。` +
+            `如果可以，请联系 [Cyl18](https://github.com/Cyl18) 解决。` +
+            (slug.toLowerCase() !== slug ? `此外在项目名中检测到了大写字母，请调整为小写。` : "") +
+            `可以在上面的链接中右方找到 About Project -> Project ID 然后使用命令 \`/add-mapping ${slug} [CURSEFORGE_PROJECT_ID]\`. 如果路径有误则使用 \`/mv "projects/assets/${slug}/[GAME_VERSION]/" "projects/assets/[NEW_DIR]/[GAME_VERSION]/"\`.`,
+        );
+        continue;
+      }
+      addons.push(resolved);
+    }
+
+    const modrinthList: { name: string; url: string; iconUrl?: string }[] = [];
+    const modrinthErrors = new Lines();
+    for (const slug of modids) {
+      if (!slug.startsWith("modrinth-")) continue;
+      const project = await mods.modrinthProject(slug.slice("modrinth-".length));
+      if (project === null) {
+        modrinthErrors.line(`Modrinth 检索遇到问题：找不到 Modrinth 项目 ${slug.slice("modrinth-".length)}`);
+        continue;
+      }
+      modrinthList.push(project);
+    }
+    if (modrinthErrors.text().trim() !== "") {
+      sb.line();
+      sb.raw(modrinthErrors.text());
+      sb.line();
+    }
+
+    const modDomains = [...new Set(modInfos.filter((info) => info.slug === "0-modrinth-mod").map((info) => info.domain))];
+    let flag1 = false;
+    for (const namespace of modDomains) {
+      const project = await mods.modrinthProject(namespace);
+      if (project !== null) {
+        sb.line(`- 找到 Modrinth 模组：[${project.name}](${project.url})`);
+        flag1 = true;
+        continue;
+      }
+      try {
+        const hits = await mods.searchModrinth(namespace, 3);
+        sb.line();
+        sb.line(`- ${namespace} 的 Modrinth 搜索结果：`);
+        for (const hit of hits) sb.line(`  - [${hit.title}](${hit.url})`);
+        sb.line();
+        flag1 = true;
+      } catch (err) {
+        log.warn("Modrinth 搜索失败", { namespace, err });
+      }
+    }
+    if (flag1) {
+      sb.line();
+      sb.line(MODRINTH_NOTE);
+      sb.line();
+      sb.line("---");
+      sb.line();
+    }
+
+    if (addons.length === 0 && modrinthList.length === 0) {
+      sb.line(NO_MODS);
+      return sb.text();
+    }
+
+    table.line("|     | 模组 | 🔗 链接 | :art: 相关文件 |");
+    table.line("| --- | --- | --- | --- |");
+    let modCount = 0;
+
+    for (const project of modrinthList) {
+      const name = project.name.trim().replaceAll("[", "\\[").replaceAll("]", "\\]").replaceAll("|", "\\|");
+      table.line(
+        `| <image src="${project.iconUrl ?? ""}" width="32"/> | [**${name}**](${project.url}) |  [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20${urlEncodeDotNet(project.name)}) \\| [:file_folder: 对比(Azusa)](${publicUrl}/pr/${prNumber}/compare) | Modrinth |`,
+      );
+      modCount++;
+    }
+
+    for (const addon of addons) {
+      const name = addon.name.trim().replaceAll("[", "\\[").replaceAll("]", "\\]").replaceAll("|", "\\|");
+      const source = addon.sourceUrl ? `[:mag: 源代码](${addon.sourceUrl})&nbsp;&nbsp;` : ":mag:无源代码";
+      table.line(
+        `| ${thumbnailCell(addon.iconUrl)} | [**${name}**](${addon.url}) | ${source} \\| [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20${urlEncodeDotNet(addon.name)}) \\| [:file_folder: 对比(Azusa)](${publicUrl}/pr/${prNumber}/compare) | ${await repoLinkCell(addon.raw.slug)} |`,
+      );
+      modCount++;
+      const deps = await mods.commentDependencies(addon.raw).catch((err: unknown) => {
+        log.error("获取依赖失败", { slug: addon.raw.slug, err });
+        return [];
       });
+      for (const dep of deps) {
+        const depName = dep.name.replaceAll("[", "\\[").replaceAll("]", "\\]");
+        table.line(
+          `|  ${thumbnailCell(dep.iconUrl)} | 依赖-[*${depName}*](${dep.url}) | ${source} \\| [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20${urlEncodeDotNet(dep.name)}) \\| &nbsp;&nbsp;* | * |`,
+        );
+        modCount++;
+      }
     }
-  }
 
-  for (const slug of modrinth) {
-    const info = await mods.resolve(slug).catch((err: unknown) => {
-      log.warn("Modrinth 检索失败", { slug, error: err });
-      return null;
-    });
-    if (!info) {
-      notes.push(`Modrinth 检索遇到问题：无法找到 ${slug}。`);
-      continue;
-    }
-    const workspace = firstWorkspace.get(slug);
-    links.push({
-      provider: "modrinth",
-      name: info.name,
-      url: info.url,
-      iconUrl: info.iconUrl,
-      sourceUrl: info.sourceUrl,
-      compareWs: workspace ? workspaceKey(workspace) : undefined,
-      relatedText: "Modrinth",
-    });
-  }
-
-  let modrinthHit = false;
-  for (const namespace of [...new Set(unknownDomains.map((workspace) => workspace.namespace))]) {
-    const hits = await mods.searchModrinth(namespace, 3).catch(() => []);
-    if (hits.length === 0) continue;
-    modrinthHit = true;
-    const first = hits[0];
-    if (hits.length === 1 && first) {
-      notes.push(`- 找到 Modrinth 模组：[${first.title}](${first.url})`);
+    if (modCount > 8) {
+      sb.line(`<details> <summary>模组列表</summary> \n\n${table.text()}\n\n</details>`);
     } else {
-      notes.push([`- ${namespace} 的 Modrinth 搜索结果：`, ...hits.map((hit) => `  - [${hit.title}](${hit.url})`)].join("\n"));
+      sb.line(table.text());
     }
+    return sb.text();
+  } catch (err) {
+    log.error("更新 mod 列表出错", { error: err });
+    sb.line(table.text());
+    sb.line();
+    sb.line(`⚠ 更新模组列表出错: ${messageOf(err)}`);
+    return sb.text();
   }
-  if (modrinthHit) notes.push(MODRINTH_NOTE);
-
-  if (links.length === 0) {
-    if (notes.length > 0) return { kind: "list", mods: [], notes };
-    return { kind: "empty" };
-  }
-  return { kind: "list", mods: links, notes };
 }

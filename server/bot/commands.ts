@@ -285,7 +285,7 @@ export async function runCommands(input: CommandRunInput): Promise<void> {
               break;
             }
             replies.push(`ℹ 添加重定向 ${slug} -> ${id} 成功。正在进行强制刷新。`);
-            track(refreshInfoComment(input.prNumber, { force: true }));
+            track(refreshInfoComment(input.prNumber, { force: true, refreshPacker: true }));
             break;
           }
           case "agent":

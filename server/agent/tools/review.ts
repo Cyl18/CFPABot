@@ -4,7 +4,7 @@ import { gh } from "../../github/client.ts";
 import { prdata } from "../../prdata.ts";
 import { requirePr, type ToolContext } from "../context.ts";
 import { buildPack, findingHistogram, selectRows, workspaceKey } from "../pack.ts";
-import { vanillaTerms } from "../terms.ts";
+import { glossaryTerms } from "../../domain/glossary.ts";
 import { jsonResult, pageOf } from "./shared.ts";
 
 const REVIEW_LOAD_PARAMS = Type.Object({});
@@ -36,7 +36,7 @@ export function reviewLoadTool(ctx: ToolContext): AgentTool<typeof REVIEW_LOAD_P
         headSha,
         files,
         read: (path, ref) => gh.getFile(path, ref === "base" ? baseSha : headSha),
-        terms: await vanillaTerms(),
+        terms: await glossaryTerms(),
       });
       await ctx.savePack(pack);
       return jsonResult({

@@ -9,7 +9,7 @@ export interface ParsedLang {
 
 const KEY_LINE_RE = /^\s*"((?:[^"\\]|\\.)*)"\s*:/;
 
-function stripJsonComments(text: string): string {
+export function stripJsonComments(text: string): string {
   const out: string[] = [];
   let i = 0;
   let inString = false;
@@ -62,7 +62,7 @@ function stripJsonComments(text: string): string {
   return out.join("");
 }
 
-function stripTrailingCommas(text: string): string {
+export function stripTrailingCommas(text: string): string {
   const out: string[] = [];
   let i = 0;
   let inString = false;

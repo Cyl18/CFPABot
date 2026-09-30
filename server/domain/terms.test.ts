@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildTermIndex, loadTermIndex, lookupTerm, matchQa, matchTerms } from "./terms.ts";
 
@@ -52,6 +54,30 @@ test("matchTerms skips versioned phrases without a version", () => {
   expect(matchTerms(index, "entity.Creeper.name", "Creeper", "爬行者", "1.16.5")).toEqual([]);
 });
 
+test("matchTerms applies versioned rows to the matching package version dir", () => {
+  const index = buildTermIndex({
+    "terms-v1.tsv": FILES["terms-v1.tsv"] as string,
+    "terms-version.tsv": [
+      row(["versions", "en", "zh", "reason", "comment"]),
+      row(["1.16.5,1.18.2", "Suspicious Stew", "迷之炖菜", "", ""]),
+      row(["1.12.2", "Creeper", "爬行者", "", ""]),
+    ].join("\n"),
+  });
+  expect(matchTerms(index, "item.a", "Suspicious Stew", "迷之炖菜", "1.16").map((h) => [h.en, h.ok])).toEqual([
+    ["Suspicious Stew", true],
+  ]);
+  expect(matchTerms(index, "item.a", "Suspicious Stew", "迷之炖菜", "1.16-fabric").map((h) => [h.en, h.ok])).toEqual([
+    ["Suspicious Stew", true],
+  ]);
+  expect(matchTerms(index, "item.a", "Suspicious Stew", "迷之炖菜", "1.20")).toEqual([]);
+  expect(matchTerms(index, "item.a", "Creeper", "爬行者", "1.12.2").map((h) => [h.en, h.ok])).toEqual([
+    ["Creeper", true],
+  ]);
+  expect(matchTerms(index, "item.a", "Creeper", "爬行者", "1.13").map((h) => [h.en, h.zh])).toEqual([
+    ["Creeper", ["苦力怕"]],
+  ]);
+});
+
 test("matchQa honours count mode, gates and forbid", () => {
   const index = buildTermIndex(FILES);
   expect(matchQa(index, "k", "X X", "甲甲")).toEqual([{ id: "count-x", ok: true, require: "甲" }]);
@@ -67,9 +93,14 @@ test("lookupTerm ranks exact matches first", () => {
   expect(lookupTerm(index, "nothing-here", 5)).toEqual([]);
 });
 
-test("matchTerms matches phrases containing punctuation like apostrophes", async () => {
-  const dir = join(import.meta.dir, "../../config/vanilla-terms");
-  const index = await loadTermIndex(dir);
+test("matchTerms matches phrases containing punctuation like apostrophes", () => {
+  const index = buildTermIndex({
+    "terms-v1.tsv": [
+      row(["en", "zh", "reason", "comment"]),
+      row(["Dragon's Breath", "龙息", "", ""]),
+      row(["Jack o'Lantern", "南瓜灯", "", ""]),
+    ].join("\n"),
+  });
   expect(matchTerms(index, "item.minecraft.dragon_breath", "Dragon's Breath", "龙息").map((h) => [h.en, h.ok])).toEqual([
     ["Dragon's Breath", true],
   ]);
@@ -78,17 +109,21 @@ test("matchTerms matches phrases containing punctuation like apostrophes", async
   ]);
 });
 
-test("loadTermIndex reads the vendored TSVs and is mtime cached", async () => {
-  const dir = join(import.meta.dir, "../../config/vanilla-terms");
-  const index = await loadTermIndex(dir);
-  expect(matchTerms(index, "block.minecraft.stone", "Stone", "石头").map((h) => [h.en, h.ok])).toEqual([
-    ["Stone", true],
-  ]);
-  expect(matchTerms(index, "block.minecraft.ancient_debris", "Ancient Debris", "残骸").map((h) => [h.en, h.ok])).toEqual([
-    ["Ancient Debris", false],
-  ]);
-  expect(matchQa(index, "block.minecraft.deepslate_iron_ore", "Deepslate Iron Ore", "深层铁矿石")).toEqual([
-    { id: "deepslate-ore", ok: true, require: "深层", comment: "Deepslate 后最多 3 词再 Ore，次数对深层" },
-  ]);
-  expect(await loadTermIndex(dir)).toBe(index);
+test("loadTermIndex reads TSVs from disk and is mtime cached", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "cfpa-terms-"));
+  await mkdir(join(dir, "special"), { recursive: true });
+  await writeFile(join(dir, "terms-v1.tsv"), FILES["terms-v1.tsv"] as string);
+  await writeFile(join(dir, "special", "terms-banner.tsv"), FILES["special/terms-banner.tsv"] as string);
+  try {
+    const index = await loadTermIndex(dir);
+    expect(matchTerms(index, "item.a", "Ancient Debris", "远古残骸").map((h) => [h.en, h.ok])).toEqual([
+      ["Ancient Debris", true],
+    ]);
+    expect(matchTerms(index, "block.minecraft.banner.base", "Base", "底座").map((h) => [h.en, h.domain])).toEqual([
+      ["Base", "banner"],
+    ]);
+    expect(await loadTermIndex(dir)).toBe(index);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

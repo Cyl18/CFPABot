@@ -109,7 +109,7 @@ prRoutes.get("/prs/:n/checks", async (c) => c.json(await withPull(() => getCheck
 
 prRoutes.post("/prs/:n/refresh", async (c) => {
   await requireAdmin(c);
-  await withPull(() => refreshInfoComment(prNumber(c), { force: true }));
+  await withPull(() => refreshInfoComment(prNumber(c), { force: true, refreshPacker: true }));
   return c.json({ ok: true });
 });
 

@@ -36,6 +36,7 @@ const pullSchema = z.object({
   headSha: z.string(),
   headRepoOwner: z.string().nullable(),
   headRepoName: z.string().nullable(),
+  maintainerCanModify: z.boolean().nullable().default(null),
 });
 
 const fileSchema = z.object({
@@ -270,11 +271,11 @@ export const prdata = {
     return { pull: stored.pull, files: stored.files };
   },
 
-  related(n: number): RelatedPr[] {
-    const self = meta.get(n);
-    if (!self) return [];
+  related(n: number, slugs?: readonly string[]): RelatedPr[] {
+    const targets = slugs ?? meta.get(n)?.slugs;
+    if (targets === undefined) return [];
     const related: RelatedPr[] = [];
-    for (const slug of self.slugs) {
+    for (const slug of targets) {
       const byPr = relation.get(slug);
       if (!byPr) continue;
       for (const [other, versions] of byPr) {
@@ -285,6 +286,10 @@ export const prdata = {
       }
     }
     return related;
+  },
+
+  hasRelation(slug: string): boolean {
+    return relation.has(slug);
   },
 
   stats(): { openCount: number; refreshedAt: string | null } {
