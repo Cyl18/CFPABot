@@ -5,7 +5,7 @@ import { ArrowLeftRight, Check, Copy, Search, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DiffModePicker } from "@/components/DiffModePicker.tsx";
 import { cn } from "@/lib/cn.ts";
-import { inlineDiff } from "@/lib/diff.ts";
+import { inlineDiff, type DiffKind, type DiffMode, type DiffSegment } from "@/lib/diff.ts";
 import { useDiffMode } from "@/lib/diffMode.ts";
 import { expandNewlines } from "@/lib/format.ts";
 import { Badge } from "@/ui/Badge.tsx";
@@ -151,6 +151,100 @@ function ZhText({ lane, cell, before }: { lane: DiffLane; cell: DiffCell | null;
     );
   }
   return <Inline before={before} after={cell.zh} />;
+}
+
+// 行内差异按侧拆开：删除段落只画在含这段文字的旧一侧，插入段落只画在新一侧。
+interface ChainSide {
+  en: string;
+  zh: string | null;
+  zhFile: boolean;
+  skipZh: boolean;
+  absent: boolean;
+}
+
+interface ChainMarks {
+  enIns: (boolean[] | null)[];
+  enDel: (boolean[] | null)[];
+  zhIns: (boolean[] | null)[];
+  zhDel: (boolean[] | null)[];
+}
+
+function markOf(text: string, segments: readonly DiffSegment[], kind: "insert" | "delete"): boolean[] {
+  const marks = new Array<boolean>(text.length).fill(false);
+  let at = 0;
+  for (const segment of segments) {
+    if (segment.type === kind) {
+      marks.fill(true, at, at + segment.text.length);
+      at += segment.text.length;
+    } else if (segment.type === "equal") {
+      at += segment.text.length;
+    }
+  }
+  return marks;
+}
+
+function Marked({ text, ins, del }: { text: string; ins: boolean[] | null; del: boolean[] | null }) {
+  if (text === "") return <span className="text-muted">—</span>;
+  if (ins === null && del === null) return <span>{text}</span>;
+  const runs: { type: DiffKind; text: string }[] = [];
+  let at = 0;
+  while (at < text.length) {
+    const type: DiffKind = del?.[at] === true ? "delete" : ins?.[at] === true ? "insert" : "equal";
+    let end = at + 1;
+    while (end < text.length) {
+      const next: DiffKind = del?.[end] === true ? "delete" : ins?.[end] === true ? "insert" : "equal";
+      if (next !== type) break;
+      end += 1;
+    }
+    runs.push({ type, text: text.slice(at, end) });
+    at = end;
+  }
+  return (
+    <>
+      {runs.map((run, index) =>
+        run.type === "delete" ? (
+          <del key={index} className={DELETE}>
+            {run.text}
+          </del>
+        ) : run.type === "insert" ? (
+          <ins key={index} className={INSERT}>
+            {run.text}
+          </ins>
+        ) : (
+          <span key={index}>{run.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+// 相邻两侧逐个比对，和显示顺序无关；两侧都含的段落两边都不标。
+function chainMarks(sides: readonly ChainSide[], mode: DiffMode): ChainMarks {
+  const count = sides.length;
+  const marks: ChainMarks = {
+    enIns: new Array<boolean[] | null>(count).fill(null),
+    enDel: new Array<boolean[] | null>(count).fill(null),
+    zhIns: new Array<boolean[] | null>(count).fill(null),
+    zhDel: new Array<boolean[] | null>(count).fill(null),
+  };
+  if (mode === "off") return marks;
+  for (let at = 0; at + 1 < count; at += 1) {
+    const left = sides[at];
+    const right = sides[at + 1];
+    if (left === undefined || right === undefined || left.absent || right.absent) continue;
+    const enSegments = inlineDiff(left.en, right.en, mode);
+    marks.enDel[at] = markOf(left.en, enSegments, "delete");
+    marks.enIns[at + 1] = markOf(right.en, enSegments, "insert");
+    if (left.skipZh) continue;
+    const zhLeft = left.zh ?? "";
+    const zhRight = right.zh ?? "";
+    const zhSegments = inlineDiff(zhLeft, zhRight, mode);
+    if (right.zhFile) {
+      marks.zhDel[at] = markOf(zhLeft, zhSegments, "delete");
+      marks.zhIns[at + 1] = markOf(zhRight, zhSegments, "insert");
+    }
+  }
+  return marks;
 }
 
 function LaneChip({ lane }: { lane: DiffLane }) {
@@ -299,16 +393,23 @@ function GridRow({
   display: readonly DiffLane[];
   compare: boolean;
 }) {
-  const nodes = new Map<string, ReactNode>();
-  let beforeCell: DiffCell | null = null;
-  let beforeLane: DiffLane | null = null;
-  // 参照按来源本身的顺序算，和显示顺序无关。
-  for (const lane of lanes) {
+  const [mode] = useDiffMode();
+  const sides: ChainSide[] = lanes.map((lane) => {
     const cell = entry.cells[lane.id] ?? null;
-    const previousCell = beforeCell;
-    const previousLane = beforeLane;
-    beforeCell = cell;
-    beforeLane = lane;
+    return {
+      en: expandNewlines(cell?.en ?? ""),
+      zh: cell?.zh == null ? null : expandNewlines(cell.zh),
+      zhFile: lane.zhFile !== false,
+      skipZh: lane.skipZh === true,
+      absent: lane.absent === true,
+    };
+  });
+  const marks = chainMarks(sides, mode);
+  const nodes = new Map<string, ReactNode>();
+  lanes.forEach((lane, at) => {
+    const cell = entry.cells[lane.id] ?? null;
+    const side = sides[at];
+    if (side === undefined) return;
     if (lane.absent === true) {
       nodes.set(
         lane.id,
@@ -319,21 +420,41 @@ function GridRow({
           </div>
         </div>,
       );
-      continue;
+      return;
     }
+    const previousLane = at > 0 ? (lanes[at - 1] ?? null) : null;
+    const previousCell = previousLane === null ? null : (entry.cells[previousLane.id] ?? null);
     const same =
       previousCell !== null && cell !== null && previousCell.en === cell.en && (lane.zhFile === false || previousLane?.zhFile === false || previousCell.zh === cell.zh);
     nodes.set(
       lane.id,
       <div key={lane.id} className={cn(CELL, "relative pr-6", same && "opacity-55")}>
-        <Inline {...(lane.whole === undefined ? { before: previousLane === null ? undefined : (previousCell?.en ?? null), after: cell?.en ?? null } : wholeEdge(lane.whole, cell?.en ?? null))} />
+        {lane.whole !== undefined ? (
+          <Inline {...wholeEdge(lane.whole, cell?.en ?? null)} />
+        ) : cell === null ? (
+          <span className="text-muted">—</span>
+        ) : (
+          <Marked text={side.en} ins={marks.enIns[at] ?? null} del={marks.enDel[at] ?? null} />
+        )}
         <div className="mt-0.5 text-sm">
-          <ZhText lane={lane} cell={cell} before={zhReference(previousLane, previousCell)} />
+          {lane.zhFile === false ? (
+            <span className="text-xs italic text-muted" title="这个来源整份中文文件都不存在">
+              无中文文件
+            </span>
+          ) : lane.whole !== undefined ? (
+            <Inline {...wholeEdge(lane.whole, cell?.zh ?? null)} />
+          ) : cell === null ? (
+            <span className="text-muted">—</span>
+          ) : cell.zh === null ? (
+            <span className="text-xs italic text-muted">未翻译</span>
+          ) : (
+            <Marked text={side.zh ?? ""} ins={marks.zhIns[at] ?? null} del={marks.zhDel[at] ?? null} />
+          )}
         </div>
         {cell?.zh != null && <CopyButton text={cell.zh} />}
       </div>,
     );
-  }
+  });
   return (
     <article className={cn(ROW, BORDER[toneOf(facts, compare)])}>
       <KeyColumn entry={entry} facts={facts} compare={compare} />
@@ -361,6 +482,7 @@ function LaneCard({
   display: readonly DiffLane[];
   compare: boolean;
 }) {
+  const [mode] = useDiffMode();
   const groups: LaneGroup[] = [];
   for (const lane of lanes) {
     const cell = entry.cells[lane.id] ?? null;
@@ -380,6 +502,14 @@ function LaneCard({
     }
   }
 
+  const sides: ChainSide[] = groups.map((group) => ({
+    en: expandNewlines(group.cell?.en ?? ""),
+    zh: group.cell?.zh == null ? null : expandNewlines(group.cell.zh),
+    zhFile: !group.wild,
+    skipZh: group.wild,
+    absent: false,
+  }));
+  const marks = chainMarks(sides, mode);
   const present = groups.filter((group) => group.cell !== null);
   const sameEn = present.length > 1 && new Set(present.map((group) => group.cell!.en)).size === 1;
   const direction = facts.missing === "add" ? "insert" : facts.missing === "remove" ? "delete" : null;
@@ -407,10 +537,8 @@ function LaneCard({
         {shown.map((group) => {
           if (group.cell === null) return null;
           const at = groups.indexOf(group);
-          const reference = groups[at - 1] ?? null;
-          const en = group.cell.en;
-          const enBefore = reference === null ? undefined : (reference.cell?.en ?? null);
-          const zhBefore = zhReference(reference === null || reference.wild ? null : reference.lanes[0]!, reference?.cell ?? null);
+          const side = sides[at];
+          if (side === undefined) return null;
           return (
             <li key={at} className="flex flex-col gap-1 rounded-md border border-line/60 bg-elevated/50 px-2 py-1.5 sm:flex-row sm:gap-3">
               <div className="flex flex-wrap items-center gap-1 sm:w-36 sm:shrink-0">
@@ -423,7 +551,11 @@ function LaneCard({
                   <p className="flex gap-2">
                     <span className="w-7 shrink-0 text-xs leading-5 text-muted">英文</span>
                     <span className="min-w-0 whitespace-pre-wrap break-words">
-                      {direction === null ? <Inline before={enBefore} after={en} /> : <Inline {...wholeEdge(direction, en)} />}
+                      {direction === null ? (
+                        <Marked text={side.en} ins={marks.enIns[at] ?? null} del={marks.enDel[at] ?? null} />
+                      ) : (
+                        <Inline {...wholeEdge(direction, group.cell.en)} />
+                      )}
                     </span>
                   </p>
                 )}
@@ -432,10 +564,12 @@ function LaneCard({
                   <span className="min-w-0 whitespace-pre-wrap break-words">
                     {group.wild ? (
                       <span className="text-xs italic text-muted">无中文文件</span>
-                    ) : direction === null ? (
-                      <ZhText lane={group.lanes[0]!} cell={group.cell} before={zhBefore} />
-                    ) : (
+                    ) : direction !== null ? (
                       <Inline {...wholeEdge(direction, group.cell.zh)} />
+                    ) : group.cell.zh === null ? (
+                      <span className="text-xs italic text-muted">未翻译</span>
+                    ) : (
+                      <Marked text={side.zh ?? ""} ins={marks.zhIns[at] ?? null} del={marks.zhDel[at] ?? null} />
                     )}
                   </span>
                 </p>
