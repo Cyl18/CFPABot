@@ -63,7 +63,7 @@ export const mappings = {
     if (!env.CURSEFORGE_API_KEY) return 0;
     return withLock("mappings", async () => {
       const file = await load();
-      let cursor = file.lastScannedId > 0 ? file.lastScannedId : maxMappedId(file);
+      let cursor = Math.max(file.lastScannedId, maxMappedId(file));
       const end = cursor + maxIds;
       let added = 0;
       while (cursor < end) {
