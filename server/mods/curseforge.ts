@@ -94,6 +94,7 @@ export async function getModsByIds(ids: number[]): Promise<CfMod[]> {
     headers: { "x-api-key": key, "content-type": "application/json" },
     body: JSON.stringify({ modIds: ids }),
   });
+  if (res.status === 404) return [];
   if (res.status >= 400) throw new Error(`CurseForge 请求失败: HTTP ${res.status} /mods`);
   return unwrap(res.body, z.array(cfModSchema)) ?? [];
 }

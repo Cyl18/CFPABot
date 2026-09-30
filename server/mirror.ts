@@ -15,6 +15,11 @@ const MIRROR_URL = `https://github.com/${repo.owner}/${repo.name}.git`;
 const MODLIST_PATH = join(paths.cache, "modlist.json");
 const ID_BATCH = 50;
 
+async function fetchHead(): Promise<void> {
+  await git(["fetch", "--depth", "1", "origin", repo.defaultBranch]);
+  await git(["update-ref", `refs/heads/${repo.defaultBranch}`, "FETCH_HEAD"]);
+}
+
 function git(args: string[], cwd = paths.mirror): Promise<string> {
   return runGit(cwd, args, null);
 }
@@ -88,8 +93,15 @@ export const mirror = {
       const before = await readHeadSha();
       await ensureMirror();
       if (before !== null) {
-        await git(["fetch", "--depth", "1", "origin", repo.defaultBranch]);
-        await git(["update-ref", `refs/heads/${repo.defaultBranch}`, "FETCH_HEAD"]);
+        for (let attempt = 0; ; attempt++) {
+          try {
+            await fetchHead();
+            break;
+          } catch (err) {
+            if (attempt > 0) throw err;
+            await new Promise((resolve) => setTimeout(resolve, 2_000));
+          }
+        }
       }
       const after = await readHeadSha();
       knownHead = after;

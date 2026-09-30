@@ -2,7 +2,6 @@ import { env } from "./env.ts";
 import { logger } from "./log.ts";
 import { ensureDirs } from "./paths.ts";
 import { prdata } from "./prdata.ts";
-import { mirror } from "./mirror.ts";
 import { agent } from "./agent/index.ts";
 import { drain } from "./bot/index.ts";
 import { startCron } from "./cron.ts";
@@ -13,8 +12,6 @@ const log = logger("main");
 ensureDirs();
 await prdata.init();
 await agent.init();
-
-void mirror.sync().catch((err: unknown) => log.warn("初始镜像同步失败", { err }));
 
 const stopCron = startCron();
 const server = Bun.serve({ port: env.PORT, idleTimeout: 0, fetch: (request) => app.fetch(request) });
