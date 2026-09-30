@@ -1,10 +1,10 @@
-import type { CompareRow, Workspace } from "@shared/api.ts";
+import type { CompareRow, PrDetail, Workspace } from "@shared/api.ts";
 import type { DiffCell, DiffEntry, DiffLane } from "@shared/diffview.ts";
-import { isDiffFilter, type DiffFilter } from "@shared/diffview.ts";
+import { formatDiffFilter, parseDiffFilter } from "@shared/diffview.ts";
 import { type ReactNode, useMemo } from "react";
 import { DiffViewer } from "@/components/DiffViewer.tsx";
 import { parseWorkspaceKey } from "@/lib/api.ts";
-import { groupWorkspaces, workspaceParam } from "@/lib/paths.ts";
+import { groupWorkspaces, pickCompareFiles, workspaceParam } from "@/lib/paths.ts";
 import { useCompare, useModSource } from "@/lib/queries.ts";
 import type { PrSearch, SearchPatch } from "@/lib/search.ts";
 import { EmptyState } from "@/ui/EmptyState.tsx";
@@ -18,14 +18,15 @@ function cellOf(en: string | undefined, zh: string | undefined): DiffCell | null
 
 export interface CompareTabProps {
   n: number;
+  files: PrDetail["files"];
   workspaces: Workspace[];
   search: PrSearch;
   onSearchChange: (patch: SearchPatch) => void;
 }
 
-export function CompareTab({ n, workspaces, search, onSearchChange }: CompareTabProps) {
+export function CompareTab({ n, files, workspaces, search, onSearchChange }: CompareTabProps) {
   const ws = search.ws;
-  const filter: DiffFilter = isDiffFilter(search.filter) ? search.filter : "diff";
+  const filter = parseDiffFilter(search.filter);
   const query = search.q ?? "";
   const overlay = search.overlay === "1";
 
@@ -51,6 +52,12 @@ export function CompareTab({ n, workspaces, search, onSearchChange }: CompareTab
   const key = selected === null ? null : { slug: selected.slug, version: selected.version, namespace: selected.namespace };
   const compare = useCompare(n, key);
   const modSource = useModSource(n, key, overlay);
+
+  const sources = useMemo(() => {
+    if (selected === null) return [];
+    const picked = pickCompareFiles(files, selected);
+    return [picked.en_us, picked.zh_cn].filter((path): path is string => path !== undefined);
+  }, [files, selected]);
 
   const rows: readonly CompareRow[] = compare.data?.rows ?? [];
   const modByKey = useMemo(() => new Map((modSource.data?.rows ?? []).map((row) => [row.key, row])), [modSource.data]);
@@ -144,6 +151,11 @@ export function CompareTab({ n, workspaces, search, onSearchChange }: CompareTab
             ))}
           </SelectorRow>
         )}
+        {sources.length > 0 && (
+          <SelectorRow label="比较文件" title={sources.join("\n")}>
+            <span className="pt-0.5 font-mono text-xs text-muted">{sources.map((path) => path.slice(path.lastIndexOf("/") + 1)).join(" · ")}</span>
+          </SelectorRow>
+        )}
       </div>
       {compare.data !== undefined && compare.data.missing.length > 0 && (
         <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">缺失文件：{compare.data.missing.join("、")}</p>
@@ -171,7 +183,7 @@ export function CompareTab({ n, workspaces, search, onSearchChange }: CompareTab
       active={overlay && modSource.data !== undefined ? ["base", "head", "jar"] : ["base", "head"]}
       entries={entries}
       filter={filter}
-      onFilterChange={(next) => onSearchChange({ filter: next === "diff" ? undefined : next })}
+      onFilterChange={(next) => onSearchChange({ filter: formatDiffFilter(next) })}
       query={query}
       onQueryChange={(next) => onSearchChange({ q: next === "" ? undefined : next })}
       defaultLayout="merge"
@@ -185,11 +197,11 @@ export function CompareTab({ n, workspaces, search, onSearchChange }: CompareTab
   );
 }
 
-function SelectorRow({ label, children }: { label: string; children: ReactNode }) {
+function SelectorRow({ label, title, children }: { label: string; title?: string; children: ReactNode }) {
   return (
     <>
       <span className="pt-1.5 text-xs text-muted">{label}</span>
-      <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
+      <div role="group" aria-label={label} title={title} className="flex flex-wrap gap-1.5">
         {children}
       </div>
     </>

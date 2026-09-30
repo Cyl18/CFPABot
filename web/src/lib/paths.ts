@@ -46,6 +46,27 @@ export function workspaceParam(slug: string, version: string, namespace: string)
   return `${slug}/${version}/${namespace}`;
 }
 
+export type Locale = "en_us" | "zh_cn";
+
+/** 与 server/compare.ts 的 pickLang 同规则：每个 locale 只有一份文件进比较视图，canonical 文件名优先。 */
+export function pickCompareFiles(files: readonly { path: string }[], workspace: Workspace): Partial<Record<Locale, string>> {
+  const picked: Partial<Record<Locale, string>> = {};
+  const fallback: Partial<Record<Locale, string>> = {};
+  for (const file of files) {
+    const parsed = parseLangFile(file.path);
+    if (!parsed || parsed.slug !== workspace.slug || parsed.version !== workspace.version || parsed.namespace !== workspace.namespace) continue;
+    const name = file.path.slice(file.path.lastIndexOf("/") + 1);
+    const base = name.slice(0, name.indexOf(".")).toLowerCase();
+    const locale: Locale = base === "en_us" ? "en_us" : "zh_cn";
+    if (base === "en_us" || base === "zh_cn") {
+      picked[locale] ??= file.path;
+    } else {
+      fallback[locale] ??= file.path;
+    }
+  }
+  return { ...fallback, ...picked };
+}
+
 export interface NamespaceGroup {
   namespace: string;
   workspaces: Workspace[];

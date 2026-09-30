@@ -66,7 +66,7 @@ export function ModsPage({ query, onSearchChange }: { query: string; onSearchCha
     <>
       <PageHeader
         title="模组列表"
-        description={data ? `共 ${data.mods.length} 个模组 · 索引更新于 ${formatRelative(data.updatedAt)}${data.headSha ? ` · ${data.headSha.slice(0, 7)}` : ""}` : undefined}
+        description={data ? `共 ${data.mods.length} 个模组 · 索引更新于 ${formatRelative(data.updatedAt)}${data.headSha ? ` · 索引提交 ${data.headSha.slice(0, 7)}` : ""}` : undefined}
         actions={
           <Input
             aria-label="搜索模组"

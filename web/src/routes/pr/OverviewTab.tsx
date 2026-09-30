@@ -2,7 +2,7 @@ import type { PrDetail } from "@shared/api.ts";
 import { Link } from "@tanstack/react-router";
 import { Fragment, type ReactNode } from "react";
 import { CheckReportView } from "@/components/CheckReport.tsx";
-import { formatDateTime } from "@/lib/format.ts";
+import { formatDateTime, formatDelta } from "@/lib/format.ts";
 import { groupWorkspaces, workspaceParam } from "@/lib/paths.ts";
 import { useChecks } from "@/lib/queries.ts";
 import { Badge } from "@/ui/Badge.tsx";
@@ -20,8 +20,8 @@ export function OverviewTab({ pr }: { pr: PrDetail }) {
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="文件" value={pr.files.length} />
-        <Stat label="新增行" value={`+${additions}`} tone="ok" />
-        <Stat label="删除行" value={`-${deletions}`} tone="danger" />
+        <Stat label="新增行" value={formatDelta(additions, "+")} tone={additions === 0 ? undefined : "ok"} />
+        <Stat label="删除行" value={formatDelta(deletions, "-")} tone={deletions === 0 ? undefined : "danger"} />
         <Stat label="工作区" value={pr.workspaces.length} />
       </div>
 

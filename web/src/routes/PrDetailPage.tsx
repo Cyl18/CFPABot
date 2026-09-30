@@ -162,7 +162,7 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
 
       {tab === "overview" && <OverviewTab pr={pr} />}
       {tab === "files" && <FilesTab pr={pr} search={search} onSearchChange={onSearchChange} />}
-      {tab === "compare" && <CompareTab n={n} workspaces={pr.workspaces} search={search} onSearchChange={onSearchChange} />}
+      {tab === "compare" && <CompareTab n={n} files={pr.files} workspaces={pr.workspaces} search={search} onSearchChange={onSearchChange} />}
       {tab === "versions" && <VersionsTab n={n} slugs={pr.slugs} search={search} onSearchChange={onSearchChange} />}
       {tab === "special" && <SpecialTab n={n} paths={pr.specialFiles} search={search} onSearchChange={onSearchChange} />}
       {tab === "reviews" && <ReviewsTab n={n} />}

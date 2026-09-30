@@ -1,7 +1,7 @@
-import type { DiffCell, DiffEntry, DiffFacts, DiffFilter, DiffLane } from "@shared/diffview.ts";
-import { DIFF_FILTERS, diffFacts, matchesFilter, matchesQuery } from "@shared/diffview.ts";
+import type { DiffCell, DiffEntry, DiffFacet, DiffFacts, DiffFilterState, DiffLane } from "@shared/diffview.ts";
+import { DEFAULT_DIFF_FILTER, DIFF_FACETS, FACET_MATCH, diffFacts, matchesFilter, matchesQuery } from "@shared/diffview.ts";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { ArrowLeftRight, Check, Copy, Search } from "lucide-react";
+import { ArrowLeftRight, Check, Copy, Search, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DiffModePicker } from "@/components/DiffModePicker.tsx";
 import { cn } from "@/lib/cn.ts";
@@ -29,19 +29,24 @@ const LAYOUTS: readonly TabItem<DiffLayout>[] = [
   { id: "grid", label: "分列" },
 ];
 
-const LABELS: Record<DiffFilter, string> = {
-  diff: "有差异",
+const FACET_LABELS: Record<DiffFacet, string> = {
+  changed: "有变化",
   en: "英文改了",
   zhAny: "中文改了",
-  zh: "同文异译",
-  stale: "译文没跟上",
+  add: "新增",
+  remove: "删除",
+  partial: "部分版本缺",
   untranslated: "未翻译",
-  missing: "部分版本缺",
   extra: "与模组不一致",
-  all: "全部",
 };
 
-const COMPARE_LABELS: Partial<Record<DiffFilter, string>> = { zh: "只改中文", missing: "新增 / 删除" };
+const MODE_FACETS: Record<"compare" | "versions", readonly DiffFacet[]> = {
+  compare: ["changed", "en", "zhAny", "add", "remove", "untranslated", "extra"],
+  versions: ["changed", "en", "zhAny", "partial", "untranslated"],
+};
+
+// 只有这几个开关值得反过来筛。
+const NEGATABLE: readonly DiffFacet[] = ["changed", "en", "zhAny"];
 
 const INSERT = "rounded-sm bg-ok/20 px-0.5 text-ok no-underline";
 const DELETE = "rounded-sm bg-danger/20 px-0.5 text-danger line-through decoration-danger/60";
@@ -466,13 +471,44 @@ function LaneCard({
   );
 }
 
+const CHIP = "inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2.5 text-xs font-medium transition-colors";
+const CHIP_IDLE = "border-line bg-elevated text-muted hover:border-muted/40 hover:text-fg";
+const CHIP_ONLY = "border-accent/50 bg-accent-soft text-accent";
+const CHIP_NOT = "border-danger/40 bg-danger/10 text-danger";
+
+function FilterChip({ facet, count, state, onCycle }: { facet: DiffFacet; count: number; state: boolean | undefined; onCycle: () => void }) {
+  const label = FACET_LABELS[facet];
+  const idle = state === undefined;
+  const title = idle
+    ? `只看${label}`
+    : state
+      ? NEGATABLE.includes(facet)
+        ? `已只看${label}，再点一下改成排除`
+        : `已只看${label}，再点一下取消`
+      : `已排除${label}，再点一下取消`;
+  return (
+    <button
+      type="button"
+      aria-pressed={state === true}
+      disabled={idle && count === 0}
+      title={title}
+      onClick={onCycle}
+      className={cn(CHIP, idle ? CHIP_IDLE : state ? CHIP_ONLY : CHIP_NOT, idle && count === 0 && "opacity-45")}
+    >
+      {state === true ? <Check aria-hidden="true" className="size-3.5" /> : state === false ? <X aria-hidden="true" className="size-3.5" /> : null}
+      {label}
+      <span className="tabular-nums">{count}</span>
+    </button>
+  );
+}
+
 export interface DiffViewerProps {
   mode: "compare" | "versions";
   lanes: readonly DiffLane[];
   active: readonly string[];
   entries: readonly DiffEntry[];
-  filter: DiffFilter;
-  onFilterChange: (next: DiffFilter) => void;
+  filter: DiffFilterState;
+  onFilterChange: (next: DiffFilterState) => void;
   query: string;
   onQueryChange: (next: string) => void;
   defaultLayout: DiffLayout;
@@ -550,24 +586,27 @@ export function DiffViewer({
   }, [inScope, activeLanes, needle, sortTouchedFirst]);
 
   const { counts, visible } = useMemo(() => {
-    const tally = new Map<DiffFilter, number>();
+    const tally = new Map<DiffFacet, number>();
     const rows: typeof scoped = [];
     for (const row of scoped) {
-      for (const id of DIFF_FILTERS) {
-        if (!matchesFilter(row.facts, id)) continue;
-        tally.set(id, (tally.get(id) ?? 0) + 1);
+      for (const facet of DIFF_FACETS) {
+        if (FACET_MATCH[facet](row.facts)) tally.set(facet, (tally.get(facet) ?? 0) + 1);
       }
       if (matchesFilter(row.facts, filter)) rows.push(row);
     }
     return { counts: tally, visible: rows };
   }, [scoped, filter]);
 
-  const items: TabItem<DiffFilter>[] = DIFF_FILTERS.filter(
-    (id) =>
-      (counts.get(id) ?? 0) > 0 || id === filter || id === "diff" || id === "all",
-  )
-    .filter((id) => id !== "extra" || extra !== null)
-    .map((id) => ({ id, label: `${(compare ? COMPARE_LABELS[id] : undefined) ?? LABELS[id]} ${counts.get(id) ?? 0}` }));
+  const facets = MODE_FACETS[mode].filter((facet) => facet !== "extra" || extra !== null);
+  const isDefault = DIFF_FACETS.every((facet) => filter[facet] === DEFAULT_DIFF_FILTER[facet]);
+
+  function cycleFacet(facet: DiffFacet) {
+    const next: DiffFilterState = { ...filter };
+    if (filter[facet] === undefined) next[facet] = true;
+    else if (filter[facet] === true && NEGATABLE.includes(facet)) next[facet] = false;
+    else delete next[facet];
+    onFilterChange(next);
+  }
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
@@ -593,7 +632,11 @@ export function DiffViewer({
       <Card>
         <CardBody className="flex flex-col gap-3">
           {leading}
-          <Tabs items={items} value={filter} onChange={onFilterChange} ariaLabel="差异筛选" />
+          <div role="group" aria-label="差异筛选" className="flex flex-wrap items-center gap-1">
+            {facets.map((facet) => (
+              <FilterChip key={facet} facet={facet} count={counts.get(facet) ?? 0} state={filter[facet]} onCycle={() => cycleFacet(facet)} />
+            ))}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Input
               wrapperClassName="w-full sm:w-72"
@@ -668,15 +711,15 @@ export function DiffViewer({
           />
         )
       ) : visible.length === 0 ? (
-        filter === "diff" ? (
+        isDefault ? (
           (noDiff?.(outside) ?? <EmptyState title="没有差异" description="这些来源之间没有发现差异。" />)
         ) : (
           <EmptyState
-            title={`没有「${(compare ? COMPARE_LABELS[filter] : undefined) ?? LABELS[filter]}」`}
-            description={`「有差异」里还有 ${counts.get("diff") ?? 0} 条。`}
+            title="当前筛选下没有 key"
+            description={`清空筛选后还有 ${scoped.length} 个 key。`}
             action={
-              <Button size="sm" onClick={() => onFilterChange("diff")}>
-                查看全部差异
+              <Button size="sm" onClick={() => onFilterChange({})}>
+                清空筛选
               </Button>
             }
           />

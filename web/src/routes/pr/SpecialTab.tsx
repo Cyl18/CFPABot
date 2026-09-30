@@ -2,6 +2,7 @@ import { FileDiff } from "lucide-react";
 import { useMemo } from "react";
 import { cn } from "@/lib/cn.ts";
 import { lineDiff, toSideBySide, type DiffKind, type LineDiffRow } from "@/lib/diff.ts";
+import { formatDelta } from "@/lib/format.ts";
 import { useSpecial } from "@/lib/queries.ts";
 import type { PrSearch, SearchPatch } from "@/lib/search.ts";
 import { FileStatusBadge } from "@/ui/Badge.tsx";
@@ -132,7 +133,8 @@ function DiffSummary({ rows }: { rows: readonly LineDiffRow[] }) {
   const removed = rows.filter((row) => row.type === "delete").length;
   return (
     <p className="text-xs text-muted">
-      共 {rows.length} 行 · <span className="text-ok">+{added}</span> · <span className="text-danger">-{removed}</span>
+      共 {rows.length} 行 · <span className={added === 0 ? "text-muted" : "text-ok"}>{formatDelta(added, "+")}</span> ·{" "}
+      <span className={removed === 0 ? "text-muted" : "text-danger"}>{formatDelta(removed, "-")}</span>
     </p>
   );
 }

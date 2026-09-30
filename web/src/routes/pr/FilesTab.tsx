@@ -7,7 +7,8 @@ import { EmptyState } from "@/ui/EmptyState.tsx";
 import { Input } from "@/ui/Input.tsx";
 import { DataTable, type Column } from "@/ui/Table.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
-import { parseLangFile, workspaceParam } from "@/lib/paths.ts";
+import { formatDelta } from "@/lib/format.ts";
+import { parseLangFile, pickCompareFiles, workspaceParam } from "@/lib/paths.ts";
 import type { PrSearch, SearchPatch } from "@/lib/search.ts";
 
 const STATUS_OPTIONS = [
@@ -33,13 +34,23 @@ export function FilesTab({ pr, search, onSearchChange }: { pr: PrDetail; search:
     });
   }, [pr.files, query, status]);
 
+  const compared = useMemo(() => {
+    const paths = new Set<string>();
+    for (const workspace of pr.workspaces) {
+      const picked = pickCompareFiles(pr.files, workspace);
+      if (picked.en_us !== undefined) paths.add(picked.en_us);
+      if (picked.zh_cn !== undefined) paths.add(picked.zh_cn);
+    }
+    return paths;
+  }, [pr.files, pr.workspaces]);
+
   const columns: readonly Column<PrFile>[] = [
     {
       id: "path",
       header: "路径",
       cell: (file) => {
         const parsed = parseLangFile(file.path);
-        if (parsed) {
+        if (parsed && compared.has(file.path)) {
           return (
             <Link
               to="/pr/$n/$tab"
@@ -53,7 +64,10 @@ export function FilesTab({ pr, search, onSearchChange }: { pr: PrDetail; search:
           );
         }
         return (
-          <code className="block truncate font-mono text-xs" title={file.path}>
+          <code
+            className="block truncate font-mono text-xs text-muted"
+            title={parsed ? `${file.path}（不参与比较：同一工作区每个语言只比较一份文件）` : `${file.path}（不支持比较）`}
+          >
             {file.path}
           </code>
         );
@@ -65,8 +79,8 @@ export function FilesTab({ pr, search, onSearchChange }: { pr: PrDetail; search:
       width: 90,
       cell: (file) => <FileStatusBadge status={file.status} />,
     },
-    { id: "additions", header: "+", width: 64, align: "right", cell: (file) => <span className="text-ok">+{file.additions}</span> },
-    { id: "deletions", header: "-", width: 64, align: "right", cell: (file) => <span className="text-danger">-{file.deletions}</span> },
+    { id: "additions", header: "+", width: 64, align: "right", cell: (file) => <span className={file.additions === 0 ? "text-muted" : "text-ok"}>{formatDelta(file.additions, "+")}</span> },
+    { id: "deletions", header: "-", width: 64, align: "right", cell: (file) => <span className={file.deletions === 0 ? "text-muted" : "text-danger"}>{formatDelta(file.deletions, "-")}</span> },
     {
       id: "previous",
       header: "原路径",

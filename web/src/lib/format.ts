@@ -38,6 +38,10 @@ export function formatJson(value: unknown): string {
   }
 }
 
+export function formatDelta(value: number, sign: "+" | "-"): string {
+  return value === 0 ? "0" : `${sign}${value}`;
+}
+
 export function expandNewlines(value: string): string {
   return value.replaceAll("\\n", "\\n\n");
 }

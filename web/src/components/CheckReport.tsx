@@ -48,7 +48,7 @@ export function CheckReportView({ report, className }: { report: CheckReport | n
           </Badge>
         ))}
         <span className="text-xs text-muted">
-          {report.items.length} 项 · {report.headSha.slice(0, 7)} · {new Date(report.generatedAt).toLocaleString("zh-CN", { hour12: false })}
+          {report.items.length} 项 · 检查提交 {report.headSha.slice(0, 7)} · {new Date(report.generatedAt).toLocaleString("zh-CN", { hour12: false })}
         </span>
       </div>
       {sorted.length === 0 ? (
