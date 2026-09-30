@@ -1,13 +1,14 @@
 import type { PrDetail, PrFile } from "@shared/api.ts";
 import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { FileStatusBadge } from "@/ui/Badge.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { Input } from "@/ui/Input.tsx";
 import { DataTable, type Column } from "@/ui/Table.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
 import { parseLangFile, workspaceParam } from "@/lib/paths.ts";
+import type { PrSearch, SearchPatch } from "@/lib/search.ts";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "全部状态" },
@@ -17,9 +18,11 @@ const STATUS_OPTIONS = [
   { value: "renamed", label: "重命名" },
 ] as const;
 
-export function FilesTab({ pr }: { pr: PrDetail }) {
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<string>("all");
+type StatusFilter = (typeof STATUS_OPTIONS)[number]["value"];
+
+export function FilesTab({ pr, search, onSearchChange }: { pr: PrDetail; search: PrSearch; onSearchChange: (patch: SearchPatch) => void }) {
+  const query = search.q ?? "";
+  const status: StatusFilter = STATUS_OPTIONS.some((option) => option.value === search.status) ? (search.status as StatusFilter) : "all";
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -89,11 +92,11 @@ export function FilesTab({ pr }: { pr: PrDetail }) {
           aria-label="搜索文件路径"
           placeholder="搜索文件路径"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => onSearchChange({ q: event.target.value === "" ? undefined : event.target.value })}
         />
         <div role="group" aria-label="文件状态筛选" className="flex flex-wrap gap-1.5">
           {STATUS_OPTIONS.map((option) => (
-            <ToggleChip key={option.value} pressed={status === option.value} onClick={() => setStatus(option.value)}>
+            <ToggleChip key={option.value} pressed={status === option.value} onClick={() => onSearchChange({ status: option.value === "all" ? undefined : option.value })}>
               {option.label}
             </ToggleChip>
           ))}

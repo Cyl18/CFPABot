@@ -2,7 +2,7 @@ import type {
   CheckReport,
   CompareResult,
   CreateSessionRequest,
-  CrossVersionKeysResult,
+  CrossVersionKeyRow,
   CrossVersionResult,
   LlmConfigUpdate,
   LlmConfigView,
@@ -147,17 +147,14 @@ export const api = {
     ),
   versionsKeys: (
     slug: string,
-    opts: { namespace?: string; pr?: number; versions?: readonly string[]; q: string; offset: number; limit: number },
+    opts: { namespace?: string; pr?: number; versions?: readonly string[] },
     signal?: AbortSignal,
   ) =>
-    get<CrossVersionKeysResult>(
+    get<CrossVersionKeyRow[]>(
       `/api/versions/${encodeURIComponent(slug)}/keys${query({
         namespace: opts.namespace,
         pr: opts.pr,
         versions: opts.versions === undefined || opts.versions.length === 0 ? undefined : opts.versions.join(","),
-        q: opts.q,
-        offset: opts.offset,
-        limit: opts.limit,
       })}`,
       signal,
     ),

@@ -40,11 +40,6 @@ function versionSelection(raw: string | undefined): string[] | undefined {
   return list.length === 0 ? undefined : list;
 }
 
-const versionsKeysQuery = versionsQuery.extend({
-  q: z.string().optional(),
-  offset: z.coerce.number().int().min(0).default(0),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
-});
 const textCompareSchema = z.object({
   left: z.object({ name: z.string().min(1), content: z.string().max(5_000_000) }),
   right: z.object({ name: z.string().min(1), content: z.string().max(5_000_000) }),
@@ -140,14 +135,8 @@ prRoutes.get("/versions/:slug", async (c) => {
 });
 
 prRoutes.get("/versions/:slug/keys", async (c) => {
-  const { namespace, pr, versions, q, offset, limit } = parseQuery(c, versionsKeysQuery);
-  return c.json(
-    await crossVersionKeys(
-      c.req.param("slug"),
-      { namespace, pr, versions: versionSelection(versions) },
-      { q, offset, limit },
-    ),
-  );
+  const { namespace, pr, versions } = parseQuery(c, versionsQuery);
+  return c.json(await crossVersionKeys(c.req.param("slug"), { namespace, pr, versions: versionSelection(versions) }));
 });
 
 prRoutes.post("/compare/text", async (c) => {

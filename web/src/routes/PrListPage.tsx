@@ -8,6 +8,7 @@ import { PrStateBadge } from "@/components/StatusBadges.tsx";
 import { cn } from "@/lib/cn.ts";
 import { formatRelative } from "@/lib/format.ts";
 import { qk, usePrs } from "@/lib/queries.ts";
+import type { PrListSearch, SearchPatch } from "@/lib/search.ts";
 import { TagList } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
@@ -29,10 +30,10 @@ const TABS: readonly TabItem<StateTab>[] = [
 
 const LABEL_FILTER_LIMIT = 10;
 
-export function PrListPage() {
-  const [state, setState] = useState<StateTab>("open");
-  const [query, setQuery] = useState("");
-  const [selectedLabels, setSelectedLabels] = useState<readonly string[]>([]);
+export function PrListPage({ search, onSearchChange }: { search: PrListSearch; onSearchChange: (patch: SearchPatch) => void }) {
+  const state: StateTab = TABS.some((item) => item.id === search.state) ? (search.state as StateTab) : "open";
+  const query = search.q ?? "";
+  const selectedLabels = useMemo(() => search.labels?.split(",").filter((item) => item !== "") ?? [], [search.labels]);
   const [allLabels, setAllLabels] = useState(false);
   const client = useQueryClient();
   const { data, isPending, error, refetch, isFetching } = usePrs(state);
@@ -118,14 +119,14 @@ export function PrListPage() {
       />
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Tabs items={TABS} value={state} onChange={setState} ariaLabel="PR 状态筛选" />
+        <Tabs items={TABS} value={state} onChange={(next) => onSearchChange({ state: next === "open" ? undefined : next })} ariaLabel="PR 状态筛选" />
         <Input
           wrapperClassName="w-full sm:ml-auto sm:w-80"
           icon={<Search />}
           aria-label="搜索 PR"
           placeholder="搜索标题 / 编号 / 作者 / 模组 slug"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => onSearchChange({ q: event.target.value === "" ? undefined : event.target.value })}
         />
       </div>
 
@@ -136,9 +137,10 @@ export function PrListPage() {
             <ToggleChip
               key={label}
               pressed={selectedLabels.includes(label)}
-              onClick={() =>
-                setSelectedLabels((previous) => (previous.includes(label) ? previous.filter((item) => item !== label) : [...previous, label]))
-              }
+              onClick={() => {
+                const next = selectedLabels.includes(label) ? selectedLabels.filter((item) => item !== label) : [...selectedLabels, label];
+                onSearchChange({ labels: next.length === 0 ? undefined : next.join(",") });
+              }}
             >
               {label}
               <span className="tabular-nums opacity-60">{count}</span>
@@ -150,7 +152,7 @@ export function PrListPage() {
             </Button>
           )}
           {selectedLabels.length > 0 && (
-            <Button size="sm" variant="ghost" onClick={() => setSelectedLabels([])}>
+            <Button size="sm" variant="ghost" onClick={() => onSearchChange({ labels: undefined })}>
               清除筛选
             </Button>
           )}

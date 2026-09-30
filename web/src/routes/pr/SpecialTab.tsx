@@ -1,8 +1,9 @@
 import { FileDiff } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { cn } from "@/lib/cn.ts";
 import { lineDiff, toSideBySide, type DiffKind, type LineDiffRow } from "@/lib/diff.ts";
 import { useSpecial } from "@/lib/queries.ts";
+import type { PrSearch, SearchPatch } from "@/lib/search.ts";
 import { FileStatusBadge } from "@/ui/Badge.tsx";
 import { Card, CardBody } from "@/ui/Card.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
@@ -30,12 +31,13 @@ const MODES: readonly TabItem<"unified" | "side">[] = [
 
 const GUTTER = "select-none border-r border-line px-2 text-right text-xs text-muted";
 
-export function SpecialTab({ n, paths }: { n: number; paths: string[] }) {
+export function SpecialTab({ n, paths, search, onSearchChange }: { n: number; paths: string[]; search: PrSearch; onSearchChange: (patch: SearchPatch) => void }) {
   const special = useSpecial(n);
-  const [active, setActive] = useState(0);
-  const [mode, setMode] = useState<"unified" | "side">("unified");
+  const mode = search.layout === "side" ? "side" : "unified";
 
   const files = special.data ?? [];
+  const requested = search.file === undefined ? 0 : files.findIndex((item) => item.path === search.file);
+  const active = requested === -1 ? 0 : requested;
   const file = files[active] ?? files[0] ?? null;
   const rows = useMemo(() => (file ? lineDiff(file.base ?? "", file.head ?? "") : []), [file]);
   const paired = useMemo(() => (mode === "side" ? toSideBySide(rows) : []), [mode, rows]);
@@ -58,13 +60,18 @@ export function SpecialTab({ n, paths }: { n: number; paths: string[] }) {
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
             {files.map((item, index) => (
-              <ToggleChip key={item.path} pressed={index === active} onClick={() => setActive(index)} title={item.path}>
+              <ToggleChip
+                key={item.path}
+                pressed={index === active}
+                onClick={() => onSearchChange({ file: index === 0 ? undefined : item.path })}
+                title={item.path}
+              >
                 {item.path.split("/").pop()}
                 <FileStatusBadge status={item.status} />
               </ToggleChip>
             ))}
           </div>
-          <Tabs items={MODES} value={mode} onChange={setMode} ariaLabel="差异视图模式" className="ml-auto" />
+          <Tabs items={MODES} value={mode} onChange={(next) => onSearchChange({ layout: next === "unified" ? undefined : next })} ariaLabel="差异视图模式" className="ml-auto" />
         </div>
 
         {file && (

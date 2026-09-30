@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/cn.ts";
 import { inlineDiff } from "@/lib/diff.ts";
+import { useDiffMode } from "@/lib/diffMode.ts";
 import { expandNewlines } from "@/lib/format.ts";
 
 export interface InlineTextDiffProps {
@@ -10,11 +11,16 @@ export interface InlineTextDiffProps {
 }
 
 export function InlineTextDiff({ before, after, className }: InlineTextDiffProps) {
+  const [mode] = useDiffMode();
   const left = expandNewlines(before ?? "");
   const right = expandNewlines(after ?? "");
-  const segments = useMemo(() => inlineDiff(left, right), [left, right]);
+  const segments = useMemo(() => inlineDiff(left, right, mode), [left, right, mode]);
 
   if (left === "" && right === "") return <span className="text-muted">-</span>;
+
+  if (mode === "off") {
+    return <span className={cn("whitespace-pre-wrap break-words", className)}>{right === "" ? left : right}</span>;
+  }
 
   if (left === "") {
     return <span className={cn("whitespace-pre-wrap break-words rounded-sm bg-ok/20 px-0.5 text-ok", className)}>{right}</span>;

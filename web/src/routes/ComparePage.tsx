@@ -2,6 +2,7 @@ import type { TextCompareResult } from "@shared/api.ts";
 import { useMutation } from "@tanstack/react-query";
 import { ArrowLeftRight, FileUp } from "lucide-react";
 import { useRef, useState } from "react";
+import { DiffModePicker } from "@/components/DiffModePicker.tsx";
 import { InlineTextDiff } from "@/components/InlineTextDiff.tsx";
 import { PageHeader } from "@/components/PageHeader.tsx";
 import { api, errorMessage } from "@/lib/api.ts";
@@ -137,6 +138,7 @@ export function ComparePage() {
           清空
         </Button>
         {compare.isError && <span className="text-xs text-danger">{errorMessage(compare.error)}</span>}
+        <DiffModePicker className="sm:ml-auto" />
       </div>
 
       {compare.isError ? (

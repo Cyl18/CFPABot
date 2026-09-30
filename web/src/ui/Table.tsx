@@ -1,4 +1,4 @@
-import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import type { ReactNode } from "react";
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/cn.ts";
@@ -21,8 +21,6 @@ export interface DataTableProps<T> {
   ariaLabel: string;
   empty?: ReactNode;
   virtualize?: boolean;
-  scroll?: "page" | "contained";
-  height?: string;
   rowHeight?: number;
   valign?: "top" | "middle";
   framed?: boolean;
@@ -53,21 +51,17 @@ export function DataTable<T>({
   ariaLabel,
   empty,
   virtualize,
-  scroll = "page",
-  height = "70vh",
   rowHeight = 37,
   valign = "top",
   framed = true,
   rowClassName,
 }: DataTableProps<T>) {
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const tableRef = useRef<HTMLTableElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
   const virtual = virtualize ?? rows.length > VIRTUAL_THRESHOLD;
-  const contained = scroll === "contained";
 
   useLayoutEffect(() => {
-    if (contained || !virtual) return;
+    if (!virtual) return;
     const top = (tableRef.current?.getBoundingClientRect().top ?? 0) + window.scrollY;
     if (Math.abs(top - scrollMargin) > 1) setScrollMargin(top);
   });
@@ -78,18 +72,11 @@ export function DataTable<T>({
     overscan: 12,
     getItemKey: (index: number) => rowKey(rows[index] as T, index),
   };
-  const elementVirtualizer = useVirtualizer<HTMLDivElement, HTMLTableRowElement>({
-    ...shared,
-    getScrollElement: () => wrapperRef.current,
-    enabled: virtual && contained,
-  });
-  const windowVirtualizer = useWindowVirtualizer<HTMLTableRowElement>({
+  const virtualizer = useWindowVirtualizer<HTMLTableRowElement>({
     ...shared,
     scrollMargin,
-    enabled: virtual && !contained,
+    enabled: virtual,
   });
-  const virtualizer = contained ? elementVirtualizer : windowVirtualizer;
-  const margin = contained ? 0 : scrollMargin;
 
   const rank = useSyncExternalStore(subscribeResize, viewportRank);
   const visible = columns.filter((column) => column.hideBelow === undefined || rank >= BREAKPOINT_RANK[column.hideBelow]);
@@ -122,26 +109,18 @@ export function DataTable<T>({
   const virtualItems = virtual ? virtualizer.getVirtualItems() : [];
   const first = virtualItems[0];
   const last = virtualItems[virtualItems.length - 1];
-  const padTop = first ? first.start - margin : 0;
-  const padBottom = last ? virtualizer.getTotalSize() - (last.end - margin) : 0;
+  const padTop = first ? first.start - scrollMargin : 0;
+  const padBottom = last ? virtualizer.getTotalSize() - (last.end - scrollMargin) : 0;
 
   return (
-    <div
-      ref={wrapperRef}
-      className={cn(
-        "scroll-thin relative bg-surface",
-        framed && "rounded-lg border border-line",
-        contained ? "overflow-auto" : "max-md:overflow-x-auto",
-      )}
-      style={contained ? { maxHeight: height } : undefined}
-    >
+    <div className={cn("scroll-thin relative bg-surface max-md:overflow-x-auto", framed && "rounded-lg border border-line")}>
       <table
         ref={tableRef}
-        className={cn("w-full border-separate border-spacing-0 text-sm", !contained && "table-fixed")}
-        style={contained ? undefined : { minWidth }}
+        className="w-full table-fixed border-separate border-spacing-0 text-sm"
+        style={{ minWidth }}
         aria-label={ariaLabel}
       >
-        <thead className={cn("sticky z-10", contained ? "top-0" : "top-0 max-lg:top-14 max-md:top-0")}>
+        <thead className="sticky z-10 top-0 max-lg:top-14 max-md:top-0">
           <tr>
             {visible.map((column, columnIndex) => (
               <th

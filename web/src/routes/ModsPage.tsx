@@ -1,10 +1,10 @@
 import type { ModEntry } from "@shared/api.ts";
 import { Link } from "@tanstack/react-router";
 import { PackageSearch, Search } from "lucide-react";
-import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader.tsx";
 import { formatRelative } from "@/lib/format.ts";
 import { useMods } from "@/lib/queries.ts";
+import type { SearchPatch } from "@/lib/search.ts";
 import { Badge } from "@/ui/Badge.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
@@ -12,8 +12,7 @@ import { Input } from "@/ui/Input.tsx";
 import { SkeletonTable } from "@/ui/Spinner.tsx";
 import { DataTable, type Column } from "@/ui/Table.tsx";
 
-export function ModsPage() {
-  const [query, setQuery] = useState("");
+export function ModsPage({ query, onSearchChange }: { query: string; onSearchChange: (patch: SearchPatch) => void }) {
   const { data, isPending, error, refetch } = useMods(query);
 
   const columns: readonly Column<ModEntry>[] = [
@@ -75,7 +74,7 @@ export function ModsPage() {
             icon={<Search />}
             wrapperClassName="w-full sm:w-72"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => onSearchChange({ q: event.target.value === "" ? undefined : event.target.value })}
           />
         }
       />

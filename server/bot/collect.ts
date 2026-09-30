@@ -67,24 +67,27 @@ async function loadOneWorkspace(ctx: PrContext, workspace: Workspace): Promise<W
     if (parsed.locale === "en_us") en = { path: parsed.path, format: parsed.format };
     else zh = { path: parsed.path, format: parsed.format };
   }
-  if (!en && zh) en = { path: zh.path, format: zh.format };
-  if (!zh && en) zh = { path: en.path, format: en.format };
+  if (!en && zh) en = { path: langPathFor(zh.path, "en_us")[0] ?? zh.path, format: zh.format };
+  if (!zh && en) zh = { path: langPathFor(en.path, "zh_cn")[0] ?? en.path, format: en.format };
   if (!en && !zh) return null;
 
-  const read = async (side: { path: string; format: LangFormat } | undefined, locale: Locale, ref: string): Promise<string | null> => {
+  const statusOf = new Map(ctx.files.map((file) => [file.path, file.status]));
+  const read = async (side: { path: string; format: LangFormat } | undefined, locale: Locale, ref: "base" | "head"): Promise<string | null> => {
     if (!side) return null;
+    const status = statusOf.get(side.path);
+    if (ref === "base" ? status === "added" : status === "removed") return null;
     for (const candidate of langPathFor(side.path, locale)) {
-      const text = await gh.getFile(candidate, ref);
+      const text = await gh.getFile(candidate, ref === "base" ? ctx.pull.baseSha : ctx.pull.headSha);
       if (text !== null) return text;
     }
     return null;
   };
 
   const [baseEnText, baseZhText, headEnText, headZhText] = await Promise.all([
-    read(en, "en_us", ctx.pull.baseSha),
-    read(zh, "zh_cn", ctx.pull.baseSha),
-    read(en, "en_us", ctx.pull.headSha),
-    read(zh, "zh_cn", ctx.pull.headSha),
+    read(en, "en_us", "base"),
+    read(zh, "zh_cn", "base"),
+    read(en, "en_us", "head"),
+    read(zh, "zh_cn", "head"),
   ]);
   const baseEn = en && baseEnText !== null ? parseLang(baseEnText, en.format) : null;
   const baseZh = zh && baseZhText !== null ? parseLang(baseZhText, zh.format) : null;

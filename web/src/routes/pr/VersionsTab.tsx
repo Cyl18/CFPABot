@@ -1,18 +1,25 @@
-import { useNavigate } from "@tanstack/react-router";
 import { CrossVersionPanel } from "@/components/CrossVersionPanel.tsx";
+import { crossVersionPatch, crossVersionQuery } from "@/lib/crossVersionSearch.ts";
+import type { PrSearch, SearchPatch } from "@/lib/search.ts";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
-export function VersionsTab({ n, slugs, slug, ns }: { n: number; slugs: readonly string[]; slug?: string; ns?: string }) {
-  const navigate = useNavigate();
-  const selected = slugs.find((item) => item === slug) ?? slugs[0];
+export function VersionsTab({
+  n,
+  slugs,
+  search,
+  onSearchChange,
+}: {
+  n: number;
+  slugs: readonly string[];
+  search: PrSearch;
+  onSearchChange: (patch: SearchPatch) => void;
+}) {
+  const selected = slugs.find((item) => item === search.slug) ?? slugs[0];
 
   if (selected === undefined) {
     return <EmptyState title="没有涉及模组" description="此 PR 没有改动任何模组的语言文件，无需做跨版本比较。" />;
   }
-
-  const go = (search: { slug: string; ns?: string }) =>
-    void navigate({ to: "/pr/$n/$tab", params: { n: String(n), tab: "versions" }, search, replace: true });
 
   return (
     <div className="flex flex-col gap-3">
@@ -20,18 +27,20 @@ export function VersionsTab({ n, slugs, slug, ns }: { n: number; slugs: readonly
         <div role="group" aria-label="模组" className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted">模组</span>
           {slugs.map((item) => (
-            <ToggleChip key={item} mono pressed={item === selected} onClick={() => go({ slug: item })}>
+            <ToggleChip key={item} mono pressed={item === selected} onClick={() => onSearchChange({ slug: item, ns: undefined })}>
               {item}
             </ToggleChip>
           ))}
         </div>
       )}
       <CrossVersionPanel
-        key={`${selected}\u0000${ns ?? ""}`}
+        key={`${selected}\u0000${search.ns ?? ""}`}
         slug={selected}
-        namespace={ns}
+        namespace={search.ns}
         pr={n}
-        onNamespaceChange={(next) => go({ slug: selected, ns: next })}
+        state={crossVersionQuery(search, n)}
+        onStateChange={(patch) => onSearchChange(crossVersionPatch(patch, n))}
+        onNamespaceChange={(next) => onSearchChange({ ns: next })}
       />
     </div>
   );

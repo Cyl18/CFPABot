@@ -6,6 +6,7 @@ import { PrStateBadge } from "@/components/StatusBadges.tsx";
 import { api, errorMessage } from "@/lib/api.ts";
 import { formatDateTime, formatRelative } from "@/lib/format.ts";
 import { useMe, usePr, useRefreshPr } from "@/lib/queries.ts";
+import type { PrSearch, SearchPatch } from "@/lib/search.ts";
 import { LabelChip } from "@/ui/Badge.tsx";
 import { Button, buttonClass } from "@/ui/Button.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
@@ -29,7 +30,7 @@ const SUB_TABS: readonly { id: PrTab; label: string }[] = [
   { id: "reviews", label: "审查" },
 ];
 
-export function PrDetailPage({ n, tab, ws, slug, ns }: { n: number; tab: PrTab; ws?: string; slug?: string; ns?: string }) {
+export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; tab: PrTab; search: PrSearch; onSearchChange: (patch: SearchPatch) => void }) {
   const { data: me } = useMe();
   const { data: pr, isPending, error, refetch } = usePr(n);
   const refresh = useRefreshPr(n);
@@ -149,7 +150,7 @@ export function PrDetailPage({ n, tab, ws, slug, ns }: { n: number; tab: PrTab; 
               key={item.id}
               to="/pr/$n/$tab"
               params={{ n: String(n), tab: item.id }}
-              search={item.id === "compare" ? { ws } : item.id === "versions" ? { slug, ns } : {}}
+              search={item.id === "compare" ? { ws: search.ws } : item.id === "versions" ? { slug: search.slug, ns: search.ns } : {}}
               className={tabClass(active, "underline")}
               aria-current={active ? "page" : undefined}
             >
@@ -160,10 +161,10 @@ export function PrDetailPage({ n, tab, ws, slug, ns }: { n: number; tab: PrTab; 
       </nav>
 
       {tab === "overview" && <OverviewTab pr={pr} />}
-      {tab === "files" && <FilesTab pr={pr} />}
-      {tab === "compare" && <CompareTab n={n} workspaces={pr.workspaces} ws={ws} />}
-      {tab === "versions" && <VersionsTab n={n} slugs={pr.slugs} slug={slug} ns={ns} />}
-      {tab === "special" && <SpecialTab n={n} paths={pr.specialFiles} />}
+      {tab === "files" && <FilesTab pr={pr} search={search} onSearchChange={onSearchChange} />}
+      {tab === "compare" && <CompareTab n={n} workspaces={pr.workspaces} search={search} onSearchChange={onSearchChange} />}
+      {tab === "versions" && <VersionsTab n={n} slugs={pr.slugs} search={search} onSearchChange={onSearchChange} />}
+      {tab === "special" && <SpecialTab n={n} paths={pr.specialFiles} search={search} onSearchChange={onSearchChange} />}
       {tab === "reviews" && <ReviewsTab n={n} />}
     </>
   );

@@ -172,8 +172,11 @@ async function buildWorkspace(
   const sample = parseLangPath(zhPath ?? enPath ?? "");
   if (!sample) return null;
   const format = sample.format;
+  const statusOf = new Map(input.files.map((file) => [file.path, file.status]));
   const readSide = async (path: string | null, locale: Locale, ref: "base" | "head"): Promise<string | null> => {
     if (path === null) return null;
+    const status = statusOf.get(path);
+    if (ref === "base" ? status === "added" : status === "removed") return null;
     for (const candidate of langPathFor(path, locale)) {
       const text = await input.read(candidate, ref);
       if (text !== null) return text;

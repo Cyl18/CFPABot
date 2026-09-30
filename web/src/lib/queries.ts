@@ -1,4 +1,4 @@
-import type { CheckReport, CompareResult, CrossVersionKeysResult, CrossVersionResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, ModSourceResult, PrDetail, PrState, PrSummary, SessionDetail, SessionSummary, SpecialFile, SystemStatus } from "@shared/api.ts";
+import type { CheckReport, CompareResult, CrossVersionKeyRow, CrossVersionResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, ModSourceResult, PrDetail, PrState, PrSummary, SessionDetail, SessionSummary, SpecialFile, SystemStatus } from "@shared/api.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type CompareKey } from "@/lib/api.ts";
 
@@ -13,20 +13,8 @@ export const qk = {
   special: (n: number) => ["special", n] as const,
   versions: (slug: string, opts: { namespace?: string; pr?: number; versions?: readonly string[] }) =>
     ["versions", slug, opts.namespace ?? null, opts.pr ?? null, opts.versions?.join(",") ?? null] as const,
-  versionsKeys: (
-    slug: string,
-    opts: { namespace?: string; pr?: number; versions?: readonly string[]; q: string; offset: number; limit: number },
-  ) =>
-    [
-      "versions-keys",
-      slug,
-      opts.namespace ?? null,
-      opts.pr ?? null,
-      opts.versions?.join(",") ?? null,
-      opts.q,
-      opts.offset,
-      opts.limit,
-    ] as const,
+  versionsKeys: (slug: string, opts: { namespace?: string; pr?: number; versions?: readonly string[] }) =>
+    ["versions-keys", slug, opts.namespace ?? null, opts.pr ?? null, opts.versions?.join(",") ?? null] as const,
   mods: (q: string) => ["mods", q] as const,
   sessions: ["sessions"] as const,
   session: (id: string) => ["session", id] as const,
@@ -89,10 +77,10 @@ export function useVersions(slug: string, opts: { namespace?: string; pr?: numbe
 
 export function useVersionsKeys(
   slug: string,
-  opts: { namespace?: string; pr?: number; versions?: readonly string[]; q: string; offset: number; limit: number },
+  opts: { namespace?: string; pr?: number; versions?: readonly string[] },
   enabled: boolean,
 ) {
-  return useQuery<CrossVersionKeysResult>({
+  return useQuery<CrossVersionKeyRow[]>({
     queryKey: qk.versionsKeys(slug, opts),
     queryFn: ({ signal }) => api.versionsKeys(slug, opts, signal),
     enabled: enabled && slug.length > 0,

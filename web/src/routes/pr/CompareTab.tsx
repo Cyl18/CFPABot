@@ -1,11 +1,13 @@
 import type { CompareRow, ModSourceResult, RowStatus, Workspace } from "@shared/api.ts";
-import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeftRight, Layers, Search } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useMemo } from "react";
+import { DiffModePicker } from "@/components/DiffModePicker.tsx";
 import { InlineTextDiff } from "@/components/InlineTextDiff.tsx";
 import { cn } from "@/lib/cn.ts";
+import { PAIR_LAYOUTS, usePairLayout } from "@/lib/pairLayout.ts";
 import { groupWorkspaces, workspaceParam } from "@/lib/paths.ts";
 import { useCompare, useModSource } from "@/lib/queries.ts";
+import type { PrSearch, SearchPatch } from "@/lib/search.ts";
 import { Badge } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
 import { Card, CardBody, Stat } from "@/ui/Card.tsx";
@@ -36,6 +38,22 @@ const BORDER: Record<RowStatus, string> = {
 
 const STATUS_LABEL: Record<RowStatus, string> = { add: "新增", remove: "删除", modify: "修改", same: "未变" };
 
+function EnBlock({ row }: { row: CompareRow }) {
+  return (
+    <div className={cn("border-l-2 pl-2", BORDER[row.enStatus])}>
+      <InlineTextDiff before={row.baseEn} after={row.headEn} />
+    </div>
+  );
+}
+
+function ZhBlock({ row }: { row: CompareRow }) {
+  return (
+    <div className={cn("border-l-2 pl-2", BORDER[row.zhStatus])}>
+      <InlineTextDiff before={row.baseZh} after={row.headZh} />
+    </div>
+  );
+}
+
 function isChanged(row: CompareRow): boolean {
   return row.enStatus !== "same" || row.zhStatus !== "same";
 }
@@ -49,14 +67,16 @@ function isUntranslated(row: CompareRow): boolean {
 export interface CompareTabProps {
   n: number;
   workspaces: Workspace[];
-  ws?: string;
+  search: PrSearch;
+  onSearchChange: (patch: SearchPatch) => void;
 }
 
-export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
-  const navigate = useNavigate();
-  const [mode, setMode] = useState<FilterMode>("changed");
-  const [query, setQuery] = useState("");
-  const [overlay, setOverlay] = useState(false);
+export function CompareTab({ n, workspaces, search, onSearchChange }: CompareTabProps) {
+  const ws = search.ws;
+  const query = search.q ?? "";
+  const mode: FilterMode = FILTERS.some((item) => item.id === search.mode) ? (search.mode as FilterMode) : "changed";
+  const overlay = search.overlay === "1";
+  const [layout, setLayout] = usePairLayout();
 
   const selected = useMemo(() => {
     const parsed = ws !== undefined ? parseWorkspaceKey(ws) : null;
@@ -74,11 +94,7 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
   const open = (candidates: readonly Workspace[]) => {
     const target = candidates.find((item) => item.version === selected?.version) ?? candidates[0];
     if (target === undefined) return;
-    void navigate({
-      to: "/pr/$n/$tab",
-      params: { n: String(n), tab: "compare" },
-      search: { ws: workspaceParam(target.slug, target.version, target.namespace) },
-    });
+    onSearchChange({ ws: workspaceParam(target.slug, target.version, target.namespace) });
   };
 
   const key = selected === null ? null : { slug: selected.slug, version: selected.version, namespace: selected.namespace };
@@ -137,25 +153,24 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
           </code>
         ),
       },
-      {
-        id: "en",
-        header: "英文",
-        cell: (row) => (
-          <div className={cn("border-l-2 pl-2", BORDER[row.enStatus])}>
-            <InlineTextDiff before={row.baseEn} after={row.headEn} />
-          </div>
-        ),
-      },
-      {
-        id: "zh",
-        header: "中文",
-        cell: (row) => (
-          <div className={cn("border-l-2 pl-2", BORDER[row.zhStatus])}>
-            <InlineTextDiff before={row.baseZh} after={row.headZh} />
-          </div>
-        ),
-      },
     ];
+    if (layout === "split") {
+      list.push(
+        { id: "en", header: "英文", cell: (row) => <EnBlock row={row} /> },
+        { id: "zh", header: "中文", cell: (row) => <ZhBlock row={row} /> },
+      );
+    } else {
+      list.push({
+        id: "pair",
+        header: "英文 / 中文",
+        cell: (row) => (
+          <div className="flex flex-col gap-1">
+            <EnBlock row={row} />
+            <ZhBlock row={row} />
+          </div>
+        ),
+      });
+    }
     if (overlay) {
       list.push({
         id: "mod",
@@ -174,7 +189,7 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
       });
     }
     return list;
-  }, [overlay, modByKey]);
+  }, [layout, overlay, modByKey]);
 
   if (workspaces.length === 0) {
     return <EmptyState title="没有可比较的工作区" description="此 PR 没有检测到可比较的语言文件工作区。" />;
@@ -220,16 +235,18 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Tabs items={FILTERS} value={mode} onChange={setMode} ariaLabel="差异筛选" />
+            <Tabs items={FILTERS} value={mode} onChange={(next) => onSearchChange({ mode: next === "changed" ? undefined : next })} ariaLabel="差异筛选" />
+            <Tabs items={PAIR_LAYOUTS} value={layout} onChange={setLayout} ariaLabel="对照布局" />
             <Input
               wrapperClassName="w-full sm:w-72"
               icon={<Search />}
               aria-label="搜索 key 或文本"
               placeholder="搜索 key / 英文 / 中文"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => onSearchChange({ q: event.target.value === "" ? undefined : event.target.value })}
             />
-            <Checkbox label="叠加模组 en_us" checked={overlay} onChange={(event) => setOverlay(event.target.checked)} />
+            <Checkbox label="叠加模组 en_us" checked={overlay} onChange={(event) => onSearchChange({ overlay: event.target.checked ? "1" : undefined })} />
+            <DiffModePicker />
           </div>
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -263,7 +280,7 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
           title="没有匹配的行"
           description="当前筛选条件下没有差异行。"
           action={
-            <Button size="sm" onClick={() => setMode("all")} icon={<Layers aria-hidden="true" className="size-3.5" />}>
+            <Button size="sm" onClick={() => onSearchChange({ mode: "all" })} icon={<Layers aria-hidden="true" className="size-3.5" />}>
               查看全部
             </Button>
           }
@@ -275,7 +292,7 @@ export function CompareTab({ n, workspaces, ws }: CompareTabProps) {
           rowKey={(row) => row.key}
           ariaLabel="工作区翻译差异"
           virtualize
-          rowHeight={40}
+          rowHeight={layout === "stacked" ? 64 : 40}
         />
       )}
 

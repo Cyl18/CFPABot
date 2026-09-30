@@ -160,12 +160,6 @@ export interface CrossVersionKeyRow {
   cells: CrossVersionKeyCell[];
 }
 
-export interface CrossVersionKeysResult {
-  total: number;
-  offset: number;
-  rows: CrossVersionKeyRow[];
-}
-
 export interface TextCompareRequest {
   left: { name: string; content: string };
   right: { name: string; content: string };

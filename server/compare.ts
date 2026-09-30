@@ -12,7 +12,7 @@ import { prdata } from "./prdata.ts";
 import { ttlCache } from "./ttl.ts";
 import type {
   CompareResult,
-  CrossVersionKeysResult,
+  CrossVersionKeyRow,
   CrossVersionResult,
   ModSourceResult,
   PrDetail,
@@ -163,13 +163,18 @@ export async function compareWorkspace(n: number, key: WorkspaceKey): Promise<Co
   const format = en?.format ?? zh?.format ?? "json";
 
   const readSide = (side: LangSide | null, locale: Locale): { base: Promise<string | null>; head: Promise<string | null> } => {
-    const pathsFor = (path: string | null): string[] => {
-      const fallback = buildLangPath(key.slug, key.version, key.namespace, locale, format);
-      return langPathFor(path ?? fallback, locale);
-    };
+    const read = (path: string | null, ref: string, label: string): Promise<string | null> =>
+      path === null ? Promise.resolve(null) : readAny(langPathFor(path, locale), ref, label);
+    if (side !== null) {
+      return {
+        base: read(side.base, pull.baseSha, `${locale} (base)`),
+        head: read(side.head, pull.headSha, `${locale} (head)`),
+      };
+    }
+    const guessed = langPathFor(buildLangPath(key.slug, key.version, key.namespace, locale, format), locale);
     return {
-      base: readAny(pathsFor(side?.base ?? null), pull.baseSha, `${locale} (base)`),
-      head: readAny(pathsFor(side?.head ?? null), pull.headSha, `${locale} (head)`),
+      base: readAny(guessed, pull.baseSha, `${locale} (base)`),
+      head: readAny(guessed, pull.headSha, `${locale} (head)`),
     };
   };
 
@@ -472,17 +477,9 @@ export async function crossVersionResult(
 export async function crossVersionKeys(
   slug: string,
   opts: { namespace?: string; pr?: number; versions?: readonly string[] },
-  page: { q?: string; offset: number; limit: number },
-): Promise<CrossVersionKeysResult> {
+): Promise<CrossVersionKeyRow[]> {
   const build = await crossVersionBuild(slug, opts);
-  const needle = page.q?.trim().toLowerCase() ?? "";
-  const rows = alignKeys(build.entries).filter(
-    (row) =>
-      needle === "" ||
-      row.key.toLowerCase().includes(needle) ||
-      row.cells.some((cell) => cell.en.toLowerCase().includes(needle) || cell.zh?.toLowerCase().includes(needle) === true),
-  );
-  return { total: rows.length, offset: page.offset, rows: rows.slice(page.offset, page.offset + page.limit) };
+  return alignKeys(build.entries);
 }
 
 export function textCompare(req: TextCompareRequest): TextCompareResult {
