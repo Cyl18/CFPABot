@@ -1,4 +1,5 @@
 import type { CrossVersionIssue, CrossVersionIssueKind, CrossVersionKeyRow, CrossVersionVariant } from "@shared/api.ts";
+import { MAX_COMPARE_VERSIONS } from "@shared/api.ts";
 import { Check, CircleCheck, Copy, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { DiffModePicker } from "@/components/DiffModePicker.tsx";
@@ -93,7 +94,9 @@ export function CrossVersionPanel({ slug, namespace, pr, state, onStateChange, o
 
   const toggleVersion = (version: string) => {
     if (data === undefined) return;
-    const next = activeVersions.includes(version)
+    const selected = activeVersions.includes(version);
+    if (!selected && activeVersions.length >= MAX_COMPARE_VERSIONS) return;
+    const next = selected
       ? activeVersions.filter((item) => item !== version)
       : data.versions.filter((item) => item === version || activeVersions.includes(item));
     if (next.length === 0) return;
@@ -133,17 +136,20 @@ export function CrossVersionPanel({ slug, namespace, pr, state, onStateChange, o
 
           <div className="flex flex-wrap items-center gap-1">
             <span className="mr-1 text-xs text-muted">参与比较的版本</span>
-            {data.versions.map((version) => (
-              <ToggleChip
-                key={version}
-                mono
-                pressed={activeVersions.includes(version)}
-                title={prVersions.has(version) ? "本 PR 修改了这个版本" : undefined}
-                onClick={() => toggleVersion(version)}
-              >
-                {version}
-              </ToggleChip>
-            ))}
+            {data.versions.map((version) => {
+              const pressed = activeVersions.includes(version);
+              const title =
+                !pressed && activeVersions.length >= MAX_COMPARE_VERSIONS
+                  ? `最多同时比较 ${MAX_COMPARE_VERSIONS} 个版本，先取消一个`
+                  : prVersions.has(version)
+                    ? "本 PR 修改了这个版本"
+                    : undefined;
+              return (
+                <ToggleChip key={version} mono pressed={pressed} title={title} onClick={() => toggleVersion(version)}>
+                  {version}
+                </ToggleChip>
+              );
+            })}
             <span className="ml-1 text-xs text-muted">· {data.keyCount} 个 key</span>
           </div>
 
@@ -320,11 +326,6 @@ function AlignTable({
         cell: (row) => (
           <div className="flex flex-col items-start gap-1">
             <code className="break-all font-mono text-xs text-muted">{row.key}</code>
-            {row.cells.length < versions.length && (
-              <Badge tone="neutral" title="这个 key 只出现在部分版本里">
-                仅 {row.cells.map((cell) => cell.version).join("、")} 有
-              </Badge>
-            )}
             {showTouched && row.touched && <Badge tone="accent">本 PR 改动</Badge>}
           </div>
         ),

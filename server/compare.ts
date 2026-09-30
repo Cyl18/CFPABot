@@ -23,6 +23,7 @@ import type {
   TextCompareRequest,
   TextCompareResult,
 } from "../shared/api.ts";
+import { MAX_COMPARE_VERSIONS } from "../shared/api.ts";
 
 export interface WorkspaceKey {
   slug: string;
@@ -379,7 +380,7 @@ async function buildCrossVersion(
   const versions = [...byVersion.keys()].sort(compareMc);
   const wanted = opts.versions === undefined || opts.versions.length === 0 ? null : new Set(opts.versions);
   const kept = wanted === null ? versions : versions.filter((version) => wanted.has(version));
-  const activeVersions = kept.length === 0 ? versions : kept;
+  const activeVersions = (kept.length === 0 ? versions : kept).slice(0, MAX_COMPARE_VERSIONS);
 
   const basePaths: string[] = [];
   for (const version of activeVersions) {

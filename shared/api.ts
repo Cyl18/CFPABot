@@ -136,6 +136,8 @@ export interface CrossVersionIssue {
   touched: boolean;
 }
 
+export const MAX_COMPARE_VERSIONS = 3;
+
 export interface CrossVersionResult {
   slug: string;
   namespace: string;
