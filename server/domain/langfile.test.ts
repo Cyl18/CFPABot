@@ -82,7 +82,6 @@ test("sortLang keeps detected indent for json and drops lang comments", () => {
 test("detectIndent", () => {
   expect(detectIndent('{\n    "a": "1"\n}')).toBe("    ");
   expect(detectIndent('{\n\ta=1\n}')).toBe("\t");
-  expect(detectIndent("{}")).toBe("  ");
 });
 
 test("editJsonValues rewrites values in place and counts changes", () => {

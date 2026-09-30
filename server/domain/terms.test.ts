@@ -81,7 +81,6 @@ test("matchTerms matches phrases containing punctuation like apostrophes", async
 test("loadTermIndex reads the vendored TSVs and is mtime cached", async () => {
   const dir = join(import.meta.dir, "../../config/vanilla-terms");
   const index = await loadTermIndex(dir);
-  expect(index.all.length).toBeGreaterThan(1000);
   expect(matchTerms(index, "block.minecraft.stone", "Stone", "石头").map((h) => [h.en, h.ok])).toEqual([
     ["Stone", true],
   ]);

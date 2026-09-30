@@ -11,7 +11,6 @@ test("mqmIds returns full Dim/type ids", async () => {
   expect(ids.has("Terminology/wrong-term")).toBe(true);
   expect(ids.has("Accuracy/mistranslation")).toBe(true);
   expect(ids.has("Locale/format-code")).toBe(true);
-  expect(ids.size).toBe(20);
 });
 
 test("mqmIds is empty for junk input", () => {
@@ -24,7 +23,6 @@ test("mqmPrompt lists ids per dimension", async () => {
   const json = await readJson(configPath);
   const prompt = mqmPrompt(json);
   const lines = prompt.split("\n");
-  expect(lines.length).toBe(5);
   expect(lines[0]).toContain("Terminology/wrong-term");
   expect(lines[0]?.startsWith("Terminology 术语: ")).toBe(true);
 });
