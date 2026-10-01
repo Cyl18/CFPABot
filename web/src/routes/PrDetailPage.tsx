@@ -2,7 +2,9 @@ import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Clock, ExternalLink, GitBranch, Play, RefreshCw, User } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader.tsx";
+import { ReviewFailure, ReviewSubmit } from "@/components/Review.tsx";
 import { PrStateBadge } from "@/components/StatusBadges.tsx";
+import { ReviewProvider } from "@/hooks/useReview.tsx";
 import { api, errorMessage } from "@/lib/api.ts";
 import { formatDateTime, formatRelative } from "@/lib/format.ts";
 import { useMe, usePr, useRefreshPr, useRefreshStatus } from "@/lib/queries.ts";
@@ -50,7 +52,7 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
   if (isPending || !pr) return <SkeletonTable rows={8} columns={4} />;
 
   return (
-    <>
+    <ReviewProvider n={n}>
       <PageHeader
         back={{ to: "/", label: "返回 PR 列表" }}
         title={
@@ -97,6 +99,7 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
               <ExternalLink aria-hidden="true" className="size-4" />
               GitHub
             </a>
+            <ReviewSubmit author={pr.author} />
             {me?.isAdmin === true && (
               <>
                 <Button
@@ -126,6 +129,7 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
           {startReview.isError && <p>启动审查失败：{errorMessage(startReview.error)}</p>}
         </div>
       )}
+      <ReviewFailure />
 
       <nav aria-label="PR 子页面" className={tabListClass("underline", "mb-5")}>
         {SUB_TABS.map((item) => {
@@ -168,6 +172,6 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
       {tab === "versions" && <VersionsTab n={n} slugs={pr.slugs} search={search} onSearchChange={onSearchChange} />}
       {tab === "special" && <SpecialTab n={n} paths={pr.specialFiles} search={search} onSearchChange={onSearchChange} />}
       {tab === "reviews" && <ReviewsTab n={n} />}
-    </>
+    </ReviewProvider>
   );
 }

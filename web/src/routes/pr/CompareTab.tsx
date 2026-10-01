@@ -3,6 +3,8 @@ import type { DiffCell, DiffEntry, DiffLane } from "@shared/diffview.ts";
 import { formatDiffFilter, parseDiffFilter } from "@shared/diffview.ts";
 import { type ReactNode, useMemo } from "react";
 import { DiffViewer } from "@/components/DiffViewer.tsx";
+import { CommentButton, LineComments, LineThreads, LooseThreads, ViewedToggle } from "@/components/Review.tsx";
+import { useReview } from "@/hooks/useReview.tsx";
 import { parseWorkspaceKey } from "@/lib/api.ts";
 import { groupWorkspaces, pickCompareFiles, workspaceParam } from "@/lib/paths.ts";
 import { useCompare } from "@/lib/queries.ts";
@@ -56,6 +58,13 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
   }, [files, selected]);
 
   const rows: readonly CompareRow[] = compare.data?.rows ?? [];
+  const target = compare.data?.review ?? null;
+  const review = useReview();
+
+  const anchored = new Set(Object.values(target?.keys ?? {}).map((spot) => spot.line));
+  const loose = sources.flatMap((path) =>
+    review.threadsOf(path).filter((thread) => path !== target?.path || thread.line === null || !anchored.has(thread.line)),
+  );
 
   const lanes: DiffLane[] = useMemo(() => {
     const hasZh = (side: "base" | "head") => rows.some((row) => (side === "base" ? row.baseZh : row.headZh) !== undefined);
@@ -133,13 +142,30 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
         )}
         {sources.length > 0 && (
           <SelectorRow label="比较文件" title={sources.join("\n")}>
-            <span className="pt-0.5 font-mono text-xs text-muted">{sources.map((path) => path.slice(path.lastIndexOf("/") + 1)).join(" · ")}</span>
+            {sources.map((path) => (
+              <span key={path} className="inline-flex items-center gap-1.5">
+                <span className="font-mono text-xs text-muted">{path.slice(path.lastIndexOf("/") + 1)}</span>
+                <ViewedToggle path={path} />
+              </span>
+            ))}
           </SelectorRow>
         )}
       </div>
       {compare.data !== undefined && compare.data.missing.length > 0 && (
         <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">缺失文件：{compare.data.missing.join("、")}</p>
       )}
+      {compare.data !== undefined && (
+        <p className="text-xs text-muted">
+          {target === null
+            ? "这份中文文件在本 PR 里没有改动，GitHub 不允许在这里行内评论。"
+            : `中文改动范围内的 ${Object.keys(target.keys).length} 个 key 可以点 key 旁的气泡评论；范围外的行 GitHub 不允许评论。`}
+        </p>
+      )}
+      <LooseThreads
+        title="没对上 key 的评论（已过时或在英文文件上）"
+        threads={loose}
+        locate={(thread) => `${thread.path.slice(thread.path.lastIndexOf("/") + 1)}${thread.line === null ? "" : `:${thread.line}`}`}
+      />
     </div>
   );
 
@@ -158,6 +184,27 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
       pending={compare.isPending}
       error={compare.error}
       onRetry={() => void compare.refetch()}
+      rowAction={
+        target === null
+          ? undefined
+          : (entry) => {
+              const spot = target.keys[entry.key];
+              return spot === undefined ? null : (
+                <div className="flex shrink-0 flex-col items-end gap-0.5">
+                  <CommentButton path={target.path} line={spot.line} />
+                  <LineComments path={target.path} line={spot.line} />
+                </div>
+              );
+            }
+      }
+      rowFooter={
+        target === null
+          ? undefined
+          : (entry) => {
+              const spot = target.keys[entry.key];
+              return spot === undefined ? null : <LineThreads path={target.path} line={spot.line} raw={spot.raw} />;
+            }
+      }
     />
   );
 }

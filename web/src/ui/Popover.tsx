@@ -11,9 +11,10 @@ export interface PopoverProps {
   label: string;
   children: ReactNode;
   className?: string;
+  panelClassName?: string;
 }
 
-export function Popover({ trigger, label, children, className }: PopoverProps) {
+export function Popover({ trigger, label, children, className, panelClassName }: PopoverProps) {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const closeTimer = useRef<number | undefined>(undefined);
@@ -25,7 +26,10 @@ export function Popover({ trigger, label, children, className }: PopoverProps) {
   const cancelClose = () => window.clearTimeout(closeTimer.current);
   const scheduleClose = () => {
     cancelClose();
-    closeTimer.current = window.setTimeout(() => setOpen(false), CLOSE_DELAY);
+    closeTimer.current = window.setTimeout(() => {
+      if (panelRef.current?.contains(document.activeElement)) return;
+      setOpen(false);
+    }, CLOSE_DELAY);
   };
   const show = () => {
     cancelClose();
@@ -115,7 +119,8 @@ export function Popover({ trigger, label, children, className }: PopoverProps) {
             aria-label={label}
             style={position ? { top: position.top, left: position.left } : { top: 0, left: 0, visibility: "hidden" }}
             className={cn(
-              "scroll-thin fixed z-50 max-h-72 w-max max-w-80 overflow-y-auto rounded-lg border border-line bg-surface p-3 text-sm shadow-[var(--shadow-panel)]",
+              "scroll-thin fixed z-50 overflow-y-auto rounded-lg border border-line bg-surface p-3 text-sm shadow-[var(--shadow-panel)]",
+              panelClassName ?? "max-h-72 w-max max-w-80",
               className,
             )}
             onPointerEnter={cancelClose}

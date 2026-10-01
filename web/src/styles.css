@@ -216,3 +216,131 @@
   border: none;
   border-top: 1px solid var(--line);
 }
+
+/* GitHub 的 bodyHTML 用的类名，照搬一份最小样式 */
+.md .diff-view {
+  margin: 0.5em 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.md .diff-view > div:first-child {
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.md .diff-view table {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  overflow: visible;
+}
+
+.md .diff-view td {
+  border: none;
+  padding: 0.15rem 0.6rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.md .diff-view .blob-num {
+  display: none;
+}
+
+.md .blob-code-deletion {
+  background: color-mix(in oklab, var(--danger) 12%, transparent);
+}
+
+.md .blob-code-addition {
+  background: color-mix(in oklab, var(--ok) 12%, transparent);
+}
+
+.md .blob-code-deletion .x {
+  background: color-mix(in oklab, var(--danger) 30%, transparent);
+  border-radius: 2px;
+}
+
+.md .blob-code-addition .x {
+  background: color-mix(in oklab, var(--ok) 30%, transparent);
+  border-radius: 2px;
+}
+
+.md .markdown-alert {
+  border-left: 3px solid var(--line);
+  border-radius: 4px;
+  padding: 0.4rem 0.7rem;
+}
+
+.md .markdown-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.md .markdown-alert-note {
+  border-color: var(--info);
+  background: color-mix(in oklab, var(--info) 10%, transparent);
+}
+
+.md .markdown-alert-note .markdown-alert-title {
+  color: var(--info);
+}
+
+.md .markdown-alert-tip {
+  border-color: var(--ok);
+  background: color-mix(in oklab, var(--ok) 10%, transparent);
+}
+
+.md .markdown-alert-tip .markdown-alert-title {
+  color: var(--ok);
+}
+
+.md .markdown-alert-important {
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+
+.md .markdown-alert-important .markdown-alert-title {
+  color: var(--accent);
+}
+
+.md .markdown-alert-warning {
+  border-color: var(--warn);
+  background: color-mix(in oklab, var(--warn) 10%, transparent);
+}
+
+.md .markdown-alert-warning .markdown-alert-title {
+  color: var(--warn);
+}
+
+.md .markdown-alert-caution {
+  border-color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 10%, transparent);
+}
+
+.md .markdown-alert-caution .markdown-alert-title {
+  color: var(--danger);
+}
+
+.md .octicon {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+  vertical-align: -0.125em;
+}
+
+.md .pl-ent {
+  color: var(--ok);
+}
+
+.md .pl-s,
+.md .pl-pds {
+  color: var(--info);
+}

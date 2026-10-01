@@ -49,14 +49,14 @@ const textCompareSchema = z.object({
 });
 const modsQuery = z.object({ q: z.string().optional() });
 
-function prNumber(c: AppContext): number {
+export function prNumber(c: AppContext): number {
   const raw = c.req.param("n");
   const n = Number(raw);
   if (!Number.isInteger(n) || n <= 0) throw new HttpError(400, "PR 编号无效", "invalid_pr");
   return n;
 }
 
-async function withPull<T>(fn: () => Promise<T>): Promise<T> {
+export async function withPull<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {

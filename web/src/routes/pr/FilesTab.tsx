@@ -2,6 +2,7 @@ import type { PrDetail, PrFile } from "@shared/api.ts";
 import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { useMemo } from "react";
+import { ViewedToggle } from "@/components/Review.tsx";
 import { FileStatusBadge } from "@/ui/Badge.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { Input } from "@/ui/Input.tsx";
@@ -94,6 +95,13 @@ export function FilesTab({ pr, search, onSearchChange }: { pr: PrDetail; search:
         ) : (
           <span className="text-muted">-</span>
         ),
+    },
+    {
+      id: "viewed",
+      header: "已看",
+      width: 56,
+      align: "right",
+      cell: (file) => (file.status === "unchanged" ? null : <ViewedToggle path={file.path} compact />),
     },
   ];
 

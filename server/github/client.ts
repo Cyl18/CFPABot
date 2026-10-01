@@ -68,6 +68,14 @@ const patOctokit = env.GITHUB_PAT
   ? new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions(), auth: env.GITHUB_PAT })
   : null;
 
+export type GhOctokit = InstanceType<typeof PLUGIN_OCTOKIT>;
+
+export const serverGraphql = octokit;
+
+export function userGraphql(token: string): GhOctokit {
+  return new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions(), auth: token });
+}
+
 log.info("GitHub 客户端已初始化", { mode, repo: repo.fullName });
 
 export const gh: GitHubClient = {

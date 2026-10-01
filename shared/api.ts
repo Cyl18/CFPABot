@@ -122,6 +122,17 @@ export interface CompareResult {
   format: "json" | "lang";
   rows: CompareRow[];
   missing: string[];
+  review: CompareReview | null;
+}
+
+export interface ReviewHunk {
+  start: number;
+  end: number;
+}
+
+export interface CompareReview {
+  path: string;
+  keys: Record<string, { line: number; raw: string }>;
 }
 
 export type SpecialStatus = PrFile["status"] | "unchanged" | "missing";
@@ -140,6 +151,7 @@ export interface SpecialText extends SpecialSide {
   base: string | null;
   head: string | null;
   truncated: boolean;
+  hunks: ReviewHunk[] | null;
 }
 
 export type SpecialPairContent =
@@ -332,4 +344,69 @@ export interface MappingEntry {
   slug: string;
   curseforgeId: number;
   source: "manual" | "resolved";
+}
+
+export type ReviewEvent = "COMMENT" | "APPROVE" | "REQUEST_CHANGES";
+
+export type FileViewedState = "VIEWED" | "UNVIEWED" | "DISMISSED";
+
+export interface ReviewComment {
+  id: string;
+  author: string;
+  avatarUrl: string;
+  body: string;
+  createdAt: string;
+  url: string;
+  pending: boolean;
+  mine: boolean;
+}
+
+export interface ReviewThread {
+  id: string;
+  path: string;
+  line: number | null;
+  originalLine: number | null;
+  outdated: boolean;
+  resolved: boolean;
+  comments: ReviewComment[];
+}
+
+export interface PrReviewState {
+  viewer: string | null;
+  headSha: string;
+  pendingReviewId: string | null;
+  threads: ReviewThread[];
+  viewed: Record<string, FileViewedState>;
+}
+
+export interface AddReviewCommentRequest {
+  path: string;
+  line: number;
+  body: string;
+}
+
+export interface SetFileViewedRequest {
+  path: string;
+  viewed: boolean;
+}
+
+export interface SubmitReviewRequest {
+  event: ReviewEvent;
+  body: string;
+}
+
+export interface ReviewHtmlRequest {
+  ids: string[];
+}
+
+export interface ReviewHtmlResult {
+  html: Record<string, string>;
+}
+
+export interface SetThreadResolvedRequest {
+  resolved: boolean;
+}
+
+export interface AddReviewReplyRequest {
+  body: string;
 }

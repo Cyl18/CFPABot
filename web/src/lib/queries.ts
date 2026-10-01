@@ -13,6 +13,8 @@ export const qk = {
   compare: (n: number, key: string) => ["compare", n, key] as const,
   special: (n: number) => ["special", n] as const,
   specialContent: (n: number, key: string) => ["special-content", n, key] as const,
+  review: (n: number) => ["review", n] as const,
+  threadHtml: (n: number, threadId: string) => ["review-html", n, threadId] as const,
   versionsKeys: (slug: string, opts: { namespace?: string; pr?: number; versions?: readonly string[] }) =>
     ["versions-keys", slug, opts.namespace ?? null, opts.pr ?? null, opts.versions?.join(",") ?? null] as const,
   mods: (q: string) => ["mods", q] as const,

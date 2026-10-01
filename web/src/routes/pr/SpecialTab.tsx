@@ -1,7 +1,9 @@
 import type { SpecialPair, SpecialPairContent, SpecialText } from "@shared/api.ts";
-import { FileDiff, Maximize2, Minimize2, Search } from "lucide-react";
+import { Check, FileDiff, Maximize2, MessageSquarePlus, Minimize2, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DiffModePicker } from "@/components/DiffModePicker.tsx";
+import { LineThreads, LooseThreads, ViewedToggle } from "@/components/Review.tsx";
+import { useReview } from "@/hooks/useReview.tsx";
 import { cn } from "@/lib/cn.ts";
 import { lineRows, type DiffSegment, type LineRow, type LineRowKind } from "@/lib/diff.ts";
 import { useDiffMode } from "@/lib/diffMode.ts";
@@ -129,6 +131,7 @@ function scrollTopFor(pane: HTMLElement, rows: readonly LineRow[], position: Pos
 
 export function SpecialTab({ n, paths, search, onSearchChange }: { n: number; paths: string[]; search: PrSearch; onSearchChange: (patch: SearchPatch) => void }) {
   const special = useSpecial(n);
+  const review = useReview();
   const [query, setQuery] = useState("");
   const items = useMemo(() => special.data ?? [], [special.data]);
   const prefix = useMemo(() => sharedDir(items.map((item) => item.key)), [items]);
@@ -170,6 +173,8 @@ export function SpecialTab({ n, paths, search, onSearchChange }: { n: number; pa
             <ul className="-mx-2 flex max-h-[70vh] flex-col gap-0.5 overflow-y-auto">
               {visible.map((item) => {
                 const active = item === selected;
+                const sides = (item.kind === "single" ? [item.file] : [item.en, item.zh]).filter((side) => side.status !== "unchanged" && side.status !== "missing");
+                const done = sides.length > 0 && sides.every((side) => review.viewedOf(side.path) === "VIEWED");
                 return (
                   <li key={item.key}>
                     <button
@@ -182,7 +187,10 @@ export function SpecialTab({ n, paths, search, onSearchChange }: { n: number; pa
                         active ? "bg-accent-soft text-accent" : "text-fg hover:bg-elevated",
                       )}
                     >
-                      <span className="break-all font-mono text-xs">{labelOf(item.key, prefix)}</span>
+                      <span className="flex w-full items-start gap-1">
+                        <span className="min-w-0 flex-1 break-all font-mono text-xs">{labelOf(item.key, prefix)}</span>
+                        {done && <Check aria-label="已看" className="size-3.5 shrink-0 text-ok" />}
+                      </span>
                       <SideTags item={item} />
                     </button>
                   </li>
@@ -326,20 +334,26 @@ function SidePane({
   paneRef: (node: HTMLDivElement | null) => void;
   onScroll?: () => void;
 }) {
+  const review = useReview();
   const { text } = side;
   const missing = text.status === "missing";
   const paneHeight = fill ? "min-h-0 flex-1" : "h-[70vh]";
+  const hunks = text.hunks ?? [];
+  const heads = text.head?.split("\n") ?? [];
+  const outdated = review.threadsOf(text.path).filter((thread) => thread.line === null);
   return (
     <section aria-label={side.label} className={cn("flex min-w-0 flex-col gap-1.5", fill && "min-h-0")}>
       <header className="flex flex-wrap items-center gap-2 text-xs">
         <span className="font-medium text-fg">{side.label}</span>
         <FileStatusBadge status={text.status} />
+        {text.status !== "unchanged" && !missing && <ViewedToggle path={text.path} />}
         {text.truncated && <span className="text-warn">内容过大，已截断</span>}
         <RowCounts rows={rows} />
       </header>
       <code className="break-all font-mono text-[11px] text-muted">
         {text.previousPath === undefined ? text.path : `${text.previousPath} → ${text.path}`}
       </code>
+      <LooseThreads title="已过时的评论" threads={outdated} locate={(thread) => (thread.originalLine === null ? "" : `原第 ${thread.originalLine} 行`)} />
       {missing ? (
         <div className={cn("flex items-center justify-center rounded-md border border-dashed border-line px-4 text-center text-sm text-muted", paneHeight)}>
           仓库里没有对应的{side.label}文件
@@ -352,17 +366,48 @@ function SidePane({
           onScroll={onScroll}
           tabIndex={0}
           aria-label={`${side.label}内容`}
-          className={cn("relative overflow-auto rounded-md border border-line bg-surface font-mono text-xs leading-5", paneHeight)}
+          className={cn("@container relative overflow-auto rounded-md border border-line bg-surface font-mono text-xs leading-5", paneHeight)}
         >
           <div className={wrap ? "w-full" : "w-max min-w-full"}>
-            {rows.map((row, index) => (
-              <div key={index} className={cn("flex border-l-2", ROW_TONE[row.kind])}>
-                <span className="sticky left-0 w-10 shrink-0 select-none bg-surface pr-2 text-right tabular-nums text-muted">{row.line ?? ""}</span>
-                <span className={cn("min-w-0 flex-1 px-2", wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre")}>
-                  {row.segments ? <Segments segments={row.segments} /> : row.text === "" ? " " : row.text}
-                </span>
-              </div>
-            ))}
+            {rows.map((row, index) => {
+              const line = row.line;
+              const commentable = line !== null && hunks.some((hunk) => line >= hunk.start && line <= hunk.end);
+              const count = line === null ? 0 : review.threadsAt(text.path, line).length + review.outgoingAt(text.path, line).length;
+              return (
+                <div key={index}>
+                  <div className={cn("group flex border-l-2", ROW_TONE[row.kind])}>
+                    <span className="sticky left-0 flex w-14 shrink-0 select-none items-start justify-end gap-0.5 bg-surface pr-2 tabular-nums text-muted">
+                      {commentable && (
+                        <button
+                          type="button"
+                          aria-label={`评论第 ${line} 行`}
+                          title={count > 0 ? `${count} 条评论` : "评论这一行（进入你的待提交审查）"}
+                          onClick={() => review.setOpen(text.path, line, !review.isOpen(text.path, line))}
+                          className={cn(
+                            "mt-0.5 inline-flex size-4 items-center justify-center rounded text-accent focus-visible:opacity-100",
+                            count > 0 ? "bg-accent-soft opacity-100" : "opacity-0 group-hover:opacity-100 hover:bg-accent-soft",
+                          )}
+                        >
+                          <MessageSquarePlus aria-hidden="true" className="size-3" />
+                        </button>
+                      )}
+                      <span>{line ?? ""}</span>
+                    </span>
+                    <span className={cn("min-w-0 flex-1 px-2", wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre")}>
+                      {row.segments ? <Segments segments={row.segments} /> : row.text === "" ? " " : row.text}
+                    </span>
+                  </div>
+                  {commentable && (
+                    <LineThreads
+                      path={text.path}
+                      line={line}
+                      raw={heads[line - 1]?.replace(/\r$/, "")}
+                      className="sticky left-0 w-full max-w-[min(48rem,100cqw)] border-y border-line/60 bg-elevated/40 px-3 py-2"
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

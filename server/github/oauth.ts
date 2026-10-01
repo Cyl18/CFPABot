@@ -29,7 +29,7 @@ export function authorizeUrl(state: string, redirectUri: string): string {
   const params = new URLSearchParams({
     client_id: id,
     redirect_uri: redirectUri,
-    scope: "read:user",
+    scope: "read:user public_repo",
     state,
   });
   return `${AUTHORIZE_URL}?${params.toString()}`;

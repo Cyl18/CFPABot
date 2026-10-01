@@ -1,6 +1,7 @@
 import { extname } from "node:path";
 import { parseLang, guessFormat } from "./domain/langfile.ts";
-import { alignKeys, compareLang, compareTwo } from "./domain/diff.ts";
+import type { ParsedLang } from "./domain/langfile.ts";
+import { alignKeys, compareLang, compareTwo, inHunks } from "./domain/diff.ts";
 import type { CrossVersionInput } from "./domain/diff.ts";
 import { buildLangPath, parseLangPath, compareMc, langPathFor, workspacesOf } from "./domain/path.ts";
 import type { LangFormat, LangPath, Locale } from "./domain/path.ts";
@@ -10,9 +11,11 @@ import { gh } from "./github/client.ts";
 import type { GhFile, GhPull } from "./github/client.ts";
 import { mirror } from "./mirror.ts";
 import { prdata } from "./prdata.ts";
+import { commentableHunks } from "./review.ts";
 import { ttlCache } from "./ttl.ts";
 import type {
   CompareResult,
+  CompareReview,
   CrossVersionKeysResult,
   PrDetail,
   PrState,
@@ -110,6 +113,11 @@ interface LangSide {
   head: string | null;
 }
 
+interface LangRead {
+  path: string;
+  text: string;
+}
+
 function pickLang(files: GhFile[], key: WorkspaceKey, locale: Locale): LangSide | null {
   const preferred = `projects/assets/${key.slug}/${key.version}/${key.namespace}/lang/${locale}.`;
   let found: GhFile | null = null;
@@ -146,10 +154,10 @@ export async function compareWorkspace(n: number, key: WorkspaceKey): Promise<Co
     }
     return pending;
   };
-  const readAny = async (paths: string[], ref: string, label: string): Promise<string | null> => {
+  const readAny = async (paths: string[], ref: string, label: string): Promise<LangRead | null> => {
     for (const path of paths) {
       const text = await readOne(path, ref);
-      if (text !== null) return text;
+      if (text !== null) return { path, text };
     }
     missing.push(label);
     return null;
@@ -159,8 +167,8 @@ export async function compareWorkspace(n: number, key: WorkspaceKey): Promise<Co
   const zh = pickLang(files, key, "zh_cn");
   const format = en?.format ?? zh?.format ?? "json";
 
-  const readSide = (side: LangSide | null, locale: Locale): { base: Promise<string | null>; head: Promise<string | null> } => {
-    const read = (path: string | null, ref: string, label: string): Promise<string | null> =>
+  const readSide = (side: LangSide | null, locale: Locale): { base: Promise<LangRead | null>; head: Promise<LangRead | null> } => {
+    const read = (path: string | null, ref: string, label: string): Promise<LangRead | null> =>
       path === null ? Promise.resolve(null) : readAny(langPathFor(path, locale), ref, label);
     if (side !== null) {
       return {
@@ -180,12 +188,12 @@ export async function compareWorkspace(n: number, key: WorkspaceKey): Promise<Co
   const [baseEnText, baseZhText, headEnText, headZhText] = await Promise.all([enText.base, zhText.base, enText.head, zhText.head]);
 
   const base = {
-    en: baseEnText === null ? null : parseLang(baseEnText, en?.format ?? format),
-    zh: baseZhText === null ? null : parseLang(baseZhText, zh?.format ?? format),
+    en: baseEnText === null ? null : parseLang(baseEnText.text, en?.format ?? format),
+    zh: baseZhText === null ? null : parseLang(baseZhText.text, zh?.format ?? format),
   };
   const head = {
-    en: headEnText === null ? null : parseLang(headEnText, en?.format ?? format),
-    zh: headZhText === null ? null : parseLang(headZhText, zh?.format ?? format),
+    en: headEnText === null ? null : parseLang(headEnText.text, en?.format ?? format),
+    zh: headZhText === null ? null : parseLang(headZhText.text, zh?.format ?? format),
   };
 
   return {
@@ -195,7 +203,23 @@ export async function compareWorkspace(n: number, key: WorkspaceKey): Promise<Co
     format,
     rows: compareLang(base, head),
     missing,
+    review: compareReview(headZhText, head.zh, files),
   };
+}
+
+function compareReview(read: LangRead | null, parsed: ParsedLang | null, files: GhFile[]): CompareReview | null {
+  if (read === null || parsed === null) return null;
+  const file = files.find((entry) => entry.path === read.path);
+  if (file === undefined || file.status === "removed") return null;
+  const hunks = commentableHunks(file, read.text);
+  if (hunks.length === 0) return null;
+  const lines = read.text.split("\n");
+  const keys: CompareReview["keys"] = {};
+  for (const [key, line] of parsed.lines) {
+    if (!inHunks(line, hunks)) continue;
+    keys[key] = { line, raw: (lines[line - 1] ?? "").replace(/\r$/, "") };
+  }
+  return { path: read.path, keys };
 }
 
 interface Capped {
@@ -210,7 +234,7 @@ function cap(text: string | null): Capped {
   return { text: bytes.subarray(0, SPECIAL_MAX_BYTES).toString("utf8"), truncated: true };
 }
 
-async function specialPlanFor(n: number): Promise<{ pull: GhPull; plans: SpecialPlan[]; existing: ReadonlySet<string> }> {
+async function specialPlanFor(n: number): Promise<{ pull: GhPull; files: GhFile[]; plans: SpecialPlan[]; existing: ReadonlySet<string> }> {
   const { pull, files } = await prdata.files(n);
   const plans = planSpecial(files.filter((file) => isSpecialPath(file.path)));
   const derived: string[] = [];
@@ -224,7 +248,7 @@ async function specialPlanFor(n: number): Promise<{ pull: GhPull; plans: Special
   }
   const rev = (await mirror.headSha()) ?? "HEAD";
   const existing = derived.length === 0 ? new Set<string>() : await mirror.existing(rev, derived);
-  return { pull, plans: resolveDerived(plans, existing), existing };
+  return { pull, files, plans: resolveDerived(plans, existing), existing };
 }
 
 export async function specialPairs(n: number): Promise<SpecialPair[]> {
@@ -233,7 +257,7 @@ export async function specialPairs(n: number): Promise<SpecialPair[]> {
 }
 
 export async function specialPairContent(n: number, key: string): Promise<SpecialPairContent | null> {
-  const { pull, plans, existing } = await specialPlanFor(n);
+  const { pull, files, plans, existing } = await specialPlanFor(n);
   const entry = plans.find((plan) => plan.key === key);
   if (entry === undefined) return null;
   const reads = new Map<string, Promise<string | null>>();
@@ -262,6 +286,7 @@ export async function specialPairContent(n: number, key: string): Promise<Specia
     }
     const base = cap(baseText);
     const head = cap(headText);
+    const prFile = files.find((entry) => entry.path === side.path);
     return {
       path: side.path,
       status: file === null ? (existing.has(side.path) ? "unchanged" : "missing") : file.status,
@@ -269,6 +294,7 @@ export async function specialPairContent(n: number, key: string): Promise<Specia
       base: base.text,
       head: head.text,
       truncated: base.truncated || head.truncated,
+      hunks: prFile === undefined || prFile.status === "removed" ? null : commentableHunks(prFile, headText),
     };
   };
   if (entry.kind === "single") return { key: entry.key, kind: "single", file: await textOf(entry.file) };

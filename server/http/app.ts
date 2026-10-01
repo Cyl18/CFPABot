@@ -6,6 +6,7 @@ import { authMiddleware } from "./auth.ts";
 import type { AppEnv } from "./auth.ts";
 import { authRoutes } from "./auth-routes.ts";
 import { prRoutes } from "./routes-pr.ts";
+import { reviewRoutes } from "./routes-review.ts";
 import { sessionRoutes } from "./routes-agent.ts";
 import { adminRoutes } from "./routes-admin.ts";
 import { utilsRoutes } from "./routes-utils.ts";
@@ -52,6 +53,7 @@ app.get("/robots.txt", (c) => c.text("User-agent: *\nDisallow: /\n", 200, { "Con
 app.route("/auth", authRoutes);
 app.route("/api", webhookRoutes);
 app.route("/api", prRoutes);
+app.route("/api", reviewRoutes);
 app.route("/api", utilsRoutes);
 app.route("/api/sessions", sessionRoutes);
 app.route("/api/admin", adminRoutes);

@@ -18,6 +18,7 @@ const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 export interface AppEnv {
   Variables: {
     user: Me | null;
+    token: string | null;
   };
 }
 
@@ -115,12 +116,14 @@ function devUser(login: string): Me {
 export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (isDev && env.DEV_LOGIN) {
     c.set("user", devUser(env.DEV_LOGIN));
+    c.set("token", null);
     return next();
   }
   const raw = getCookie(c, SESSION_COOKIE);
   const session = raw ? decryptSession(raw) : null;
   if (!session) {
     c.set("user", null);
+    c.set("token", null);
     return next();
   }
   c.set("user", {
@@ -129,6 +132,7 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     avatarUrl: session.avatarUrl,
     isAdmin: await isAdminLogin(session.login),
   });
+  c.set("token", session.token ?? null);
   return next();
 };
 
@@ -141,4 +145,11 @@ export async function requireAdmin(c: AppContext): Promise<Me> {
   if (!user) throw new HttpError(401, "未登录", "unauthorized");
   if (!user.isAdmin) throw new HttpError(403, "需要仓库权限", "forbidden");
   return user;
+}
+
+export function requireUserToken(c: AppContext): string {
+  if (!currentUser(c)) throw new HttpError(401, "未登录", "unauthorized");
+  const token = c.get("token");
+  if (!token) throw new HttpError(401, "需要重新登录 GitHub 授权评论权限", "reauth");
+  return token;
 }
