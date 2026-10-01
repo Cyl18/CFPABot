@@ -17,7 +17,8 @@ import type {
   ReviewDraft,
   SessionDetail,
   SessionSummary,
-  SpecialFile,
+  SpecialPair,
+  SpecialPairContent,
   SystemStatus,
   TextCompareRequest,
   TextCompareResult,
@@ -132,7 +133,9 @@ export const api = {
   refreshStatus: (n: number, signal?: AbortSignal) => get<{ running: boolean }>(`/api/prs/${n}/refresh/status`, signal),
   compare: (n: number, key: CompareKey, signal?: AbortSignal) =>
     get<CompareResult>(`/api/prs/${n}/compare${query({ slug: key.slug, version: key.version, namespace: key.namespace })}`, signal),
-  special: (n: number, signal?: AbortSignal) => get<SpecialFile[]>(`/api/prs/${n}/special`, signal),
+  special: (n: number, signal?: AbortSignal) => get<SpecialPair[]>(`/api/prs/${n}/special`, signal),
+  specialContent: (n: number, key: string, signal?: AbortSignal) =>
+    get<SpecialPairContent>(`/api/prs/${n}/special/content${query({ key })}`, signal),
   versionsKeys: (
     slug: string,
     opts: { namespace?: string; pr?: number; versions?: readonly string[] },

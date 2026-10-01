@@ -2,7 +2,12 @@ import { cn } from "@/lib/cn.ts";
 import { DIFF_MODES, useDiffMode } from "@/lib/diffMode.ts";
 import { Popover } from "@/ui/Popover.tsx";
 
-export function DiffModePicker({ className }: { className?: string }) {
+const SIZES = {
+  sm: "h-7 gap-1.5 rounded-md px-2.5 text-xs",
+  md: "h-9 gap-1.5 rounded-lg px-3 text-sm",
+};
+
+export function DiffModePicker({ className, size = "md" }: { className?: string; size?: keyof typeof SIZES }) {
   const [mode, setMode] = useDiffMode();
   const current = DIFF_MODES.find((item) => item.id === mode);
 
@@ -11,7 +16,12 @@ export function DiffModePicker({ className }: { className?: string }) {
       <Popover
         label="差分模式"
         trigger={
-          <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm text-muted transition-colors hover:border-accent/50 hover:text-fg">
+          <span
+            className={cn(
+              "inline-flex items-center border border-line bg-surface text-muted transition-colors hover:border-accent/50 hover:text-fg",
+              SIZES[size],
+            )}
+          >
             差分模式
             <span className="font-medium text-accent">{current?.label}</span>
           </span>

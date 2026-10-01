@@ -144,6 +144,20 @@ export const mirror = {
     return texts;
   },
 
+  async existing(rev: string, files: readonly string[]): Promise<Set<string>> {
+    const found = new Set<string>();
+    if (files.length === 0) return found;
+    const input = new TextEncoder().encode(files.map((path) => `${rev}:${path}\n`).join(""));
+    const out = new TextDecoder().decode(await runGitBytes(paths.mirror, ["cat-file", "--batch-check"], null, input));
+    const lines = out.split("\n");
+    for (let i = 0; i < files.length; i++) {
+      const line = lines[i];
+      const path = files[i];
+      if (line !== undefined && path !== undefined && /^[0-9a-f]+ blob \d+$/.test(line)) found.add(path);
+    }
+    return found;
+  },
+
   async modVersions(slug: string): Promise<{ version: string; namespaces: string[] }[]> {
     const rev = (await headSha()) ?? "HEAD";
     const out = await git(["ls-tree", "-r", "--name-only", rev, `projects/assets/${slug}`]);

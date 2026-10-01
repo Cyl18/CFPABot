@@ -1,4 +1,4 @@
-import { diffArrays, diffChars, diffLines, diffSentences, diffWordsWithSpace, type Change } from "diff";
+import { diffArrays, diffChars, diffSentences, diffWordsWithSpace, type Change } from "diff";
 
 export type DiffKind = "equal" | "insert" | "delete";
 
@@ -215,59 +215,64 @@ export function inlineDiff(before: string, after: string, mode: DiffMode = "auto
   return compact(groupRuns(segmentsOf(diffSentences(before, after))));
 }
 
-export interface LineDiffRow {
-  type: DiffKind;
+export type LineRowKind = "equal" | "insert" | "delete" | "change";
+
+export interface LineRow {
+  kind: LineRowKind;
+  line: number | null;
+  anchor: number;
   text: string;
-  leftLine?: number;
-  rightLine?: number;
+  segments?: DiffSegment[];
 }
 
-export function lineDiff(left: string, right: string): LineDiffRow[] {
-  const rows: LineDiffRow[] = [];
-  let leftLine = 1;
-  let rightLine = 1;
-  for (const change of diffLines(left, right)) {
-    const lines = change.value.replace(/\r\n/g, "\n").split("\n");
-    if (lines[lines.length - 1] === "") lines.pop();
-    for (const text of lines) {
-      if (change.added) rows.push({ type: "insert", text, rightLine: rightLine++ });
-      else if (change.removed) rows.push({ type: "delete", text, leftLine: leftLine++ });
-      else rows.push({ type: "equal", text, leftLine: leftLine++, rightLine: rightLine++ });
-    }
-  }
-  return rows;
+function splitLines(text: string): string[] {
+  if (text === "") return [];
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  if (lines[lines.length - 1] === "") lines.pop();
+  return lines;
 }
 
-export interface SideBySideRow {
-  left?: LineDiffRow;
-  right?: LineDiffRow;
+function plainRows(text: string): LineRow[] {
+  return splitLines(text).map((line, index) => ({ kind: "equal", line: index + 1, anchor: index + 1, text: line }));
 }
 
-export function toSideBySide(rows: readonly LineDiffRow[]): SideBySideRow[] {
-  const paired: SideBySideRow[] = [];
-  let index = 0;
-  while (index < rows.length) {
-    const row = rows[index];
-    if (!row) break;
-    if (row.type === "equal") {
-      paired.push({ left: row, right: row });
-      index += 1;
-      continue;
-    }
-    const removed: LineDiffRow[] = [];
-    const added: LineDiffRow[] = [];
-    while (index < rows.length && rows[index]?.type !== "equal") {
-      const current = rows[index];
-      if (!current) break;
-      (current.type === "delete" ? removed : added).push(current);
-      index += 1;
-    }
+// anchor 是对齐滚动用的行号：被删的行没有最新行号，记成下一行减 0.5。
+export function lineRows(base: string | null, head: string | null, mode: DiffMode): LineRow[] {
+  if (head === null) return base === null ? [] : plainRows(base).map((row) => ({ ...row, kind: mode === "off" ? "equal" : "delete" }));
+  if (base === null || base === head || mode === "off") return plainRows(head);
+  const rows: LineRow[] = [];
+  let line = 1;
+  let removed: string[] = [];
+  let added: string[] = [];
+  const flush = () => {
     const size = Math.max(removed.length, added.length);
     for (let offset = 0; offset < size; offset += 1) {
-      const left = removed[offset];
-      const right = added[offset];
-      paired.push({ ...(left ? { left } : {}), ...(right ? { right } : {}) });
+      const before = removed[offset];
+      const after = added[offset];
+      if (before !== undefined && after !== undefined) {
+        rows.push({ kind: "change", line, anchor: line, text: after, segments: inlineDiff(before, after, mode) });
+        line += 1;
+      } else if (after !== undefined) {
+        rows.push({ kind: "insert", line, anchor: line, text: after });
+        line += 1;
+      } else if (before !== undefined) {
+        rows.push({ kind: "delete", line: null, anchor: line - 0.5, text: before });
+      }
+    }
+    removed = [];
+    added = [];
+  };
+  for (const change of diffArrays(splitLines(base), splitLines(head))) {
+    if (change.removed) removed.push(...change.value);
+    else if (change.added) added.push(...change.value);
+    else {
+      flush();
+      for (const text of change.value) {
+        rows.push({ kind: "equal", line, anchor: line, text });
+        line += 1;
+      }
     }
   }
-  return paired;
+  flush();
+  return rows;
 }

@@ -124,13 +124,27 @@ export interface CompareResult {
   missing: string[];
 }
 
-export interface SpecialFile {
+export type SpecialStatus = PrFile["status"] | "unchanged" | "missing";
+
+export interface SpecialSide {
   path: string;
-  status: PrFile["status"];
+  status: SpecialStatus;
+  previousPath?: string;
+}
+
+export type SpecialPair =
+  | { key: string; kind: "pair"; en: SpecialSide; zh: SpecialSide }
+  | { key: string; kind: "single"; file: SpecialSide };
+
+export interface SpecialText extends SpecialSide {
   base: string | null;
   head: string | null;
   truncated: boolean;
 }
+
+export type SpecialPairContent =
+  | { key: string; kind: "pair"; en: SpecialText; zh: SpecialText }
+  | { key: string; kind: "single"; file: SpecialText };
 
 export interface CrossVersionKeyCell {
   version: string;

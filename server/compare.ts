@@ -4,6 +4,8 @@ import { alignKeys, compareLang, compareTwo } from "./domain/diff.ts";
 import type { CrossVersionInput } from "./domain/diff.ts";
 import { buildLangPath, parseLangPath, compareMc, langPathFor, workspacesOf } from "./domain/path.ts";
 import type { LangFormat, LangPath, Locale } from "./domain/path.ts";
+import { planSpecial, resolveDerived, resolveSpecial } from "./domain/special.ts";
+import type { PlannedSide, SpecialPlan } from "./domain/special.ts";
 import { gh } from "./github/client.ts";
 import type { GhFile, GhPull } from "./github/client.ts";
 import { mirror } from "./mirror.ts";
@@ -15,7 +17,9 @@ import type {
   PrDetail,
   PrState,
   PrSummary,
-  SpecialFile,
+  SpecialPair,
+  SpecialPairContent,
+  SpecialText,
   TextCompareRequest,
   TextCompareResult,
 } from "../shared/api.ts";
@@ -26,7 +30,6 @@ export interface WorkspaceKey {
   namespace: string;
 }
 
-const SPECIAL_LIMIT = 100;
 const SPECIAL_MAX_BYTES = 200 * 1024;
 const BINARY_EXT: Record<string, true> = {
   ".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true, ".ico": true, ".bmp": true,
@@ -35,11 +38,16 @@ const BINARY_EXT: Record<string, true> = {
   ".ttf": true, ".otf": true, ".woff": true, ".woff2": true, ".nbt": true, ".mca": true, ".mcr": true,
   ".bin": true, ".exe": true, ".dll": true, ".so": true, ".dylib": true, ".pdf": true, ".sqlite": true,
 };
+const ASSET_PATH = /^projects\/(?:assets\/|\d[^/]*\/assets\/)/;
+const README_FILE = /^readme(\.[a-z0-9]+)?$/i;
 const MANUAL_SEGMENT = /(^|\/)_?(zh_cn|en_us)(\/|$)/i;
 
+// 只认模组资源目录：新布局 projects/assets/<模组>/<版本>/、旧布局 projects/<版本>/assets/<模组>/；仓库工具链和 README 占位说明不是译文内容。
 export function isSpecialPath(path: string): boolean {
+  if (!ASSET_PATH.test(path)) return false;
   if (parseLangPath(path)) return false;
   if (BINARY_EXT[extname(path).toLowerCase()]) return false;
+  if (README_FILE.test(path.slice(path.lastIndexOf("/") + 1))) return false;
   if (path.endsWith(".json") || path.endsWith(".lang") || path.includes("/lang/")) return MANUAL_SEGMENT.test(path);
   return true;
 }
@@ -202,12 +210,35 @@ function cap(text: string | null): Capped {
   return { text: bytes.subarray(0, SPECIAL_MAX_BYTES).toString("utf8"), truncated: true };
 }
 
-export async function specialFiles(n: number): Promise<SpecialFile[]> {
+async function specialPlanFor(n: number): Promise<{ pull: GhPull; plans: SpecialPlan[]; existing: ReadonlySet<string> }> {
   const { pull, files } = await prdata.files(n);
-  const targets = files.filter((file) => isSpecialPath(file.path)).slice(0, SPECIAL_LIMIT);
+  const plans = planSpecial(files.filter((file) => isSpecialPath(file.path)));
+  const derived: string[] = [];
+  for (const plan of plans) {
+    if (plan.kind === "single") continue;
+    for (const side of [plan.en, plan.zh]) {
+      if (side.file !== null) continue;
+      derived.push(side.path);
+      if (side.alternate !== undefined) derived.push(side.alternate);
+    }
+  }
+  const rev = (await mirror.headSha()) ?? "HEAD";
+  const existing = derived.length === 0 ? new Set<string>() : await mirror.existing(rev, derived);
+  return { pull, plans: resolveDerived(plans, existing), existing };
+}
+
+export async function specialPairs(n: number): Promise<SpecialPair[]> {
+  const { plans, existing } = await specialPlanFor(n);
+  return resolveSpecial(plans, existing);
+}
+
+export async function specialPairContent(n: number, key: string): Promise<SpecialPairContent | null> {
+  const { pull, plans, existing } = await specialPlanFor(n);
+  const entry = plans.find((plan) => plan.key === key);
+  if (entry === undefined) return null;
   const reads = new Map<string, Promise<string | null>>();
   const read = (path: string | null, ref: string): Promise<string | null> => {
-    if (!path) return Promise.resolve(null);
+    if (path === null) return Promise.resolve(null);
     const cacheKey = `${ref}\u0000${path}`;
     let pending = reads.get(cacheKey);
     if (!pending) {
@@ -216,16 +247,33 @@ export async function specialFiles(n: number): Promise<SpecialFile[]> {
     }
     return pending;
   };
-  return Promise.all(
-    targets.map(async (file) => {
+  const textOf = async (side: PlannedSide): Promise<SpecialText> => {
+    const file = side.file;
+    let baseText: string | null;
+    let headText: string | null;
+    if (file === null) {
+      const text = existing.has(side.path) ? await read(side.path, pull.headSha) : null;
+      baseText = text;
+      headText = text;
+    } else {
       const basePath = file.status === "added" ? null : file.status === "renamed" ? file.previousPath ?? file.path : file.path;
       const headPath = file.status === "removed" ? null : file.path;
-      const [baseText, headText] = await Promise.all([read(basePath, pull.baseSha), read(headPath, pull.headSha)]);
-      const base = cap(baseText);
-      const head = cap(headText);
-      return { path: file.path, status: file.status, base: base.text, head: head.text, truncated: base.truncated || head.truncated };
-    }),
-  );
+      [baseText, headText] = await Promise.all([read(basePath, pull.baseSha), read(headPath, pull.headSha)]);
+    }
+    const base = cap(baseText);
+    const head = cap(headText);
+    return {
+      path: side.path,
+      status: file === null ? (existing.has(side.path) ? "unchanged" : "missing") : file.status,
+      ...(file?.previousPath === undefined ? {} : { previousPath: file.previousPath }),
+      base: base.text,
+      head: head.text,
+      truncated: base.truncated || head.truncated,
+    };
+  };
+  if (entry.kind === "single") return { key: entry.key, kind: "single", file: await textOf(entry.file) };
+  const [en, zh] = await Promise.all([textOf(entry.en), textOf(entry.zh)]);
+  return { key: entry.key, kind: "pair", en, zh };
 }
 
 interface OverlayText {

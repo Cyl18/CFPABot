@@ -83,6 +83,7 @@ const STATUS_TONES: Record<string, BadgeTone> = {
   renamed: "info",
   copied: "info",
   unchanged: "neutral",
+  missing: "danger",
 };
 
 const STATUS_TEXT: Record<string, string> = {
@@ -93,8 +94,14 @@ const STATUS_TEXT: Record<string, string> = {
   renamed: "重命名",
   copied: "复制",
   unchanged: "未变",
+  missing: "缺失",
 };
 
-export function FileStatusBadge({ status }: { status: string }) {
-  return <Badge tone={STATUS_TONES[status] ?? "neutral"}>{STATUS_TEXT[status] ?? status}</Badge>;
+export function FileStatusBadge({ status, prefix }: { status: string; prefix?: string }) {
+  return (
+    <Badge tone={STATUS_TONES[status] ?? "neutral"}>
+      {prefix}
+      {STATUS_TEXT[status] ?? status}
+    </Badge>
+  );
 }

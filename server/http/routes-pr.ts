@@ -12,7 +12,7 @@ import { prdata } from "../prdata.ts";
 import { getCheckReport, isRefreshing, refreshInfoComment } from "../bot/index.ts";
 import { track } from "../bot/pending.ts";
 import { llm } from "../agent/index.ts";
-import { compareWorkspace, crossVersionKeys, prDetail, specialFiles, textCompare } from "../compare.ts";
+import { compareWorkspace, crossVersionKeys, prDetail, specialPairContent, specialPairs, textCompare } from "../compare.ts";
 import { currentUser, requireAdmin } from "./auth.ts";
 import type { AppContext, AppEnv } from "./auth.ts";
 import { HttpError, isUpstreamNotFound, notFound, parseBody, parseQuery } from "./errors.ts";
@@ -31,6 +31,7 @@ const versionsQuery = z.object({
   pr: z.coerce.number().int().positive().optional(),
   versions: z.string().optional(),
 });
+const specialQuery = z.object({ key: z.string().min(1) });
 
 function versionSelection(raw: string | undefined): string[] | undefined {
   if (raw === undefined) return undefined;
@@ -122,7 +123,14 @@ prRoutes.get("/prs/:n/compare", async (c) => {
   return c.json(await withPull(() => compareWorkspace(n, key)));
 });
 
-prRoutes.get("/prs/:n/special", async (c) => c.json(await withPull(() => specialFiles(prNumber(c)))));
+prRoutes.get("/prs/:n/special", async (c) => c.json(await withPull(() => specialPairs(prNumber(c)))));
+
+prRoutes.get("/prs/:n/special/content", async (c) => {
+  const { key } = parseQuery(c, specialQuery);
+  const content = await withPull(() => specialPairContent(prNumber(c), key));
+  if (content === null) throw notFound("特殊文件不存在");
+  return c.json(content);
+});
 
 prRoutes.get("/versions/:slug/keys", async (c) => {
   const { namespace, pr, versions } = parseQuery(c, versionsQuery);
