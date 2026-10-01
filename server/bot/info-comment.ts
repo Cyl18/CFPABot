@@ -172,7 +172,7 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
   );
   const packer = opts.refreshPacker
     ? await safeSegment(
-        () => collectPacker(ctx.pull, ctx.files),
+        async () => collectPacker(await gh.getPull(prNumber), ctx.files),
         (err) => `⚠ 更新编译 artifacts 出错: ${messageOf(err)}`,
       )
     : state.packer;
