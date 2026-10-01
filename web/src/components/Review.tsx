@@ -6,17 +6,30 @@ import { useReview, useThreadHtml, type OutgoingComment } from "@/hooks/useRevie
 import { errorMessage, loginUrl } from "@/lib/api.ts";
 import { cn } from "@/lib/cn.ts";
 import { formatDateTime, formatRelative } from "@/lib/format.ts";
+import { useStoredFlag } from "@/lib/storedFlag.ts";
 import { Badge } from "@/ui/Badge.tsx";
 import { Button, buttonClass } from "@/ui/Button.tsx";
 import { Dialog } from "@/ui/Dialog.tsx";
 import { Textarea } from "@/ui/Input.tsx";
 import { Popover } from "@/ui/Popover.tsx";
+import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
 const EVENTS: readonly { id: ReviewEvent; label: string; hint: string }[] = [
   { id: "COMMENT", label: "仅评论", hint: "只发出评论，不表态" },
   { id: "APPROVE", label: "批准", hint: "同意合并" },
   { id: "REQUEST_CHANGES", label: "要求修改", hint: "需要改完才能合并" },
 ];
+
+export const CARDS_KEY = "cfpa-review-cards";
+
+export function CommentsToggle() {
+  const [on, setOn] = useStoredFlag(CARDS_KEY);
+  return (
+    <ToggleChip pressed={on} onClick={() => setOn(!on)} title="显示或隐藏行内的评论卡片；key 旁的气泡不受影响">
+      评论卡片
+    </ToggleChip>
+  );
+}
 
 function Avatar({ url }: { url: string }) {
   if (url === "") return <span aria-hidden="true" className="size-5 shrink-0 rounded-full bg-elevated" />;

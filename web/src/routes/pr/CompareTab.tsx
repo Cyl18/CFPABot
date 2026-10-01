@@ -3,12 +3,13 @@ import type { DiffCell, DiffEntry, DiffLane } from "@shared/diffview.ts";
 import { formatDiffFilter, parseDiffFilter } from "@shared/diffview.ts";
 import { type ReactNode, useMemo } from "react";
 import { DiffViewer } from "@/components/DiffViewer.tsx";
-import { CommentButton, LineComments, LineThreads, LooseThreads, ViewedToggle } from "@/components/Review.tsx";
+import { CARDS_KEY, CommentButton, CommentsToggle, LineComments, LineThreads, LooseThreads, ViewedToggle } from "@/components/Review.tsx";
 import { useReview } from "@/hooks/useReview.tsx";
 import { parseWorkspaceKey } from "@/lib/api.ts";
 import { groupWorkspaces, pickCompareFiles, workspaceParam } from "@/lib/paths.ts";
 import { useCompare } from "@/lib/queries.ts";
 import type { PrSearch, SearchPatch } from "@/lib/search.ts";
+import { useStoredFlag } from "@/lib/storedFlag.ts";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
@@ -60,6 +61,7 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
   const rows: readonly CompareRow[] = compare.data?.rows ?? [];
   const target = compare.data?.review ?? null;
   const review = useReview();
+  const [cards] = useStoredFlag(CARDS_KEY);
 
   const anchored = new Set(Object.values(target?.keys ?? {}).map((spot) => spot.line));
   const loose = sources.flatMap((path) =>
@@ -155,11 +157,14 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
         <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">缺失文件：{compare.data.missing.join("、")}</p>
       )}
       {compare.data !== undefined && (
-        <p className="text-xs text-muted">
-          {target === null
-            ? "这份中文文件在本 PR 里没有改动，GitHub 不允许在这里行内评论。"
-            : `中文改动范围内的 ${Object.keys(target.keys).length} 个 key 可以点 key 旁的气泡评论；范围外的行 GitHub 不允许评论。`}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted">
+            {target === null
+              ? "这份中文文件在本 PR 里没有改动，GitHub 不允许在这里行内评论。"
+              : `中文改动范围内的 ${Object.keys(target.keys).length} 个 key 可以点 key 旁的气泡评论；范围外的行 GitHub 不允许评论。`}
+          </p>
+          <CommentsToggle />
+        </div>
       )}
       <LooseThreads
         title="没对上 key 的评论（已过时或在英文文件上）"
@@ -198,7 +203,7 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
             }
       }
       rowFooter={
-        target === null
+        target === null || !cards
           ? undefined
           : (entry) => {
               const spot = target.keys[entry.key];

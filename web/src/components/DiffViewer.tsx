@@ -935,7 +935,7 @@ export function DiffViewer({
               onScroll={(event) => {
                 if (bodyRef.current !== null) bodyRef.current.scrollLeft = event.currentTarget.scrollLeft;
               }}
-              className={cn(HEAD_SHELL, "scroll-thin overflow-x-auto md:block")}
+              className={cn(HEAD_SHELL, "overflow-x-hidden md:block")}
             >
               <div className="flex items-stretch gap-3 pr-3 md:min-w-(--grid-min)">
                 <span className="sticky left-0 z-[1] flex w-56 shrink-0 items-center border-l-2 border-r border-l-transparent border-r-line/60 bg-elevated py-1.5 pl-3 pr-3">Key</span>
@@ -962,7 +962,7 @@ export function DiffViewer({
                   }
                 : undefined
             }
-            className={cn(layout === "grid" && "scroll-thin md:overflow-x-auto")}
+            className={cn(layout === "grid" && "scroll-thin overflow-y-hidden md:overflow-x-auto")}
           >
           <div
             ref={listRef}

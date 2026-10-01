@@ -2,13 +2,14 @@ import type { SpecialPair, SpecialPairContent, SpecialText } from "@shared/api.t
 import { Check, FileDiff, Maximize2, MessageSquarePlus, Minimize2, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DiffModePicker } from "@/components/DiffModePicker.tsx";
-import { LineThreads, LooseThreads, ViewedToggle } from "@/components/Review.tsx";
+import { CARDS_KEY, CommentsToggle, LineThreads, LooseThreads, ViewedToggle } from "@/components/Review.tsx";
 import { useReview } from "@/hooks/useReview.tsx";
 import { cn } from "@/lib/cn.ts";
 import { lineRows, type DiffSegment, type LineRow, type LineRowKind } from "@/lib/diff.ts";
 import { useDiffMode } from "@/lib/diffMode.ts";
 import { useSpecial, useSpecialContent } from "@/lib/queries.ts";
 import type { PrSearch, SearchPatch } from "@/lib/search.ts";
+import { useStoredFlag } from "@/lib/storedFlag.ts";
 import { FileStatusBadge } from "@/ui/Badge.tsx";
 import { Card, CardBody } from "@/ui/Card.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
@@ -39,25 +40,6 @@ interface Side {
 interface Position {
   anchor: number;
   fraction: number;
-}
-
-function useStoredFlag(key: string): [boolean, (next: boolean) => void] {
-  const [value, setValue] = useState(() => {
-    try {
-      return localStorage.getItem(key) !== "0";
-    } catch {
-      return true;
-    }
-  });
-  return [
-    value,
-    (next) => {
-      setValue(next);
-      try {
-        localStorage.setItem(key, next ? "1" : "0");
-      } catch {}
-    },
-  ];
 }
 
 function sharedDir(keys: readonly string[]): string {
@@ -221,6 +203,7 @@ function PairView({ n, pair, label }: { n: number; pair: SpecialPair; label: str
   const [mode] = useDiffMode();
   const [wrap, setWrap] = useStoredFlag(WRAP_KEY);
   const [syncScroll, setSyncScroll] = useStoredFlag(SYNC_KEY);
+  const [cards] = useStoredFlag(CARDS_KEY);
   const sides = useMemo(() => (content.data ? sidesOf(content.data) : []), [content.data]);
   const rows = useMemo(
     () => sides.map((side) => (side.text.status === "missing" ? [] : lineRows(side.text.base, side.text.head, mode))),
@@ -273,6 +256,7 @@ function PairView({ n, pair, label }: { n: number; pair: SpecialPair; label: str
           </h2>
           <div className="ml-auto flex items-center gap-2">
             <DiffModePicker size="sm" />
+            <CommentsToggle />
             <ToggleChip pressed={wrap} onClick={() => setWrap(!wrap)}>
               自动换行
             </ToggleChip>
@@ -305,6 +289,7 @@ function PairView({ n, pair, label }: { n: number; pair: SpecialPair; label: str
                 side={side}
                 rows={rows[index] ?? []}
                 wrap={wrap}
+                cards={cards}
                 fill={full}
                 paneRef={(node) => {
                   panes.current[index] = node;
@@ -323,6 +308,7 @@ function SidePane({
   side,
   rows,
   wrap,
+  cards,
   fill,
   paneRef,
   onScroll,
@@ -330,6 +316,7 @@ function SidePane({
   side: Side;
   rows: readonly LineRow[];
   wrap: boolean;
+  cards: boolean;
   fill: boolean;
   paneRef: (node: HTMLDivElement | null) => void;
   onScroll?: () => void;
@@ -397,7 +384,7 @@ function SidePane({
                       {row.segments ? <Segments segments={row.segments} /> : row.text === "" ? " " : row.text}
                     </span>
                   </div>
-                  {commentable && (
+                  {commentable && cards && (
                     <LineThreads
                       path={text.path}
                       line={line}
