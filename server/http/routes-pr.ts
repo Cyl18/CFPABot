@@ -2,7 +2,8 @@ import { statSync } from "node:fs";
 import { join } from "node:path";
 import { Hono } from "hono";
 import { z } from "zod";
-import { env } from "../env.ts";
+import { commentVersionDir, compareMc } from "../domain/path.ts";
+import { env, repo } from "../env.ts";
 import { paths } from "../paths.ts";
 import { ttlCache } from "../ttl.ts";
 import { gh } from "../github/client.ts";
@@ -161,9 +162,9 @@ interface BakaXlVersion {
 
 interface BakaXlMod {
   modSlug: string;
-  modName: string;
+  modName: string | null;
   modDomain: string;
-  curseForgeLink: string;
+  curseForgeLink: string | null;
   versions: BakaXlVersion[];
 }
 
@@ -172,20 +173,40 @@ const bakaXlCache = ttlCache<{ modlist: BakaXlMod[]; lastUpdate: string }>(60_00
 prRoutes.get("/BakaXL/ModList", async (c) => {
   const payload = await bakaXlCache.wrap("modlist", async () => {
     const list = await mirror.modList();
-    return {
-      modlist: list.mods.map((mod) => ({
+    const modlist: BakaXlMod[] = [];
+    for (const mod of list.mods) {
+      if (mod.slug === "1UNKNOWN" || mod.slug.startsWith("0-")) continue;
+      const rows: (BakaXlVersion & { domain: string })[] = [];
+      for (const entry of mod.versions) {
+        const dir = commentVersionDir(entry.version);
+        if (dir === null) continue;
+        for (const domain of entry.zhDomains ?? []) {
+          rows.push({
+            version: dir.mc,
+            loader: dir.loader === "fabric" ? "Fabric" : "Forge",
+            repoLink: `https://github.com/${repo.owner}/${repo.name}/tree/${repo.defaultBranch}/projects/assets/${mod.slug}/${entry.version}/${domain}/lang/`,
+            domain,
+          });
+        }
+      }
+      rows.sort(
+        (a, b) =>
+          compareMc(a.version, b.version) ||
+          (a.loader === "Fabric" ? 1 : 0) - (b.loader === "Fabric" ? 1 : 0) ||
+          a.domain.localeCompare(b.domain),
+      );
+      const first = rows[0];
+      if (first === undefined) continue;
+      const cfMatched = mod.cfSlug !== undefined && mod.cfSlug === mod.slug;
+      modlist.push({
         modSlug: mod.slug,
-        modName: mod.name ?? mod.slug,
-        modDomain: mod.slug,
-        curseForgeLink: `https://www.curseforge.com/minecraft/mc-mods/${mod.slug}`,
-        versions: mod.versions.map((entry) => ({
-          version: entry.version,
-          loader: "Forge",
-          repoLink: `projects/assets/${mod.slug}/${entry.version}`,
-        })),
-      })),
-      lastUpdate: list.updatedAt ?? new Date().toISOString(),
-    };
+        modName: cfMatched ? (mod.name ?? null) : null,
+        modDomain: first.domain,
+        curseForgeLink: cfMatched ? (mod.cfUrl ?? null) : null,
+        versions: rows.map(({ version, loader, repoLink }) => ({ version, loader, repoLink })),
+      });
+    }
+    return { modlist, lastUpdate: list.updatedAt ?? new Date().toISOString() };
   });
   return c.json(payload);
 });

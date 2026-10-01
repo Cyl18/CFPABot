@@ -1,7 +1,8 @@
 import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { commentVersionDir, compareMc, parseLangPath, type LangPath } from "./domain/path.ts";
-import { repo } from "./env.ts";
+import { z } from "zod";
+import { commentVersionDir, compareMc, langFormatFor, parseLangPath, type LangPath } from "./domain/path.ts";
+import { env, repo } from "./env.ts";
 import { runGit, runGitBytes } from "./git.ts";
 import { logger } from "./log.ts";
 import { getModsByIds } from "./mods/curseforge.ts";
@@ -13,7 +14,9 @@ import type { ModEntry, ModList } from "../shared/api.ts";
 const log = logger("mirror");
 const MIRROR_URL = `https://github.com/${repo.owner}/${repo.name}.git`;
 const MODLIST_PATH = join(paths.cache, "modlist.json");
-const ID_BATCH = 50;
+const ID_BATCH = 1000;
+const MODLIST_SCHEMA = 3;
+const PREFETCH_CHUNK = 2000;
 
 async function fetchHead(): Promise<void> {
   await git(["fetch", "--depth", "1", "origin", repo.defaultBranch]);
@@ -73,18 +76,160 @@ async function ensureMirror(): Promise<void> {
   );
 }
 
-async function curseforgeNames(ids: number[]): Promise<Map<number, string>> {
-  const names = new Map<number, string>();
+interface CfMeta {
+  slug: string;
+  name: string;
+  url: string | null;
+}
+
+async function curseforgeMeta(ids: number[]): Promise<Map<number, CfMeta>> {
+  const meta = new Map<number, CfMeta>();
+  if (!env.CURSEFORGE_API_KEY) return meta;
   for (let i = 0; i < ids.length; i += ID_BATCH) {
     const batch = ids.slice(i, i + ID_BATCH);
-    try {
-      for (const mod of await getModsByIds(batch)) names.set(mod.id, mod.name);
-    } catch (err) {
-      log.warn("获取 CurseForge 模组名称失败", { err });
-      break;
+    for (const mod of await getModsByIds(batch)) {
+      meta.set(mod.id, { slug: mod.slug, name: mod.name, url: mod.links?.websiteUrl ?? null });
     }
   }
-  return names;
+  return meta;
+}
+
+const modlistCacheSchema = z.object({
+  schema: z.number(),
+  updatedAt: z.string(),
+  headSha: z.string().nullable(),
+  mappingsStamp: z.string().nullable(),
+  mods: z.array(z.custom<ModEntry>()),
+});
+
+type ModlistCache = z.infer<typeof modlistCacheSchema>;
+
+function modlistFresh(cache: ModlistCache | null, head: string | null, stamp: string | null): cache is ModlistCache {
+  return (
+    cache !== null &&
+    cache.schema === MODLIST_SCHEMA &&
+    cache.mappingsStamp === stamp &&
+    (head === null ? cache.headSha === null : cache.headSha === head)
+  );
+}
+
+async function blobOids(rev: string, wanted: ReadonlySet<string>): Promise<Map<string, string>> {
+  const out = await git(["ls-tree", "-r", rev, "--", "projects/assets"]);
+  const oids = new Map<string, string>();
+  for (const line of out.split("\n")) {
+    const tab = line.indexOf("\t");
+    if (tab < 0) continue;
+    const path = line.slice(tab + 1);
+    if (!wanted.has(path)) continue;
+    const parts = line.slice(0, tab).split(" ");
+    const oid = parts[2];
+    if (parts[1] === "blob" && oid !== undefined) oids.set(path, oid);
+  }
+  return oids;
+}
+
+async function ensureBlobs(oids: readonly string[]): Promise<void> {
+  if (oids.length === 0) return;
+  const local = new Set(
+    (await git(["cat-file", "--batch-check", "--batch-all-objects"]))
+      .split("\n")
+      .map((line) => line.slice(0, line.indexOf(" ")))
+      .filter((oid) => oid !== ""),
+  );
+  const missing = oids.filter((oid) => !local.has(oid));
+  for (let i = 0; i < missing.length; i += PREFETCH_CHUNK) {
+    const chunk = missing.slice(i, i + PREFETCH_CHUNK);
+    await runGitBytes(
+      paths.mirror,
+      [
+        "-c",
+        "fetch.negotiationAlgorithm=noop",
+        "fetch",
+        "origin",
+        "--no-tags",
+        "--no-write-fetch-head",
+        "--recurse-submodules=no",
+        "--filter=blob:none",
+        "--stdin",
+      ],
+      null,
+      new TextEncoder().encode(`${chunk.join("\n")}\n`),
+    );
+  }
+}
+
+async function buildModList(head: string | null, mappingsStamp: string | null): Promise<ModlistCache> {
+  const rev = head ?? "HEAD";
+  const files = await mirror.langFiles();
+  const grouped = new Map<string, Map<string, Set<string>>>();
+  for (const file of files) {
+    const versions = grouped.get(file.slug) ?? new Map<string, Set<string>>();
+    const namespaces = versions.get(file.version) ?? new Set<string>();
+    namespaces.add(file.namespace);
+    versions.set(file.version, namespaces);
+    grouped.set(file.slug, versions);
+  }
+
+  const zhFiles = files.filter((file) => file.locale === "zh_cn" && file.format === langFormatFor(file.version));
+  const oids = await blobOids(rev, new Set(zhFiles.map((file) => file.path)));
+  await ensureBlobs([...oids.values()]);
+  const texts = await mirror.readBlobs([...new Set(oids.values())]);
+  const zhDomains = new Map<string, Set<string>>();
+  for (const file of zhFiles) {
+    const oid = oids.get(file.path);
+    const text = oid === undefined ? undefined : texts.get(oid);
+    if (text === undefined || text.trim() === "{}") continue;
+    const key = `${file.slug}\n${file.version}`;
+    const domains = zhDomains.get(key) ?? new Set<string>();
+    domains.add(file.namespace);
+    zhDomains.set(key, domains);
+  }
+
+  const mappingList = await mappings.list();
+  const idsBySlug = new Map(
+    mappingList.filter((entry) => grouped.has(entry.slug)).map((entry) => [entry.slug, entry.curseforgeId]),
+  );
+  const meta = await curseforgeMeta([...new Set(idsBySlug.values())]);
+
+  const mods: ModEntry[] = [...grouped.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([slug, versions]) => {
+      const curseforgeId = idsBySlug.get(slug);
+      const info = curseforgeId === undefined ? undefined : meta.get(curseforgeId);
+      return {
+        slug,
+        ...(info === undefined ? {} : { cfSlug: info.slug }),
+        ...(info && info.name ? { name: info.name } : {}),
+        ...(info?.url ? { cfUrl: info.url } : {}),
+        ...(curseforgeId === undefined ? {} : { curseforgeId }),
+        versions: [...versions.entries()]
+          .sort((a, b) => compareMc(a[0], b[0]))
+          .map(([version, namespaces]) => ({
+            version,
+            namespaces: [...namespaces].sort(),
+            zhDomains: [...(zhDomains.get(`${slug}\n${version}`) ?? [])].sort(),
+          })),
+      };
+    });
+
+  return { schema: MODLIST_SCHEMA, updatedAt: new Date().toISOString(), headSha: head, mappingsStamp, mods };
+}
+
+function parseCatFileBatch(out: Uint8Array, keys: readonly string[]): Map<string, string> {
+  const texts = new Map<string, string>();
+  const decoder = new TextDecoder();
+  let pos = 0;
+  for (const key of keys) {
+    const eol = out.indexOf(0x0a, pos);
+    if (eol < 0) break;
+    const header = /^[0-9a-f]+ (\w+) (\d+)$/.exec(decoder.decode(out.subarray(pos, eol)));
+    pos = eol + 1;
+    if (!header) continue;
+    const size = Number(header[2]);
+    if (header[1] === "blob") texts.set(key, decoder.decode(out.subarray(pos, pos + size)));
+    pos += size + 1;
+  }
+  return texts;
 }
 
 export const mirror = {
@@ -125,23 +270,17 @@ export const mirror = {
   },
 
   async readMany(rev: string, files: readonly string[]): Promise<Map<string, string>> {
-    const texts = new Map<string, string>();
-    if (files.length === 0) return texts;
+    if (files.length === 0) return new Map();
     const input = new TextEncoder().encode(files.map((path) => `${rev}:${path}\n`).join(""));
     const out = new Uint8Array(await runGitBytes(paths.mirror, ["cat-file", "--batch"], null, input));
-    const decoder = new TextDecoder();
-    let pos = 0;
-    for (const path of files) {
-      const eol = out.indexOf(0x0a, pos);
-      if (eol < 0) break;
-      const header = /^[0-9a-f]+ (\w+) (\d+)$/.exec(decoder.decode(out.subarray(pos, eol)));
-      pos = eol + 1;
-      if (!header) continue;
-      const size = Number(header[2]);
-      if (header[1] === "blob") texts.set(path, decoder.decode(out.subarray(pos, pos + size)));
-      pos += size + 1;
-    }
-    return texts;
+    return parseCatFileBatch(out, files);
+  },
+
+  async readBlobs(oids: readonly string[]): Promise<Map<string, string>> {
+    if (oids.length === 0) return new Map();
+    const input = new TextEncoder().encode(`${oids.join("\n")}\n`);
+    const out = new Uint8Array(await runGitBytes(paths.mirror, ["cat-file", "--batch"], null, input));
+    return parseCatFileBatch(out, oids);
   },
 
   async existing(rev: string, files: readonly string[]): Promise<Set<string>> {
@@ -190,39 +329,23 @@ export const mirror = {
 
   async modList(): Promise<ModList> {
     const head = await headSha();
-    const cached = await readJson<ModList>(MODLIST_PATH);
-    if (cached && head !== null && cached.headSha === head) return cached;
-
-    const grouped = new Map<string, Map<string, Set<string>>>();
-    for (const file of await mirror.langFiles()) {
-      const versions = grouped.get(file.slug) ?? new Map<string, Set<string>>();
-      const namespaces = versions.get(file.version) ?? new Set<string>();
-      namespaces.add(file.namespace);
-      versions.set(file.version, namespaces);
-      grouped.set(file.slug, versions);
-    }
-
-    const mappingList = await mappings.list();
-    const idsBySlug = new Map(mappingList.map((entry) => [entry.slug, entry.curseforgeId]));
-    const names = await curseforgeNames([...new Set(idsBySlug.values())]);
-
-    const mods: ModEntry[] = [...grouped.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([slug, versions]) => {
-        const curseforgeId = idsBySlug.get(slug);
-        const name = curseforgeId === undefined ? undefined : names.get(curseforgeId);
-        return {
-          slug,
-          ...(name ? { name } : {}),
-          ...(curseforgeId === undefined ? {} : { curseforgeId }),
-          versions: [...versions.entries()]
-            .sort((a, b) => compareMc(a[0], b[0]))
-            .map(([version, namespaces]) => ({ version, namespaces: [...namespaces].sort() })),
-        };
-      });
-
-    const result: ModList = { updatedAt: new Date().toISOString(), headSha: head, mods };
-    await writeJson(MODLIST_PATH, result);
-    return result;
+    const stamp = await mappings.stamp();
+    const cached = await readJson(MODLIST_PATH, modlistCacheSchema);
+    const stale = cached !== null && cached.schema === MODLIST_SCHEMA ? cached : null;
+    if (modlistFresh(cached, head, stamp)) return cached;
+    return withLock("modlist", async () => {
+      const fresh = await readJson(MODLIST_PATH, modlistCacheSchema);
+      if (modlistFresh(fresh, head, stamp)) return fresh;
+      let result: ModlistCache;
+      try {
+        result = await buildModList(head, stamp);
+      } catch (err) {
+        log.warn("模组列表重建失败，沿用旧缓存", { err });
+        if (stale !== null) return stale;
+        throw err;
+      }
+      await writeJson(MODLIST_PATH, result);
+      return result;
+    });
   },
 };

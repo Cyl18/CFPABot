@@ -182,8 +182,10 @@ export interface TextCompareResult {
 export interface ModEntry {
   slug: string;
   name?: string;
+  cfUrl?: string;
+  cfSlug?: string;
   curseforgeId?: number;
-  versions: { version: string; namespaces: string[] }[];
+  versions: { version: string; namespaces: string[]; zhDomains?: string[] }[];
 }
 
 export interface ModList {

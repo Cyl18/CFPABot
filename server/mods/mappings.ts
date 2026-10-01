@@ -26,8 +26,8 @@ async function load(): Promise<MappingFile> {
   return (await readJson(FILE, fileSchema)) ?? { mappings: {}, lastScannedId: 0, updatedAt: null };
 }
 
-async function save(file: MappingFile): Promise<void> {
-  await writeJson(FILE, { ...file, updatedAt: new Date().toISOString() });
+async function save(file: MappingFile, touch: boolean): Promise<void> {
+  await writeJson(FILE, { ...file, updatedAt: touch ? new Date().toISOString() : file.updatedAt });
 }
 
 function maxMappedId(file: MappingFile): number {
@@ -48,7 +48,7 @@ export const mappings = {
     await withLock("mappings", async () => {
       const file = await load();
       file.mappings[slug] = { id, source: "manual" };
-      await save(file);
+      await save(file, true);
     });
   },
 
@@ -57,6 +57,10 @@ export const mappings = {
     return Object.entries(file.mappings)
       .map(([slug, entry]) => ({ slug, curseforgeId: entry.id, source: entry.source }))
       .sort((a, b) => a.slug.localeCompare(b.slug));
+  },
+
+  async stamp(): Promise<string | null> {
+    return (await load()).updatedAt;
   },
 
   async scan(maxIds = DEFAULT_MAX_IDS): Promise<number> {
@@ -77,6 +81,7 @@ export const mappings = {
           log.warn("CurseForge ID 扫描中断", { cursor, err });
           break;
         }
+        let dirty = false;
         for (const mod of found) {
           if (mod.gameId !== GAME_ID) continue;
           const website = mod.links?.websiteUrl ?? "";
@@ -84,12 +89,14 @@ export const mappings = {
           const slug = mod.slug || website.slice(CF_MOD_PREFIX.length);
           const existing = file.mappings[slug];
           if (existing?.source === "manual") continue;
+          if (existing?.id === mod.id) continue;
           if (!existing) added++;
+          dirty = true;
           file.mappings[slug] = { id: mod.id, source: "resolved" };
         }
         cursor += ids.length;
         file.lastScannedId = cursor;
-        await save(file);
+        await save(file, dirty);
       }
       return added;
     });
