@@ -3,7 +3,7 @@ import { modInfosOf } from "../domain/path.ts";
 import { repo } from "../env.ts";
 import { logger } from "../log.ts";
 import { mirror } from "../mirror.ts";
-import { mods } from "../mods/index.ts";
+import { mappingMissingMessage, mods } from "../mods/index.ts";
 import type { CfMod } from "../mods/curseforge.ts";
 import { Lines, messageOf, MODRINTH_NOTE, NO_MODS, TOO_MANY_MODS, urlEncodeDotNet } from "./render.ts";
 
@@ -58,12 +58,7 @@ export async function collectMods(files: PrFile[], prNumber: number, publicUrl: 
       if (slug === "1UNKNOWN" || slug === "0-modrinth-mod" || slug.startsWith("modrinth-")) continue;
       const resolved = await mods.resolveByMapping(slug);
       if (resolved === null) {
-        sb.line(
-          `⚠ 无法找到 ${slug} 的 CurseForge 项目名到 CurseForge ID 的映射。请检查此[链接](https://www.curseforge.com/minecraft/mc-mods/${slug})是否可以正常打开，如果不能，或者网页被重定向，请修改你的文件路径。` +
-            `如果可以，请联系 [Cyl18](https://github.com/Cyl18) 解决。` +
-            (slug.toLowerCase() !== slug ? `此外在项目名中检测到了大写字母，请调整为小写。` : "") +
-            `可以在上面的链接中右方找到 About Project -> Project ID 然后使用命令 \`/add-mapping ${slug} [CURSEFORGE_PROJECT_ID]\`. 如果路径有误则使用 \`/mv "projects/assets/${slug}/[GAME_VERSION]/" "projects/assets/[NEW_DIR]/[GAME_VERSION]/"\`.`,
-        );
+        sb.line(mappingMissingMessage(slug));
         continue;
       }
       addons.push(resolved);
