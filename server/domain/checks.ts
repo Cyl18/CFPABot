@@ -26,8 +26,9 @@ function badPathMessage(path: string): string | null {
 
 export function pathChecks(files: PrFile[]): CheckItem[] {
   const items: CheckItem[] = [];
+  const head = files.filter((file) => file.status !== "removed");
 
-  const patchouli = files.find((f) => f.path.split("/").includes("patchouli_book"));
+  const patchouli = head.find((f) => f.path.split("/").includes("patchouli_book"));
   if (patchouli) {
     items.push({
       level: "warn",
@@ -37,7 +38,7 @@ export function pathChecks(files: PrFile[]): CheckItem[] {
     });
   }
 
-  const illegal = files.find((f) => f.path.includes("lang") && ILLEGAL_PATH_RE.test(f.path));
+  const illegal = head.find((f) => f.path.includes("lang") && ILLEGAL_PATH_RE.test(f.path));
   if (illegal) {
     items.push({
       level: "warn",
@@ -48,7 +49,7 @@ export function pathChecks(files: PrFile[]): CheckItem[] {
   }
 
   let badCount = 0;
-  for (const file of files) {
+  for (const file of head) {
     if (badCount >= 5) break;
     if (!file.path.includes("zh_cn")) continue;
     if (file.path.split("/").length >= 7) continue;
@@ -58,7 +59,7 @@ export function pathChecks(files: PrFile[]): CheckItem[] {
     badCount++;
   }
 
-  const uppercase = files.find((f) => {
+  const uppercase = head.find((f) => {
     const names = f.path.split("/");
     return (
       names.length >= 7 &&
@@ -87,7 +88,7 @@ export function pathChecks(files: PrFile[]): CheckItem[] {
     });
   }
 
-  for (const file of files) {
+  for (const file of head) {
     if (!LANG_FILE_RE.test(file.path.split("/").pop() ?? "")) continue;
     if (file.path.startsWith("projects/")) continue;
     items.push({

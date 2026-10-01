@@ -253,7 +253,7 @@ async function buildWorkspace(
 export async function buildPack(input: PackInput): Promise<Pack> {
   const patches = new Map<string, string | undefined>();
   for (const file of input.files) patches.set(file.path, file.patch);
-  const workspaces = workspacesOf(input.files.map((file) => file.path));
+  const workspaces = workspacesOf(input.files);
   const built: PackWorkspace[] = [];
   for (let index = 0; index < workspaces.length; index += WORKSPACE_CONCURRENCY) {
     const batch = workspaces.slice(index, index + WORKSPACE_CONCURRENCY);

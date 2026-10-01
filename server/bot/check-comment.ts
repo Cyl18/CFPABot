@@ -132,6 +132,7 @@ function appendRelated(sb: Lines, ctx: PrContext): void {
   const modSlugs: string[] = [];
   const seen = new Set<string>();
   for (const file of ctx.files) {
+    if (file.status === "removed") continue;
     if (!file.path.startsWith("projects") || file.path.split("/").length < 7) continue;
     try {
       const parsed = diffModPathOf(file.path);
@@ -212,7 +213,7 @@ async function appendAutoDomain(sb: Lines, names: string[], take: number): Promi
 
 async function appendBadPaths(sb: Lines, ctx: PrContext): Promise<void> {
   const candidates = ctx.files
-    .filter((file) => file.path.toLowerCase().includes("zh_cn") && file.path.split("/").length < 7)
+    .filter((file) => file.status !== "removed" && file.path.toLowerCase().includes("zh_cn") && file.path.split("/").length < 7)
     .slice(0, MAX_BAD_PATH_FILES);
   for (const file of candidates) {
     const names = file.path.split("/");
@@ -738,6 +739,7 @@ async function appendUnits(sb: CheckSink, reportSb: Lines, ctx: PrContext): Prom
   let reportedKey = false;
   const checked = new Set<string>();
   for (const file of ctx.files) {
+    if (file.status === "removed") continue;
     const names = file.path.split("/");
     if (names.length < 7 || names[0] !== "projects" || names[5] !== "lang") continue;
     const curseID = names[2] as string;
@@ -835,12 +837,13 @@ export async function buildCheckComment(ctx: PrContext, publicUrl: string): Prom
     }
     appendRelated(sb, ctx);
 
-    if (ctx.files.some((file) => file.path.split("/").includes("patchouli_book"))) {
+    if (ctx.files.some((file) => file.status !== "removed" && file.path.split("/").includes("patchouli_book"))) {
       sb.line("⚠ 检测到了一个名为 patchouli_book 的文件夹。你可能想说的是 patchouli_books？");
     }
 
     const illegal = ctx.files.find(
-      (file) => file.path.includes("lang") && [...file.path].some((ch) => !/[0-9A-Za-z_\-./]/.test(ch)),
+      (file) =>
+        file.status !== "removed" && file.path.includes("lang") && [...file.path].some((ch) => !/[0-9A-Za-z_\-./]/.test(ch)),
     );
     if (illegal !== undefined) {
       sb.line("⚠⚠⚠ **检测到了可能不合规的路径。**");
@@ -855,6 +858,7 @@ export async function buildCheckComment(ctx: PrContext, publicUrl: string): Prom
 
     let reportedCap = false;
     for (const file of ctx.files) {
+      if (file.status === "removed") continue;
       const names = file.path.split("/");
       if (names.length < 7 || names[0] !== "projects" || names[5] !== "lang") continue;
       if (!names.some((segment) => segment !== "1UNKNOWN" && segment.toLowerCase() !== segment)) continue;

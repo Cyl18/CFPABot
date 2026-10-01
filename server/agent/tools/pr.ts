@@ -38,7 +38,7 @@ export function prOverviewTool(ctx: ToolContext): AgentTool<typeof PR_OVERVIEW_P
     execute: async () => {
       const { prNumber, baseSha, headSha } = requirePr(ctx);
       const { pull, files } = await prdata.files(prNumber);
-      const workspaces = workspacesOf(files.map((file) => file.path));
+      const workspaces = workspacesOf(files);
       const checks = await getCheckReport(prNumber);
       return jsonResult({
         prNumber,

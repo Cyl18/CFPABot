@@ -52,6 +52,7 @@ export function prStateOf(pull: GhPull): PrState {
 function slugsOf(files: GhFile[]): string[] {
   const slugs = new Set<string>();
   for (const file of files) {
+    if (file.status === "removed") continue;
     const parsed = parseLangPath(file.path);
     if (parsed) slugs.add(parsed.slug);
   }
@@ -89,7 +90,7 @@ export async function prDetail(n: number): Promise<PrDetail> {
       deletions: file.deletions,
       ...(file.previousPath === undefined ? {} : { previousPath: file.previousPath }),
     })),
-    workspaces: workspacesOf(files.map((file) => file.path)),
+    workspaces: workspacesOf(files),
     specialFiles: files.filter((file) => isSpecialPath(file.path)).map((file) => file.path),
     related: prdata.related(n),
   };

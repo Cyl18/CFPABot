@@ -1,4 +1,4 @@
-import type { Workspace } from "../../shared/api.ts";
+import type { PrFile, Workspace } from "../../shared/api.ts";
 
 export type Locale = "en_us" | "zh_cn";
 export type LangFormat = "json" | "lang";
@@ -121,9 +121,11 @@ export function compareMc(a: string, b: string): number {
   return 0;
 }
 
-export function workspacesOf(paths: string[]): Workspace[] {
+export function workspacesOf(files: readonly Pick<PrFile, "path" | "status">[]): Workspace[] {
   const byKey = new Map<string, Workspace>();
-  for (const raw of paths) {
+  for (const file of files) {
+    if (file.status === "removed") continue;
+    const raw = file.path;
     const parsed = parseLangPath(raw);
     if (!parsed || parsed.locale === null) continue;
     const key = `${parsed.slug}\u0000${parsed.version}\u0000${parsed.namespace}`;

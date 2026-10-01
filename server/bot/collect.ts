@@ -53,7 +53,7 @@ export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) =>
 
 export async function loadPrContext(n: number): Promise<PrContext> {
   const { pull, files } = await prdata.files(n);
-  return { pull, files, workspaces: workspacesOf(files.map((file) => file.path)) };
+  return { pull, files, workspaces: workspacesOf(files) };
 }
 
 async function loadOneWorkspace(ctx: PrContext, workspace: Workspace): Promise<WorkspaceData | null> {
@@ -230,7 +230,7 @@ function diffRows(maps: DiffMaps): DiffRow5[] {
 export async function buildDiffComment(pull: GhPull, files: PrFile[], publicUrl: string): Promise<string> {
   let result: string;
   try {
-    const modPaths = diffModPathsOf(files.map((file) => file.path));
+    const modPaths = diffModPathsOf(files.filter((file) => file.status !== "removed").map((file) => file.path));
     const sb = new Lines();
     const exceptions: string[] = [];
     const terms = await glossaryTerms();
