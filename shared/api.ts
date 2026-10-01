@@ -76,6 +76,7 @@ export interface CheckItem {
   code: string;
   message: string;
   path?: string;
+  unit?: string;
 }
 
 export type ModFileStatus = "ok" | "mismatch" | "extra" | "unavailable";

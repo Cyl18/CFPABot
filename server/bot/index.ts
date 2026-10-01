@@ -6,13 +6,13 @@ import { logger } from "../log.ts";
 import { mirror } from "../mirror.ts";
 import { prdata } from "../prdata.ts";
 import { runCommands } from "./commands.ts";
-import { getCheckReport, refreshInfoComment } from "./info-comment.ts";
+import { getCheckReport, isRefreshing, refreshInfoComment } from "./info-comment.ts";
 import { labelCheck, syncLabels } from "./labels.ts";
 import { autoApprovePacker, PACKER_WORKFLOW_NAME } from "./packer.ts";
 import { drainPending, track } from "./pending.ts";
 import { CYBOT_MARKER } from "./render.ts";
 
-export { getCheckReport, refreshInfoComment };
+export { getCheckReport, isRefreshing, refreshInfoComment };
 
 const log = logger("bot");
 

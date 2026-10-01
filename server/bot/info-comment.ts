@@ -30,6 +30,7 @@ const checkItemSchema = z.object({
   code: z.string(),
   message: z.string(),
   path: z.string().optional(),
+  unit: z.string().optional(),
 });
 
 const modFileSchema = z.object({
@@ -102,6 +103,10 @@ async function safeSegment(fn: () => Promise<string>, fallback: (err: unknown) =
 export async function getCheckReport(prNumber: number): Promise<CheckReport | null> {
   const state = await readJson(statePath(prNumber), stateSchema);
   return state?.report ?? null;
+}
+
+export function isRefreshing(prNumber: number): boolean {
+  return running.has(prNumber);
 }
 
 export function refreshInfoComment(

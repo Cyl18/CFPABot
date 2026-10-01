@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/PageHeader.tsx";
 import { PrStateBadge } from "@/components/StatusBadges.tsx";
 import { api, errorMessage } from "@/lib/api.ts";
 import { formatDateTime, formatRelative } from "@/lib/format.ts";
-import { useMe, usePr, useRefreshPr } from "@/lib/queries.ts";
+import { useMe, usePr, useRefreshPr, useRefreshStatus } from "@/lib/queries.ts";
 import type { PrSearch, SearchPatch } from "@/lib/search.ts";
 import { LabelChip } from "@/ui/Badge.tsx";
 import { Button, buttonClass } from "@/ui/Button.tsx";
@@ -34,6 +34,8 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
   const { data: me } = useMe();
   const { data: pr, isPending, error, refetch } = usePr(n);
   const refresh = useRefreshPr(n);
+  const status = useRefreshStatus(n, me?.isAdmin === true);
+  const running = status.data?.running === true;
   const navigate = useNavigate();
 
   const startReview = useMutation({
@@ -99,7 +101,7 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
               <>
                 <Button
                   icon={<RefreshCw aria-hidden="true" className="size-4" />}
-                  loading={refresh.isPending}
+                  loading={refresh.isPending || running}
                   onClick={() => refresh.mutate()}
                 >
                   刷新信息评论

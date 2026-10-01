@@ -129,6 +129,7 @@ export const api = {
   pr: (n: number, signal?: AbortSignal) => get<PrDetail>(`/api/prs/${n}`, signal),
   checks: (n: number, signal?: AbortSignal) => get<CheckReport | null>(`/api/prs/${n}/checks`, signal),
   refreshPr: (n: number) => send<{ ok: true }>("POST", `/api/prs/${n}/refresh`),
+  refreshStatus: (n: number, signal?: AbortSignal) => get<{ running: boolean }>(`/api/prs/${n}/refresh/status`, signal),
   compare: (n: number, key: CompareKey, signal?: AbortSignal) =>
     get<CompareResult>(`/api/prs/${n}/compare${query({ slug: key.slug, version: key.version, namespace: key.namespace })}`, signal),
   special: (n: number, signal?: AbortSignal) => get<SpecialFile[]>(`/api/prs/${n}/special`, signal),

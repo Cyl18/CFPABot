@@ -9,7 +9,8 @@ import { gh } from "../github/client.ts";
 import { mirror } from "../mirror.ts";
 import { mods } from "../mods/index.ts";
 import { prdata } from "../prdata.ts";
-import { getCheckReport, refreshInfoComment } from "../bot/index.ts";
+import { getCheckReport, isRefreshing, refreshInfoComment } from "../bot/index.ts";
+import { track } from "../bot/pending.ts";
 import { llm } from "../agent/index.ts";
 import { compareWorkspace, crossVersionKeys, prDetail, specialFiles, textCompare } from "../compare.ts";
 import { currentUser, requireAdmin } from "./auth.ts";
@@ -109,9 +110,11 @@ prRoutes.get("/prs/:n/checks", async (c) => c.json(await withPull(() => getCheck
 
 prRoutes.post("/prs/:n/refresh", async (c) => {
   await requireAdmin(c);
-  await withPull(() => refreshInfoComment(prNumber(c), { force: true, refreshPacker: true }));
-  return c.json({ ok: true });
+  track(refreshInfoComment(prNumber(c), { force: true, refreshPacker: true }));
+  return c.json({ ok: true }, 202);
 });
+
+prRoutes.get("/prs/:n/refresh/status", (c) => c.json({ running: isRefreshing(prNumber(c)) }));
 
 prRoutes.get("/prs/:n/compare", async (c) => {
   const key = parseQuery(c, workspaceQuery);

@@ -22,6 +22,112 @@ function genericBadPath(path: string): string {
   return `⚠ 检测到一个语言文件，但提交路径不正常。请检查提交路径：\`${path}\``;
 }
 
+type CheckCategory = "error" | "warn" | "info" | "ok";
+
+const CATEGORY_ORDER: readonly CheckCategory[] = ["error", "warn", "info", "ok"];
+const CATEGORY_RANK: Record<CheckCategory, number> = { error: 0, warn: 1, info: 2, ok: 3 };
+
+const CATEGORY_META: Record<CheckCategory, { icon: string; label: string }> = {
+  error: { icon: "❌", label: "错误" },
+  warn: { icon: "⚠", label: "警告" },
+  info: { icon: "ℹ", label: "提示" },
+  ok: { icon: "✔", label: "通过" },
+};
+
+const SUMMARY_NAMES = 3;
+
+// 这两句虽然带 ℹ，语义上是通过（与前端 key_parity / mod_en 的 ok 级别一致）
+const OK_LINE_SUFFIXES: readonly string[] = ["中英文 Key 相互对应。", "模组内语言文件与 PR 相同。"];
+
+function levelOf(text: string): CheckCategory | null {
+  if (text.startsWith("✔")) return "ok";
+  if (text.startsWith("❌")) return "error";
+  if (text.startsWith("⚠") || text.startsWith("❗")) return "warn";
+  if (text.startsWith("ℹ")) return OK_LINE_SUFFIXES.some((suffix) => text.endsWith(suffix)) ? "ok" : "info";
+  return null;
+}
+
+function foldSummary(icon: string, label: string, names: readonly string[]): string {
+  const shown = names.slice(0, SUMMARY_NAMES).join("、");
+  const more = names.length > SUMMARY_NAMES ? " 等" : "";
+  return `${icon} ${label} · ${names.length} 个模组：${shown}${more}`;
+}
+
+function fold(summary: string, body: string): string {
+  return `<details><summary>${summary}</summary>\n\n${body}\n\n</details>\n\n`;
+}
+
+interface UnitBody {
+  name: string;
+  body: string;
+}
+
+export class CheckSink {
+  private readonly buckets: Record<CheckCategory, UnitBody[]> = { error: [], warn: [], info: [], ok: [] };
+  private readonly visible: string[] = [];
+  private readonly typos: string[] = [];
+  private unit: Lines | null = null;
+  private name = "";
+  private level: CheckCategory = "ok";
+  private missing = false;
+  private rendered = false;
+
+  startUnit(name: string): void {
+    this.unit = new Lines();
+    this.name = name;
+    this.level = "ok";
+    this.missing = false;
+  }
+
+  endUnit(): void {
+    const unit = this.unit;
+    this.unit = null;
+    if (unit === null) return;
+    const body = unit.text().trim();
+    if (body === "") return;
+    if (this.missing) {
+      this.visible.push(body);
+      return;
+    }
+    this.buckets[this.level].push({ name: this.name, body });
+  }
+
+  line(value = ""): void {
+    if (value.startsWith("⚠ 找不到模组")) this.missing = true;
+    const level = levelOf(value);
+    if (level !== null && CATEGORY_RANK[level] < CATEGORY_RANK[this.level]) this.level = level;
+    this.unit?.line(value);
+  }
+
+  raw(value: string): void {
+    this.unit?.raw(value);
+  }
+
+  typo(value: string): void {
+    this.typos.push(value);
+  }
+
+  render(sb: Lines): void {
+    if (this.rendered) return;
+    this.rendered = true;
+    if (this.unit !== null) this.endUnit();
+    if (this.visible.length > 0) sb.raw(`${this.visible.join("\n\n")}\n\n`);
+    for (const category of CATEGORY_ORDER) {
+      const units = this.buckets[category];
+      if (units.length === 0) continue;
+      const meta = CATEGORY_META[category];
+      const summary = foldSummary(meta.icon, meta.label, units.map((unit) => unit.name));
+      sb.raw(fold(summary, units.map((unit) => unit.body).join("\n\n")));
+    }
+    if (this.typos.length > 0) {
+      const errors = this.typos.filter((line) => line.startsWith("❌")).length;
+      const icon = errors > 0 ? "❌" : "ℹ";
+      const counts = errors > 0 ? `${this.typos.length} 条（错误 ${errors}）` : `${this.typos.length} 条`;
+      sb.raw(fold(`${icon} 译名检测 · ${counts}`, `${this.typos.join("\n")}\n\n${CHECK_TRANSLATE_HINT}`));
+    }
+  }
+}
+
 function appendRelated(sb: Lines, ctx: PrContext): void {
   const modSlugs: string[] = [];
   const seen = new Set<string>();
@@ -197,7 +303,7 @@ function analyzeCoreKey(
   version: string,
   enKeys: Set<string>,
   cnKeys: Set<string>,
-  sb: Lines,
+  sb: CheckSink,
   reportSb: Lines,
   enfile: string,
   cnfile: string,
@@ -238,7 +344,7 @@ function analyzeKeyJson(
   version: string,
   enfile: string,
   cnfile: string,
-  sb: Lines,
+  sb: CheckSink,
   reportSb: Lines,
 ): boolean {
   const en = jsonKeys(enfile, false);
@@ -274,7 +380,7 @@ function analyzeKeyLang(
   version: string,
   enfile: string,
   cnfile: string,
-  sb: Lines,
+  sb: CheckSink,
   reportSb: Lines,
 ): boolean {
   if (enfile.trim() === "") {
@@ -293,7 +399,7 @@ function analyzeKey(
   version: string,
   enfile: string,
   cnfile: string,
-  sb: Lines,
+  sb: CheckSink,
   reportSb: Lines,
 ): boolean {
   return version === "1.12.2"
@@ -308,7 +414,7 @@ function analyzeCoreModEn(
   downloadModName: string,
   enKeys: Set<string>,
   modKeys: Set<string>,
-  sb: Lines,
+  sb: CheckSink,
   reportSb: Lines,
   enfile: string,
   modfile: string,
@@ -353,7 +459,7 @@ function analyzeModEnJson(
   downloadModName: string,
   enfile: string,
   modfile: string,
-  sb: Lines,
+  sb: CheckSink,
   reportSb: Lines,
 ): boolean {
   const en = jsonKeys(enfile, true);
@@ -395,7 +501,7 @@ function analyzeModEnLang(
   downloadModName: string,
   enfile: string,
   modfile: string,
-  sb: Lines,
+  sb: CheckSink,
   reportSb: Lines,
 ): boolean {
   if (enfile.trim() === "" || modfile.trim() === "") return false;
@@ -420,7 +526,7 @@ function analyzeModEn(
   downloadModName: string,
   enfile: string,
   modfile: string,
-  sb: Lines,
+  sb: CheckSink,
   reportSb: Lines,
 ): boolean {
   return version === "1.12.2"
@@ -491,7 +597,7 @@ async function modEnFiles(raw: CfMod, versionString: string): Promise<{ files: s
 }
 
 async function appendUnit(
-  sb: Lines,
+  sb: CheckSink,
   reportSb: Lines,
   ctx: PrContext,
   curseID: string,
@@ -628,7 +734,7 @@ async function appendUnit(
   return keyResult || modKeyResult;
 }
 
-async function appendUnits(sb: Lines, reportSb: Lines, ctx: PrContext): Promise<boolean> {
+async function appendUnits(sb: CheckSink, reportSb: Lines, ctx: PrContext): Promise<boolean> {
   let reportedKey = false;
   const checked = new Set<string>();
   for (const file of ctx.files) {
@@ -641,7 +747,9 @@ async function appendUnits(sb: Lines, reportSb: Lines, ctx: PrContext): Promise<
     const checkKey = `${versionString}\u0000${curseID}`;
     if (checked.has(checkKey)) continue;
     checked.add(checkKey);
+    sb.startUnit(`${modid}-${versionString}`);
     if (await appendUnit(sb, reportSb, ctx, curseID, versionString, modid)) reportedKey = true;
+    sb.endUnit();
   }
   return reportedKey;
 }
@@ -677,7 +785,7 @@ function shortenLine(line: string, checkname: string, version: string): string {
   return value;
 }
 
-async function appendTypos(sb: Lines, reportSb: Lines, ctx: PrContext): Promise<boolean> {
+async function appendTypos(sink: CheckSink, reportSb: Lines, ctx: PrContext): Promise<boolean> {
   const rules = await loadTypoRules();
   let typoResult = false;
   const reported = new Set<string>();
@@ -699,7 +807,7 @@ async function appendTypos(sb: Lines, reportSb: Lines, ctx: PrContext): Promise<
           typoResult = true;
           const example = shortenLine(text.replaceAll("`", "\\`"), rule.term, versionString);
           const prefix = rule.level === "error" ? "❌ 可能错误译名" : "ℹ 可能争议译名";
-          sb.line(`${prefix}：\`${rule.term}\`，${rule.message}。例如 \`${example}\`。`);
+          sink.typo(`${prefix}：\`${rule.term}\`，${rule.message}。例如 \`${example}\`。`);
         }
         // 祖母侧 DiffPatch 的 NewIndex 恒为 0，勿改为真实行号
         reportSb.line(`检测到${rule.level === "error" ? "错误" : "争议"}译名：${rule.term} ${file.path}-0: ${text}`);
@@ -709,28 +817,17 @@ async function appendTypos(sb: Lines, reportSb: Lines, ctx: PrContext): Promise<
   return typoResult;
 }
 
-function appendReport(
-  sb: Lines,
-  reportText: string,
-  reportUrl: string,
-  typoResult: boolean,
-): void {
-  if (reportText.length > MAX_REPORT_EMBED) {
-    sb.line();
-    if (typoResult) sb.line(CHECK_TRANSLATE_HINT);
-    sb.line(`更多报告在 [这里](${reportUrl}) 查看。 PR 更新也会更新检查。`);
-    return;
+function appendReport(sb: Lines, reportText: string, reportUrl: string): void {
+  if (reportText.length <= MAX_REPORT_EMBED) {
+    sb.raw(fold("📄 详细检查报告", reportText.replaceAll("\n", "<br>").replaceAll(" ", "&nbsp;")));
   }
-  sb.raw("\n<details> <summary>详细检查报告</summary> \n");
-  sb.raw(reportText.replaceAll("\n", "<br>").replaceAll(" ", "&nbsp;"));
-  sb.raw("</details>\n\n");
-  if (typoResult) sb.line(CHECK_TRANSLATE_HINT);
-  sb.line(`报告在 [这里](${reportUrl}) 查看。PR 更新也会更新检查。`);
+  sb.line(`完整报告在 [这里](${reportUrl}) 查看。PR 更新也会更新检查。`);
 }
 
 export async function buildCheckComment(ctx: PrContext, publicUrl: string): Promise<string> {
   const sb = new Lines();
   const reportSb = new Lines();
+  const sink = new CheckSink();
   try {
     if (ctx.files.length > MAX_CHECK_FILES) {
       sb.line(TOO_MANY_FILES);
@@ -768,8 +865,10 @@ export async function buildCheckComment(ctx: PrContext, publicUrl: string): Prom
       }
     }
 
-    const reportedKey = await appendUnits(sb, reportSb, ctx);
-    const typoResult = await appendTypos(sb, reportSb, ctx);
+    const reportedKey = await appendUnits(sink, reportSb, ctx);
+    const typoResult = await appendTypos(sink, reportSb, ctx);
+
+    sink.render(sb);
 
     if (reportedCap || reportedKey || typoResult) {
       const reportText = reportSb.text();
@@ -777,10 +876,11 @@ export async function buildCheckComment(ctx: PrContext, publicUrl: string): Prom
       await mkdir(dirname(reportPath), { recursive: true });
       await writeFile(reportPath, reportText, "utf8");
       const reportUrl = `${publicUrl}/api/Utils/Report/${ctx.pull.number}/${ctx.pull.headSha.slice(0, 7)}`;
-      appendReport(sb, reportText, reportUrl, typoResult);
+      appendReport(sb, reportText, reportUrl);
     }
   } catch (err) {
     log.error("检查出错", { pr: ctx.pull.number, error: err });
+    sink.render(sb);
     sb.line(`⚠ 检查出错: ${messageOf(err)}`);
   }
   return sb.text();

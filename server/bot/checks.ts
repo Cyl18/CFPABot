@@ -300,6 +300,14 @@ async function targetItems(target: ModTarget): Promise<{ items: CheckItem[]; mcr
   return { items, mcreator: info.isMCreator, modFiles: target.all.map((item) => modFileRow(item, file, jar)) };
 }
 
+function unitOf(workspace: { slug: string; version: string }): string {
+  return `${workspace.slug}/${workspace.version}`;
+}
+
+function withUnit(items: CheckItem[], unit: string): CheckItem[] {
+  return items.map((item) => ({ ...item, unit }));
+}
+
 export async function collectChecks(prNumber: number, ctx: PrContext, data: WorkspaceData[]): Promise<ChecksResult> {
   const items: CheckItem[] = [];
   const modFiles: ModFileCheck[] = [];
@@ -321,13 +329,14 @@ export async function collectChecks(prNumber: number, ctx: PrContext, data: Work
   items.push(...typoItems(ctx, await loadTypoRules()));
 
   for (const item of data) {
-    items.push(...keyParity(`${item.workspace.namespace}-${item.workspace.version}`, item.headEn, item.headZh));
-    items.push(...entryItems(item));
+    const unit = unitOf(item.workspace);
+    items.push(...withUnit(keyParity(`${item.workspace.namespace}-${item.workspace.version}`, item.headEn, item.headZh), unit));
+    items.push(...withUnit(entryItems(item), unit));
   }
 
   for (const target of modTargets(data)) {
     const result = await targetItems(target);
-    items.push(...result.items);
+    items.push(...withUnit(result.items, unitOf(target)));
     modFiles.push(...result.modFiles);
     if (result.mcreator && !extraLabels.includes("MCreator")) extraLabels.push("MCreator");
   }
