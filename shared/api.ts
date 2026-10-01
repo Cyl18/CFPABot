@@ -132,8 +132,6 @@ export interface SpecialFile {
   truncated: boolean;
 }
 
-export const MAX_COMPARE_VERSIONS = 3;
-
 export interface CrossVersionKeyCell {
   version: string;
   en: string;

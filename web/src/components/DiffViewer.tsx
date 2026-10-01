@@ -2,7 +2,7 @@ import type { DiffCell, DiffEntry, DiffFacet, DiffFacts, DiffFilterState, DiffLa
 import { DEFAULT_DIFF_FILTER, DIFF_FACETS, FACET_MATCH, diffFacts, matchesFilter, matchesQuery } from "@shared/diffview.ts";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { ArrowLeftRight, Check, Copy, Search, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { DiffModePicker } from "@/components/DiffModePicker.tsx";
 import { cn } from "@/lib/cn.ts";
 import { inlineDiff, type DiffKind, type DiffMode, type DiffSegment } from "@/lib/diff.ts";
@@ -65,7 +65,16 @@ const BORDER: Record<Tone, string> = {
 const ROW = "flex flex-col gap-2 border-l-2 px-3 py-2.5 md:flex-row md:items-start md:gap-3";
 const CELL = "min-w-0 flex-1 whitespace-pre-wrap break-words";
 const KEYCOL = "flex min-w-0 shrink-0 flex-col gap-1 md:w-52";
-const HEADER = "sticky z-10 hidden border-b border-line bg-elevated px-3 py-1.5 text-xs text-muted md:flex md:items-center md:gap-3 max-lg:top-14 max-md:top-0";
+const HEAD_SHELL = "sticky top-0 z-10 hidden border-b border-line bg-elevated text-xs text-muted max-lg:top-14 max-md:top-0";
+const HEADER = cn(HEAD_SHELL, "px-3 py-1.5 md:flex md:items-center md:gap-3");
+
+// 分列每列至少这么宽，放不下就横向滚动；Key 列和表头钉住。
+const GRID_KEY_REM = 14;
+const GRID_COL_REM = 15;
+const GRID_GAP_REM = 0.75;
+const GRID_ROW = "flex flex-col gap-2 border-l-2 px-3 py-2.5 md:flex-row md:items-start md:gap-3 md:border-l-0 md:py-0 md:pl-0";
+const GRID_KEY =
+  "flex min-w-0 flex-col gap-1 md:sticky md:left-0 md:z-[1] md:w-56 md:shrink-0 md:self-stretch md:border-l-2 md:border-r md:border-r-line/60 md:bg-surface md:py-2.5 md:pl-3 md:pr-3";
 
 function toneOf(facts: DiffFacts, compare: boolean): Tone {
   if (facts.missing === "add") return "ok";
@@ -304,9 +313,21 @@ function FactBadges({ facts, compare, touched }: { facts: DiffFacts; compare: bo
   );
 }
 
-function KeyColumn({ entry, facts, compare, hint }: { entry: DiffEntry; facts: DiffFacts; compare: boolean; hint?: ReactNode }) {
+function KeyColumn({
+  entry,
+  facts,
+  compare,
+  hint,
+  className = KEYCOL,
+}: {
+  entry: DiffEntry;
+  facts: DiffFacts;
+  compare: boolean;
+  hint?: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className={KEYCOL}>
+    <div className={className}>
       <code className="break-all font-mono text-xs text-muted" title={entry.key}>
         {entry.key}
       </code>
@@ -383,18 +404,19 @@ function MergeRow({
 function GridRow({
   entry,
   facts,
-  lanes,
-  display,
+  runs,
+  columns,
   compare,
 }: {
   entry: DiffEntry;
   facts: DiffFacts;
-  lanes: readonly DiffLane[];
-  display: readonly DiffLane[];
+  runs: readonly DiffLane[][];
+  columns: readonly DiffLane[][];
   compare: boolean;
 }) {
   const [mode] = useDiffMode();
-  const sides: ChainSide[] = lanes.map((lane) => {
+  const heads = runs.map((run) => run[0]!);
+  const sides: ChainSide[] = heads.map((lane) => {
     const cell = entry.cells[lane.id] ?? null;
     return {
       en: expandNewlines(cell?.en ?? ""),
@@ -406,14 +428,23 @@ function GridRow({
   });
   const marks = chainMarks(sides, mode);
   const nodes = new Map<string, ReactNode>();
-  lanes.forEach((lane, at) => {
+  runs.forEach((run, at) => {
+    const lane = heads[at]!;
     const cell = entry.cells[lane.id] ?? null;
     const side = sides[at];
     if (side === undefined) return;
+    const chips = (
+      <div className="mb-1 flex flex-wrap gap-1 md:hidden">
+        {run.map((one) => (
+          <LaneChip key={one.id} lane={one} />
+        ))}
+      </div>
+    );
     if (lane.absent === true) {
       nodes.set(
         lane.id,
-        <div key={lane.id} className={CELL}>
+        <div key={lane.id} className={cn(CELL, "md:py-2.5")}>
+          {chips}
           <span className="text-muted">—</span>
           <div className="mt-0.5 text-sm">
             <span className="text-muted">—</span>
@@ -422,13 +453,14 @@ function GridRow({
       );
       return;
     }
-    const previousLane = at > 0 ? (lanes[at - 1] ?? null) : null;
+    const previousLane = at > 0 ? (heads[at - 1] ?? null) : null;
     const previousCell = previousLane === null ? null : (entry.cells[previousLane.id] ?? null);
     const same =
       previousCell !== null && cell !== null && previousCell.en === cell.en && (lane.zhFile === false || previousLane?.zhFile === false || previousCell.zh === cell.zh);
     nodes.set(
       lane.id,
-      <div key={lane.id} className={cn(CELL, "relative pr-6", same && "opacity-55")}>
+      <div key={lane.id} className={cn(CELL, "relative pr-6 md:py-2.5", same && "opacity-55")}>
+        {chips}
         {lane.whole !== undefined ? (
           <Inline {...wholeEdge(lane.whole, cell?.en ?? null)} />
         ) : cell === null ? (
@@ -456,9 +488,9 @@ function GridRow({
     );
   });
   return (
-    <article className={cn(ROW, BORDER[toneOf(facts, compare)])}>
-      <KeyColumn entry={entry} facts={facts} compare={compare} />
-      {display.map((lane) => nodes.get(lane.id))}
+    <article className={cn(GRID_ROW, BORDER[toneOf(facts, compare)])}>
+      <KeyColumn entry={entry} facts={facts} compare={compare} className={cn(GRID_KEY, BORDER[toneOf(facts, compare)])} />
+      {columns.map((run) => nodes.get(run[0]!.id))}
     </article>
   );
 }
@@ -672,6 +704,29 @@ export function DiffViewer({
     if (!compare || !swapped) return activeLanes;
     return [...activeLanes].reverse();
   }, [activeLanes, compare, swapped]);
+  // 相邻版本的每个 key 中英文都一样，分列里就并成一列。
+  const runs = useMemo(() => {
+    const out: DiffLane[][] = [];
+    for (const lane of activeLanes) {
+      const run = out[out.length - 1];
+      const head = run?.[0];
+      const same =
+        head !== undefined &&
+        head.zhFile === lane.zhFile &&
+        head.skipZh === lane.skipZh &&
+        head.absent === lane.absent &&
+        head.whole === lane.whole &&
+        entries.every((entry) => {
+          const a = entry.cells[head.id];
+          const b = entry.cells[lane.id];
+          return a == null ? b == null : b != null && a.en === b.en && a.zh === b.zh;
+        });
+      if (run !== undefined && same) run.push(lane);
+      else out.push([lane]);
+    }
+    return out;
+  }, [activeLanes, entries]);
+  const columns = useMemo(() => (compare && swapped ? [...runs].reverse() : runs), [runs, compare, swapped]);
   const present = activeLanes.filter((lane) => lane.absent !== true);
   const mergeLabel =
     present.length === activeLanes.length
@@ -737,6 +792,10 @@ export function DiffViewer({
   useEffect(() => {
     virtualizer.measure();
   }, [layout, virtualizer]);
+
+  const headRef = useRef<HTMLDivElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const gridMin = { "--grid-min": `${GRID_KEY_REM + columns.length * (GRID_COL_REM + GRID_GAP_REM) + GRID_GAP_REM}rem` } as CSSProperties;
 
   return (
     <div className="flex flex-col gap-3">
@@ -836,7 +895,7 @@ export function DiffViewer({
           />
         )
       ) : (
-        <div className="overflow-clip rounded-lg border border-line bg-surface">
+        <div className="overflow-clip rounded-lg border border-line bg-surface" style={layout === "grid" ? gridMin : undefined}>
           {layout === "merge" && (
             <div className={cn(HEADER, "flex-col md:flex-row")}>
               <span className="md:w-52 md:shrink-0">Key</span>
@@ -849,16 +908,45 @@ export function DiffViewer({
             </div>
           )}
           {layout === "grid" && (
-            <div className={HEADER}>
-              <span className="md:w-52 md:shrink-0">Key</span>
-              {display.map((lane) => (
-                <span key={lane.id} className="md:flex-1">
-                  <LaneChip lane={lane} />
-                </span>
-              ))}
+            <div
+              ref={headRef}
+              onScroll={(event) => {
+                if (bodyRef.current !== null) bodyRef.current.scrollLeft = event.currentTarget.scrollLeft;
+              }}
+              className={cn(HEAD_SHELL, "scroll-thin overflow-x-auto md:block")}
+            >
+              <div className="flex items-stretch gap-3 pr-3 md:min-w-(--grid-min)">
+                <span className="sticky left-0 z-[1] flex w-56 shrink-0 items-center border-l-2 border-r border-l-transparent border-r-line/60 bg-elevated py-1.5 pl-3 pr-3">Key</span>
+                {columns.map((run) => (
+                  <span
+                    key={run[0]!.id}
+                    title={run.length > 1 ? `${run.map((lane) => lane.label).join("、")} 的全部 key 完全一致，合成一列` : undefined}
+                    className="flex min-w-0 flex-1 flex-wrap items-center gap-1 py-1.5"
+                  >
+                    {run.map((lane) => (
+                      <LaneChip key={lane.id} lane={lane} />
+                    ))}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
-          <div ref={listRef} style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+          <div
+            ref={bodyRef}
+            onScroll={
+              layout === "grid"
+                ? (event) => {
+                    if (headRef.current !== null) headRef.current.scrollLeft = event.currentTarget.scrollLeft;
+                  }
+                : undefined
+            }
+            className={cn(layout === "grid" && "scroll-thin md:overflow-x-auto")}
+          >
+          <div
+            ref={listRef}
+            className={cn(layout === "grid" && "md:min-w-(--grid-min)")}
+            style={{ height: virtualizer.getTotalSize(), position: "relative" }}
+          >
             {virtualizer.getVirtualItems().map((item) => {
               const row = visible[item.index];
               if (row === undefined) return null;
@@ -873,13 +961,14 @@ export function DiffViewer({
                   {layout === "merge" ? (
                     <MergeRow entry={row.entry} facts={row.facts} lanes={activeLanes} compare={compare} onShowLanes={() => setLayout("lanes")} />
                   ) : layout === "grid" ? (
-                    <GridRow entry={row.entry} facts={row.facts} lanes={activeLanes} display={display} compare={compare} />
+                    <GridRow entry={row.entry} facts={row.facts} runs={runs} columns={columns} compare={compare} />
                   ) : (
                     <LaneCard entry={row.entry} facts={row.facts} lanes={activeLanes} display={display} compare={compare} />
                   )}
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
       )}
