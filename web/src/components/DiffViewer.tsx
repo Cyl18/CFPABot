@@ -1,4 +1,4 @@
-import type { DiffCell, DiffEntry, DiffFacet, DiffFacts, DiffFilterState, DiffLane } from "@shared/diffview.ts";
+import type { DiffCell, DiffCombine, DiffEntry, DiffFacet, DiffFacts, DiffFilterState, DiffLane } from "@shared/diffview.ts";
 import { DEFAULT_DIFF_FILTER, DIFF_FACETS, FACET_MATCH, diffFacts, matchesFilter, matchesQuery } from "@shared/diffview.ts";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { ArrowLeftRight, Check, Copy, Search, X } from "lucide-react";
@@ -43,6 +43,11 @@ const MODE_FACETS: Record<"compare" | "versions", readonly DiffFacet[]> = {
   compare: ["changed", "en", "zhAny", "add", "remove", "untranslated"],
   versions: ["changed", "en", "zhAny", "partial", "untranslated"],
 };
+
+const COMBINES: readonly { id: DiffCombine; label: string; hint: string }[] = [
+  { id: "and", label: "和", hint: "同时满足选中的条件" },
+  { id: "or", label: "或", hint: "满足其中任意一个条件" },
+];
 
 // 只有这几个开关值得反过来筛。
 const NEGATABLE: readonly DiffFacet[] = ["changed", "en", "zhAny"];
@@ -646,6 +651,36 @@ function FilterChip({ facet, count, state, onCycle }: { facet: DiffFacet; count:
   );
 }
 
+function CombineSwitch({ value, disabled, onChange }: { value: DiffCombine; disabled: boolean; onChange: (next: DiffCombine) => void }) {
+  return (
+    <span
+      className={cn("ml-1 inline-flex items-center gap-1.5", disabled && "opacity-45")}
+      title={disabled ? "选中两个以上「只看」条件后才用得上" : "多个「只看」条件之间的关系；「排除」始终生效"}
+    >
+      <span className="text-xs text-muted">多个条件</span>
+      <span role="radiogroup" aria-label="多个筛选条件之间的关系" className="inline-flex h-7 items-center rounded-md border border-line bg-elevated p-0.5">
+        {COMBINES.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="radio"
+            aria-checked={value === item.id}
+            disabled={disabled}
+            title={item.hint}
+            onClick={() => onChange(item.id)}
+            className={cn(
+              "inline-flex h-6 items-center rounded px-2 text-xs transition-colors",
+              value === item.id ? "bg-accent-soft font-medium text-accent" : "text-muted enabled:hover:text-fg",
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </span>
+    </span>
+  );
+}
+
 export interface DiffViewerProps {
   mode: "compare" | "versions";
   lanes: readonly DiffLane[];
@@ -764,7 +799,7 @@ export function DiffViewer({
   }, [scoped, filter]);
 
   const facets = MODE_FACETS[mode];
-  const isDefault = DIFF_FACETS.every((facet) => filter[facet] === DEFAULT_DIFF_FILTER[facet]);
+  const isDefault = filter.combine !== "or" && DIFF_FACETS.every((facet) => filter[facet] === DEFAULT_DIFF_FILTER[facet]);
 
   function cycleFacet(facet: DiffFacet) {
     const next: DiffFilterState = { ...filter };
@@ -806,6 +841,11 @@ export function DiffViewer({
             {facets.map((facet) => (
               <FilterChip key={facet} facet={facet} count={counts.get(facet) ?? 0} state={filter[facet]} onCycle={() => cycleFacet(facet)} />
             ))}
+            <CombineSwitch
+              value={filter.combine ?? "and"}
+              disabled={facets.filter((facet) => filter[facet] === true).length < 2}
+              onChange={(next) => onFilterChange({ ...filter, combine: next === "or" ? "or" : undefined })}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Input

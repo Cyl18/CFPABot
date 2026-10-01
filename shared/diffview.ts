@@ -25,8 +25,11 @@ export interface DiffEntry {
 
 export type DiffFacet = "changed" | "en" | "zhAny" | "add" | "remove" | "partial" | "untranslated";
 
+/** 多个「只看」之间：and 同时满足，or 满足其一。「排除」永远与结果相与。 */
+export type DiffCombine = "and" | "or";
+
 /** 每个开关：true 只看，false 排除，没写就是不限。 */
-export type DiffFilterState = Partial<Record<DiffFacet, boolean>>;
+export type DiffFilterState = Partial<Record<DiffFacet, boolean>> & { combine?: DiffCombine };
 
 export const DIFF_FACETS: readonly DiffFacet[] = ["changed", "en", "zhAny", "add", "remove", "partial", "untranslated"];
 
@@ -99,11 +102,25 @@ export const FACET_MATCH: Record<DiffFacet, (facts: DiffFacts) => boolean> = {
 };
 
 export function matchesFilter(facts: DiffFacts, state: DiffFilterState): boolean {
-  return DIFF_FACETS.every((facet) => state[facet] === undefined || FACET_MATCH[facet](facts) === state[facet]);
+  const only: DiffFacet[] = [];
+  for (const facet of DIFF_FACETS) {
+    const want = state[facet];
+    if (want === undefined) continue;
+    if (want === false) {
+      if (FACET_MATCH[facet](facts)) return false;
+    } else {
+      only.push(facet);
+    }
+  }
+  if (only.length === 0) return true;
+  return state.combine === "or"
+    ? only.some((facet) => FACET_MATCH[facet](facts))
+    : only.every((facet) => FACET_MATCH[facet](facts));
 }
 
 function encodeFilter(state: DiffFilterState): string {
   const tokens = DIFF_FACETS.flatMap((facet) => (state[facet] === undefined ? [] : [`${state[facet] === true ? "" : "-"}${facet}`]));
+  if (state.combine === "or") tokens.unshift("or");
   return tokens.length === 0 ? "all" : tokens.join(",");
 }
 
@@ -111,6 +128,10 @@ export function parseDiffFilter(raw: string | undefined): DiffFilterState {
   if (raw === undefined) return DEFAULT_DIFF_FILTER;
   const state: DiffFilterState = {};
   for (const token of raw.split(",")) {
+    if (token === "or") {
+      state.combine = "or";
+      continue;
+    }
     const negated = token.startsWith("-");
     const facet = (negated ? token.slice(1) : token) as DiffFacet;
     if (DIFF_FACETS.includes(facet)) state[facet] = !negated;
