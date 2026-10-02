@@ -5,7 +5,8 @@ import { ArrowLeftRight, Check, Info, Search, X } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { DiffModePicker } from "@/components/DiffModePicker.tsx";
 import { cn } from "@/lib/cn.ts";
-import { inlineDiff, type DiffKind, type DiffMode, type DiffSegment } from "@/lib/diff.ts";
+import { consensusOf } from "@/lib/consensus.ts";
+import { inlineDiff, type DiffMode, type DiffSegment } from "@/lib/diff.ts";
 import { useDiffMode } from "@/lib/diffMode.ts";
 import { expandNewlines } from "@/lib/format.ts";
 import { Badge } from "@/ui/Badge.tsx";
@@ -55,6 +56,7 @@ const NEGATABLE: readonly DiffFacet[] = ["changed", "en", "zhAny"];
 
 const INSERT = "rounded-sm bg-ok/20 px-0.5 text-ok no-underline";
 const DELETE = "rounded-sm bg-danger/20 px-0.5 text-danger line-through decoration-danger/60";
+const CHANGE = "rounded-sm bg-warn/20 px-0.5 text-warn";
 
 type Tone = "ok" | "danger" | "warn" | "accent" | "info" | "line" | "none";
 
@@ -113,6 +115,30 @@ function useLayout(fallback: DiffLayout): [DiffLayout, (next: DiffLayout) => voi
   ];
 }
 
+function Runs({ segments }: { segments: readonly DiffSegment[] }) {
+  return (
+    <>
+      {segments.map((segment, index) =>
+        segment.type === "insert" ? (
+          <ins key={index} className={INSERT}>
+            {segment.text}
+          </ins>
+        ) : segment.type === "delete" ? (
+          <del key={index} className={DELETE}>
+            {segment.text}
+          </del>
+        ) : segment.type === "change" ? (
+          <span key={index} className={CHANGE}>
+            {segment.text}
+          </span>
+        ) : (
+          <span key={index}>{segment.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 function Inline({ before, after }: { before?: string | null; after: string | null }) {
   const [mode] = useDiffMode();
   // before 为 undefined 表示没有可比的来源，原样显示，不要整段标成新增。
@@ -123,23 +149,7 @@ function Inline({ before, after }: { before?: string | null; after: string | nul
   if (mode === "off" || left === right) return <span>{expandNewlines(right === "" ? left : right)}</span>;
   if (left === "") return <ins className={INSERT}>{expandNewlines(right)}</ins>;
   if (right === "") return <del className={DELETE}>{expandNewlines(left)}</del>;
-  return (
-    <>
-      {inlineDiff(expandNewlines(left), expandNewlines(right), mode).map((segment, index) =>
-        segment.type === "insert" ? (
-          <ins key={index} className={INSERT}>
-            {segment.text}
-          </ins>
-        ) : segment.type === "delete" ? (
-          <del key={index} className={DELETE}>
-            {segment.text}
-          </del>
-        ) : (
-          <span key={index}>{segment.text}</span>
-        ),
-      )}
-    </>
-  );
+  return <Runs segments={inlineDiff(expandNewlines(left), expandNewlines(right), mode)} />;
 }
 
 function wholeEdge(direction: "insert" | "delete", value: string | null): { before: string | null; after: string | null } {
@@ -177,40 +187,38 @@ interface ChainSide {
   absent: boolean;
 }
 
+type MarkKind = "insert" | "delete" | "change";
+
 interface ChainMarks {
-  enIns: (boolean[] | null)[];
-  enDel: (boolean[] | null)[];
-  zhIns: (boolean[] | null)[];
-  zhDel: (boolean[] | null)[];
+  en: ((MarkKind | null)[] | null)[];
+  zh: ((MarkKind | null)[] | null)[];
 }
 
-function markOf(text: string, segments: readonly DiffSegment[], kind: "insert" | "delete"): boolean[] {
-  const marks = new Array<boolean>(text.length).fill(false);
+// 改写的删掉那半不画，只在含新写法的一侧标黄。
+function marksOf(text: string, segments: readonly DiffSegment[], side: "before" | "after"): (MarkKind | null)[] {
+  const marks = new Array<MarkKind | null>(text.length).fill(null);
   let at = 0;
   for (const segment of segments) {
-    if (segment.type === kind) {
-      marks.fill(true, at, at + segment.text.length);
+    if (segment.type === "equal") {
       at += segment.text.length;
-    } else if (segment.type === "equal") {
-      at += segment.text.length;
+      continue;
     }
+    if (side === "before" ? segment.type !== "delete" : segment.type === "delete") continue;
+    marks.fill(segment.type === "delete" ? "delete" : segment.type === "change" ? "change" : "insert", at, at + segment.text.length);
+    at += segment.text.length;
   }
   return marks;
 }
 
-function Marked({ text, ins, del }: { text: string; ins: boolean[] | null; del: boolean[] | null }) {
+function Marked({ text, marks }: { text: string; marks: (MarkKind | null)[] | null }) {
   if (text === "") return <span className="text-muted">—</span>;
-  if (ins === null && del === null) return <span>{text}</span>;
-  const runs: { type: DiffKind; text: string }[] = [];
+  if (marks === null) return <span>{text}</span>;
+  const runs: { type: MarkKind | null; text: string }[] = [];
   let at = 0;
   while (at < text.length) {
-    const type: DiffKind = del?.[at] === true ? "delete" : ins?.[at] === true ? "insert" : "equal";
+    const type = marks[at] ?? null;
     let end = at + 1;
-    while (end < text.length) {
-      const next: DiffKind = del?.[end] === true ? "delete" : ins?.[end] === true ? "insert" : "equal";
-      if (next !== type) break;
-      end += 1;
-    }
+    while (end < text.length && (marks[end] ?? null) === type) end += 1;
     runs.push({ type, text: text.slice(at, end) });
     at = end;
   }
@@ -225,6 +233,10 @@ function Marked({ text, ins, del }: { text: string; ins: boolean[] | null; del: 
           <ins key={index} className={INSERT}>
             {run.text}
           </ins>
+        ) : run.type === "change" ? (
+          <span key={index} className={CHANGE}>
+            {run.text}
+          </span>
         ) : (
           <span key={index}>{run.text}</span>
         ),
@@ -237,10 +249,8 @@ function Marked({ text, ins, del }: { text: string; ins: boolean[] | null; del: 
 function chainMarks(sides: readonly ChainSide[], mode: DiffMode): ChainMarks {
   const count = sides.length;
   const marks: ChainMarks = {
-    enIns: new Array<boolean[] | null>(count).fill(null),
-    enDel: new Array<boolean[] | null>(count).fill(null),
-    zhIns: new Array<boolean[] | null>(count).fill(null),
-    zhDel: new Array<boolean[] | null>(count).fill(null),
+    en: new Array<(MarkKind | null)[] | null>(count).fill(null),
+    zh: new Array<(MarkKind | null)[] | null>(count).fill(null),
   };
   if (mode === "off") return marks;
   for (let at = 0; at + 1 < count; at += 1) {
@@ -248,18 +258,75 @@ function chainMarks(sides: readonly ChainSide[], mode: DiffMode): ChainMarks {
     const right = sides[at + 1];
     if (left === undefined || right === undefined || left.absent || right.absent) continue;
     const enSegments = inlineDiff(left.en, right.en, mode);
-    marks.enDel[at] = markOf(left.en, enSegments, "delete");
-    marks.enIns[at + 1] = markOf(right.en, enSegments, "insert");
+    marks.en[at] = marksOf(left.en, enSegments, "before");
+    marks.en[at + 1] = marksOf(right.en, enSegments, "after");
     if (left.skipZh) continue;
     const zhLeft = left.zh ?? "";
     const zhRight = right.zh ?? "";
     const zhSegments = inlineDiff(zhLeft, zhRight, mode);
     if (right.zhFile) {
-      marks.zhDel[at] = markOf(zhLeft, zhSegments, "delete");
-      marks.zhIns[at + 1] = markOf(zhRight, zhSegments, "insert");
+      marks.zh[at] = marksOf(zhLeft, zhSegments, "before");
+      marks.zh[at + 1] = marksOf(zhRight, zhSegments, "after");
     }
   }
   return marks;
+}
+
+const CONSENSUS_LANE: DiffLane = {
+  id: "\u0000consensus",
+  label: "共识",
+  role: "ref",
+  consensus: true,
+  title: "所有参与版本的列投票共识：每个版本一票，逐列取多数写法，可能谁都没写过",
+};
+
+interface ConsensusBase {
+  en: string | null;
+  zh: string | null;
+  /** 跟共识一字不差的版本，用来标「= 谁的写法」。 */
+  enLanes: string[];
+  zhLanes: string[];
+}
+
+// 每个版本各投一票（同写法的版本各算一票，不并成一组）；只有两个版本时不投票，退回相邻两两比。
+function consensusBase(entry: DiffEntry, lanes: readonly DiffLane[]): ConsensusBase | null {
+  if (lanes.length < 3) return null;
+  const en: string[] = [];
+  const zh: string[] = [];
+  for (const lane of lanes) {
+    const cell = entry.cells[lane.id];
+    if (cell == null) continue;
+    en.push(expandNewlines(cell.en));
+    if (lane.zhFile !== false && cell.zh != null) zh.push(expandNewlines(cell.zh));
+  }
+  const enText = consensusOf(en);
+  const zhText = consensusOf(zh);
+  return {
+    en: enText,
+    zh: zhText,
+    enLanes:
+      enText === null
+        ? []
+        : lanes
+            .filter((lane) => {
+              const cell = entry.cells[lane.id];
+              return cell != null && expandNewlines(cell.en) === enText;
+            })
+            .map((lane) => lane.label),
+    zhLanes:
+      zhText === null
+        ? []
+        : lanes
+            .filter((lane) => {
+              const cell = entry.cells[lane.id];
+              return lane.zhFile !== false && cell?.zh != null && expandNewlines(cell.zh) === zhText;
+            })
+            .map((lane) => lane.label),
+  };
+}
+
+function consensusNote(lanes: readonly string[]): string {
+  return lanes.length === 0 ? "≠ 任何版本" : `= ${lanes.join("、")} 的写法`;
 }
 
 function LaneChip({ lane }: { lane: DiffLane }) {
@@ -268,7 +335,11 @@ function LaneChip({ lane }: { lane: DiffLane }) {
       title={lane.title}
       className={cn(
         "inline-flex h-5 w-fit items-center whitespace-nowrap rounded border px-1.5 font-mono text-xs",
-        lane.highlight === true ? "border-accent/50 bg-accent-soft font-medium text-accent" : "border-line bg-elevated text-muted",
+        lane.consensus === true
+          ? "border-dashed border-muted/50 bg-transparent text-muted"
+          : lane.highlight === true
+            ? "border-accent/50 bg-accent-soft font-medium text-accent"
+            : "border-line bg-elevated text-muted",
       )}
     >
       {lane.label}
@@ -401,6 +472,8 @@ function GridRow({
   action?: ReactNode;
 }) {
   const [mode] = useDiffMode();
+  const lanes = useMemo(() => runs.flat(), [runs]);
+  const base = useMemo(() => consensusBase(entry, lanes), [entry, lanes]);
   const heads = runs.map((run) => run[0]!);
   const sides: ChainSide[] = heads.map((lane) => {
     const cell = entry.cells[lane.id] ?? null;
@@ -412,7 +485,7 @@ function GridRow({
       absent: lane.absent === true,
     };
   });
-  const marks = chainMarks(sides, mode);
+  const marks = base === null ? chainMarks(sides, mode) : null;
   const nodes = new Map<string, ReactNode>();
   runs.forEach((run, at) => {
     const lane = heads[at]!;
@@ -451,8 +524,10 @@ function GridRow({
           <Inline {...wholeEdge(lane.whole, cell?.en ?? null)} />
         ) : cell === null ? (
           <span className="text-muted">—</span>
+        ) : base?.en != null ? (
+          <Runs segments={inlineDiff(base.en, side.en, mode)} />
         ) : (
-          <Marked text={side.en} ins={marks.enIns[at] ?? null} del={marks.enDel[at] ?? null} />
+          <Marked text={side.en} marks={marks?.en[at] ?? null} />
         )}
         <div className="mt-0.5 text-sm">
           {lane.zhFile === false ? (
@@ -465,13 +540,34 @@ function GridRow({
             <span className="text-muted">—</span>
           ) : cell.zh === null ? (
             <span className="text-xs italic text-muted">未翻译</span>
+          ) : base?.zh != null && side.zh !== null ? (
+            <Runs segments={inlineDiff(base.zh, side.zh, mode)} />
           ) : (
-            <Marked text={side.zh ?? ""} ins={marks.zhIns[at] ?? null} del={marks.zhDel[at] ?? null} />
+            <Marked text={side.zh ?? ""} marks={marks?.zh[at] ?? null} />
           )}
         </div>
       </div>,
     );
   });
+  if (base !== null) {
+    nodes.set(
+      CONSENSUS_LANE.id,
+      <div
+        key={CONSENSUS_LANE.id}
+        className={cn(CELL, "md:py-2.5")}
+        title={base.en === null ? undefined : `英文 ${consensusNote(base.enLanes)}`}
+      >
+        <div className="mb-1 flex flex-wrap gap-1 md:hidden">
+          <LaneChip lane={CONSENSUS_LANE} />
+        </div>
+        <span className="whitespace-pre-wrap break-words">{base.en ?? "—"}</span>
+        <div className="mt-0.5 text-sm">
+          <span className="whitespace-pre-wrap break-words">{base.zh ?? "—"}</span>
+          <span className="ml-1 text-xs text-muted">{consensusNote(base.zhLanes)}</span>
+        </div>
+      </div>,
+    );
+  }
   return (
     <article className={cn(GRID_ROW, BORDER[toneOf(facts, compare)])}>
       <KeyColumn entry={entry} facts={facts} compare={compare} action={action} className={cn(GRID_KEY, BORDER[toneOf(facts, compare)])} />
@@ -528,7 +624,8 @@ function LaneCard({
     skipZh: group.wild,
     absent: false,
   }));
-  const marks = chainMarks(sides, mode);
+  const base = useMemo(() => consensusBase(entry, lanes), [entry, lanes]);
+  const marks = base === null ? chainMarks(sides, mode) : null;
   const present = groups.filter((group) => group.cell !== null);
   const sameEn = present.length > 1 && new Set(present.map((group) => group.cell!.en)).size === 1;
   const direction = facts.missing === "add" ? "insert" : facts.missing === "remove" ? "delete" : null;
@@ -554,6 +651,33 @@ function LaneCard({
         </p>
       )}
       <ul className="flex flex-col gap-1">
+        {base !== null && (
+          <li className="flex flex-col gap-1 rounded-md border border-dashed border-line bg-elevated/30 px-2 py-1.5 sm:flex-row sm:gap-3">
+            <div className="flex flex-wrap items-center gap-1 sm:w-36 sm:shrink-0">
+              <LaneChip lane={CONSENSUS_LANE} />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-sm">
+              {base.en !== null && (
+                <p className="flex gap-2">
+                  <span className="w-7 shrink-0 text-xs leading-5 text-muted">英文</span>
+                  <span className="min-w-0 whitespace-pre-wrap break-words">
+                    {base.en}
+                    <span className="ml-1 text-xs text-muted">{consensusNote(base.enLanes)}</span>
+                  </span>
+                </p>
+              )}
+              {base.zh !== null && (
+                <p className="flex gap-2">
+                  <span className="w-7 shrink-0 text-xs leading-5 text-muted">中文</span>
+                  <span className="min-w-0 whitespace-pre-wrap break-words">
+                    {base.zh}
+                    <span className="ml-1 text-xs text-muted">{consensusNote(base.zhLanes)}</span>
+                  </span>
+                </p>
+              )}
+            </div>
+          </li>
+        )}
         {shown.map((group) => {
           if (group.cell === null) return null;
           const at = groups.indexOf(group);
@@ -571,10 +695,12 @@ function LaneCard({
                   <p className="flex gap-2">
                     <span className="w-7 shrink-0 text-xs leading-5 text-muted">英文</span>
                     <span className="min-w-0 whitespace-pre-wrap break-words">
-                      {direction === null ? (
-                        <Marked text={side.en} ins={marks.enIns[at] ?? null} del={marks.enDel[at] ?? null} />
-                      ) : (
+                      {direction !== null ? (
                         <Inline {...wholeEdge(direction, group.cell.en)} />
+                      ) : base?.en != null ? (
+                        <Runs segments={inlineDiff(base.en, side.en, mode)} />
+                      ) : (
+                        <Marked text={side.en} marks={marks?.en[at] ?? null} />
                       )}
                     </span>
                   </p>
@@ -588,8 +714,10 @@ function LaneCard({
                       <Inline {...wholeEdge(direction, group.cell.zh)} />
                     ) : group.cell.zh === null ? (
                       <span className="text-xs italic text-muted">未翻译</span>
+                    ) : base?.zh != null && side.zh !== null ? (
+                      <Runs segments={inlineDiff(base.zh, side.zh, mode)} />
                     ) : (
-                      <Marked text={side.zh ?? ""} ins={marks.zhIns[at] ?? null} del={marks.zhDel[at] ?? null} />
+                      <Marked text={side.zh ?? ""} marks={marks?.zh[at] ?? null} />
                     )}
                   </span>
                 </p>
@@ -743,7 +871,12 @@ export function DiffViewer({
     }
     return out;
   }, [activeLanes, entries]);
-  const columns = useMemo(() => (compare && swapped ? [...runs].reverse() : runs), [runs, compare, swapped]);
+  // 三个版本以上才做列投票共识；分列布局给共识单开一列。
+  const consensusOn = activeLanes.length >= 3;
+  const columns = useMemo(() => {
+    const ordered = consensusOn ? [[CONSENSUS_LANE], ...runs] : runs;
+    return compare && swapped ? [...ordered].reverse() : ordered;
+  }, [runs, compare, swapped, consensusOn]);
   const present = activeLanes.filter((lane) => lane.absent !== true);
   const mergeLabel =
     present.length === activeLanes.length
@@ -871,11 +1004,15 @@ export function DiffViewer({
               >
                 <ul className="flex flex-col gap-1.5 text-xs text-muted">
                   <li>
+                    <span className={CHANGE}>黄底</span> 同一处既有删又有加（中间没隔着两边都有的字）：只画新写法
+                  </li>
+                  <li>
                     <ins className={INSERT}>绿底</ins> 新写法多出来的
                   </li>
                   <li>
                     <del className={DELETE}>红底删除线</del> 旧写法里没了的
                   </li>
+                  <li>选中三个版本以上时按「列投票共识」比较：虚框的「共识」是各版本逐列投票拼出来的写法，各版本相对它标色；只剩两个版本时退回相邻两两比</li>
                   <li>筛选条件点一下只看这一类，{NEGATABLE.map((facet) => `「${FACET_LABELS[facet]}」`).join("")}再点一下改成排除</li>
                   <li>选中两个以上「只看」后，可以切换它们之间是「和」还是「或」</li>
                   <li>行内差异在浏览器本地计算</li>

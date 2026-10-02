@@ -31,6 +31,7 @@ const ROW_TONE: Record<LineRowKind, string> = {
 
 const INSERT = "rounded-sm bg-ok/20 text-ok";
 const DELETE = "rounded-sm bg-danger/20 text-danger line-through decoration-danger/60";
+const CHANGE = "rounded-sm bg-warn/20 text-warn";
 
 interface Side {
   label: string;
@@ -414,6 +415,10 @@ function Segments({ segments }: { segments: readonly DiffSegment[] }) {
           <del key={index} className={DELETE}>
             {segment.text}
           </del>
+        ) : segment.type === "change" ? (
+          <span key={index} className={CHANGE}>
+            {segment.text}
+          </span>
         ) : (
           <span key={index}>{segment.text}</span>
         ),

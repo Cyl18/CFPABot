@@ -1,6 +1,6 @@
 import { diffArrays, diffChars, diffSentences, diffWordsWithSpace, type Change } from "diff";
 
-export type DiffKind = "equal" | "insert" | "delete";
+export type DiffKind = "equal" | "insert" | "delete" | "change";
 
 export type DiffMode = "auto" | "char" | "word" | "sentence" | "off";
 
@@ -68,6 +68,38 @@ function compact(segments: DiffSegment[]): DiffSegment[] {
 
 function segmentsOf(changes: Change[] | undefined): DiffSegment[] {
   return (changes ?? []).map((change) => ({ type: kindOf(change), text: change.value }));
+}
+
+/** 逐字差异，同处先删后加已排好；「按字」模式和共识对齐共用。 */
+export function charDiff(before: string, after: string): DiffSegment[] {
+  return compact(groupRuns(segmentsOf(diffChars(before, after))));
+}
+
+/** 同一处既有删又有加（中间没隔着相同的字）就是改写：只留新写法，标成 change。 */
+function coalesceChanges(segments: DiffSegment[]): DiffSegment[] {
+  const out: DiffSegment[] = [];
+  let hunk: DiffSegment[] = [];
+  const flush = () => {
+    if (hunk.length === 0) return;
+    const added = hunk.filter((segment) => segment.type === "insert");
+    if (added.length > 0 && hunk.some((segment) => segment.type === "delete")) {
+      const text = added.map((segment) => segment.text).join("");
+      if (text !== "") out.push({ type: "change", text, block: /\S/.test(text) });
+    } else {
+      out.push(...hunk);
+    }
+    hunk = [];
+  };
+  for (const segment of segments) {
+    if (segment.type === "equal") {
+      flush();
+      out.push(segment);
+    } else {
+      hunk.push(segment);
+    }
+  }
+  flush();
+  return out;
 }
 
 const SENTENCE_TERMINATORS = "。！？!?…";
@@ -209,10 +241,10 @@ export function inlineDiff(before: string, after: string, mode: DiffMode = "auto
   if (before === after) return before === "" ? [] : [{ type: "equal", text: after }];
   if (before === "") return [{ type: "insert", text: after }];
   if (after === "") return [{ type: "delete", text: before }];
-  if (mode === "auto") return autoDiff(before, after);
-  if (mode === "char") return compact(groupRuns(segmentsOf(diffChars(before, after))));
-  if (mode === "word") return compact(groupRuns(segmentsOf(diffWordsWithSpace(before, after))));
-  return compact(groupRuns(segmentsOf(diffSentences(before, after))));
+  if (mode === "auto") return coalesceChanges(autoDiff(before, after));
+  if (mode === "char") return coalesceChanges(charDiff(before, after));
+  if (mode === "word") return coalesceChanges(compact(groupRuns(segmentsOf(diffWordsWithSpace(before, after)))));
+  return coalesceChanges(compact(groupRuns(segmentsOf(diffSentences(before, after)))));
 }
 
 export type LineRowKind = "equal" | "insert" | "delete" | "change";

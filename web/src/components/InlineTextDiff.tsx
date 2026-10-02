@@ -39,7 +39,7 @@ export function InlineTextDiff({ before, after, className }: InlineTextDiffProps
             key={index}
             className={cn(
               "rounded-sm px-0.5",
-              segment.type === "delete" ? "bg-danger/20 text-danger" : "bg-ok/20 text-ok",
+              segment.type === "delete" ? "bg-danger/20 text-danger" : segment.type === "change" ? "bg-warn/20 text-warn" : "bg-ok/20 text-ok",
               segment.block && "mr-0.5 inline-block",
             )}
           >

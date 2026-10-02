@@ -9,6 +9,7 @@ export interface DiffLane {
   zhFile?: boolean;
   skipZh?: boolean;
   absent?: boolean;
+  consensus?: boolean;
   whole?: "insert" | "delete";
 }
 
