@@ -59,6 +59,15 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
   const target = compare.data?.review ?? null;
   const review = useReview();
   const [cards] = useStoredFlag(CARDS_KEY);
+  // 依赖 review 的底层数据而不是 review 本身：后者每次渲染都是新对象，这层 memo 会白算。
+  const commentedKeys = useMemo(() => {
+    const keys = new Set<string>();
+    if (target === null) return keys;
+    for (const [key, spot] of Object.entries(target.keys)) {
+      if (review.threadsAt(target.path, spot.line).length > 0 || review.outgoingAt(target.path, spot.line).length > 0) keys.add(key);
+    }
+    return keys;
+  }, [target, review.state, review.deleting, review.outgoing]);
 
   const anchored = new Set(Object.values(target?.keys ?? {}).map((spot) => spot.line));
   const loose = sources.flatMap((path) =>
@@ -161,6 +170,7 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
       pending={compare.isPending}
       error={compare.error}
       onRetry={() => void compare.refetch()}
+      commented={commentedKeys}
       rowAction={
         target === null
           ? undefined

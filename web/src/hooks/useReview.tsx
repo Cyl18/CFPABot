@@ -27,6 +27,8 @@ export interface ReviewApi {
   threadsAt: (path: string, line: number) => readonly ReviewThread[];
   threadsOf: (path: string) => readonly ReviewThread[];
   outgoingAt: (path: string, line: number) => readonly OutgoingComment[];
+  /** 待提交的本地评论；身份稳定，可作 memo 依赖。 */
+  outgoing: readonly OutgoingComment[];
   deleting: ReadonlySet<string>;
   viewedOf: (path: string) => FileViewedState;
   setViewed: (path: string, viewed: boolean) => void;
@@ -283,6 +285,7 @@ export function ReviewProvider({ n, children }: { n: number; children: ReactNode
     threadsAt: (path, line) => index.byLine.get(spot(path, line)) ?? EMPTY,
     threadsOf: (path) => index.byPath.get(path) ?? EMPTY,
     outgoingAt: (path, line) => outgoingIndex.get(spot(path, line)) ?? EMPTY,
+    outgoing,
     deleting,
     viewedOf: (path) => {
       const override = viewedOverride.get(path);

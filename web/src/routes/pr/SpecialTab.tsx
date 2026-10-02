@@ -444,6 +444,18 @@ function KeyView({
     return spots;
   };
 
+  // 依赖 review 的底层数据而不是 review 本身：后者每次渲染都是新对象，这层 memo 会白算。
+  const commentedKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const row of rows) {
+      const hit = spotsOf(row.key).some(
+        (spot) => review.threadsAt(spot.path, spot.line).length > 0 || review.outgoingAt(spot.path, spot.line).length > 0,
+      );
+      if (hit) keys.add(row.key);
+    }
+    return keys;
+  }, [byKey, content, review.state, review.deleting, review.outgoing]);
+
   const anchored = { en: new Set(rows.flatMap((row) => row.enLine ?? [])), zh: new Set(rows.flatMap((row) => row.zhLine ?? [])) };
   const loose = (["en", "zh"] as const).flatMap((lang) =>
     review.threadsOf(content[lang].path).filter((thread) => thread.line === null || !anchored[lang].has(thread.line)).map((thread) => ({ lang, thread })),
@@ -493,6 +505,7 @@ function KeyView({
       defaultLayout="merge"
       leading={leading}
       scroller={scroller}
+      commented={commentedKeys}
       rowAction={(entry) => {
         const spots = spotsOf(entry.key);
         if (spots.length === 0) return null;

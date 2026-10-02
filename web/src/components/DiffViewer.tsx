@@ -39,6 +39,7 @@ const FACET_LABELS: Record<DiffFacet, string> = {
   remove: "删除",
   partial: "部分版本缺",
   untranslated: "未翻译",
+  comments: "有评论",
 };
 
 const MODE_FACETS: Record<"compare" | "versions", readonly DiffFacet[]> = {
@@ -812,6 +813,8 @@ export interface DiffViewerProps {
   onRetry?: () => void;
   empty?: ReactNode;
   scope?: (entry: DiffEntry) => boolean;
+  /** 有评论的 key 集合；传了才出现「有评论」开关。 */
+  commented?: ReadonlySet<string>;
   noDiff?: (outside: number) => ReactNode;
   sortTouchedFirst?: boolean;
   rowAction?: (entry: DiffEntry) => ReactNode;
@@ -836,6 +839,7 @@ export function DiffViewer({
   onRetry,
   empty,
   scope,
+  commented,
   noDiff,
   sortTouchedFirst = false,
   rowAction,
@@ -912,16 +916,19 @@ export function DiffViewer({
   const { counts, visible } = useMemo(() => {
     const tally = new Map<DiffFacet, number>();
     const rows: typeof scoped = [];
+    const match = (facet: DiffFacet, row: (typeof scoped)[number]) =>
+      facet === "comments" ? commented?.has(row.entry.key) === true : FACET_MATCH[facet](row.facts);
     for (const row of scoped) {
       for (const facet of DIFF_FACETS) {
-        if (FACET_MATCH[facet](row.facts)) tally.set(facet, (tally.get(facet) ?? 0) + 1);
+        if (match(facet, row)) tally.set(facet, (tally.get(facet) ?? 0) + 1);
       }
-      if (matchesFilter(row.facts, filter)) rows.push(row);
+      if (matchesFilter((facet) => match(facet, row), filter)) rows.push(row);
     }
     return { counts: tally, visible: rows };
-  }, [scoped, filter]);
+  }, [scoped, filter, commented]);
 
-  const facets = MODE_FACETS[mode];
+  const facets =
+    mode === "compare" && commented !== undefined ? [...MODE_FACETS.compare, "comments" as const] : MODE_FACETS[mode];
   const isDefault = filter.combine !== "or" && DIFF_FACETS.every((facet) => filter[facet] === DEFAULT_DIFF_FILTER[facet]);
 
   function cycleFacet(facet: DiffFacet) {
