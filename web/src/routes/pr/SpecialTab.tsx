@@ -1,16 +1,19 @@
-import type { SpecialPair, SpecialPairContent, SpecialText } from "@shared/api.ts";
+import type { SpecialKeyRow, SpecialPair, SpecialPairContent, SpecialText } from "@shared/api.ts";
+import { DEFAULT_DIFF_FILTER, type DiffFilterState } from "@shared/diffview.ts";
 import { Check, FileDiff, Maximize2, MessageSquarePlus, Minimize2, Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DiffModePicker } from "@/components/DiffModePicker.tsx";
-import { CARDS_KEY, CommentsToggle, LineThreads, LooseThreads, ViewedToggle } from "@/components/Review.tsx";
+import { DiffViewer } from "@/components/DiffViewer.tsx";
+import { CARDS_KEY, CommentButton, CommentsToggle, LineComments, LineThreads, LooseThreads, ViewedToggle } from "@/components/Review.tsx";
 import { useReview } from "@/hooks/useReview.tsx";
 import { cn } from "@/lib/cn.ts";
+import { compareEntries, compareLanes } from "@/lib/compareView.ts";
 import { lineRows, type DiffSegment, type LineRow, type LineRowKind } from "@/lib/diff.ts";
 import { useDiffMode } from "@/lib/diffMode.ts";
 import { useSpecial, useSpecialContent } from "@/lib/queries.ts";
 import type { PrSearch, SearchPatch } from "@/lib/search.ts";
 import { useStoredFlag } from "@/lib/storedFlag.ts";
-import { FileStatusBadge } from "@/ui/Badge.tsx";
+import { Badge, FileStatusBadge } from "@/ui/Badge.tsx";
 import { Card, CardBody } from "@/ui/Card.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
@@ -20,7 +23,15 @@ import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
 const WRAP_KEY = "cfpa-special-wrap";
 const SYNC_KEY = "cfpa-special-sync";
+const VIEW_KEY = "cfpa-special-by-key";
 const LANG = "{lang}";
+const FLASH_MS = 1600;
+
+type ViewId = "text" | "key";
+type Lang = "en" | "zh";
+
+const LANGS: Record<Lang, string> = { en: "英文", zh: "中文" };
+const SHORT: Record<Lang, string> = { en: "英", zh: "中" };
 
 const ROW_TONE: Record<LineRowKind, string> = {
   equal: "border-l-transparent",
@@ -41,6 +52,18 @@ interface Side {
 interface Position {
   anchor: number;
   fraction: number;
+}
+
+interface Flash {
+  lang: Lang;
+  line: number;
+}
+
+interface Spot {
+  lang: Lang;
+  line: number;
+  path: string;
+  commentable: boolean;
 }
 
 function sharedDir(keys: readonly string[]): string {
@@ -195,6 +218,11 @@ function SideTags({ item }: { item: SpecialPair }) {
     <span className="flex flex-wrap gap-1">
       <FileStatusBadge prefix="英·" status={item.en.status} />
       <FileStatusBadge prefix="中·" status={item.zh.status} />
+      {item.parsedFormat !== null && (
+        <Badge tone="accent" title="这组文件能按 key 逐条对照">
+          key
+        </Badge>
+      )}
     </span>
   );
 }
@@ -204,6 +232,7 @@ function PairView({ n, pair, label }: { n: number; pair: SpecialPair; label: str
   const [mode] = useDiffMode();
   const [wrap, setWrap] = useStoredFlag(WRAP_KEY);
   const [syncScroll, setSyncScroll] = useStoredFlag(SYNC_KEY);
+  const [preferKey, setPreferKey] = useStoredFlag(VIEW_KEY);
   const [cards] = useStoredFlag(CARDS_KEY);
   const sides = useMemo(() => (content.data ? sidesOf(content.data) : []), [content.data]);
   const rows = useMemo(
@@ -212,7 +241,22 @@ function PairView({ n, pair, label }: { n: number; pair: SpecialPair; label: str
   );
   const panes = useRef<(HTMLDivElement | null)[]>([]);
   const echoes = useRef<(number | null)[]>([]);
+  const shell = useRef<HTMLDivElement | null>(null);
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const [full, setFull] = useState(false);
+  const [jumped, setJumped] = useState(false);
+  const [flash, setFlash] = useState<Flash | null>(null);
+  const [filter, setFilter] = useState<DiffFilterState>(DEFAULT_DIFF_FILTER);
+  const [query, setQuery] = useState("");
+
+  const data = content.data;
+  const parsed = data?.kind === "pair" && data.parsed !== null && data.parsed.rows.length > 0 ? { content: data, rows: data.parsed.rows } : null;
+  const keyable = data === undefined ? pair.kind === "pair" && pair.parsedFormat !== null : parsed !== null;
+  const view: ViewId = keyable && preferKey && !jumped ? "key" : "text";
+  const bindShell = useCallback((node: HTMLDivElement | null) => {
+    shell.current = node;
+    setScroller(node);
+  }, []);
 
   useEffect(() => {
     if (!full) return;
@@ -223,13 +267,21 @@ function PairView({ n, pair, label }: { n: number; pair: SpecialPair; label: str
       if (event.key === "Escape") setFull(false);
     };
     document.addEventListener("keydown", onKeyDown);
-    panes.current[0]?.focus();
+    (panes.current[0] ?? shell.current)?.focus();
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = overflow;
       restore?.focus();
     };
   }, [full]);
+
+  useEffect(() => {
+    if (flash === null || view !== "text") return;
+    const pane = panes.current[flash.lang === "en" ? 0 : 1];
+    pane?.querySelector(`[data-line="${flash.line}"]`)?.scrollIntoView({ block: "center" });
+    const timer = window.setTimeout(() => setFlash(null), FLASH_MS);
+    return () => window.clearTimeout(timer);
+  }, [flash, view]);
 
   const sync = (from: number) => {
     const source = panes.current[from];
@@ -248,16 +300,16 @@ function PairView({ n, pair, label }: { n: number; pair: SpecialPair; label: str
     });
   };
 
-  return (
-    <Card className={cn("min-w-0", full && "fixed inset-0 z-50 flex flex-col rounded-none")}>
-      <CardBody className={cn("flex flex-col gap-3", full && "min-h-0 flex-1")}>
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="min-w-0 break-all font-mono text-sm text-fg" title={pair.key}>
-            {label}
-          </h2>
-          <div className="ml-auto flex items-center gap-2">
-            <DiffModePicker size="sm" />
-            <CommentsToggle />
+  const header = (
+    <div className="flex flex-wrap items-center gap-2">
+      <h2 className="min-w-0 break-all font-mono text-sm text-fg" title={pair.key}>
+        {label}
+      </h2>
+      <div className="ml-auto flex flex-wrap items-center gap-2">
+        {view === "text" && <DiffModePicker size="sm" />}
+        <CommentsToggle />
+        {view === "text" && (
+          <>
             <ToggleChip pressed={wrap} onClick={() => setWrap(!wrap)}>
               自动换行
             </ToggleChip>
@@ -271,13 +323,54 @@ function PairView({ n, pair, label }: { n: number; pair: SpecialPair; label: str
             >
               同步滚动
             </ToggleChip>
-            <ToggleChip pressed={full} onClick={() => setFull(!full)} title={full ? "退出全屏（Esc）" : "全屏查看"}>
-              {full ? <Minimize2 aria-hidden="true" className="size-3.5" /> : <Maximize2 aria-hidden="true" className="size-3.5" />}
-              {full ? "退出全屏" : "全屏"}
-            </ToggleChip>
-          </div>
-        </div>
+          </>
+        )}
+        {keyable && (
+          <ToggleChip
+            pressed={view === "key"}
+            onClick={() => {
+              setJumped(false);
+              setPreferKey(view !== "key");
+            }}
+            title={view === "key" ? "回到文本对照" : "按 key 逐条对照"}
+          >
+            按 key 对照
+          </ToggleChip>
+        )}
+        <ToggleChip pressed={full} onClick={() => setFull(!full)} title={full ? "退出全屏（Esc）" : "全屏查看"}>
+          {full ? <Minimize2 aria-hidden="true" className="size-3.5" /> : <Maximize2 aria-hidden="true" className="size-3.5" />}
+          {full ? "退出全屏" : "全屏"}
+        </ToggleChip>
+      </div>
+    </div>
+  );
 
+  if (view === "key" && parsed !== null) {
+    return (
+      <div ref={bindShell} tabIndex={-1} className={cn("min-w-0", full && "fixed inset-0 z-50 overflow-y-auto bg-bg p-3 outline-none")}>
+        <KeyView
+          content={parsed.content}
+          rows={parsed.rows}
+          header={header}
+          cards={cards}
+          filter={filter}
+          onFilterChange={setFilter}
+          query={query}
+          onQueryChange={setQuery}
+          scroller={full ? scroller : null}
+          onJump={(lang, line) => {
+            setJumped(true);
+            setFlash({ lang, line });
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <Card className={cn("min-w-0", full && "fixed inset-0 z-50 flex flex-col rounded-none")}>
+      <CardBody className={cn("flex flex-col gap-3", full && "min-h-0 flex-1")}>
+        {header}
         {content.error !== null ? (
           <ErrorState error={content.error} onRetry={() => void content.refetch()} />
         ) : content.isPending ? (
@@ -292,6 +385,7 @@ function PairView({ n, pair, label }: { n: number; pair: SpecialPair; label: str
                 wrap={wrap}
                 cards={cards}
                 fill={full}
+                flash={flash !== null && LANGS[flash.lang] === side.label ? flash.line : null}
                 paneRef={(node) => {
                   panes.current[index] = node;
                 }}
@@ -305,12 +399,158 @@ function PairView({ n, pair, label }: { n: number; pair: SpecialPair; label: str
   );
 }
 
+function KeyView({
+  content,
+  rows,
+  header,
+  cards,
+  filter,
+  onFilterChange,
+  query,
+  onQueryChange,
+  scroller,
+  onJump,
+}: {
+  content: Extract<SpecialPairContent, { kind: "pair" }>;
+  rows: readonly SpecialKeyRow[];
+  header: ReactNode;
+  cards: boolean;
+  filter: DiffFilterState;
+  onFilterChange: (next: DiffFilterState) => void;
+  query: string;
+  onQueryChange: (next: string) => void;
+  scroller: HTMLElement | null;
+  onJump: (lang: Lang, line: number) => void;
+}) {
+  const review = useReview();
+  const lanes = useMemo(() => compareLanes(rows, review.n), [rows, review.n]);
+  const entries = useMemo(() => compareEntries(rows), [rows]);
+  const byKey = useMemo(() => new Map(rows.map((row) => [row.key, row])), [rows]);
+  const heads = useMemo(
+    () => ({ en: content.en.head?.split("\n") ?? [], zh: content.zh.head?.split("\n") ?? [] }),
+    [content.en.head, content.zh.head],
+  );
+
+  const spotsOf = (key: string): Spot[] => {
+    const row = byKey.get(key);
+    if (row === undefined) return [];
+    const spots: Spot[] = [];
+    for (const lang of ["en", "zh"] as const) {
+      const line = lang === "en" ? row.enLine : row.zhLine;
+      if (line === undefined) continue;
+      const text = content[lang];
+      spots.push({ lang, line, path: text.path, commentable: (text.hunks ?? []).some((hunk) => line >= hunk.start && line <= hunk.end) });
+    }
+    return spots;
+  };
+
+  const anchored = { en: new Set(rows.flatMap((row) => row.enLine ?? [])), zh: new Set(rows.flatMap((row) => row.zhLine ?? [])) };
+  const loose = (["en", "zh"] as const).flatMap((lang) =>
+    review.threadsOf(content[lang].path).filter((thread) => thread.line === null || !anchored[lang].has(thread.line)).map((thread) => ({ lang, thread })),
+  );
+  const langOf = new Map(loose.map((item) => [item.thread, item.lang]));
+
+  const leading = (
+    <div className="flex flex-col gap-2">
+      {header}
+      <div role="group" aria-label="对照文件" className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        {(["en", "zh"] as const).map((lang) => {
+          const text = content[lang];
+          return (
+            <span key={lang} className="inline-flex min-w-0 items-center gap-1.5 text-xs">
+              <span className="font-medium text-fg">{LANGS[lang]}</span>
+              <FileStatusBadge status={text.status} />
+              <code className="break-all font-mono text-muted" title={text.path}>
+                {text.path.slice(text.path.lastIndexOf("/") + 1)}
+              </code>
+              {text.status !== "unchanged" && text.status !== "missing" && <ViewedToggle path={text.path} />}
+            </span>
+          );
+        })}
+      </div>
+      <LooseThreads
+        title="没对上 key 的评论（已过时或不在条目行上）"
+        threads={loose.map((item) => item.thread)}
+        locate={(thread) => {
+          const side = LANGS[langOf.get(thread) ?? "zh"];
+          if (thread.line !== null) return `${side}第 ${thread.line} 行`;
+          return thread.originalLine === null ? side : `${side}原第 ${thread.originalLine} 行`;
+        }}
+      />
+    </div>
+  );
+
+  return (
+    <DiffViewer
+      mode="compare"
+      lanes={lanes}
+      active={["base", "head"]}
+      entries={entries}
+      filter={filter}
+      onFilterChange={onFilterChange}
+      query={query}
+      onQueryChange={onQueryChange}
+      defaultLayout="merge"
+      leading={leading}
+      scroller={scroller}
+      rowAction={(entry) => {
+        const spots = spotsOf(entry.key);
+        if (spots.length === 0) return null;
+        return (
+          <div className="flex shrink-0 flex-col items-end gap-0.5">
+            {spots.map((spot) => (
+              <span key={spot.lang} className="inline-flex items-center gap-0.5">
+                {spot.commentable && <CommentButton path={spot.path} line={spot.line} label={`${LANGS[spot.lang]}第 ${spot.line} 行：`} peek />}
+                {spot.commentable && !cards && <LineComments path={spot.path} line={spot.line} />}
+                <button
+                  type="button"
+                  onClick={() => onJump(spot.lang, spot.line)}
+                  aria-label={`在文本对照里查看${LANGS[spot.lang]}第 ${spot.line} 行`}
+                  title={`在文本对照里查看${LANGS[spot.lang]}第 ${spot.line} 行`}
+                  className="inline-flex h-5 items-center gap-1 rounded px-1 font-mono text-[11px] tabular-nums text-muted transition-colors hover:bg-elevated hover:text-accent"
+                >
+                  <span className="font-sans">{SHORT[spot.lang]}</span>
+                  {spot.line}
+                </button>
+              </span>
+            ))}
+          </div>
+        );
+      }}
+      rowFooter={
+        cards
+          ? (entry) => {
+              const shown = spotsOf(entry.key).filter(
+                (spot) =>
+                  review.threadsAt(spot.path, spot.line).length + review.outgoingAt(spot.path, spot.line).length > 0 || review.isOpen(spot.path, spot.line),
+              );
+              if (shown.length === 0) return null;
+              return (
+                <div className="flex flex-col gap-2">
+                  {shown.map((spot) => (
+                    <div key={spot.lang} className="flex flex-col gap-1">
+                      <span className="text-xs text-muted">
+                        {LANGS[spot.lang]} · 第 {spot.line} 行
+                      </span>
+                      <LineThreads path={spot.path} line={spot.line} raw={heads[spot.lang][spot.line - 1]?.replace(/\r$/, "")} />
+                    </div>
+                  ))}
+                </div>
+              );
+            }
+          : undefined
+      }
+    />
+  );
+}
+
 function SidePane({
   side,
   rows,
   wrap,
   cards,
   fill,
+  flash,
   paneRef,
   onScroll,
 }: {
@@ -319,6 +559,7 @@ function SidePane({
   wrap: boolean;
   cards: boolean;
   fill: boolean;
+  flash: number | null;
   paneRef: (node: HTMLDivElement | null) => void;
   onScroll?: () => void;
 }) {
@@ -362,8 +603,8 @@ function SidePane({
               const commentable = line !== null && hunks.some((hunk) => line >= hunk.start && line <= hunk.end);
               const count = line === null ? 0 : review.threadsAt(text.path, line).length + review.outgoingAt(text.path, line).length;
               return (
-                <div key={index}>
-                  <div className={cn("group flex border-l-2", ROW_TONE[row.kind])}>
+                <div key={index} data-line={line ?? undefined}>
+                  <div className={cn("group flex border-l-2 transition-shadow", ROW_TONE[row.kind], line !== null && line === flash && "ring-2 ring-inset ring-accent")}>
                     <span className="sticky left-0 flex w-14 shrink-0 select-none items-start justify-end gap-0.5 bg-surface pr-2 tabular-nums text-muted">
                       {commentable && (
                         <button

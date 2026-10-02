@@ -36,7 +36,7 @@ function Avatar({ url }: { url: string }) {
   return <img src={url} alt="" className="size-5 shrink-0 rounded-full" loading="lazy" />;
 }
 
-export function CommentButton({ path, line }: { path: string; line: number }) {
+export function CommentButton({ path, line, label, peek = false }: { path: string; line: number; label?: string; peek?: boolean }) {
   const review = useReview();
   const count = review.threadsAt(path, line).length + review.outgoingAt(path, line).length;
   const open = review.isOpen(path, line);
@@ -44,12 +44,13 @@ export function CommentButton({ path, line }: { path: string; line: number }) {
     <button
       type="button"
       aria-expanded={open}
-      aria-label={count > 0 ? `这一行有 ${count} 条评论，点开评论` : "评论这一行"}
+      aria-label={`${label ?? ""}${count > 0 ? `这一行有 ${count} 条评论，点开评论` : "评论这一行"}`}
       title={count > 0 ? `${count} 条评论` : "评论这一行（进入你的待提交审查）"}
       onClick={() => review.setOpen(path, line, !open)}
       className={cn(
         "inline-flex h-5 shrink-0 items-center gap-0.5 rounded px-1 text-xs transition-colors",
         open || count > 0 ? "bg-accent-soft text-accent" : "text-muted hover:bg-elevated hover:text-fg",
+        peek && !open && count === 0 && "opacity-0 focus-visible:opacity-100 group-hover:opacity-100",
       )}
     >
       <MessageSquarePlus aria-hidden="true" className="size-3.5" />

@@ -3,6 +3,8 @@ import { parseLang, guessFormat } from "./domain/langfile.ts";
 import type { ParsedLang } from "./domain/langfile.ts";
 import { alignKeys, compareLang, compareTwo, inHunks } from "./domain/diff.ts";
 import type { CrossVersionInput } from "./domain/diff.ts";
+import { parseFlatten, specialFormat } from "./domain/flatten.ts";
+import type { FlattenParsed } from "./domain/flatten.ts";
 import { buildLangPath, parseLangPath, compareMc, langPathFor, workspacesOf } from "./domain/path.ts";
 import type { LangFormat, LangPath, Locale } from "./domain/path.ts";
 import { planSpecial, resolveDerived, resolveSpecial } from "./domain/special.ts";
@@ -20,8 +22,10 @@ import type {
   PrDetail,
   PrState,
   PrSummary,
+  SpecialKeyRow,
   SpecialPair,
   SpecialPairContent,
+  SpecialParsed,
   SpecialText,
   TextCompareRequest,
   TextCompareResult,
@@ -51,6 +55,8 @@ export function isSpecialPath(path: string): boolean {
   if (parseLangPath(path)) return false;
   if (BINARY_EXT[extname(path).toLowerCase()]) return false;
   if (README_FILE.test(path.slice(path.lastIndexOf("/") + 1))) return false;
+  // .flatten.json5 是模组语言源文件，语言词元在文件名里而不是路径段里。
+  if (path.endsWith(".json5")) return true;
   if (path.endsWith(".json") || path.endsWith(".lang") || path.includes("/lang/")) return MANUAL_SEGMENT.test(path);
   return true;
 }
@@ -256,6 +262,28 @@ export async function specialPairs(n: number): Promise<SpecialPair[]> {
   return resolveSpecial(plans, existing);
 }
 
+const emptyParsed = (): FlattenParsed => ({ entries: new Map(), lines: new Map() });
+
+function specialParsedOf(format: string, en: SpecialText, zh: SpecialText): SpecialParsed | null {
+  const read = (text: string | null): FlattenParsed | null => (text === null ? emptyParsed() : parseFlatten(text));
+  const baseEn = read(en.base);
+  const headEn = read(en.head);
+  const baseZh = read(zh.base);
+  const headZh = read(zh.head);
+  if (baseEn === null || headEn === null || baseZh === null || headZh === null) return null;
+  const rows: SpecialKeyRow[] = [];
+  for (const row of compareLang({ en: baseEn, zh: baseZh }, { en: headEn, zh: headZh })) {
+    const enLine = headEn.lines.get(row.key);
+    const zhLine = headZh.lines.get(row.key);
+    rows.push({
+      ...row,
+      ...(enLine === undefined ? {} : { enLine }),
+      ...(zhLine === undefined ? {} : { zhLine }),
+    });
+  }
+  return { format, rows };
+}
+
 export async function specialPairContent(n: number, key: string): Promise<SpecialPairContent | null> {
   const { pull, files, plans, existing } = await specialPlanFor(n);
   const entry = plans.find((plan) => plan.key === key);
@@ -299,7 +327,12 @@ export async function specialPairContent(n: number, key: string): Promise<Specia
   };
   if (entry.kind === "single") return { key: entry.key, kind: "single", file: await textOf(entry.file) };
   const [en, zh] = await Promise.all([textOf(entry.en), textOf(entry.zh)]);
-  return { key: entry.key, kind: "pair", en, zh };
+  const format = specialFormat(entry.en.path);
+  const parsed =
+    format !== null && format === specialFormat(entry.zh.path) && !en.truncated && !zh.truncated
+      ? specialParsedOf(format, en, zh)
+      : null;
+  return { key: entry.key, kind: "pair", en, zh, parsed };
 }
 
 interface OverlayText {

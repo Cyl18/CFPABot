@@ -1,4 +1,5 @@
 import type { PrFile, SpecialPair, SpecialSide } from "../../shared/api.ts";
+import { specialFormat } from "./flatten.ts";
 
 export interface SpecialToken {
   start: number;
@@ -192,9 +193,13 @@ export function resolveSpecial(plans: readonly SpecialPlan[], existing: Readonly
           status: side.file.status,
           ...(side.file.previousPath === undefined ? {} : { previousPath: side.file.previousPath }),
         };
-  return plans.map((plan) =>
-    plan.kind === "single"
-      ? { key: plan.key, kind: "single", file: sideOf(plan.file) }
-      : { key: plan.key, kind: "pair", en: sideOf(plan.en), zh: sideOf(plan.zh) },
-  );
+  return plans.map((plan) => {
+    if (plan.kind === "single") {
+      return { key: plan.key, kind: "single", parsedFormat: specialFormat(plan.file.path), file: sideOf(plan.file) };
+    }
+    const enFormat = specialFormat(plan.en.path);
+    const zhFormat = specialFormat(plan.zh.path);
+    const parsedFormat = enFormat !== null && enFormat === zhFormat ? enFormat : null;
+    return { key: plan.key, kind: "pair", parsedFormat, en: sideOf(plan.en), zh: sideOf(plan.zh) };
+  });
 }

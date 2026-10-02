@@ -1,8 +1,8 @@
 import type { DiffCell, DiffCombine, DiffEntry, DiffFacet, DiffFacts, DiffFilterState, DiffLane } from "@shared/diffview.ts";
 import { DEFAULT_DIFF_FILTER, DIFF_FACETS, FACET_MATCH, diffFacts, matchesFilter, matchesQuery } from "@shared/diffview.ts";
-import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import { elementScroll, observeElementOffset, observeElementRect, useWindowVirtualizer, type VirtualizerOptions } from "@tanstack/react-virtual";
 import { ArrowLeftRight, Check, Info, Search, X } from "lucide-react";
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { DiffModePicker } from "@/components/DiffModePicker.tsx";
 import { cn } from "@/lib/cn.ts";
 import { consensusOf } from "@/lib/consensus.ts";
@@ -73,8 +73,9 @@ const BORDER: Record<Tone, string> = {
 const ROW = "flex flex-col gap-2 border-l-2 px-3 py-2.5 md:flex-row md:items-start md:gap-3";
 const CELL = "min-w-0 flex-1 whitespace-pre-wrap break-words";
 const KEYCOL = "flex min-w-0 shrink-0 flex-col gap-1 md:w-52";
-const HEAD_SHELL = "sticky top-0 z-10 hidden border-b border-line bg-elevated text-xs text-muted max-lg:top-14 max-md:top-0";
-const HEADER = cn(HEAD_SHELL, "px-3 py-1.5 md:flex md:items-center md:gap-3");
+const HEAD_SHELL = "sticky top-0 z-10 hidden border-b border-line bg-elevated text-xs text-muted";
+const PAGE_OFFSET = "max-lg:top-14 max-md:top-0";
+const HEADER = "px-3 py-1.5 md:flex md:items-center md:gap-3";
 
 // 分列每列至少这么宽，放不下就横向滚动；Key 列和表头钉住。
 const GRID_KEY_REM = 14;
@@ -388,8 +389,13 @@ function KeyColumn({
   return (
     <div className={className}>
       <div className="flex items-start gap-1">
-        <code className="min-w-0 flex-1 break-all font-mono text-xs text-muted" title={entry.key}>
-          {entry.key}
+        <code className="min-w-0 flex-1 break-words font-mono text-xs text-muted" title={entry.key}>
+          {entry.key.split(/(?<=[.:/_-])/).map((part, index) => (
+            <Fragment key={index}>
+              {index > 0 && <wbr />}
+              {part}
+            </Fragment>
+          ))}
         </code>
         {action}
       </div>
@@ -810,6 +816,7 @@ export interface DiffViewerProps {
   sortTouchedFirst?: boolean;
   rowAction?: (entry: DiffEntry) => ReactNode;
   rowFooter?: (entry: DiffEntry) => ReactNode;
+  scroller?: HTMLElement | null;
 }
 
 export function DiffViewer({
@@ -833,6 +840,7 @@ export function DiffViewer({
   sortTouchedFirst = false,
   rowAction,
   rowFooter,
+  scroller = null,
 }: DiffViewerProps) {
   const [layout, setLayout] = useLayout(defaultLayout);
   const [swapped, setSwapped] = useState(() => {
@@ -874,7 +882,7 @@ export function DiffViewer({
   // 三个版本以上才做列投票共识；分列布局给共识单开一列。
   const consensusOn = activeLanes.length >= 3;
   const columns = useMemo(() => {
-    const ordered = consensusOn ? [[CONSENSUS_LANE], ...runs] : runs;
+    const ordered = consensusOn ? [[CONSENSUS_LANE], ...runs] : compare ? runs.filter((run) => run.some((lane) => lane.absent !== true)) : runs;
     return compare && swapped ? [...ordered].reverse() : ordered;
   }, [runs, compare, swapped, consensusOn]);
   const present = activeLanes.filter((lane) => lane.absent !== true);
@@ -926,6 +934,17 @@ export function DiffViewer({
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
+  // 两种 Virtualizer 只差这几个钩子，运行时切换 scroller 安全。
+  const own: Partial<VirtualizerOptions<Window, Element>> =
+    scroller === null
+      ? {}
+      : ({
+          getScrollElement: () => scroller,
+          observeElementRect,
+          observeElementOffset,
+          scrollToFn: elementScroll,
+          initialOffset: () => scroller.scrollTop,
+        } as unknown as Partial<VirtualizerOptions<Window, Element>>);
   // key 带上布局：切换排列方式时行会重新挂载并重新测量，否则缓存被清掉后只按估算高度排版，行会互相压住。
   const virtualizer = useWindowVirtualizer({
     count: visible.length,
@@ -933,12 +952,15 @@ export function DiffViewer({
     overscan: 8,
     scrollMargin,
     getItemKey: (index) => `${layout}\u0000${visible[index]?.entry.key ?? index}`,
+    ...own,
   });
 
   useLayoutEffect(() => {
-    const top = (listRef.current?.getBoundingClientRect().top ?? 0) + window.scrollY;
-    if (Math.abs(top - scrollMargin) > 1) setScrollMargin(top);
+    const top = listRef.current?.getBoundingClientRect().top ?? 0;
+    const margin = scroller === null ? top + window.scrollY : top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    if (Math.abs(margin - scrollMargin) > 1) setScrollMargin(margin);
   });
+  const headShell = cn(HEAD_SHELL, scroller === null && PAGE_OFFSET);
 
   const headRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
@@ -1067,7 +1089,7 @@ export function DiffViewer({
       ) : (
         <div className="overflow-clip rounded-lg border border-line bg-surface" style={layout === "grid" ? gridMin : undefined}>
           {layout === "merge" && (
-            <div className={cn(HEADER, "flex-col md:flex-row")}>
+            <div className={cn(headShell, HEADER, "flex-col md:flex-row")}>
               <span className="md:w-52 md:shrink-0">Key</span>
               <span className="md:flex-1">
                 英文 <span className="font-mono">{mergeLabel}</span>
@@ -1083,7 +1105,7 @@ export function DiffViewer({
               onScroll={(event) => {
                 if (bodyRef.current !== null) bodyRef.current.scrollLeft = event.currentTarget.scrollLeft;
               }}
-              className={cn(HEAD_SHELL, "overflow-x-hidden md:block")}
+              className={cn(headShell, "overflow-x-hidden md:block")}
             >
               <div className="flex items-stretch gap-3 pr-3 md:min-w-(--grid-min)">
                 <span className="sticky left-0 z-[1] flex w-56 shrink-0 items-center border-l-2 border-r border-l-transparent border-r-line/60 bg-elevated py-1.5 pl-3 pr-3">Key</span>
@@ -1127,7 +1149,7 @@ export function DiffViewer({
                   key={item.key}
                   data-index={item.index}
                   ref={virtualizer.measureElement}
-                  className="absolute inset-x-0 top-0 border-b border-line"
+                  className="group absolute inset-x-0 top-0 border-b border-line"
                   style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
                 >
                   {layout === "merge" ? (

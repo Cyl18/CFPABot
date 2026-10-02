@@ -5,14 +5,17 @@ import type {
   RowStatus,
   TextCompareResult,
 } from "../../shared/api.ts";
-import type { ParsedLang } from "./langfile.ts";
 
 export interface Hunk {
   start: number;
   end: number;
 }
 
-type LangPair = { en?: ParsedLang | null; zh?: ParsedLang | null };
+interface LangEntries {
+  entries: Map<string, string>;
+}
+
+type LangPair = { en?: LangEntries | null; zh?: LangEntries | null };
 
 export function withLiteralNewlines(entries: Map<string, string> | undefined): Map<string, string> {
   const out = new Map<string, string>();

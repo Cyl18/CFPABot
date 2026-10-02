@@ -1,5 +1,4 @@
 import type { CompareRow, PrDetail, Workspace } from "@shared/api.ts";
-import type { DiffCell, DiffEntry, DiffLane } from "@shared/diffview.ts";
 import { formatDiffFilter, parseDiffFilter } from "@shared/diffview.ts";
 import { ChevronRight } from "lucide-react";
 import { Fragment, useMemo } from "react";
@@ -7,16 +6,13 @@ import { DiffViewer } from "@/components/DiffViewer.tsx";
 import { CARDS_KEY, CommentButton, CommentsToggle, LineComments, LineThreads, LooseThreads, ViewedToggle } from "@/components/Review.tsx";
 import { useReview } from "@/hooks/useReview.tsx";
 import { parseWorkspaceKey } from "@/lib/api.ts";
+import { compareEntries, compareLanes } from "@/lib/compareView.ts";
 import { groupWorkspaces, pickCompareFiles, workspaceParam } from "@/lib/paths.ts";
 import { useCompare } from "@/lib/queries.ts";
 import type { PrSearch, SearchPatch } from "@/lib/search.ts";
 import { useStoredFlag } from "@/lib/storedFlag.ts";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
-
-function cellOf(en: string | undefined, zh: string | undefined): DiffCell | null {
-  return en === undefined && zh === undefined ? null : { en: en ?? "", zh: zh ?? null };
-}
 
 export interface CompareTabProps {
   n: number;
@@ -69,45 +65,8 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
     review.threadsOf(path).filter((thread) => path !== target?.path || thread.line === null || !anchored.has(thread.line)),
   );
 
-  const lanes: DiffLane[] = useMemo(() => {
-    const hasZh = (side: "base" | "head") => rows.some((row) => (side === "base" ? row.baseZh : row.headZh) !== undefined);
-    const base = rows.some((row) => row.baseEn !== undefined || row.baseZh !== undefined);
-    const head = rows.some((row) => row.headEn !== undefined || row.headZh !== undefined);
-    const whole = base === head ? null : head ? ("insert" as const) : ("delete" as const);
-    return [
-      {
-        id: "base",
-        label: "main",
-        role: "ref",
-        zhFile: hasZh("base"),
-        title: "main 分支的这份文件",
-        absent: !base,
-        ...(whole === "delete" ? { whole } : {}),
-      },
-      {
-        id: "head",
-        label: "PR",
-        role: "real",
-        highlight: true,
-        zhFile: hasZh("head"),
-        title: `PR #${n} 里的这份文件`,
-        absent: !head,
-        ...(whole === "insert" ? { whole } : {}),
-      },
-    ];
-  }, [rows, n]);
-
-  const entries: DiffEntry[] = useMemo(
-    () =>
-      rows.map((row) => ({
-        key: row.key,
-        cells: {
-          base: cellOf(row.baseEn, row.baseZh),
-          head: cellOf(row.headEn, row.headZh),
-        },
-      })),
-    [rows],
-  );
+  const lanes = useMemo(() => compareLanes(rows, n), [rows, n]);
+  const entries = useMemo(() => compareEntries(rows), [rows]);
 
   if (workspaces.length === 0) {
     return <EmptyState title="没有可比较的工作区" description="此 PR 没有检测到可比较的语言文件工作区。" />;

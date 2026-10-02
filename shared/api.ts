@@ -144,8 +144,25 @@ export interface SpecialSide {
 }
 
 export type SpecialPair =
-  | { key: string; kind: "pair"; en: SpecialSide; zh: SpecialSide }
-  | { key: string; kind: "single"; file: SpecialSide };
+  | { key: string; kind: "pair"; parsedFormat: string | null; en: SpecialSide; zh: SpecialSide }
+  | { key: string; kind: "single"; parsedFormat: string | null; file: SpecialSide };
+
+export interface SpecialKeyRow {
+  key: string;
+  baseEn?: string;
+  headEn?: string;
+  baseZh?: string;
+  headZh?: string;
+  enStatus: RowStatus;
+  zhStatus: RowStatus;
+  enLine?: number;
+  zhLine?: number;
+}
+
+export interface SpecialParsed {
+  format: string;
+  rows: SpecialKeyRow[];
+}
 
 export interface SpecialText extends SpecialSide {
   base: string | null;
@@ -155,7 +172,7 @@ export interface SpecialText extends SpecialSide {
 }
 
 export type SpecialPairContent =
-  | { key: string; kind: "pair"; en: SpecialText; zh: SpecialText }
+  | { key: string; kind: "pair"; en: SpecialText; zh: SpecialText; parsed: SpecialParsed | null }
   | { key: string; kind: "single"; file: SpecialText };
 
 export interface CrossVersionKeyCell {
