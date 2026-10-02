@@ -1,7 +1,7 @@
 import type { DiffCell, DiffCombine, DiffEntry, DiffFacet, DiffFacts, DiffFilterState, DiffLane } from "@shared/diffview.ts";
 import { DEFAULT_DIFF_FILTER, DIFF_FACETS, FACET_MATCH, diffFacts, matchesFilter, matchesQuery } from "@shared/diffview.ts";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { ArrowLeftRight, Check, Search, X } from "lucide-react";
+import { ArrowLeftRight, Check, Info, Search, X } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { DiffModePicker } from "@/components/DiffModePicker.tsx";
 import { cn } from "@/lib/cn.ts";
@@ -14,6 +14,7 @@ import { Card, CardBody } from "@/ui/Card.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
 import { Input } from "@/ui/Input.tsx";
+import { Popover } from "@/ui/Popover.tsx";
 import { SkeletonTable } from "@/ui/Spinner.tsx";
 import { Tabs, type TabItem } from "@/ui/Tabs.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
@@ -632,32 +633,30 @@ function FilterChip({ facet, count, state, onCycle }: { facet: DiffFacet; count:
   );
 }
 
-function CombineSwitch({ value, disabled, onChange }: { value: DiffCombine; disabled: boolean; onChange: (next: DiffCombine) => void }) {
+function CombineSwitch({ value, onChange }: { value: DiffCombine; onChange: (next: DiffCombine) => void }) {
   return (
     <span
-      className={cn("ml-1 inline-flex items-center gap-1.5", disabled && "opacity-45")}
-      title={disabled ? "选中两个以上「只看」条件后才用得上" : "多个「只看」条件之间的关系；「排除」始终生效"}
+      role="radiogroup"
+      aria-label="多个筛选条件之间的关系"
+      title="多个「只看」条件之间的关系；「排除」始终生效"
+      className="ml-1 inline-flex h-7 items-center rounded-md border border-line bg-elevated p-0.5"
     >
-      <span className="text-xs text-muted">多个条件</span>
-      <span role="radiogroup" aria-label="多个筛选条件之间的关系" className="inline-flex h-7 items-center rounded-md border border-line bg-elevated p-0.5">
-        {COMBINES.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="radio"
-            aria-checked={value === item.id}
-            disabled={disabled}
-            title={item.hint}
-            onClick={() => onChange(item.id)}
-            className={cn(
-              "inline-flex h-6 items-center rounded px-2 text-xs transition-colors",
-              value === item.id ? "bg-accent-soft font-medium text-accent" : "text-muted enabled:hover:text-fg",
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
-      </span>
+      {COMBINES.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          role="radio"
+          aria-checked={value === item.id}
+          title={item.hint}
+          onClick={() => onChange(item.id)}
+          className={cn(
+            "inline-flex h-6 items-center rounded px-2 text-xs transition-colors",
+            value === item.id ? "bg-accent-soft font-medium text-accent" : "text-muted hover:text-fg",
+          )}
+        >
+          {item.label}
+        </button>
+      ))}
     </span>
   );
 }
@@ -674,7 +673,6 @@ export interface DiffViewerProps {
   defaultLayout: DiffLayout;
   leading?: ReactNode;
   controls?: ReactNode;
-  note?: ReactNode;
   pending?: boolean;
   error?: unknown;
   onRetry?: () => void;
@@ -698,7 +696,6 @@ export function DiffViewer({
   defaultLayout,
   leading,
   controls,
-  note,
   pending = false,
   error = null,
   onRetry,
@@ -814,30 +811,36 @@ export function DiffViewer({
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const gridMin = { "--grid-min": `${GRID_KEY_REM + columns.length * (GRID_COL_REM + GRID_GAP_REM) + GRID_GAP_REM}rem` } as CSSProperties;
 
+  const picked = facets.filter((facet) => filter[facet] === true).length;
+
   return (
     <div className="flex flex-col gap-3">
       <Card>
         <CardBody className="flex flex-col gap-3">
-          {leading}
-          <div role="group" aria-label="差异筛选" className="flex flex-wrap items-center gap-1">
-            {facets.map((facet) => (
-              <FilterChip key={facet} facet={facet} count={counts.get(facet) ?? 0} state={filter[facet]} onCycle={() => cycleFacet(facet)} />
-            ))}
-            <CombineSwitch
-              value={filter.combine ?? "and"}
-              disabled={facets.filter((facet) => filter[facet] === true).length < 2}
-              onChange={(next) => onFilterChange({ ...filter, combine: next === "or" ? "or" : undefined })}
-            />
-          </div>
+          {leading !== undefined && <div className="border-b border-line pb-3">{leading}</div>}
           <div className="flex flex-wrap items-center gap-2">
             <Input
-              wrapperClassName="w-full sm:w-72"
+              wrapperClassName="w-full sm:w-64"
               icon={<Search aria-hidden="true" className="size-3.5" />}
               aria-label="搜索 key 或文本"
               placeholder="搜索 key / 英文 / 中文"
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
             />
+            <div role="group" aria-label="差异筛选" className="flex flex-wrap items-center gap-1">
+              {facets.map((facet) => (
+                <FilterChip key={facet} facet={facet} count={counts.get(facet) ?? 0} state={filter[facet]} onCycle={() => cycleFacet(facet)} />
+              ))}
+              {picked >= 2 && (
+                <CombineSwitch value={filter.combine ?? "and"} onChange={(next) => onFilterChange({ ...filter, combine: next === "or" ? "or" : undefined })} />
+              )}
+            </div>
+            <p aria-live="polite" className="ml-auto text-xs text-muted tabular-nums">
+              显示 <span className="font-medium text-fg">{visible.length}</span> / {scoped.length} 个 key
+              {scope !== undefined && outside > 0 && <> · 范围外还有 {outside} 处差异</>}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <Tabs items={LAYOUTS} value={layout} onChange={setLayout} ariaLabel="排列方式" />
             {compare && layout !== "merge" && (
               <ToggleChip
@@ -852,26 +855,34 @@ export function DiffViewer({
                 }}
               >
                 <ArrowLeftRight aria-hidden="true" className="size-3.5" />
-                交换 {activeLanes[0]?.label} / {activeLanes[activeLanes.length - 1]?.label}
+                交换左右
               </ToggleChip>
             )}
             <DiffModePicker />
             {controls}
+            <span className="ml-auto">
+              <Popover
+                label="图例与筛选说明"
+                trigger={
+                  <span className="inline-flex size-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-elevated hover:text-fg">
+                    <Info aria-hidden="true" className="size-4" />
+                  </span>
+                }
+              >
+                <ul className="flex flex-col gap-1.5 text-xs text-muted">
+                  <li>
+                    <ins className={INSERT}>绿底</ins> 新写法多出来的
+                  </li>
+                  <li>
+                    <del className={DELETE}>红底删除线</del> 旧写法里没了的
+                  </li>
+                  <li>筛选条件点一下只看这一类，{NEGATABLE.map((facet) => `「${FACET_LABELS[facet]}」`).join("")}再点一下改成排除</li>
+                  <li>选中两个以上「只看」后，可以切换它们之间是「和」还是「或」</li>
+                  <li>行内差异在浏览器本地计算</li>
+                </ul>
+              </Popover>
+            </span>
           </div>
-          <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-            <span>
-              <ins className={INSERT}>绿底</ins> 新写法多出来的
-            </span>
-            <span>
-              <del className={DELETE}>红底删除线</del> 旧写法里没了的
-            </span>
-            <span>行内差异在浏览器本地计算</span>
-          </p>
-          <p className="text-xs text-muted">
-            显示 <span className="font-medium text-fg">{visible.length}</span> / {scoped.length} 个 key · {activeLanes.length} 个{compare ? "来源" : "版本"}参与比较
-            {scope !== undefined && outside > 0 && <> · 范围外还有 {outside} 处差异</>}
-          </p>
-          {note}
         </CardBody>
       </Card>
 

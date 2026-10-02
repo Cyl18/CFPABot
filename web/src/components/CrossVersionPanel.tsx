@@ -65,9 +65,9 @@ export function CrossVersionPanel({ slug, namespace, pr, state, onStateChange, o
     select(active.includes(version) ? active.filter((item) => item !== version) : data.versions.filter((item) => item === version || active.includes(item)));
   };
 
-  const leading = (
-    <div className="flex flex-col gap-2">
-      {data !== undefined && data.namespaces.length > 1 && (
+  const leading = data === undefined ? undefined : (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      {data.namespaces.length > 1 && (
         <div role="group" aria-label="命名空间" className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted">命名空间</span>
           {data.namespaces.map((item) => (
@@ -77,40 +77,35 @@ export function CrossVersionPanel({ slug, namespace, pr, state, onStateChange, o
           ))}
         </div>
       )}
-      {data !== undefined && (
-        <div role="group" aria-label="参与比较的版本" className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted">参与比较的版本</span>
-          {data.versions.map((version) => (
-            <ToggleChip
-              key={version}
-              mono
-              pressed={active.includes(version)}
-              title={lanes.find((lane) => lane.id === version)?.title}
-              onClick={() => toggleVersion(version)}
-            >
-              {version}
-            </ToggleChip>
-          ))}
-          {data.versions.length > 2 && (
-            <span className="flex items-center gap-1">
-              <Button size="sm" variant="ghost" disabled={active.length === data.versions.length} onClick={() => select(data.versions)}>
-                全选
-              </Button>
-              {pr !== undefined && data.prVersions.length >= 2 && data.prVersions.length < data.versions.length && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={data.prVersions.length === active.length && data.prVersions.every((version) => active.includes(version))}
-                  onClick={() => select(data.prVersions)}
-                >
-                  只选本 PR 改动的
-                </Button>
-              )}
-            </span>
-          )}
-          <span className="text-xs text-muted">· {data.rows.length} 个 key</span>
-        </div>
-      )}
+      <div role="group" aria-label="参与比较的版本" className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-muted">版本</span>
+        {data.versions.map((version) => (
+          <ToggleChip
+            key={version}
+            mono
+            pressed={active.includes(version)}
+            title={lanes.find((lane) => lane.id === version)?.title}
+            onClick={() => toggleVersion(version)}
+          >
+            {version}
+          </ToggleChip>
+        ))}
+        {data.versions.length > 2 && (
+          <Button size="sm" variant="ghost" disabled={active.length === data.versions.length} onClick={() => select(data.versions)}>
+            全选
+          </Button>
+        )}
+        {data.versions.length > 2 && pr !== undefined && data.prVersions.length >= 2 && data.prVersions.length < data.versions.length && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={data.prVersions.length === active.length && data.prVersions.every((version) => active.includes(version))}
+            onClick={() => select(data.prVersions)}
+          >
+            只选本 PR 改动的
+          </Button>
+        )}
+      </div>
     </div>
   );
 
