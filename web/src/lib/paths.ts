@@ -48,7 +48,7 @@ export function workspaceParam(slug: string, version: string, namespace: string)
 
 export type Locale = "en_us" | "zh_cn";
 
-/** 与 server/compare.ts 的 pickLang 同规则：每个 locale 只有一份文件进比较视图，canonical 文件名优先。 */
+/** 与 server/views/workspace.ts 的 pickLang 同规则：每个 locale 只有一份文件进比较视图，canonical 文件名优先。 */
 export function pickCompareFiles(files: readonly { path: string }[], workspace: Workspace): Partial<Record<Locale, string>> {
   const picked: Partial<Record<Locale, string>> = {};
   const fallback: Partial<Record<Locale, string>> = {};

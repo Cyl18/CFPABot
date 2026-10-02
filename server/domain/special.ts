@@ -1,5 +1,7 @@
+import { extname } from "node:path";
 import type { PrFile, SpecialPair, SpecialSide } from "../../shared/api.ts";
 import { specialFormat } from "./flatten.ts";
+import { parseLangPath } from "./path.ts";
 
 export interface SpecialToken {
   start: number;
@@ -23,6 +25,29 @@ const SHORT_TOKEN = /en|zh/gi;
 const SEPARATOR = /[/_.-]/;
 const EN_LETTERS = "enus";
 const ZH_LETTERS = "zhcn";
+
+const BINARY_EXT: Record<string, true> = {
+  ".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true, ".ico": true, ".bmp": true,
+  ".dds": true, ".tga": true, ".psd": true, ".ogg": true, ".wav": true, ".mp3": true, ".mp4": true,
+  ".webm": true, ".zip": true, ".jar": true, ".7z": true, ".rar": true, ".gz": true, ".class": true,
+  ".ttf": true, ".otf": true, ".woff": true, ".woff2": true, ".nbt": true, ".mca": true, ".mcr": true,
+  ".bin": true, ".exe": true, ".dll": true, ".so": true, ".dylib": true, ".pdf": true, ".sqlite": true,
+};
+const ASSET_PATH = /^projects\/(?:assets\/|\d[^/]*\/assets\/)/;
+const README_FILE = /^readme(\.[a-z0-9]+)?$/i;
+const MANUAL_SEGMENT = /(^|\/)_?(zh_cn|en_us)(\/|$)/i;
+
+// 只认模组资源目录：新布局 projects/assets/<模组>/<版本>/、旧布局 projects/<版本>/assets/<模组>/；仓库工具链和 README 占位说明不是译文内容。
+export function isSpecialPath(path: string): boolean {
+  if (!ASSET_PATH.test(path)) return false;
+  if (parseLangPath(path)) return false;
+  if (BINARY_EXT[extname(path).toLowerCase()]) return false;
+  if (README_FILE.test(path.slice(path.lastIndexOf("/") + 1))) return false;
+  // .flatten.json5 是模组语言源文件，语言词元在文件名里而不是路径段里。
+  if (path.endsWith(".json5")) return true;
+  if (path.endsWith(".json") || path.endsWith(".lang") || path.includes("/lang/")) return MANUAL_SEGMENT.test(path);
+  return true;
+}
 
 function tokenLang(text: string): "en" | "zh" {
   return text.charAt(0).toLowerCase() === "e" ? "en" : "zh";
