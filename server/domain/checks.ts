@@ -167,7 +167,7 @@ export interface TypoRule {
   unless?: string[];
 }
 
-function shortenLine(line: string, checkname: string, version: string): string {
+export function shortenLine(line: string, checkname: string, version: string): string {
   const separator = version === "1.12.2" ? "=" : ":";
   const at = line.indexOf(separator);
   if (at < 0) return line;

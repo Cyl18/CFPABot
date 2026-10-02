@@ -131,7 +131,7 @@ export function alignKeys(input: readonly CrossVersionInput[]): CrossVersionKeyR
   });
 }
 
-const HUNK_RE = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
+export const HUNK_RE = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
 
 export function patchHunks(patch: string): Hunk[] {
   const hunks: Hunk[] = [];

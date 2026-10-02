@@ -1,5 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { shortenLine } from "../domain/checks.ts";
+import { HUNK_RE } from "../domain/diff.ts";
 import { stripJsonComments, stripTrailingCommas } from "../domain/langfile.ts";
 import { commentVersionDir, compareMc, diffModPathOf, invalidVersionError } from "../domain/path.ts";
 import { gh } from "../github/client.ts";
@@ -756,8 +758,6 @@ async function appendUnits(sb: CheckSink, reportSb: Lines, ctx: PrContext): Prom
   return reportedKey;
 }
 
-const HUNK_RE = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
-
 function patchKeptLines(patch: string): string[] {
   const out: string[] = [];
   let inHunk = false;
@@ -771,20 +771,6 @@ function patchKeptLines(patch: string): string[] {
     if (line.startsWith("+") || line.startsWith(" ")) out.push(line.slice(1));
   }
   return out;
-}
-
-function shortenLine(line: string, checkname: string, version: string): string {
-  const index = version === "1.12.2" ? line.indexOf("=") : line.indexOf(":");
-  if (index === -1) return line;
-  let value = line.slice(index + 1);
-  if (value.length > 28) {
-    const nameIndex = value.indexOf(checkname);
-    const from = Math.max(0, nameIndex - 12);
-    const to = Math.min(value.length, nameIndex + checkname.length + 12);
-    if (from === 0 && to === value.length) return line;
-    value = `${from !== 0 ? "..." : ""}${value.slice(from, to)}${from !== value.length ? "..." : ""}`;
-  }
-  return value;
 }
 
 async function appendTypos(sink: CheckSink, reportSb: Lines, ctx: PrContext): Promise<boolean> {
