@@ -1,5 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import pMap from "p-map";
 import { z } from "zod";
 import { compareMc, parseLangPath } from "./domain/path.ts";
 import { gh, type GhFile, type GhPull } from "./github/client.ts";
@@ -160,19 +161,6 @@ async function drop(n: number): Promise<void> {
   await removeFile(prPath(n));
 }
 
-async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
-  let cursor = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    for (;;) {
-      const index = cursor++;
-      const item = items[index];
-      if (item === undefined) return;
-      await fn(item);
-    }
-  });
-  await Promise.all(workers);
-}
-
 async function loadMetaFromDisk(): Promise<void> {
   const names = await readdir(PR_DIR).catch(() => [] as string[]);
   for (const name of names) {
@@ -201,14 +189,18 @@ export const prdata = {
   async refreshAll(): Promise<void> {
     await withLock("prdata", async () => {
       const pulls = await gh.listPulls("open");
-      await mapLimit(pulls, CONCURRENCY, async (pull) => {
-        if (meta.get(pull.number)?.headSha === pull.headSha) return;
-        try {
-          await storePull(pull, await gh.listPullFiles(pull.number));
-        } catch (err) {
-          log.warn("获取 PR 文件列表失败", { pr: pull.number, err });
-        }
-      });
+      await pMap(
+        pulls,
+        async (pull) => {
+          if (meta.get(pull.number)?.headSha === pull.headSha) return;
+          try {
+            await storePull(pull, await gh.listPullFiles(pull.number));
+          } catch (err) {
+            log.warn("获取 PR 文件列表失败", { pr: pull.number, err });
+          }
+        },
+        { concurrency: CONCURRENCY },
+      );
       const next = new Map<number, PrSummary>();
       for (const pull of pulls) next.set(pull.number, summarize(pull, meta.get(pull.number)?.slugs ?? []));
       for (const number of [...meta.keys()]) {

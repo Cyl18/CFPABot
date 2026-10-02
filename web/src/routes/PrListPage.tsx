@@ -87,8 +87,8 @@ export function PrListPage({ search, onSearchChange }: { search: PrListSearch; o
     },
     { id: "author", header: "作者", width: 128, hideBelow: "xl", cell: (row) => <span className="block truncate text-muted">{row.author}</span> },
     { id: "state", header: "状态", width: 116, cell: (row) => <PrStateBadge state={row.state} draft={row.draft} /> },
-    { id: "slugs", header: "模组", width: 200, hideBelow: "xl", cell: (row) => <TagList items={row.slugs} max={2} label={`#${row.number} 的模组`} /> },
-    { id: "labels", header: "标签", width: 200, cell: (row) => <TagList items={row.labels} max={2} label={`#${row.number} 的标签`} /> },
+    { id: "slugs", header: "模组", width: 200, hideBelow: "xl", cell: (row) => <TagList items={row.slugs} label={`#${row.number} 的模组`} /> },
+    { id: "labels", header: "标签", width: 200, cell: (row) => <TagList items={row.labels} label={`#${row.number} 的标签`} /> },
     {
       id: "updated",
       header: "更新",

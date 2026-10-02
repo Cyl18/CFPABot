@@ -1,3 +1,4 @@
+import pMap from "p-map";
 import type { Severity } from "../../shared/api.ts";
 
 export interface ReviewItem {
@@ -191,25 +192,6 @@ function buildBatchPrompt(items: ReviewItem[], index: number, total: number): st
   return lines.join("\n");
 }
 
-async function mapConcurrent<T, R>(list: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
-  if (list.length === 0) return [];
-  const size = Math.max(1, Math.min(limit, list.length));
-  const chunks: number[][] = Array.from({ length: size }, () => []);
-  list.forEach((_, index) => chunks[index % size]?.push(index));
-  const parts = await Promise.all(
-    chunks.map(async (indices) => {
-      const out: { index: number; value: R }[] = [];
-      for (const index of indices) {
-        const item = list[index];
-        if (item === undefined) continue;
-        out.push({ index, value: await fn(item, index) });
-      }
-      return out;
-    }),
-  );
-  return parts.flat().sort((a, b) => a.index - b.index).map((entry) => entry.value);
-}
-
 export async function multiReview(input: MultiReviewInput): Promise<MultiReviewResult> {
   if (input.reviewers.length === 0) throw new Error("multiReview 需要至少一个评审模型");
   const batchSize = Math.max(1, Math.min(MAX_BATCH, input.batchSize ?? MAX_BATCH));
@@ -222,13 +204,17 @@ export async function multiReview(input: MultiReviewInput): Promise<MultiReviewR
   for (const reviewer of input.reviewers) {
     for (let batch = 0; batch < batches.length; batch++) tasks.push({ reviewer, batch });
   }
-  const results = await mapConcurrent(tasks, input.concurrency ?? DEFAULT_CONCURRENCY, async (task) => {
-    const items = batches[task.batch] ?? [];
-    const user = buildBatchPrompt(items, task.batch, batches.length);
-    const result = await runBatch(task.reviewer, items, system, user, input.signal);
-    input.onProgress?.({ reviewer: task.reviewer.id, batch: task.batch + 1, batches: batches.length, ok: result.ok });
-    return { reviewer: task.reviewer.id, items, result };
-  });
+  const results = await pMap(
+    tasks,
+    async (task) => {
+      const items = batches[task.batch] ?? [];
+      const user = buildBatchPrompt(items, task.batch, batches.length);
+      const result = await runBatch(task.reviewer, items, system, user, input.signal);
+      input.onProgress?.({ reviewer: task.reviewer.id, batch: task.batch + 1, batches: batches.length, ok: result.ok });
+      return { reviewer: task.reviewer.id, items, result };
+    },
+    { concurrency: input.concurrency ?? DEFAULT_CONCURRENCY },
+  );
   const merged = new Map<string, MergedFinding>();
   const coverage = new Map<string, { reviewer: string; ok: number; failed: number }>();
   const failedItems = new Set<string>();

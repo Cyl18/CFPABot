@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn.ts";
 import { Popover } from "@/ui/Popover.tsx";
 
@@ -40,18 +40,69 @@ export function LabelChip({ label }: { label: string }) {
 
 export interface TagListProps {
   items: readonly string[];
-  max: number;
   label: string;
   className?: string;
 }
 
-export function TagList({ items, max, label, className }: TagListProps) {
+const FALLBACK_GAP = 4;
+
+export function TagList({ items, label, className }: TagListProps) {
+  const hostRef = useRef<HTMLSpanElement | null>(null);
+  const probeRef = useRef<HTMLSpanElement | null>(null);
+  const counterRef = useRef<HTMLSpanElement | null>(null);
+  const [shown, setShown] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    const probe = probeRef.current;
+    const counter = counterRef.current;
+    if (!host || !probe || !counter) return;
+    const measure = () => {
+      const avail = host.clientWidth;
+      const widths = Array.from(probe.querySelectorAll<HTMLElement>("[data-chip]"), (chip) => chip.getBoundingClientRect().width);
+      const gap = parseFloat(getComputedStyle(probe).columnGap) || FALLBACK_GAP;
+      const prefix: number[] = [];
+      let acc = 0;
+      for (const [index, width] of widths.entries()) {
+        acc += width + (index === 0 ? 0 : gap);
+        prefix.push(acc);
+      }
+      let count = 0;
+      while (count < widths.length && (prefix[count] ?? 0) <= avail) count += 1;
+      if (count === 0 && widths.length > 0) count = 1;
+      while (count > 1) {
+        counter.textContent = `+${widths.length - count}`;
+        if ((prefix[count - 1] ?? 0) + gap + counter.getBoundingClientRect().width <= avail) break;
+        count -= 1;
+      }
+      setShown(count);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, [items]);
+
   if (items.length === 0) return <span className="text-muted">-</span>;
-  const shown = items.length > max ? items.slice(0, Math.max(1, max - 1)) : items;
-  const rest = items.length - shown.length;
+  const visible = shown === null ? [] : items.slice(0, shown);
+  const rest = shown === null ? 0 : items.length - visible.length;
+
   return (
-    <span className={cn("flex min-w-0 items-center gap-1", className)}>
-      {shown.map((item) => (
+    <span ref={hostRef} className={cn("relative flex min-w-0 items-center gap-1", className)}>
+      <span aria-hidden="true" className="pointer-events-none invisible absolute inset-0 overflow-hidden">
+        {/* 探针要撑到自身内容宽度，否则会被单元格压窄，量出的芯片宽度偏小 */}
+        <span ref={probeRef} className="flex w-max items-center gap-1">
+          {items.map((item) => (
+            <span key={item} data-chip className="inline-flex">
+              <LabelChip label={item} />
+            </span>
+          ))}
+          <span ref={counterRef} className={cn(BADGE_BASE, "shrink-0 tabular-nums", TONES.neutral)}>
+            +0
+          </span>
+        </span>
+      </span>
+      {visible.map((item) => (
         <LabelChip key={item} label={item} />
       ))}
       {rest > 0 && (

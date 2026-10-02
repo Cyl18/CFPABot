@@ -1,4 +1,5 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { flip, offset, shift, useFloating, useMergeRefs } from "@floating-ui/react";
+import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn.ts";
 
@@ -20,8 +21,15 @@ export function Popover({ trigger, label, children, className, panelClassName }:
   const closeTimer = useRef<number | undefined>(undefined);
   const pointerType = useRef<string>("");
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const panelId = useId();
+  const { refs, floatingStyles, isPositioned } = useFloating({
+    open,
+    placement: "bottom-start",
+    strategy: "fixed",
+    middleware: [offset(GAP), flip({ padding: MARGIN }), shift({ padding: MARGIN })],
+  });
+  const triggerRefs = useMergeRefs([refs.setReference, triggerRef]);
+  const panelRefs = useMergeRefs([refs.setFloating, panelRef]);
 
   const cancelClose = () => window.clearTimeout(closeTimer.current);
   const scheduleClose = () => {
@@ -37,21 +45,6 @@ export function Popover({ trigger, label, children, className, panelClassName }:
   };
 
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
-
-  useLayoutEffect(() => {
-    if (!open) {
-      setPosition(null);
-      return;
-    }
-    const anchor = triggerRef.current?.getBoundingClientRect();
-    const panel = panelRef.current?.getBoundingClientRect();
-    if (!anchor || !panel) return;
-    const below = anchor.bottom + GAP;
-    const above = anchor.top - GAP - panel.height;
-    const top = below + panel.height > window.innerHeight - MARGIN && above >= MARGIN ? above : below;
-    const left = Math.max(MARGIN, Math.min(anchor.left, window.innerWidth - MARGIN - panel.width));
-    setPosition({ top, left });
-  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -90,7 +83,7 @@ export function Popover({ trigger, label, children, className, panelClassName }:
   return (
     <>
       <button
-        ref={triggerRef}
+        ref={triggerRefs}
         type="button"
         aria-label={label}
         aria-expanded={open}
@@ -113,13 +106,13 @@ export function Popover({ trigger, label, children, className, panelClassName }:
       {open &&
         createPortal(
           <div
-            ref={panelRef}
+            ref={panelRefs}
             id={panelId}
             role="dialog"
             aria-label={label}
-            style={position ? { top: position.top, left: position.left } : { top: 0, left: 0, visibility: "hidden" }}
+            style={isPositioned ? floatingStyles : { ...floatingStyles, visibility: "hidden" }}
             className={cn(
-              "scroll-thin fixed z-50 overflow-y-auto rounded-lg border border-line bg-surface p-3 text-sm shadow-[var(--shadow-panel)]",
+              "scroll-thin z-50 overflow-y-auto rounded-lg border border-line bg-surface p-3 text-sm shadow-[var(--shadow-panel)]",
               panelClassName ?? "max-h-72 w-max max-w-80",
               className,
             )}

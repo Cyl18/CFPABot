@@ -1,3 +1,4 @@
+import { parsePatch, type StructuredPatchHunk } from "diff";
 import type {
   CompareRow,
   CrossVersionKeyCell,
@@ -131,40 +132,40 @@ export function alignKeys(input: readonly CrossVersionInput[]): CrossVersionKeyR
   });
 }
 
-export const HUNK_RE = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
+function hunksOf(patch: string): StructuredPatchHunk[] {
+  return parsePatch(patch.replace(/\r\n/g, "\n"))[0]?.hunks ?? [];
+}
 
 export function patchHunks(patch: string): Hunk[] {
-  const hunks: Hunk[] = [];
-  for (const line of patch.split("\n")) {
-    const m = HUNK_RE.exec(line);
-    if (!m) continue;
-    const start = Number(m[1]);
-    const count = m[2] === undefined ? 1 : Number(m[2]);
-    hunks.push({ start, end: start + count - 1 });
-  }
-  return hunks;
+  return hunksOf(patch).map((hunk) => ({ start: hunk.newStart, end: hunk.newStart + hunk.newLines - 1 }));
 }
 
 export function patchAddedLines(patch: string): { line: number; text: string }[] {
   const added: { line: number; text: string }[] = [];
-  let current = -1;
-  for (const rawLine of patch.split("\n")) {
-    const line = rawLine.replace(/\r$/, "");
-    const m = HUNK_RE.exec(line);
-    if (m) {
-      current = Number(m[1]);
-      continue;
-    }
-    if (current < 0) continue;
-    const head = line[0];
-    if (head === "+") {
-      added.push({ line: current, text: line.slice(1) });
-      current++;
-    } else if (head === " ") {
-      current++;
+  for (const hunk of hunksOf(patch)) {
+    let line = hunk.newStart;
+    for (const text of hunk.lines) {
+      const head = text[0];
+      if (head === "+") {
+        added.push({ line, text: text.slice(1) });
+        line++;
+      } else if (head === " ") {
+        line++;
+      }
     }
   }
   return added;
+}
+
+export function patchKeptLines(patch: string): string[] {
+  const out: string[] = [];
+  for (const hunk of hunksOf(patch)) {
+    for (const text of hunk.lines) {
+      const head = text[0];
+      if (head === "+" || head === " ") out.push(text.slice(1));
+    }
+  }
+  return out;
 }
 
 export function inHunks(line: number, hunks: Hunk[]): boolean {

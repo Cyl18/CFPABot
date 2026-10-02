@@ -1,3 +1,4 @@
+import { applyEdits, getNodeValue, parseTree, printParseErrorCode, type Edit, type Node as JsonNode, type ParseError } from "jsonc-parser";
 import type { LangFormat } from "./path.ts";
 
 export interface ParsedLang {
@@ -7,100 +8,27 @@ export interface ParsedLang {
   errors: string[];
 }
 
-const KEY_LINE_RE = /^\s*"((?:[^"\\]|\\.)*)"\s*:/;
-
-export function stripJsonComments(text: string): string {
-  const out: string[] = [];
-  let i = 0;
-  let inString = false;
-  while (i < text.length) {
-    const ch = text[i] as string;
-    if (inString) {
-      out.push(ch);
-      if (ch === "\\") {
-        const next = text[i + 1];
-        if (next !== undefined) {
-          out.push(next);
-          i += 2;
-          continue;
-        }
-      } else if (ch === '"') {
-        inString = false;
-      }
-      i++;
-      continue;
-    }
-    if (ch === '"') {
-      inString = true;
-      out.push(ch);
-      i++;
-      continue;
-    }
-    if (ch === "/" && text[i + 1] === "/") {
-      while (i < text.length && text[i] !== "\n") {
-        out.push(" ");
-        i++;
-      }
-      continue;
-    }
-    if (ch === "/" && text[i + 1] === "*") {
-      i += 2;
-      out.push("  ");
-      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) {
-        out.push(text[i] === "\n" ? "\n" : " ");
-        i++;
-      }
-      if (i < text.length) {
-        out.push("  ");
-        i += 2;
-      }
-      continue;
-    }
-    out.push(ch);
-    i++;
+function lineStarts(text: string): number[] {
+  const starts = [0];
+  for (let index = 0; index < text.length; index++) {
+    if (text.charCodeAt(index) === 10) starts.push(index + 1);
   }
-  return out.join("");
+  return starts;
 }
 
-export function stripTrailingCommas(text: string): string {
-  const out: string[] = [];
-  let i = 0;
-  let inString = false;
-  while (i < text.length) {
-    const ch = text[i] as string;
-    if (inString) {
-      out.push(ch);
-      if (ch === "\\") {
-        const next = text[i + 1];
-        if (next !== undefined) {
-          out.push(next);
-          i += 2;
-          continue;
-        }
-      } else if (ch === '"') {
-        inString = false;
-      }
-      i++;
-      continue;
-    }
-    if (ch === '"') {
-      inString = true;
-      out.push(ch);
-      i++;
-      continue;
-    }
-    if (ch === ",") {
-      let j = i + 1;
-      while (j < text.length && /\s/.test(text[j] as string)) j++;
-      if (text[j] === "}" || text[j] === "]") {
-        i++;
-        continue;
-      }
-    }
-    out.push(ch);
-    i++;
+function lineOf(starts: readonly number[], offset: number): number {
+  let low = 0;
+  let high = starts.length - 1;
+  while (low < high) {
+    const mid = (low + high + 1) >> 1;
+    if ((starts[mid] as number) <= offset) low = mid;
+    else high = mid - 1;
   }
-  return out.join("");
+  return low + 1;
+}
+
+export function jsonErrorMessage(text: string, error: ParseError): string {
+  return `第 ${text.slice(0, error.offset).split("\n").length} 行：${printParseErrorCode(error.error)}`;
 }
 
 function jsonRawValue(value: unknown): string {
@@ -110,38 +38,31 @@ function jsonRawValue(value: unknown): string {
 }
 
 function parseJsonLang(content: string): ParsedLang {
-  const body = stripTrailingCommas(stripJsonComments(content.replace(/^\uFEFF/, "")));
-  const lines = new Map<string, number>();
-  const bodyLines = body.split("\n");
-  for (let i = 0; i < bodyLines.length; i++) {
-    const m = KEY_LINE_RE.exec(bodyLines[i] as string);
-    if (!m) continue;
-    let key: string;
-    try {
-      key = JSON.parse(`"${m[1] as string}"`) as string;
-    } catch {
-      continue;
-    }
-    lines.set(key, i + 1);
-  }
-
+  const text = content.replace(/^\uFEFF/, "");
+  const errors: ParseError[] = [];
+  const root = parseTree(text, errors, { allowTrailingComma: true });
+  const starts = lineStarts(text);
   const entries = new Map<string, string>();
-  const errors: string[] = [];
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(body);
-  } catch (err) {
-    errors.push(err instanceof Error ? err.message : "JSON 解析失败");
-    return { format: "json", entries, lines, errors };
+  const lines = new Map<string, number>();
+  const first = errors[0];
+  const messages = first === undefined ? [] : [jsonErrorMessage(text, first)];
+  if (root === undefined) {
+    if (messages.length === 0) messages.push("内容为空");
+    return { format: "json", entries, lines, errors: messages };
   }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    errors.push("顶层不是 JSON 对象");
-    return { format: "json", entries, lines, errors };
+  if (root.type !== "object") {
+    if (messages.length === 0) messages.push("顶层不是 JSON 对象");
+    return { format: "json", entries, lines, errors: messages };
   }
-  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-    entries.set(key, jsonRawValue(value));
+  const failed = messages.length > 0;
+  for (const property of root.children ?? []) {
+    const keyNode = property.children?.[0];
+    const valueNode = property.children?.[1];
+    if (keyNode === undefined || valueNode === undefined || typeof keyNode.value !== "string") continue;
+    lines.set(keyNode.value, lineOf(starts, keyNode.offset));
+    if (!failed) entries.set(keyNode.value, jsonRawValue(getNodeValue(valueNode)));
   }
-  return { format: "json", entries, lines, errors };
+  return { format: "json", entries, lines, errors: messages };
 }
 
 function parseDotLang(content: string): ParsedLang {
@@ -268,28 +189,35 @@ export function sortLang(content: string, format: LangFormat): string {
   return `${lines.join("\n")}\n`;
 }
 
-const KV_LINE_RE = /^(\s*"((?:[^"\\]|\\.)*)"\s*:\s*)"((?:[^"\\]|\\.)*?)"([^\r\n]*)(\r?\n|$)/gm;
-
-function unescapeJsonString(raw: string): string {
-  try {
-    return JSON.parse(`"${raw}"`) as string;
-  } catch {
-    return raw;
-  }
-}
-
 export function editJsonValues(
   content: string,
   edit: (key: string, value: string) => string | undefined,
 ): { content: string; changed: number } {
-  let changed = 0;
-  const out = content.replace(KV_LINE_RE, (full, prefix: string, rawKey: string, rawValue: string, rest: string, eol: string) => {
-    const next = edit(unescapeJsonString(rawKey), unescapeJsonString(rawValue));
-    if (next === undefined) return full;
-    changed++;
-    return `${prefix}${JSON.stringify(next)}${rest}${eol}`;
-  });
-  return { content: out, changed };
+  const root = parseTree(content, [], { allowTrailingComma: true });
+  if (root === undefined || root.type !== "object") return { content, changed: 0 };
+  const edits: Edit[] = [];
+  const visit = (node: JsonNode): void => {
+    if (node.type === "object") {
+      for (const property of node.children ?? []) {
+        const keyNode = property.children?.[0];
+        const valueNode = property.children?.[1];
+        if (keyNode === undefined || valueNode === undefined || typeof keyNode.value !== "string") continue;
+        if (valueNode.type === "string") {
+          const next = edit(keyNode.value, String(valueNode.value));
+          if (next !== undefined && next !== valueNode.value) {
+            edits.push({ offset: valueNode.offset, length: valueNode.length, content: JSON.stringify(next) });
+          }
+          continue;
+        }
+        visit(valueNode);
+      }
+      return;
+    }
+    for (const child of node.children ?? []) visit(child);
+  };
+  visit(root);
+  if (edits.length === 0) return { content, changed: 0 };
+  return { content: applyEdits(content, edits), changed: edits.length };
 }
 
 export function insertJsonKeyAfter(
@@ -328,6 +256,14 @@ export function insertJsonKeyAfter(
     `${indent}${JSON.stringify(newKey)}: ${JSON.stringify(value)}${hadComma ? "," : ""}${eol}`,
   );
   return parts.join("");
+}
+
+function unescapeJsonString(raw: string): string {
+  try {
+    return JSON.parse(`"${raw}"`) as string;
+  } catch {
+    return raw;
+  }
 }
 
 export function detectIndent(content: string): string {

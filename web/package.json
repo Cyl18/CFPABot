@@ -8,6 +8,8 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@floating-ui/react": "^0.27.20",
+    "@radix-ui/react-dialog": "^1.1.23",
     "@tanstack/react-query": "5.104.0",
     "@tanstack/react-router": "1.170.40",
     "@tanstack/react-virtual": "3.14.13",

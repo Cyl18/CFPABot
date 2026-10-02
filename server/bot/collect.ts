@@ -1,7 +1,8 @@
+import { parse, type ParseError } from "jsonc-parser";
+import pMap from "p-map";
 import type { CompareRow, PrFile, Workspace } from "../../shared/api.ts";
 import { compareLang } from "../domain/diff.ts";
-import { parseLang, type ParsedLang } from "../domain/langfile.ts";
-import { stripJsonComments } from "../domain/langfile.ts";
+import { jsonErrorMessage, parseLang, type ParsedLang } from "../domain/langfile.ts";
 import { diffModPathsOf, langPathFor, parseLangPath, workspacesOf, type LangFormat, type Locale } from "../domain/path.ts";
 import { glossaryTerms } from "../domain/glossary.ts";
 import { matchTerms } from "../domain/terms.ts";
@@ -34,21 +35,6 @@ export interface WorkspaceData {
   headEn: ParsedLang | null;
   headZh: ParsedLang | null;
   rows: CompareRow[];
-}
-
-export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const out: R[] = new Array<R>(items.length);
-  let cursor = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    for (;;) {
-      const index = cursor++;
-      const item = items[index];
-      if (index >= items.length || item === undefined) return;
-      out[index] = await fn(item);
-    }
-  });
-  await Promise.all(workers);
-  return out;
 }
 
 export async function loadPrContext(n: number): Promise<PrContext> {
@@ -107,7 +93,7 @@ export async function loadWorkspaceData(ctx: PrContext): Promise<WorkspaceData[]
   if (ctx.workspaces.length > targets.length) {
     log.warn("工作区数量超过上限，仅检查前若干个", { pr: ctx.pull.number, total: ctx.workspaces.length, checked: targets.length });
   }
-  const loaded = await mapLimit(targets, MAX_CONCURRENCY, (workspace) => loadOneWorkspace(ctx, workspace));
+  const loaded = await pMap(targets, (workspace) => loadOneWorkspace(ctx, workspace), { concurrency: MAX_CONCURRENCY });
   return loaded.filter((item): item is WorkspaceData => item !== null);
 }
 
@@ -125,7 +111,10 @@ function postProcess(value: string | null): string | null {
 }
 
 function parseRefJson(text: string): Map<string, string> {
-  const parsed = JSON.parse(stripJsonComments(text.replace(/^\uFEFF/, ""))) as unknown;
+  const errors: ParseError[] = [];
+  const parsed = parse(text.replace(/^\uFEFF/, ""), errors) as unknown;
+  const first = errors[0];
+  if (first !== undefined) throw new Error(jsonErrorMessage(text, first));
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error("The requested operation requires an element of type 'Object'.");
   }

@@ -1,8 +1,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { parse, type ParseError } from "jsonc-parser";
 import { shortenLine } from "../domain/checks.ts";
-import { HUNK_RE } from "../domain/diff.ts";
-import { stripJsonComments, stripTrailingCommas } from "../domain/langfile.ts";
+import { patchKeptLines } from "../domain/diff.ts";
+import { jsonErrorMessage } from "../domain/langfile.ts";
 import { commentVersionDir, compareMc, diffModPathOf, invalidVersionError } from "../domain/path.ts";
 import { gh } from "../github/client.ts";
 import { logger } from "../log.ts";
@@ -266,17 +267,12 @@ interface JsonKeys {
 }
 
 function jsonKeys(text: string, allowTrailingCommas: boolean): JsonKeys {
-  const cleaned = text.replace(/^\uFEFF/, "");
-  const body = allowTrailingCommas
-    ? stripTrailingCommas(stripJsonComments(cleaned))
-    : stripJsonComments(cleaned);
-  try {
-    const parsed = JSON.parse(body) as unknown;
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return { keys: null, syntaxError: null };
-    return { keys: Object.keys(parsed), syntaxError: null };
-  } catch (err) {
-    return { keys: null, syntaxError: messageOf(err) };
-  }
+  const errors: ParseError[] = [];
+  const parsed = parse(text.replace(/^\uFEFF/, ""), errors, { allowTrailingComma: allowTrailingCommas }) as unknown;
+  const first = errors[0];
+  if (first !== undefined) return { keys: null, syntaxError: jsonErrorMessage(text, first) };
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return { keys: null, syntaxError: null };
+  return { keys: Object.keys(parsed), syntaxError: null };
 }
 
 function langKeySet(text: string): Set<string> {
@@ -687,6 +683,9 @@ async function appendUnit(
   const langDir = `projects/assets/${curseID}/${versionString}/${modid}/lang`;
   const cnName = versionString === "1.12.2" ? "zh_cn.lang" : "zh_cn.json";
   const enName = versionString === "1.12.2" ? "en_us.lang" : "en_us.json";
+  // TODO 组合文件合成：带 packer-policy.json 的模组，祖母会克隆 PR 仓库、跑主库的 Packer 二进制生成 zip，
+  // 再从 assets/<modid>/lang/zh_cn.* 读合成结果做检查；合成失败先打「⚠ 组合文件处理出错：…」与「获取…失败」
+  // 两行再回退到这里（见祖母 CommentBuilder.cs:1222、CompositionFileHandler.cs）。目前没有这段，直接下原始文件。
   let cnfile = await fetchText(`${langDir}/${cnName}`, ctx.pull.headSha);
   if (cnfile === null) cnfile = await fetchText(`${langDir}/${cnName.replaceAll("zh_cn", "zh_CN")}`, ctx.pull.headSha);
   if (cnfile === null) {
@@ -756,21 +755,6 @@ async function appendUnits(sb: CheckSink, reportSb: Lines, ctx: PrContext): Prom
     sb.endUnit();
   }
   return reportedKey;
-}
-
-function patchKeptLines(patch: string): string[] {
-  const out: string[] = [];
-  let inHunk = false;
-  for (const raw of patch.split("\n")) {
-    const line = raw.replace(/\r$/, "");
-    if (HUNK_RE.test(line)) {
-      inHunk = true;
-      continue;
-    }
-    if (!inHunk) continue;
-    if (line.startsWith("+") || line.startsWith(" ")) out.push(line.slice(1));
-  }
-  return out;
 }
 
 async function appendTypos(sink: CheckSink, reportSb: Lines, ctx: PrContext): Promise<boolean> {
