@@ -1,7 +1,7 @@
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import type { ToolContext } from "../context.ts";
 import { LOCAL_NAME_PATTERN } from "../sessions.ts";
-import { jsonResult } from "../tools/shared.ts";
+import { jsonResult } from "../result.ts";
 import { linesResult } from "./format.ts";
 import type { LocalUri } from "./uri.ts";
 

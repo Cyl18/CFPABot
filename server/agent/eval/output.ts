@@ -11,6 +11,10 @@ export class OutputSink {
 
   constructor(private readonly max = 50 * 1024) {}
 
+  get totalBytes(): number {
+    return this.total;
+  }
+
   push(chunk: string): void {
     this.total += chunk.length;
     const headLimit = Math.floor(this.max / 3);

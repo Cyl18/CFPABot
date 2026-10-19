@@ -13,7 +13,7 @@ import { compareWorkspace } from "../../views/workspace.ts";
 import { specialPairContent, specialPairs } from "../../views/special.ts";
 import type { ToolContext } from "../context.ts";
 import { buildPack, findingHistogram, selectRows, workspaceKey } from "../pack.ts";
-import { jsonResult, pageOf } from "../tools/shared.ts";
+import { jsonResult, pageOf } from "../result.ts";
 import { linesResult, missingResource } from "./format.ts";
 import { uriSegments, type RepoUri } from "./uri.ts";
 
@@ -47,6 +47,18 @@ function trimBody(body: string): string {
 
 function isMainBot(author: string, body: string): boolean {
   return body.startsWith("<!--CYBOT-->") && (author === env.BOT_LOGIN || author === "Cyl18-Bot");
+}
+
+function isAgentBody(body: string): boolean {
+  return body.includes("<!--CFPA-AGENT:");
+}
+
+function visibleIssueComment(comment: { author: string; body: string; isBot: boolean }): boolean {
+  return !isMainBot(comment.author, comment.body) && (!comment.isBot || isAgentBody(comment.body));
+}
+
+function visibleReviewComment(comment: { author: string; body: string }): boolean {
+  return !isMainBot(comment.author, comment.body) && (!comment.author.endsWith("[bot]") || isAgentBody(comment.body));
 }
 
 function readPrNumber(seg: string[]): number {
@@ -90,24 +102,22 @@ async function readPr(uri: RepoUri, seg: string[], ctx: ToolContext): Promise<Ag
     const [comments, reviews] = await Promise.all([gh.listComments(n), gh.listReviewComments(n)]);
     return jsonResult({
       issueComments: comments
-        .filter((comment) => !isMainBot(comment.author, comment.body))
-        .filter((comment) => !comment.isBot || comment.body.includes("<!--CFPA-AGENT:"))
+        .filter(visibleIssueComment)
         .map((comment) => ({
           author: comment.author,
           body: trimBody(comment.body),
           at: comment.createdAt,
-          isAgent: comment.body.includes("<!--CFPA-AGENT:"),
+          isAgent: isAgentBody(comment.body),
         })),
       reviewComments: reviews
-        .filter((comment) => !isMainBot(comment.author, comment.body))
-        .filter((comment) => !comment.author.endsWith("[bot]") || comment.body.includes("<!--CFPA-AGENT:"))
+        .filter(visibleReviewComment)
         .map((comment) => ({
           author: comment.author,
           path: comment.path,
           line: comment.line,
           body: trimBody(comment.body),
           at: comment.createdAt,
-          isAgent: comment.body.includes("<!--CFPA-AGENT:"),
+          isAgent: isAgentBody(comment.body),
         })),
     });
   }
@@ -281,13 +291,12 @@ export async function readRepo(uri: RepoUri, ctx: ToolContext): Promise<AgentToo
       const comments = await gh.listComments(n);
       return jsonResult(
         comments
-          .filter((comment) => !isMainBot(comment.author, comment.body))
-          .filter((comment) => !comment.isBot || comment.body.includes("<!--CFPA-AGENT:"))
+          .filter(visibleIssueComment)
           .map((comment) => ({
             author: comment.author,
             body: trimBody(comment.body),
             at: comment.createdAt,
-            isAgent: comment.body.includes("<!--CFPA-AGENT:"),
+            isAgent: isAgentBody(comment.body),
           })),
       );
     }

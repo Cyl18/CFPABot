@@ -36,24 +36,26 @@ export const reviewDraftSchema = draftInputSchema.omit({ event: true }).extend({
   publishedUrl: z.string().optional(),
 });
 
+export function normalizeDraftJson(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  const record = value as Record<string, unknown>;
+  return {
+    ...record,
+    updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : new Date().toISOString(),
+    comments: Array.isArray(record.comments)
+      ? record.comments.map((comment, index) =>
+          comment !== null && typeof comment === "object"
+            ? { id: `c${index + 1}`, ...(comment as Record<string, unknown>) }
+            : comment,
+        )
+      : record.comments,
+  };
+}
+
 export function parseDraftFile(content: string | undefined): ReviewDraft | null {
   if (content === undefined) return null;
   try {
-    const raw = JSON.parse(content) as unknown;
-    if (raw === null || typeof raw !== "object") return null;
-    const record = raw as Record<string, unknown>;
-    const normalized = {
-      ...record,
-      updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : new Date().toISOString(),
-      comments: Array.isArray(record.comments)
-        ? record.comments.map((comment, index) =>
-            comment !== null && typeof comment === "object"
-              ? { id: `c${index + 1}`, ...(comment as Record<string, unknown>) }
-              : comment,
-          )
-        : record.comments,
-    };
-    const parsed = reviewDraftSchema.safeParse(normalized);
+    const parsed = reviewDraftSchema.safeParse(normalizeDraftJson(JSON.parse(content) as unknown));
     return parsed.success ? parsed.data : null;
   } catch {
     return null;

@@ -2,7 +2,7 @@ import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import type { ToolContext } from "../context.ts";
 import { runEval } from "../eval/index.ts";
-import { jsonResult } from "./shared.ts";
+import { jsonResult } from "../result.ts";
 
 const EVAL_PARAMS = Type.Object({
   language: Type.Union([Type.Literal("py"), Type.Literal("js"), Type.Literal("bash")]),
@@ -20,6 +20,7 @@ export function evalTool(ctx: ToolContext): AgentTool<typeof EVAL_PARAMS> {
     description:
       "在一次性沙箱容器里执行 Python / JavaScript / Bash，用来编排 QA 规则和数据处理。会话需要 evalScope=run。",
     parameters: EVAL_PARAMS,
+    executionMode: "sequential",
     execute: async (_toolCallId, params, signal) => {
       const result = await runEval(
         {

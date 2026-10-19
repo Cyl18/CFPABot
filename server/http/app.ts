@@ -65,7 +65,7 @@ app.notFound(async (c) => {
 });
 
 app.onError((err, c) => {
-  const { status, body } = errorResponse(err, c.req.path);
+  const { status, body } = errorResponse(err);
   if (status >= 500) log.error("请求处理失败", { method: c.req.method, path: c.req.path, err });
   else if (!(err instanceof HttpError)) log.warn("请求被拒绝", { method: c.req.method, path: c.req.path, err });
   return c.json(body, status);

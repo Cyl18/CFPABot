@@ -103,13 +103,6 @@ export async function resolveModel(
   return { model, apiKey: endpoint.apiKey || undefined, endpoint };
 }
 
-export async function endpointFor(id: string): Promise<LlmEndpoint> {
-  const config = await loadConfig();
-  const endpoint = config.endpoints.find((e) => e.id === id);
-  if (!endpoint) throw new Error(`未找到 LLM 端点 ${id}`);
-  return endpoint;
-}
-
 export function setModelsForTest(collection: MutableModels, model: Model<Api>): void {
   override = { collection, model };
 }

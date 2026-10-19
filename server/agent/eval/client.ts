@@ -24,9 +24,30 @@ export interface SandboxResult {
   durationMs: number;
   truncated: boolean;
   cancelled: boolean;
+  outputLimited: boolean;
 }
 
 type ResultFrame = Extract<RunnerFrame, { type: "result" }>;
+
+const MAX_CONTAINERS = 2;
+const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
+let runningContainers = 0;
+const containerWaiters: (() => void)[] = [];
+
+// shortcut: fixed global cap; make it configurable when eval grows beyond review sessions.
+async function acquireContainer(): Promise<() => void> {
+  if (runningContainers >= MAX_CONTAINERS) {
+    await new Promise<void>((resolve) => containerWaiters.push(resolve));
+  }
+  runningContainers += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    runningContainers -= 1;
+    containerWaiters.shift()?.();
+  };
+}
 
 function spawnDocker(args: string[]) {
   try {
@@ -39,24 +60,29 @@ function spawnDocker(args: string[]) {
 }
 
 export async function runSandbox(request: SandboxRequest, signal?: AbortSignal): Promise<SandboxResult> {
-  const workdir = await mkdtemp(join(tmpdir(), "cfpa-eval-"));
+  const release = await acquireContainer();
   try {
-    await mkdir(join(workdir, "in"), { recursive: true });
-    await mkdir(join(workdir, "out"), { recursive: true });
-    for (const file of request.files ?? []) {
-      if (file.path.length === 0 || isAbsolute(file.path) || file.path.split(/[\\/]/).includes("..")) {
-        throw new Error(`eval 输入路径无效：${file.path}`);
+    const workdir = await mkdtemp(join(tmpdir(), "cfpa-eval-"));
+    try {
+      await mkdir(join(workdir, "in"), { recursive: true });
+      await mkdir(join(workdir, "out"), { recursive: true });
+      for (const file of request.files ?? []) {
+        if (file.path.length === 0 || isAbsolute(file.path) || file.path.split(/[\\/]/).includes("..")) {
+          throw new Error(`eval 输入路径无效：${file.path}`);
+        }
+        const target = join(workdir, "in", file.path);
+        await mkdir(dirname(target), { recursive: true });
+        await writeFile(target, file.content, "utf8");
       }
-      const target = join(workdir, "in", file.path);
-      await mkdir(dirname(target), { recursive: true });
-      await writeFile(target, file.content, "utf8");
+      await chmod(workdir, 0o777).catch(() => undefined);
+      await chmod(join(workdir, "in"), 0o777).catch(() => undefined);
+      await chmod(join(workdir, "out"), 0o777).catch(() => undefined);
+      return await executeSandbox(request, workdir, signal);
+    } finally {
+      await rm(workdir, { recursive: true, force: true, maxRetries: 3 }).catch(() => undefined);
     }
-    await chmod(workdir, 0o777).catch(() => undefined);
-    await chmod(join(workdir, "in"), 0o777).catch(() => undefined);
-    await chmod(join(workdir, "out"), 0o777).catch(() => undefined);
-    return await executeSandbox(request, workdir, signal);
   } finally {
-    await rm(workdir, { recursive: true, force: true, maxRetries: 3 }).catch(() => undefined);
+    release();
   }
 }
 
@@ -105,7 +131,17 @@ async function executeSandbox(
   const stderrSink = new OutputSink();
   const state: { result: ResultFrame | null } = { result: null };
   let cancelled = false;
+  let outputLimited = false;
+  const control = { cancel: (): void => {} };
   const started = Date.now();
+
+  const enforceOutputLimit = (): void => {
+    if (outputLimited) return;
+    if (stdoutSink.totalBytes + stderrSink.totalBytes <= MAX_OUTPUT_BYTES) return;
+    outputLimited = true;
+    stderrSink.push("\n[eval 输出超过 16 MiB，已中止]\n");
+    control.cancel();
+  };
 
   const readFrames = async (): Promise<void> => {
     const reader = proc.stdout.getReader();
@@ -118,6 +154,7 @@ async function executeSandbox(
       else if (frame.type === "stderr") stderrSink.push(frame.data);
       else if (frame.type === "result") state.result = frame;
       else stderrSink.push(`${frame.message}\n`);
+      enforceOutputLimit();
     };
     for (;;) {
       const { done, value } = await reader.read();
@@ -140,6 +177,7 @@ async function executeSandbox(
       const { done, value } = await reader.read();
       if (done) break;
       stderrSink.push(decoder.decode(value, { stream: true }));
+      enforceOutputLimit();
     }
   };
 
@@ -166,6 +204,7 @@ async function executeSandbox(
       proc.kill();
     }, 1_500);
   };
+  control.cancel = cancel;
 
   const timer = setTimeout(cancel, request.timeoutMs);
   if (signal?.aborted === true) cancel();
@@ -193,6 +232,7 @@ async function executeSandbox(
         durationMs,
         truncated: out.truncated || err.truncated,
         cancelled: true,
+        outputLimited,
       };
     }
     const detail = err.text.trim();
@@ -205,5 +245,6 @@ async function executeSandbox(
     durationMs,
     truncated: out.truncated || err.truncated,
     cancelled: result.cancelled === true || cancelled,
+    outputLimited,
   };
 }

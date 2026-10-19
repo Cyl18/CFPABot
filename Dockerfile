@@ -14,8 +14,8 @@ WORKDIR /app
 ENV NODE_ENV=production \
     TZ=Asia/Shanghai \
     PORT=8080
-COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
+# dist/main.js 已内联全部依赖，运行阶段不需要 node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/public ./public
 COPY --from=build /app/config ./config

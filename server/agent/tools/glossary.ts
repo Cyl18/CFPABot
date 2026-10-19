@@ -3,7 +3,7 @@ import { Type } from "typebox";
 import { lookupTerm } from "../../domain/terms.ts";
 import { glossaryLookup } from "../glossary.ts";
 import { glossaryTerms } from "../../domain/glossary.ts";
-import { jsonResult } from "./shared.ts";
+import { jsonResult } from "../result.ts";
 
 const GLOSSARY_PARAMS = Type.Object({
   query: Type.String({ description: "要查的英文词或短语" }),

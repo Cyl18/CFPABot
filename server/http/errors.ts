@@ -51,7 +51,7 @@ export async function parseBody<T>(c: Context, schema: z.ZodType<T>): Promise<T>
   return result.data;
 }
 
-export function errorResponse(err: unknown, path: string): { status: ContentfulStatusCode; body: ApiError } {
+export function errorResponse(err: unknown): { status: ContentfulStatusCode; body: ApiError } {
   if (err instanceof HttpError) {
     if (err.status >= 500) return { status: err.status, body: err.code ? { error: "Internal Server Error", code: err.code } : { error: "Internal Server Error" } };
     return { status: err.status, body: err.code ? { error: err.message, code: err.code } : { error: err.message } };

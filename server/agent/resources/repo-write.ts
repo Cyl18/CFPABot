@@ -12,10 +12,10 @@ import {
   submitPendingReview,
 } from "../../github/review.ts";
 import type { ToolContext } from "../context.ts";
-import { DRAFT_FILE, draftInputSchema, parseDraftFile } from "../draft.ts";
+import { DRAFT_FILE, draftInputSchema, normalizeDraftJson, parseDraftFile } from "../draft.ts";
 import { assertCanWrite } from "../policy.ts";
 import { publishDraft } from "../publish.ts";
-import { jsonResult } from "../tools/shared.ts";
+import { jsonResult } from "../result.ts";
 import { replaceOnce } from "./replace.ts";
 import { parseThreadState } from "./thread-state.ts";
 import { uriSegments, type RepoUri } from "./uri.ts";
@@ -40,7 +40,7 @@ function parseDraft(content: string, n: number, ctx: ToolContext): {
   draft: ReviewDraft;
   event: "COMMENT" | "APPROVE" | "REQUEST_CHANGES";
 } {
-  const input = draftInputSchema.parse(JSON.parse(content) as unknown);
+  const input = draftInputSchema.parse(normalizeDraftJson(JSON.parse(content) as unknown));
   if (input.prNumber !== n) throw new Error("草稿的 PR 与会话不一致。");
   return {
     draft: {

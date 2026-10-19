@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ReviewDraft } from "../../shared/api.ts";
-import { DRAFT_FILE, parseDraftFile, serializeDraftFile } from "./draft.ts";
+import { DRAFT_FILE, draftInputSchema, normalizeDraftJson, parseDraftFile, serializeDraftFile } from "./draft.ts";
 
 const draft: ReviewDraft = {
   prNumber: 1,
@@ -32,6 +32,18 @@ describe("草稿文件", () => {
     );
     expect(typeof parsed?.updatedAt).toBe("string");
     expect(parsed?.comments[0]?.id).toBe("c1");
+  });
+
+  test("内联草稿与本地草稿共用归一化", () => {
+    const normalized = normalizeDraftJson({
+      prNumber: 1,
+      headSha: "abc",
+      verdict: "approve",
+      summary: "ok",
+      comments: [{ path: "a", line: 1, key: "k", severity: "minor", mqm: "Accuracy/mistranslation", body: "b" }],
+    });
+    const parsed = draftInputSchema.parse(normalized);
+    expect(parsed.comments[0]?.id).toBe("c1");
   });
 
   test("坏 JSON 或缺关键字段返回 null", () => {

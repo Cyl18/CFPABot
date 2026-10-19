@@ -16,6 +16,7 @@ describe("OutputSink", () => {
     const dump = sink.dump();
     expect(dump.truncated).toBe(true);
     expect(dump.totalBytes).toBe(120);
+    expect(sink.totalBytes).toBe(120);
     expect(dump.text.startsWith("A")).toBe(true);
     expect(dump.text.endsWith("B")).toBe(true);
     expect(dump.text).toContain("字符已省略");

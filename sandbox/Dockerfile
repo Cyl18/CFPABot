@@ -1,7 +1,10 @@
-FROM oven/bun:1
+FROM oven/bun:1.4.2 AS bun
+FROM python:3.13-slim
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 jq ripgrep \
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+
+RUN apt-get -o Acquire::Retries=5 update \
+  && apt-get -o Acquire::Retries=5 install -y --no-install-recommends jq ripgrep \
   && rm -rf /var/lib/apt/lists/*
 
 COPY runner.py /runner/runner.py
