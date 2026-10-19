@@ -1,11 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { gh, serverGraphql, userGraphql } from "../github/client.ts";
-import type { GhOctokit } from "../github/client.ts";
+import { serverGraphql, userGraphql } from "../github/client.ts";
 import {
-  addReviewThread,
   anonymousReviewState,
-  createPendingReview,
+  createReviewComment,
   createSubmittedReview,
   deleteReviewComment,
   renderComments,
@@ -17,9 +15,6 @@ import {
   userReviewState,
 } from "../github/review.ts";
 import { httpStatus } from "../github/mappers.ts";
-import { inHunks } from "../domain/diff.ts";
-import { commentableHunks } from "../review.ts";
-import { prdata } from "../prdata.ts";
 import { currentUser, requireUserToken } from "./auth.ts";
 import type { AppContext, AppEnv } from "./auth.ts";
 import { HttpError, notFound, parseBody } from "./errors.ts";
@@ -29,7 +24,6 @@ import type {
   AddReviewReplyRequest,
   PrReviewState,
   ReviewHtmlRequest,
-  ReviewThread,
   SetFileViewedRequest,
   SetThreadResolvedRequest,
   SubmitReviewRequest,
@@ -38,7 +32,6 @@ import type {
 export const reviewRoutes = new Hono<AppEnv>();
 
 const REAUTH = "需要重新登录 GitHub 授权评论权限";
-const NOT_IN_DIFF = "这一行不在 PR 的改动范围内，GitHub 不允许在这里评论";
 
 const commentSchema = z.object({
   path: z.string().min(1),
@@ -118,39 +111,6 @@ async function reviewState(c: AppContext, n: number): Promise<PrReviewState | nu
     if (graphqlErrors(err).types.includes("NOT_FOUND")) throw notFound("PR 不存在");
     throw err;
   }
-}
-
-async function createReviewComment(
-  octokit: GhOctokit,
-  n: number,
-  input: AddReviewCommentRequest,
-): Promise<ReviewThread | null> {
-  const { pull, files } = await prdata.files(n);
-  const file = files.find((entry) => entry.path === input.path);
-  if (file === undefined || file.status === "removed") throw new HttpError(422, NOT_IN_DIFF, "not_in_diff");
-  const headText =
-    file.patch === undefined && file.status === "added" ? await gh.getFile(input.path, pull.headSha) : null;
-  if (!inHunks(input.line, commentableHunks(file, headText))) {
-    throw new HttpError(422, NOT_IN_DIFF, "not_in_diff");
-  }
-
-  const meta = await reviewMeta(octokit, n);
-  if (meta === null) return null;
-  let reviewId = meta.pendingReviewId;
-  if (reviewId === null) {
-    try {
-      reviewId = await createPendingReview(octokit, meta.pullRequestId, meta.headSha);
-    } catch (err) {
-      const retry = await reviewMeta(octokit, n);
-      reviewId = retry?.pendingReviewId ?? null;
-      if (reviewId === null) throw err;
-    }
-  }
-  return addReviewThread(
-    octokit,
-    { reviewId, path: input.path, line: input.line, body: input.body },
-    meta.viewer,
-  );
 }
 
 reviewRoutes.get("/prs/:n/review", async (c) => {

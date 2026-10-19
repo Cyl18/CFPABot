@@ -1,20 +1,19 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { ToolContext } from "../context.ts";
-import { draftSaveTool } from "./draft.ts";
+import { editTool } from "./edit.ts";
+import { evalTool } from "./eval.ts";
 import { glossaryTool } from "./glossary.ts";
-import { multiReviewTool } from "./multi.ts";
-import { prDiscussionTool, prOverviewTool, prReadTool } from "./pr.ts";
-import { reviewLoadTool, reviewRowsTool } from "./review.ts";
+import { readTool } from "./read.ts";
+import { reviewThreadResolveTool } from "./review-thread.ts";
+import { writeTool } from "./write.ts";
 
 export function buildTools(ctx: ToolContext): AgentTool[] {
   return [
-    prOverviewTool(ctx),
-    prDiscussionTool(ctx),
-    prReadTool(ctx),
-    reviewLoadTool(ctx),
-    reviewRowsTool(ctx),
+    readTool(ctx),
+    writeTool(ctx),
+    editTool(ctx),
+    evalTool(ctx),
+    reviewThreadResolveTool(ctx),
     glossaryTool(),
-    multiReviewTool(ctx),
-    draftSaveTool(ctx),
   ];
 }

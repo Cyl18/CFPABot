@@ -6,9 +6,9 @@ import { throttling, type ThrottlingOptions } from "@octokit/plugin-throttling";
 import { env, repo } from "../env.ts";
 import { logger } from "../log.ts";
 import { asRecord, httpStatus, mapComment, mapFile, mapPull, mapReviewComment, mapRun } from "./mappers.ts";
-import type { GhArtifact, GhComment, GhFile, GhPull, GhReviewComment, GhRun, GitHubClient } from "./types.ts";
+import type { GhPull, GitHubClient } from "./types.ts";
 
-export type { GhArtifact, GhComment, GhFile, GhPull, GhReviewComment, GhRun, GitHubClient } from "./types.ts";
+export type { GhArtifact, GhComment, GhFile, GhIssue, GhPull, GhReviewComment, GhReviewSummary, GhRun, GitHubClient } from "./types.ts";
 
 const log = logger("github");
 const USER_AGENT = "CFPAAgent2 (github.com/CFPAOrg)";
@@ -197,6 +197,65 @@ export const gh: GitHubClient = {
 
   async updateComment(id, body) {
     await octokit.rest.issues.updateComment({
+      owner: repo.owner,
+      repo: repo.name,
+      comment_id: id,
+      body,
+      request: { retries: 0 },
+    });
+  },
+
+  async getIssue(n) {
+    const r = await octokit.rest.issues.get({ owner: repo.owner, repo: repo.name, issue_number: n });
+    const data = r.data;
+    return {
+      number: data.number,
+      title: data.title,
+      state: data.state === "open" ? ("open" as const) : ("closed" as const),
+      author: data.user?.login ?? "ghost",
+      labels: data.labels
+        .map((label) => (typeof label === "string" ? label : (label.name ?? "")))
+        .filter((label) => label.length > 0),
+      body: data.body ?? "",
+      htmlUrl: data.html_url,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
+  },
+
+  async search(q, type) {
+    const r = await octokit.rest.search.issuesAndPullRequests({
+      q: `${q} repo:${repo.fullName} type:${type === "pr" ? "pr" : "issue"}`,
+      per_page: 30,
+    });
+    return r.data.items.map((item) => ({
+      number: item.number,
+      title: item.title,
+      state: item.state,
+      author: item.user?.login ?? "ghost",
+      updatedAt: item.updated_at,
+      htmlUrl: item.html_url,
+    }));
+  },
+
+  async listReviews(n) {
+    const all = await octokit.paginate(octokit.rest.pulls.listReviews, {
+      owner: repo.owner,
+      repo: repo.name,
+      pull_number: n,
+      per_page: FILE_PAGE_SIZE,
+    });
+    return all.map((review) => ({
+      id: review.id,
+      author: review.user?.login ?? "ghost",
+      body: review.body ?? "",
+      state: review.state,
+      htmlUrl: review.html_url,
+    }));
+  },
+
+  async updateReviewComment(id, body) {
+    await octokit.rest.pulls.updateReviewComment({
       owner: repo.owner,
       repo: repo.name,
       comment_id: id,

@@ -2,12 +2,16 @@ import { mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { ReviewDraft, SessionStatus, SessionSummary } from "../../shared/api.ts";
+import type { EvalScope, SessionStatus, SessionSummary, WriteScope } from "../../shared/api.ts";
 import { paths } from "../paths.ts";
 import { readJson, withLock, writeJson } from "../store.ts";
+import type { LocalEntry } from "./context.ts";
+import { DRAFT_FILE, parseDraftFile, reviewDraftSchema } from "./draft.ts";
 import type { Pack } from "./pack.ts";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+
+export const LOCAL_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
 export interface SessionMeta {
   id: string;
@@ -20,7 +24,8 @@ export interface SessionMeta {
   createdBy: string;
   source: "web" | "github";
   model: string;
-  hasDraft: boolean;
+  writeScope: WriteScope;
+  evalScope: EvalScope;
   review: boolean;
   lastError?: string;
   baseSha?: string;
@@ -31,35 +36,10 @@ export interface SessionMeta {
 export interface SessionRecord {
   meta: SessionMeta;
   messages: AgentMessage[];
-  draft?: ReviewDraft;
   pack?: Pack;
+  packs?: Record<string, Pack>;
+  local?: Record<string, LocalEntry>;
 }
-
-const draftCommentSchema = z.object({
-  id: z.string(),
-  path: z.string(),
-  line: z.number(),
-  key: z.string(),
-  severity: z.enum(["critical", "major", "minor", "neutral"]),
-  mqm: z.string(),
-  en: z.string().optional(),
-  zh: z.string().optional(),
-  body: z.string(),
-  suggestion: z.string().optional(),
-  covers: z.array(z.string()).optional(),
-  suspected: z.boolean().optional(),
-});
-
-const draftSchema = z.object({
-  prNumber: z.number(),
-  headSha: z.string(),
-  verdict: z.enum(["approve", "changes", "reject"]),
-  summary: z.string(),
-  comments: z.array(draftCommentSchema),
-  updatedAt: z.string(),
-  publishedAt: z.string().optional(),
-  publishedUrl: z.string().optional(),
-});
 
 const metaSchema = z.object({
   id: z.string(),
@@ -72,7 +52,8 @@ const metaSchema = z.object({
   createdBy: z.string(),
   source: z.enum(["web", "github"]),
   model: z.string(),
-  hasDraft: z.boolean().default(false),
+  writeScope: z.enum(["off", "bound", "any"]).default("off"),
+  evalScope: z.enum(["off", "run"]).default("off"),
   review: z.boolean().default(false),
   lastError: z.string().optional(),
   baseSha: z.string().optional(),
@@ -83,8 +64,10 @@ const metaSchema = z.object({
 const recordSchema = z.object({
   meta: metaSchema,
   messages: z.array(z.unknown()).default([]),
-  draft: draftSchema.optional(),
+  draft: reviewDraftSchema.optional(),
   pack: z.unknown().optional(),
+  packs: z.record(z.string(), z.unknown()).optional(),
+  local: z.record(z.string(), z.object({ content: z.string(), updatedAt: z.string() })).optional(),
 });
 
 function isMessage(value: unknown): value is AgentMessage {
@@ -104,8 +87,21 @@ function toRecord(parsed: z.infer<typeof recordSchema>): SessionRecord {
   const messages: AgentMessage[] = [];
   for (const item of parsed.messages) if (isMessage(item)) messages.push(item);
   const record: SessionRecord = { meta: parsed.meta, messages };
-  if (parsed.draft) record.draft = parsed.draft;
   if (isPack(parsed.pack)) record.pack = parsed.pack;
+  if (parsed.packs) {
+    record.packs = {};
+    for (const [key, value] of Object.entries(parsed.packs)) {
+      if (isPack(value)) record.packs[key] = value;
+    }
+  }
+  const local: Record<string, LocalEntry> = {};
+  for (const [name, entry] of Object.entries(parsed.local ?? {})) {
+    if (LOCAL_NAME_PATTERN.test(name)) local[name] = entry;
+  }
+  if (local[DRAFT_FILE] === undefined && parsed.draft !== undefined) {
+    local[DRAFT_FILE] = { content: JSON.stringify(parsed.draft), updatedAt: parsed.draft.updatedAt };
+  }
+  if (Object.keys(local).length > 0) record.local = local;
   return record;
 }
 
@@ -120,7 +116,9 @@ export function summarize(record: SessionRecord): SessionSummary {
     updatedAt: meta.updatedAt,
     createdBy: meta.createdBy,
     model: meta.model,
-    hasDraft: Boolean(record.draft),
+    hasDraft: parseDraftFile(record.local?.[DRAFT_FILE]?.content) !== null,
+    writeScope: meta.writeScope,
+    evalScope: meta.evalScope,
     ...(meta.prNumber !== undefined ? { prNumber: meta.prNumber } : {}),
     ...(meta.lastError ? { lastError: meta.lastError } : {}),
   };

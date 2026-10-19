@@ -225,6 +225,10 @@ export interface ModList {
 
 export type SessionStatus = "idle" | "running";
 
+export type WriteScope = "off" | "bound" | "any";
+
+export type EvalScope = "off" | "run";
+
 export interface SessionSummary {
   id: string;
   title: string;
@@ -236,6 +240,8 @@ export interface SessionSummary {
   createdBy: string;
   model: string;
   hasDraft: boolean;
+  writeScope: WriteScope;
+  evalScope: EvalScope;
   lastError?: string;
 }
 
@@ -293,6 +299,16 @@ export interface CreateSessionRequest {
   message?: string;
   review?: boolean;
   model?: string;
+  writeScope?: WriteScope;
+  evalScope?: EvalScope;
+}
+
+export interface SetWriteScopeRequest {
+  writeScope: WriteScope;
+}
+
+export interface SetEvalScopeRequest {
+  evalScope: EvalScope;
 }
 
 export type SessionEvent =

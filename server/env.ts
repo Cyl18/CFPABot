@@ -24,6 +24,7 @@ const schema = z.object({
   BOT_LOGIN: z.string().default("cfpa-bot[bot]"),
   CURSEFORGE_API_KEY: optional,
   GLOSSARY_BIN: optional,
+  EVAL_DOCKER_IMAGE: z.string().default("cfpa-eval:latest"),
   DEV_LOGIN: optional,
 });
 

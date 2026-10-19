@@ -47,6 +47,26 @@ export interface GhReviewComment {
   htmlUrl: string;
 }
 
+export interface GhIssue {
+  number: number;
+  title: string;
+  state: "open" | "closed";
+  author: string;
+  labels: string[];
+  body: string;
+  htmlUrl: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GhReviewSummary {
+  id: number;
+  author: string;
+  body: string;
+  state: string;
+  htmlUrl: string;
+}
+
 export interface GhRun {
   id: number;
   name: string;
@@ -79,6 +99,13 @@ export interface GitHubClient {
   listComments(n: number): Promise<GhComment[]>;
   createComment(n: number, body: string): Promise<GhComment>;
   updateComment(id: number, body: string): Promise<void>;
+  getIssue(n: number): Promise<GhIssue>;
+  search(
+    q: string,
+    type: "issue" | "pr",
+  ): Promise<{ number: number; title: string; state: string; author: string; updatedAt: string; htmlUrl: string }[]>;
+  listReviews(n: number): Promise<GhReviewSummary[]>;
+  updateReviewComment(id: number, body: string): Promise<void>;
   listReviewComments(n: number): Promise<GhReviewComment[]>;
   createReview(
     n: number,

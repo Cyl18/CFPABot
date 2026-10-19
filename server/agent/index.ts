@@ -1,15 +1,17 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type {
   CreateSessionRequest,
+  EvalScope,
   ReviewDraft,
   SessionDetail,
   SessionEvent,
   SessionSummary,
+  WriteScope,
 } from "../../shared/api.ts";
 import { prdata } from "../prdata.ts";
 import { logger } from "../log.ts";
 import { type ToolContext } from "./context.ts";
-import { validateDraft, type DraftContext } from "./draft.ts";
+import { DRAFT_FILE, parseDraftFile, serializeDraftFile, validateDraft, type DraftContext } from "./draft.ts";
 import { SessionHub } from "./events.ts";
 import { loadConfig, llm, modelsCollection, resolveModel, setModelsForTest } from "./llm.ts";
 import { mqmTable } from "./mqm.ts";
@@ -17,7 +19,7 @@ import { projectMessages } from "./projection.ts";
 import { buildSystemPrompt } from "./prompt.ts";
 import { publishDraft } from "./publish.ts";
 import { SessionRuntime } from "./runner.ts";
-import { SessionStore, summarize, type SessionMeta, type SessionRecord } from "./sessions.ts";
+import { SessionStore, summarize, LOCAL_NAME_PATTERN, type SessionMeta, type SessionRecord } from "./sessions.ts";
 import { buildTools } from "./tools/index.ts";
 
 export { llm, setModelsForTest };
@@ -29,6 +31,8 @@ const runtimes = new Map<string, SessionRuntime>();
 const runs = new Map<string, Promise<void>>();
 const active = new Set<string>();
 const pendingAborts = new Set<string>();
+const MAX_LOCAL_FILE_BYTES = 256 * 1024;
+const MAX_LOCAL_TOTAL_BYTES = 1024 * 1024;
 
 function httpError(message: string, status: number, code?: string): Error {
   return Object.assign(new Error(message), { status, ...(code === undefined ? {} : { code }) });
@@ -54,10 +58,11 @@ function firstPrompt(review: boolean, prNumber: number | undefined, message: str
 
 function detailOf(record: SessionRecord): SessionDetail {
   const meta = record.meta;
+  const draft = parseDraftFile(record.local?.[DRAFT_FILE]?.content);
   return {
     ...summarize(record),
     items: projectMessages(record.messages),
-    ...(record.draft ? { draft: record.draft } : {}),
+    ...(draft === null ? {} : { draft }),
     ...(meta.headSha ? { headSha: meta.headSha } : {}),
     ...(meta.stale ? { stale: true } : {}),
   };
@@ -65,28 +70,66 @@ function detailOf(record: SessionRecord): SessionDetail {
 
 function toolContext(record: SessionRecord): ToolContext {
   const id = record.meta.id;
+  const keyOf = (prNumber: number, headSha: string): string => `${prNumber}@${headSha}`;
   return {
+    sessionId: id,
     prNumber: record.meta.prNumber ?? null,
     baseSha: record.meta.baseSha ?? null,
     headSha: record.meta.headSha ?? null,
-    pack: async () => (await store.get(id))?.pack ?? null,
-    savePack: async (pack) => {
+    writeScope: record.meta.writeScope,
+    evalScope: record.meta.evalScope,
+    local: async (name) => (await store.get(id))?.local?.[name] ?? null,
+    saveLocal: async (name, content) => {
+      if (!LOCAL_NAME_PATTERN.test(name)) {
+        throw new Error("本地文件名无效：只能是 1-64 位字母、数字、点、下划线或连字符。");
+      }
+      const bytes = Buffer.byteLength(content, "utf8");
+      if (bytes > MAX_LOCAL_FILE_BYTES) throw new Error("本地文件超过 256 KiB 上限。");
       const current = await store.get(id);
       if (!current) throw new Error("会话不存在");
-      current.pack = pack;
+      const previous = current.local?.[name];
+      const total =
+        Object.values(current.local ?? {}).reduce((sum, entry) => sum + Buffer.byteLength(entry.content, "utf8"), 0) -
+        (previous === undefined ? 0 : Buffer.byteLength(previous.content, "utf8")) +
+        bytes;
+      if (total > MAX_LOCAL_TOTAL_BYTES) throw new Error("会话本地文件总量超过 1 MiB 上限。");
+      const entry = { content, updatedAt: now() };
+      current.local = { ...(current.local ?? {}), [name]: entry };
+      current.meta.updatedAt = entry.updatedAt;
+      await store.put(current);
+      return entry;
+    },
+    listLocal: async () => {
+      const current = await store.get(id);
+      return Object.entries(current?.local ?? {})
+        .map(([name, entry]) => ({
+          name,
+          size: Buffer.byteLength(entry.content, "utf8"),
+          updatedAt: entry.updatedAt,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    },
+    packFor: async (prNumber, headSha) => {
+      const current = await store.get(id);
+      if (!current) return null;
+      const packed = current.packs?.[keyOf(prNumber, headSha)];
+      if (packed) return packed;
+      const legacy = current.pack;
+      return legacy && legacy.prNumber === prNumber && legacy.headSha === headSha ? legacy : null;
+    },
+    savePackFor: async (prNumber, headSha, pack) => {
+      const current = await store.get(id);
+      if (!current) throw new Error("会话不存在");
+      const packs = { ...(current.packs ?? {}), [keyOf(prNumber, headSha)]: pack };
+      const keys = Object.keys(packs);
+      while (keys.length > 2) {
+        const oldest = keys.shift();
+        if (oldest !== undefined) delete packs[oldest];
+      }
+      current.packs = packs;
+      if (prNumber === current.meta.prNumber) current.pack = pack;
       current.meta.updatedAt = now();
       await store.put(current);
-    },
-    saveDraft: async (draft) => {
-      const current = await store.get(id);
-      if (!current) throw new Error("会话不存在");
-      const next: ReviewDraft = { ...draft, updatedAt: now() };
-      current.draft = next;
-      current.meta.hasDraft = true;
-      current.meta.updatedAt = next.updatedAt;
-      await store.put(current);
-      hub.emit(id, { type: "draft", draft: next });
-      return next;
     },
   };
 }
@@ -210,6 +253,9 @@ export const agent = {
     if (!model) throw httpError("未配置默认 LLM 模型（config/llm.json 的 agent 字段）", 503);
     const id = crypto.randomUUID();
     const createdAt = now();
+    const writeScope: WriteScope =
+      request.writeScope === "bound" && request.prNumber === undefined ? "off" : (request.writeScope ?? "off");
+    const evalScope: EvalScope = request.evalScope ?? "off";
     const meta: SessionMeta = {
       id,
       title: titleFor(review, request.prNumber, message),
@@ -220,7 +266,8 @@ export const agent = {
       createdBy: request.createdBy,
       source: request.source,
       model,
-      hasDraft: false,
+      writeScope,
+      evalScope,
       review,
       ...(request.prNumber !== undefined ? { prNumber: request.prNumber } : {}),
       ...(baseSha ? { baseSha } : {}),
@@ -278,8 +325,10 @@ export const agent = {
     const errors = validateDraft(draft, await draftContext(draft.prNumber));
     if (errors.length > 0) throw httpError(errors.join("；"), 400);
     const next: ReviewDraft = { ...draft, updatedAt: now() };
-    record.draft = next;
-    record.meta.hasDraft = true;
+    record.local = {
+      ...(record.local ?? {}),
+      [DRAFT_FILE]: { content: serializeDraftFile(next), updatedAt: next.updatedAt },
+    };
     record.meta.updatedAt = next.updatedAt;
     await store.put(record);
     hub.emit(id, { type: "draft", draft: next });
@@ -289,8 +338,8 @@ export const agent = {
   async publish(id: string, by: string): Promise<{ url: string }> {
     const record = await store.get(id);
     if (!record) throw httpError("会话不存在", 404);
-    const draft = record.draft;
-    if (!draft) throw httpError("没有可发布的审查草稿", 400);
+    const draft = parseDraftFile(record.local?.[DRAFT_FILE]?.content);
+    if (draft === null) throw httpError("没有可发布的审查草稿", 400);
     if (record.meta.stale) throw httpError("PR 已有新的提交，草稿已过期，请重新审查后再发布", 409);
     if (record.meta.prNumber !== undefined && record.meta.prNumber !== draft.prNumber) {
       throw httpError("草稿的 PR 与当前会话绑定的 PR 不一致", 409);
@@ -298,12 +347,31 @@ export const agent = {
     const { url } = await publishDraft(draft);
     const publishedAt = now();
     const published: ReviewDraft = { ...draft, publishedAt, publishedUrl: url };
-    record.draft = published;
+    record.local = {
+      ...(record.local ?? {}),
+      [DRAFT_FILE]: { content: serializeDraftFile(published), updatedAt: publishedAt },
+    };
     record.meta.updatedAt = publishedAt;
     await store.put(record);
     hub.emit(id, { type: "draft", draft: published });
     log.info("审查已发布", { sessionId: id, prNumber: draft.prNumber, by, url });
     return { url };
+  },
+
+  async setWriteScope(id: string, writeScope: WriteScope): Promise<void> {
+    const record = await store.get(id);
+    if (!record) throw httpError("会话不存在", 404);
+    record.meta.writeScope = writeScope;
+    record.meta.updatedAt = now();
+    await store.put(record);
+  },
+
+  async setEvalScope(id: string, evalScope: EvalScope): Promise<void> {
+    const record = await store.get(id);
+    if (!record) throw httpError("会话不存在", 404);
+    record.meta.evalScope = evalScope;
+    record.meta.updatedAt = now();
+    await store.put(record);
   },
 
   async markStale(prNumber: number, headSha: string): Promise<void> {

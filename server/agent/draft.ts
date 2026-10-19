@@ -1,6 +1,68 @@
+import { z } from "zod";
 import type { DraftComment, ReviewDraft, Severity, Verdict } from "../../shared/api.ts";
 import { inHunks, patchHunks } from "../domain/diff.ts";
 import type { MqmLabel } from "./mqm.ts";
+
+export const draftInputSchema = z.object({
+  prNumber: z.number().int().positive(),
+  headSha: z.string().min(1).optional(),
+  verdict: z.enum(["approve", "changes", "reject"]),
+  summary: z.string(),
+  comments: z.array(
+    z.object({
+      id: z.string().min(1),
+      path: z.string().min(1),
+      line: z.number().int().positive(),
+      key: z.string(),
+      severity: z.enum(["critical", "major", "minor", "neutral"]),
+      mqm: z.string(),
+      en: z.string().optional(),
+      zh: z.string().optional(),
+      body: z.string(),
+      suggestion: z.string().optional(),
+      covers: z.array(z.string()).optional(),
+      suspected: z.boolean().optional(),
+    }),
+  ),
+  event: z.enum(["COMMENT", "APPROVE", "REQUEST_CHANGES"]).optional(),
+});
+
+export const DRAFT_FILE = "draft.json";
+
+export const reviewDraftSchema = draftInputSchema.omit({ event: true }).extend({
+  headSha: z.string().min(1),
+  updatedAt: z.string(),
+  publishedAt: z.string().optional(),
+  publishedUrl: z.string().optional(),
+});
+
+export function parseDraftFile(content: string | undefined): ReviewDraft | null {
+  if (content === undefined) return null;
+  try {
+    const raw = JSON.parse(content) as unknown;
+    if (raw === null || typeof raw !== "object") return null;
+    const record = raw as Record<string, unknown>;
+    const normalized = {
+      ...record,
+      updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : new Date().toISOString(),
+      comments: Array.isArray(record.comments)
+        ? record.comments.map((comment, index) =>
+            comment !== null && typeof comment === "object"
+              ? { id: `c${index + 1}`, ...(comment as Record<string, unknown>) }
+              : comment,
+          )
+        : record.comments,
+    };
+    const parsed = reviewDraftSchema.safeParse(normalized);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+export function serializeDraftFile(draft: ReviewDraft): string {
+  return JSON.stringify(draft);
+}
 
 export interface DraftContext {
   mqmIds: Set<string>;

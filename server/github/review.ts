@@ -1,4 +1,9 @@
 import { repo } from "../env.ts";
+import { inHunks } from "../domain/diff.ts";
+import { HttpError } from "../http/errors.ts";
+import { prdata } from "../prdata.ts";
+import { commentableHunks } from "../review.ts";
+import { gh } from "./client.ts";
 import type { GhOctokit } from "./client.ts";
 import type {
   FileViewedState,
@@ -401,6 +406,37 @@ export async function addReviewThread(
   });
   const thread = data.addPullRequestReviewThread.thread;
   return mapThread(thread, thread.comments.nodes, viewer);
+}
+
+const NOT_IN_DIFF = "这一行不在 PR 的改动范围内，GitHub 不允许在这里评论";
+
+export async function createReviewComment(
+  octokit: GhOctokit,
+  n: number,
+  input: { path: string; line: number; body: string },
+): Promise<ReviewThread | null> {
+  const { pull, files } = await prdata.files(n);
+  const file = files.find((entry) => entry.path === input.path);
+  if (file === undefined || file.status === "removed") throw new HttpError(422, NOT_IN_DIFF, "not_in_diff");
+  const headText =
+    file.patch === undefined && file.status === "added" ? await gh.getFile(input.path, pull.headSha) : null;
+  if (!inHunks(input.line, commentableHunks(file, headText))) {
+    throw new HttpError(422, NOT_IN_DIFF, "not_in_diff");
+  }
+
+  const meta = await reviewMeta(octokit, n);
+  if (meta === null) return null;
+  let reviewId = meta.pendingReviewId;
+  if (reviewId === null) {
+    try {
+      reviewId = await createPendingReview(octokit, meta.pullRequestId, meta.headSha);
+    } catch (err) {
+      const retry = await reviewMeta(octokit, n);
+      reviewId = retry?.pendingReviewId ?? null;
+      if (reviewId === null) throw err;
+    }
+  }
+  return addReviewThread(octokit, { reviewId, path: input.path, line: input.line, body: input.body }, meta.viewer);
 }
 
 export async function deleteReviewComment(octokit: GhOctokit, commentId: string): Promise<void> {

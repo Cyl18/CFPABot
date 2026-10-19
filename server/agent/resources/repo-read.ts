@@ -1,0 +1,343 @@
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import { getCheckReport } from "../../bot/index.ts";
+import { glossaryTerms } from "../../domain/glossary.ts";
+import { env, repo } from "../../env.ts";
+import { serverGraphql, gh } from "../../github/client.ts";
+import { anonymousReviewState } from "../../github/review.ts";
+import { mirror } from "../../mirror.ts";
+import { prdata } from "../../prdata.ts";
+import { crossVersionKeys } from "../../views/cross-version.ts";
+import { sidePaths } from "../../views/files.ts";
+import { prDetail } from "../../views/pr.ts";
+import { compareWorkspace } from "../../views/workspace.ts";
+import { specialPairContent, specialPairs } from "../../views/special.ts";
+import type { ToolContext } from "../context.ts";
+import { buildPack, findingHistogram, selectRows, workspaceKey } from "../pack.ts";
+import { jsonResult, pageOf } from "../tools/shared.ts";
+import { linesResult, missingResource } from "./format.ts";
+import { uriSegments, type RepoUri } from "./uri.ts";
+
+const BODY_LIMIT = 2000;
+const TOP_CHILDREN = [
+  "meta",
+  "pulls",
+  "issues",
+  "search",
+  "files",
+  "mods",
+  "versions",
+  "pr",
+] as const;
+const PR_CHILDREN = [
+  "files",
+  "discussion",
+  "threads",
+  "checks",
+  "workspaces",
+  "compare",
+  "special",
+  "meta",
+  "review",
+] as const;
+
+function trimBody(body: string): string {
+  const trimmed = body.trim();
+  return trimmed.length > BODY_LIMIT ? `${trimmed.slice(0, BODY_LIMIT)}…[已截断]` : trimmed;
+}
+
+function isMainBot(author: string, body: string): boolean {
+  return body.startsWith("<!--CYBOT-->") && (author === env.BOT_LOGIN || author === "Cyl18-Bot");
+}
+
+function readPrNumber(seg: string[]): number {
+  const n = Number(seg[1]);
+  if (!Number.isInteger(n) || n <= 0) throw new Error("PR 编号无效。");
+  return n;
+}
+
+async function readPr(uri: RepoUri, seg: string[], ctx: ToolContext): Promise<AgentToolResult<Record<string, unknown>>> {
+  const n = readPrNumber(seg);
+  const sub = seg[2];
+  if (sub === undefined) return jsonResult(await prDetail(n));
+
+  if (sub === "files") {
+    if (seg.length === 3) {
+      const { files } = await prdata.files(n);
+      return jsonResult({
+        prNumber: n,
+        files: files.map((file) => ({
+          path: file.path,
+          status: file.status,
+          additions: file.additions,
+          deletions: file.deletions,
+          ...(file.previousPath === undefined ? {} : { previousPath: file.previousPath }),
+        })),
+      });
+    }
+    const requested = seg.slice(3).join("/");
+    const { pull, files } = await prdata.files(n);
+    const file = files.find((entry) => entry.path === requested || entry.previousPath === requested);
+    if (file === undefined) throw new Error(`PR #${n} 没有变更文件：${requested}`);
+    const side = uri.query.get("side") === "base" ? "base" : "head";
+    const sidePath = sidePaths(file)[side];
+    if (sidePath === null) throw new Error(`该文件在 ${side} 侧不存在。`);
+    const text = await gh.getFile(sidePath, side === "base" ? pull.baseSha : pull.headSha);
+    if (text === null) throw new Error(`文件不存在：${sidePath}`);
+    return jsonResult({ ...linesResult(sidePath, side, text, uri.selector), requestedPath: requested });
+  }
+
+  if (sub === "discussion") {
+    const [comments, reviews] = await Promise.all([gh.listComments(n), gh.listReviewComments(n)]);
+    return jsonResult({
+      issueComments: comments
+        .filter((comment) => !isMainBot(comment.author, comment.body))
+        .filter((comment) => !comment.isBot || comment.body.includes("<!--CFPA-AGENT:"))
+        .map((comment) => ({
+          author: comment.author,
+          body: trimBody(comment.body),
+          at: comment.createdAt,
+          isAgent: comment.body.includes("<!--CFPA-AGENT:"),
+        })),
+      reviewComments: reviews
+        .filter((comment) => !isMainBot(comment.author, comment.body))
+        .filter((comment) => !comment.author.endsWith("[bot]") || comment.body.includes("<!--CFPA-AGENT:"))
+        .map((comment) => ({
+          author: comment.author,
+          path: comment.path,
+          line: comment.line,
+          body: trimBody(comment.body),
+          at: comment.createdAt,
+          isAgent: comment.body.includes("<!--CFPA-AGENT:"),
+        })),
+    });
+  }
+
+  if (sub === "threads") {
+    const state = await anonymousReviewState(serverGraphql, n);
+    if (state === null) throw new Error("会话不存在或 PR 无法读取。");
+    return jsonResult({ headSha: state.headSha, pendingReviewId: state.pendingReviewId, threads: state.threads });
+  }
+
+  if (sub === "checks") return jsonResult(await getCheckReport(n));
+
+  if (sub === "workspaces") return jsonResult((await prDetail(n)).workspaces);
+
+  if (sub === "compare") {
+    const slug = uri.query.get("slug");
+    const version = uri.query.get("version");
+    const namespace = uri.query.get("namespace");
+    if (!slug || !version || !namespace) {
+      throw new Error("repo://pr/<n>/compare 需要 ?slug=&version=&namespace=");
+    }
+    const result = await compareWorkspace(n, { slug, version, namespace });
+    const page = pageOf(Number(uri.query.get("offset") ?? 0), Number(uri.query.get("limit") ?? 100), 200, 100);
+    return jsonResult({
+      ...result,
+      rows: result.rows.slice(page.offset, page.offset + page.limit),
+      total: result.rows.length,
+      offset: page.offset,
+      limit: page.limit,
+    });
+  }
+
+  if (sub === "special") {
+    if (seg[3] === "content") {
+      const key = uri.query.get("key");
+      if (!key) throw new Error("repo://pr/<n>/special/content 需要 ?key=");
+      const content = await specialPairContent(n, key);
+      if (content === null) throw new Error("特殊文件不存在。");
+      return jsonResult(content);
+    }
+    return jsonResult(await specialPairs(n));
+  }
+
+  if (sub === "meta") {
+    const detail = await prDetail(n);
+    const report = await getCheckReport(n);
+    const counts = { error: 0, warn: 0, info: 0, ok: 0 };
+    for (const item of report?.items ?? []) counts[item.level] += 1;
+    return jsonResult({
+      pr: {
+        number: detail.number,
+        title: detail.title,
+        author: detail.author,
+        state: detail.state,
+        draft: detail.draft,
+        labels: detail.labels,
+        baseSha: detail.baseSha,
+        headSha: detail.headSha,
+        baseRef: detail.baseRef,
+        headRef: detail.headRef,
+        htmlUrl: detail.htmlUrl,
+      },
+      workspaces: detail.workspaces,
+      specialFiles: detail.specialFiles,
+      related: detail.related,
+      checks:
+        report === null
+          ? null
+          : {
+              counts,
+              top: report.items.filter((item) => item.level !== "ok").slice(0, 10),
+              modFiles: report.modFiles,
+            },
+      warnings: report?.items.filter((item) => item.level !== "ok").slice(0, 20) ?? [],
+    });
+  }
+
+  if (sub === "review") {
+    if (seg[3] === "rows") {
+      const rebuild = uri.query.get("rebuild") === "1";
+      const { pull, files } = await prdata.files(n);
+      let pack = rebuild ? null : await ctx.packFor(n, pull.headSha);
+      if (pack === null) {
+        pack = await buildPack({
+          prNumber: n,
+          baseSha: pull.baseSha,
+          headSha: pull.headSha,
+          files,
+          read: (path, ref) => gh.getFile(path, ref === "base" ? pull.baseSha : pull.headSha),
+          terms: await glossaryTerms(),
+        });
+        await ctx.savePackFor(n, pull.headSha, pack);
+      }
+      const filter = uri.query.get("filter") ?? "changed";
+      if (filter !== "changed" && filter !== "flagged" && filter !== "all") {
+        throw new Error("filter 只能是 changed/flagged/all。");
+      }
+      const selected = selectRows(pack, {
+        workspace: uri.query.get("workspace") ?? undefined,
+        filter,
+        query: uri.query.get("query") ?? undefined,
+      });
+      const page = pageOf(Number(uri.query.get("offset") ?? 0), Number(uri.query.get("limit") ?? 60), 200, 60);
+      return jsonResult({
+        total: selected.length,
+        offset: page.offset,
+        limit: page.limit,
+        rows: selected.slice(page.offset, page.offset + page.limit).map(({ workspace, row }) => ({
+          workspace: workspaceKey(workspace),
+          key: row.key,
+          baseEn: row.baseEn,
+          headEn: row.headEn,
+          baseZh: row.baseZh,
+          headZh: row.headZh,
+          line: row.line,
+          inHunk: row.inHunk,
+          changed: row.changed,
+          findings: row.findings,
+        })),
+      });
+    }
+    const { pull } = await prdata.files(n);
+    const pack = await ctx.packFor(n, pull.headSha);
+    if (pack === null) {
+      return jsonResult({ built: false, headSha: pull.headSha, hint: "read repo://pr/<n>/review/rows to build" });
+    }
+    return jsonResult({
+      built: true,
+      stale: pack.headSha !== pull.headSha,
+      packHeadSha: pack.headSha,
+      headSha: pull.headSha,
+      counts: pack.counts,
+      workspaces: pack.workspaces.map((workspace) => ({
+        workspace: workspaceKey(workspace),
+        format: workspace.format,
+        enPath: workspace.enPath,
+        zhPath: workspace.zhPath,
+        counts: workspace.counts,
+        histogram: findingHistogram(workspace),
+        duplicates: workspace.duplicates,
+        fileFindings: workspace.fileFindings,
+      })),
+    });
+  }
+
+  return missingResource(`repo://pr/${n}/${seg.slice(2).join("/")}`, PR_CHILDREN);
+}
+
+export async function readRepo(uri: RepoUri, ctx: ToolContext): Promise<AgentToolResult<Record<string, unknown>>> {
+  const seg = uriSegments(uri);
+  const head = seg[0];
+  if (head === undefined) return missingResource("repo://", TOP_CHILDREN);
+
+  if (head === "meta") {
+    return jsonResult({ owner: repo.owner, name: repo.name, fullName: repo.fullName, defaultBranch: repo.defaultBranch });
+  }
+
+  if (head === "pulls") {
+    const state = uri.query.get("state") ?? "open";
+    if (state !== "open" && state !== "closed" && state !== "merged" && state !== "all") {
+      throw new Error("state 只能是 open/closed/merged/all。");
+    }
+    return jsonResult(await prdata.list(state));
+  }
+
+  if (head === "issues") {
+    const n = Number(seg[1]);
+    if (!Number.isInteger(n) || n <= 0) throw new Error("issue 编号无效。");
+    if (seg.length === 2) return jsonResult(await gh.getIssue(n));
+    if (seg.length === 3 && seg[2] === "comments") {
+      const comments = await gh.listComments(n);
+      return jsonResult(
+        comments
+          .filter((comment) => !isMainBot(comment.author, comment.body))
+          .filter((comment) => !comment.isBot || comment.body.includes("<!--CFPA-AGENT:"))
+          .map((comment) => ({
+            author: comment.author,
+            body: trimBody(comment.body),
+            at: comment.createdAt,
+            isAgent: comment.body.includes("<!--CFPA-AGENT:"),
+          })),
+      );
+    }
+    return missingResource(`repo://issues/${n}`, ["<issue>", "comments"]);
+  }
+
+  if (head === "search") {
+    const q = uri.query.get("q");
+    if (!q) throw new Error("repo://search 需要 ?q=");
+    const type = uri.query.get("type") === "pr" ? "pr" : "issue";
+    return jsonResult(await gh.search(q, type));
+  }
+
+  if (head === "files") {
+    const path = seg.slice(1).join("/");
+    if (!path) throw new Error("repo://files 需要文件路径。");
+    const ref = uri.query.get("ref");
+    if (!ref) throw new Error("repo://files 需要显式 ?ref=<sha>。");
+    const text = await gh.getFile(path, ref);
+    if (text === null) throw new Error(`文件不存在：${path} @ ${ref}`);
+    return jsonResult(linesResult(path, ref, text, uri.selector));
+  }
+
+  if (head === "mods") {
+    const list = await mirror.modList();
+    const q = uri.query.get("q")?.trim().toLowerCase();
+    if (!q) return jsonResult(list);
+    return jsonResult({
+      ...list,
+      mods: list.mods.filter((mod) => mod.slug.toLowerCase().includes(q) || (mod.name ?? "").toLowerCase().includes(q)),
+    });
+  }
+
+  if (head === "versions") {
+    const slug = seg[1];
+    if (!slug || seg[2] !== "keys") throw new Error("repo://versions/<slug>/keys 需要 slug。");
+    const prRaw = uri.query.get("pr");
+    const pr = prRaw === null || prRaw.trim() === "" ? undefined : Number(prRaw);
+    if (pr !== undefined && (!Number.isInteger(pr) || pr <= 0)) throw new Error("pr 参数无效。");
+    const versions = uri.query.get("versions")?.split(",").filter(Boolean);
+    return jsonResult(
+      await crossVersionKeys(slug, {
+        namespace: uri.query.get("namespace") ?? undefined,
+        ...(pr === undefined ? {} : { pr }),
+        ...(versions === undefined || versions.length === 0 ? {} : { versions }),
+      }),
+    );
+  }
+
+  if (head === "pr") return readPr(uri, seg, ctx);
+
+  return missingResource(`repo://${uri.path}`, TOP_CHILDREN);
+}

@@ -36,7 +36,7 @@ export function DraftPanel({ draft, stale, saving, publishing, error, onChange, 
       <Card>
         <CardHeader title="审查草稿" />
         <CardBody>
-          <EmptyState compact title="还没有草稿" description="让 Agent 运行 review_load 与 multi_review 后即可生成草稿。" />
+          <EmptyState compact title="还没有草稿" description="让 Agent 写 local://draft.json 后即可生成草稿。" />
         </CardBody>
       </Card>
     );
