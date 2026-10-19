@@ -17,7 +17,6 @@
 | `write` | `repo://` 直接写 GitHub；`local://` 写本会话短名文件 |
 | `edit` | 编辑机器人自己的评论正文，或 `local://` 文件文本 |
 | `eval` | 在一次性沙箱容器里执行 Python / JavaScript / Bash，用于编排 QA 规则和数据处理；默认关闭 |
-| `review_thread_resolve` | 标记 review thread 已解决/重新打开 |
 | `glossary` | 查原版术语与外部词典（临时工具，MCP 接入后移除） |
 
 ## 资源 URI
@@ -63,11 +62,14 @@ local://
 ```
 repo://pr/<n>/comments
 repo://pr/<n>/files/<path>/comments?line=<head 行号>
+repo://pr/<n>/threads/<id>
 repo://pr/<n>/threads/<id>/replies
 repo://pr/<n>/review
 repo://pr/<n>/review/submit
 local://<短名>
 ```
+
+`repo://pr/<n>/threads/<id>` 的 body 是 `{"resolved":true|false}`，用于标记线程已解决或重新打开。
 
 可编辑资源：
 

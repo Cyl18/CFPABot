@@ -4,7 +4,6 @@ import { editTool } from "./edit.ts";
 import { evalTool } from "./eval.ts";
 import { glossaryTool } from "./glossary.ts";
 import { readTool } from "./read.ts";
-import { reviewThreadResolveTool } from "./review-thread.ts";
 import { writeTool } from "./write.ts";
 
 export function buildTools(ctx: ToolContext): AgentTool[] {
@@ -13,7 +12,6 @@ export function buildTools(ctx: ToolContext): AgentTool[] {
     writeTool(ctx),
     editTool(ctx),
     evalTool(ctx),
-    reviewThreadResolveTool(ctx),
     glossaryTool(),
   ];
 }

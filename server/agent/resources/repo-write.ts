@@ -8,6 +8,7 @@ import {
   createSubmittedReview,
   replyToReviewThread,
   reviewMeta,
+  setThreadResolved,
   submitPendingReview,
 } from "../../github/review.ts";
 import type { ToolContext } from "../context.ts";
@@ -16,6 +17,7 @@ import { assertCanWrite } from "../policy.ts";
 import { publishDraft } from "../publish.ts";
 import { jsonResult } from "../tools/shared.ts";
 import { replaceOnce } from "./replace.ts";
+import { parseThreadState } from "./thread-state.ts";
 import { uriSegments, type RepoUri } from "./uri.ts";
 
 const AGENT_MARKER_PREFIX = "<!--CFPA-AGENT:";
@@ -100,6 +102,13 @@ export async function writeRepo(
     return jsonResult({ ok: true, thread });
   }
 
+  if (seg.length === 4 && seg[2] === "threads") {
+    const threadId = seg[3] ?? "";
+    const resolved = parseThreadState(content);
+    await setThreadResolved(serverGraphql, threadId, resolved);
+    return jsonResult({ ok: true, threadId, resolved });
+  }
+
   if (seg.length === 5 && seg[2] === "threads" && seg[4] === "replies") {
     const comment = await replyToReviewThread(
       serverGraphql,
@@ -148,7 +157,7 @@ export async function writeRepo(
   }
 
   throw new Error(
-    `write 不支持的资源：repo://${uri.path}。可写：comments、files/<path>/comments、threads/<id>/replies、review、review/submit。`,
+    `write 不支持的资源：repo://${uri.path}。可写：comments、files/<path>/comments、threads/<id>、threads/<id>/replies、review、review/submit。`,
   );
 }
 
