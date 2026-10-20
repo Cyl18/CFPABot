@@ -1,6 +1,5 @@
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import { getCheckReport } from "../../bot/index.ts";
-import { glossaryTerms } from "../../domain/glossary.ts";
 import { env } from "../../env.ts";
 import { gh, serverGraphql } from "../../github/client.ts";
 import { anonymousReviewState } from "../../github/review.ts";
@@ -9,8 +8,7 @@ import { sidePaths } from "../../views/files.ts";
 import { prDetail } from "../../views/pr.ts";
 import { specialPairContent, specialPairs } from "../../views/special.ts";
 import { compareWorkspace } from "../../views/workspace.ts";
-import type { ToolContext } from "../context.ts";
-import { buildPack, findingHistogram, selectRows, workspaceKey } from "../pack.ts";
+import { loadPack, packSummary, peekPack, selectRows, workspaceKey } from "../pack.ts";
 import { jsonResult, pageOf } from "../result.ts";
 import { linesResult, missingResource } from "./format.ts";
 import type { PrUri } from "./uri.ts";
@@ -49,7 +47,7 @@ function visibleReviewComment(comment: { author: string; body: string }): boolea
   return !isMainBot(comment.author, comment.body) && (!comment.author.endsWith("[bot]") || isAgentBody(comment.body));
 }
 
-export async function readPr(uri: PrUri, ctx: ToolContext): Promise<AgentToolResult<Record<string, unknown>>> {
+export async function readPr(uri: PrUri): Promise<AgentToolResult<Record<string, unknown>>> {
   const n = uri.number;
   const seg = uri.path.split("/").filter(Boolean);
   const sub = seg[0];
@@ -181,19 +179,7 @@ export async function readPr(uri: PrUri, ctx: ToolContext): Promise<AgentToolRes
   if (sub === "review") {
     if (seg[1] === "rows") {
       const rebuild = uri.query.get("rebuild") === "1";
-      const { pull, files } = await prdata.files(n);
-      let pack = rebuild ? null : await ctx.packFor(n, pull.headSha);
-      if (pack === null) {
-        pack = await buildPack({
-          prNumber: n,
-          baseSha: pull.baseSha,
-          headSha: pull.headSha,
-          files,
-          read: (path, ref) => gh.getFile(path, ref === "base" ? pull.baseSha : pull.headSha),
-          terms: await glossaryTerms(),
-        });
-        await ctx.savePackFor(n, pull.headSha, pack);
-      }
+      const pack = await loadPack(n, rebuild);
       const filter = uri.query.get("filter") ?? "changed";
       if (filter !== "changed" && filter !== "flagged" && filter !== "all") {
         throw new Error("filter 只能是 changed/flagged/all。");
@@ -223,27 +209,11 @@ export async function readPr(uri: PrUri, ctx: ToolContext): Promise<AgentToolRes
       });
     }
     const { pull } = await prdata.files(n);
-    const pack = await ctx.packFor(n, pull.headSha);
+    const pack = peekPack(n, pull.headSha);
     if (pack === null) {
       return jsonResult({ built: false, headSha: pull.headSha, hint: "read pr://<n>/review/rows to build" });
     }
-    return jsonResult({
-      built: true,
-      stale: pack.headSha !== pull.headSha,
-      packHeadSha: pack.headSha,
-      headSha: pull.headSha,
-      counts: pack.counts,
-      workspaces: pack.workspaces.map((workspace) => ({
-        workspace: workspaceKey(workspace),
-        format: workspace.format,
-        enPath: workspace.enPath,
-        zhPath: workspace.zhPath,
-        counts: workspace.counts,
-        histogram: findingHistogram(workspace),
-        duplicates: workspace.duplicates,
-        files: workspace.fileFindings,
-      })),
-    });
+    return jsonResult({ built: true, ...packSummary(pack) });
   }
 
   return missingResource(`pr://${n}/${seg.join("/")}`, PR_CHILDREN);

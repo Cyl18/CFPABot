@@ -23,7 +23,7 @@ export async function readResource(
     case "gh":
       return readGh(parsed);
     case "pr":
-      return readPr(parsed, ctx);
+      return readPr(parsed);
     case "local":
       return readLocal(parsed, ctx);
   }

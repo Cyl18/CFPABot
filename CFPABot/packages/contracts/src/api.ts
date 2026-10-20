@@ -103,6 +103,32 @@ export interface CheckReport {
   modFiles: ModFileCheck[];
 }
 
+export interface PackFinding {
+  source: "program" | "term" | "qa";
+  code: string;
+  severity: Severity;
+  detail: string;
+}
+
+export interface PackWorkspaceSummary {
+  workspace: string;
+  format: "json" | "lang";
+  enPath: string | null;
+  zhPath: string | null;
+  counts: { total: number; changed: number; flagged: number };
+  histogram: Record<string, number>;
+  duplicates: { zh: string; keys: string[] }[];
+  files: { path: string; findings: PackFinding[] }[];
+}
+
+export interface PackSummary {
+  prNumber: number;
+  headSha: string;
+  generatedAt: string;
+  counts: { workspaces: number; rows: number; changed: number; flagged: number };
+  workspaces: PackWorkspaceSummary[];
+}
+
 export type RowStatus = "add" | "remove" | "modify" | "same";
 
 export interface CompareRow {

@@ -13,6 +13,7 @@ import { prdata } from "../prdata.ts";
 import { getCheckReport, isRefreshing, refreshInfoComment } from "../bot/index.ts";
 import { track } from "../bot/pending.ts";
 import { llm } from "../agent/index.ts";
+import { loadPack, packSummary } from "../agent/pack.ts";
 import { prDetail } from "../views/pr.ts";
 import { compareWorkspace } from "../views/workspace.ts";
 import { specialPairContent, specialPairs } from "../views/special.ts";
@@ -52,6 +53,7 @@ const textCompareSchema = z.object({
   right: z.object({ name: z.string().min(1), content: z.string().max(5_000_000) }),
 });
 const modsQuery = z.object({ q: z.string().optional() });
+const packQuery = z.object({ rebuild: z.enum(["1"]).optional() });
 
 export function prNumber(c: AppContext): number {
   const raw = c.req.param("n");
@@ -113,6 +115,13 @@ prRoutes.get("/prs", async (c) => {
 prRoutes.get("/prs/:n", async (c) => c.json(await withPull(() => prDetail(prNumber(c)))));
 
 prRoutes.get("/prs/:n/checks", async (c) => c.json(await withPull(() => getCheckReport(prNumber(c)))));
+
+prRoutes.get("/prs/:n/pack", async (c) => {
+  await requireAdmin(c);
+  const { rebuild } = parseQuery(c, packQuery);
+  const n = prNumber(c);
+  return c.json(await withPull(async () => packSummary(await loadPack(n, rebuild === "1"))));
+});
 
 prRoutes.post("/prs/:n/refresh", async (c) => {
   await requireAdmin(c);

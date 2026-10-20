@@ -71,7 +71,6 @@ function detailOf(record: SessionRecord): SessionDetail {
 
 function toolContext(record: SessionRecord): ToolContext {
   const id = record.meta.id;
-  const keyOf = (prNumber: number, headSha: string): string => `${prNumber}@${headSha}`;
   return {
     sessionId: id,
     prNumber: record.meta.prNumber ?? null,
@@ -92,24 +91,6 @@ function toolContext(record: SessionRecord): ToolContext {
       return entry;
     },
     listLocal: async () => listLocal(id),
-    packFor: async (prNumber, headSha) => {
-      const current = await store.get(id);
-      if (!current) return null;
-      return current.packs?.[keyOf(prNumber, headSha)] ?? null;
-    },
-    savePackFor: async (prNumber, headSha, pack) => {
-      const current = await store.get(id);
-      if (!current) throw new Error("会话不存在");
-      const packs = { ...(current.packs ?? {}), [keyOf(prNumber, headSha)]: pack };
-      const keys = Object.keys(packs);
-      while (keys.length > 2) {
-        const oldest = keys.shift();
-        if (oldest !== undefined) delete packs[oldest];
-      }
-      current.packs = packs;
-      current.meta.updatedAt = now();
-      await store.put(current);
-    },
   };
 }
 

@@ -29,8 +29,6 @@ function baseCtx(overrides: Partial<ToolContext> = {}): ToolContext {
         size: Buffer.byteLength(entry.content, "utf8"),
         updatedAt: entry.updatedAt,
       })),
-    packFor: async () => null,
-    savePackFor: async () => {},
     ...overrides,
   };
 }

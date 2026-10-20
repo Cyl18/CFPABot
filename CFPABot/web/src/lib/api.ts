@@ -12,6 +12,7 @@ import type {
   MappingEntry,
   Me,
   ModList,
+  PackSummary,
   PrDetail,
   PrReviewState,
   PrState,
@@ -139,6 +140,7 @@ export const api = {
   prs: (state: PrState | "all", signal?: AbortSignal) => get<PrSummary[]>(`/api/prs${query({ state })}`, signal),
   pr: (n: number, signal?: AbortSignal) => get<PrDetail>(`/api/prs/${n}`, signal),
   checks: (n: number, signal?: AbortSignal) => get<CheckReport | null>(`/api/prs/${n}/checks`, signal),
+  pack: (n: number, signal?: AbortSignal) => get<PackSummary>(`/api/prs/${n}/pack`, signal),
   refreshPr: (n: number) => send<{ ok: true }>("POST", `/api/prs/${n}/refresh`),
   refreshStatus: (n: number, signal?: AbortSignal) => get<{ running: boolean }>(`/api/prs/${n}/refresh/status`, signal),
   compare: (n: number, key: CompareKey, signal?: AbortSignal) =>

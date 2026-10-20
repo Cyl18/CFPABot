@@ -6,7 +6,6 @@ import type { EvalScope, SessionStatus, SessionSummary, WriteScope } from "../..
 import { paths } from "../paths.ts";
 import { readJson, withLock, writeJson } from "../store.ts";
 import { DRAFT_FILE } from "./draft.ts";
-import type { Pack } from "./pack.ts";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 
@@ -32,7 +31,6 @@ export interface SessionMeta {
 export interface SessionRecord {
   meta: SessionMeta;
   sessionFile?: string;
-  packs?: Record<string, Pack>;
 }
 
 const metaSchema = z.object({
@@ -57,25 +55,11 @@ const metaSchema = z.object({
 const recordSchema = z.object({
   meta: metaSchema,
   sessionFile: z.string().optional(),
-  packs: z.record(z.string(), z.unknown()).optional(),
 });
-
-function isPack(value: unknown): value is Pack {
-  if (!value || typeof value !== "object") return false;
-  if (!("prNumber" in value) || typeof value.prNumber !== "number") return false;
-  if (!("headSha" in value) || typeof value.headSha !== "string") return false;
-  return "workspaces" in value && Array.isArray(value.workspaces);
-}
 
 function toRecord(parsed: z.infer<typeof recordSchema>): SessionRecord {
   const record: SessionRecord = { meta: parsed.meta };
   if (parsed.sessionFile) record.sessionFile = parsed.sessionFile;
-  if (parsed.packs) {
-    record.packs = {};
-    for (const [key, value] of Object.entries(parsed.packs)) {
-      if (isPack(value)) record.packs[key] = value;
-    }
-  }
   return record;
 }
 

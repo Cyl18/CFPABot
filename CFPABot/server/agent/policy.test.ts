@@ -14,8 +14,6 @@ function ctxOf(writeScope: WriteScope, prNumber: number | null): ToolContext {
     local: async () => null,
     saveLocal: async () => ({ content: "", updatedAt: "" }),
     listLocal: async () => [],
-    packFor: async () => null,
-    savePackFor: async () => {},
   };
 }
 

@@ -1,5 +1,4 @@
 import type { EvalScope, WriteScope } from "../../shared/api.ts";
-import type { Pack } from "./pack.ts";
 
 export interface LocalEntry {
   content: string;
@@ -22,6 +21,4 @@ export interface ToolContext {
   local(name: string): Promise<LocalEntry | null>;
   saveLocal(name: string, content: string): Promise<LocalEntry>;
   listLocal(): Promise<LocalFileInfo[]>;
-  packFor(prNumber: number, headSha: string): Promise<Pack | null>;
-  savePackFor(prNumber: number, headSha: string, pack: Pack): Promise<void>;
 }

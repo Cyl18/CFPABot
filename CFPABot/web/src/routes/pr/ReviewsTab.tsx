@@ -2,11 +2,12 @@ import type { SessionSummary } from "@shared/api.ts";
 import { Link } from "@tanstack/react-router";
 import { Bot } from "lucide-react";
 import { formatRelative } from "@/lib/format.ts";
-import { useSessions } from "@/lib/queries.ts";
+import { usePack, useSessions } from "@/lib/queries.ts";
 import { RequireAdmin } from "@/components/RequireAdmin.tsx";
 import { SessionStatusBadge } from "@/components/StatusBadges.tsx";
 import { Badge } from "@/ui/Badge.tsx";
 import { buttonClass } from "@/ui/Button.tsx";
+import { Card, CardBody, CardHeader } from "@/ui/Card.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
 import { SkeletonTable } from "@/ui/Spinner.tsx";
@@ -15,8 +16,52 @@ import { DataTable, type Column } from "@/ui/Table.tsx";
 export function ReviewsTab({ n }: { n: number }) {
   return (
     <RequireAdmin>
-      <SessionsTable n={n} />
+      <div className="flex flex-col gap-4">
+        <PackCard n={n} />
+        <SessionsTable n={n} />
+      </div>
     </RequireAdmin>
+  );
+}
+
+function PackCard({ n }: { n: number }) {
+  const pack = usePack(n);
+  if (pack.error !== null) return <ErrorState error={pack.error} onRetry={() => void pack.refetch()} />;
+  if (pack.isPending) return <SkeletonTable rows={3} columns={3} />;
+  const data = pack.data;
+  return (
+    <Card>
+      <CardHeader
+        title="机械预审"
+        description={`head ${data.headSha.slice(0, 7)} · ${formatRelative(data.generatedAt)}生成 · ${data.counts.rows} 行`}
+        actions={<Badge tone={data.counts.flagged > 0 ? "warn" : "ok"}>{data.counts.flagged} 行有提示</Badge>}
+      />
+      <CardBody className="flex flex-col gap-3">
+        {data.workspaces.length === 0 ? (
+          <EmptyState compact title="没有可审查的语言文件" description="该 PR 的变更里没有 en_us / zh_cn 文件。" />
+        ) : (
+          data.workspaces.map((workspace) => (
+            <div key={workspace.workspace} className="flex flex-col gap-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <code className="font-mono text-xs text-fg">{workspace.workspace}</code>
+                <span className="text-xs text-muted tabular-nums">
+                  变更 {workspace.counts.changed} · 标记 {workspace.counts.flagged}
+                </span>
+              </div>
+              {Object.keys(workspace.histogram).length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(workspace.histogram).map(([code, count]) => (
+                    <Badge key={code}>
+                      {code} × {count}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </CardBody>
+    </Card>
   );
 }
 

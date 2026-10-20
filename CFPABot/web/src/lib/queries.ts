@@ -1,4 +1,4 @@
-import type { CheckReport, CompareResult, CrossVersionKeysResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, PrDetail, PrState, PrSummary, SessionDetail, SessionSummary, SpecialPair, SpecialPairContent, SystemStatus } from "@shared/api.ts";
+import type { CheckReport, CompareResult, CrossVersionKeysResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, PackSummary, PrDetail, PrState, PrSummary, SessionDetail, SessionSummary, SpecialPair, SpecialPairContent, SystemStatus } from "@shared/api.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { api, type CompareKey } from "@/lib/api.ts";
@@ -9,6 +9,7 @@ export const qk = {
   prs: (state: PrState | "all") => ["prs", state] as const,
   pr: (n: number) => ["pr", n] as const,
   checks: (n: number) => ["checks", n] as const,
+  pack: (n: number) => ["pack", n] as const,
   refreshStatus: (n: number) => ["refresh-status", n] as const,
   compare: (n: number, key: string) => ["compare", n, key] as const,
   special: (n: number) => ["special", n] as const,
@@ -34,15 +35,34 @@ export function useStatus(enabled = true) {
 }
 
 export function usePrs(state: PrState | "all") {
-  return useQuery<PrSummary[]>({ queryKey: qk.prs(state), queryFn: ({ signal }) => api.prs(state, signal) });
+  return useQuery<PrSummary[]>({ queryKey: qk.prs(state), queryFn: ({ signal }) => api.prs(state, signal), staleTime: 60_000 });
 }
 
 export function usePr(n: number) {
-  return useQuery<PrDetail>({ queryKey: qk.pr(n), queryFn: ({ signal }) => api.pr(n, signal), enabled: Number.isFinite(n) && n > 0 });
+  return useQuery<PrDetail>({
+    queryKey: qk.pr(n),
+    queryFn: ({ signal }) => api.pr(n, signal),
+    enabled: Number.isFinite(n) && n > 0,
+    staleTime: 60_000,
+  });
 }
 
 export function useChecks(n: number, enabled = true) {
-  return useQuery<CheckReport | null>({ queryKey: qk.checks(n), queryFn: ({ signal }) => api.checks(n, signal), enabled });
+  return useQuery<CheckReport | null>({
+    queryKey: qk.checks(n),
+    queryFn: ({ signal }) => api.checks(n, signal),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function usePack(n: number, enabled = true) {
+  return useQuery<PackSummary>({
+    queryKey: qk.pack(n),
+    queryFn: ({ signal }) => api.pack(n, signal),
+    enabled,
+    staleTime: 5 * 60_000,
+  });
 }
 
 export function useCompare(n: number, key: CompareKey | null) {

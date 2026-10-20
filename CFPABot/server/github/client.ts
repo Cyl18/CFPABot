@@ -5,6 +5,7 @@ import { retry } from "@octokit/plugin-retry";
 import { throttling, type ThrottlingOptions } from "@octokit/plugin-throttling";
 import { env, repo } from "../env.ts";
 import { logger } from "../log.ts";
+import { ttlCache } from "../ttl.ts";
 import { asRecord, httpStatus, mapComment, mapFile, mapPull, mapReviewComment, mapRun } from "./mappers.ts";
 import type { GhPull, GitHubClient } from "./types.ts";
 
@@ -78,6 +79,37 @@ export function userGraphql(token: string): GhOctokit {
 
 log.info("GitHub 客户端已初始化", { mode, repo: repo.fullName });
 
+const SHA_PATTERN = /^[0-9a-f]{40}$/;
+const fileCache = ttlCache<string>(6 * 60 * 60 * 1000, 200);
+
+async function fetchFileText(path: string, ref: string): Promise<string | null> {
+  let data: unknown;
+  try {
+    const r = await octokit.rest.repos.getContent({
+      owner: repo.owner,
+      repo: repo.name,
+      path: path.split("/").map((segment) => encodeURIComponent(segment)).join("/"),
+      ref,
+    });
+    data = r.data;
+  } catch (err) {
+    if (httpStatus(err) === 404) return null;
+    throw err;
+  }
+  const record = asRecord(data);
+  if (!record) return null;
+  if (typeof record.content === "string" && record.content.length > 0) {
+    const text = Buffer.from(record.content, "base64").toString("utf8");
+    return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  }
+  const downloadUrl = record.download_url;
+  if (typeof downloadUrl !== "string" || !downloadUrl) return null;
+  const res = await fetch(downloadUrl, { headers: { "user-agent": USER_AGENT } });
+  if (!res.ok) return null;
+  const text = await res.text();
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 export const gh: GitHubClient = {
   mode,
 
@@ -126,31 +158,13 @@ export const gh: GitHubClient = {
   },
 
   async getFile(path, ref) {
-    let data: unknown;
-    try {
-      const r = await octokit.rest.repos.getContent({
-        owner: repo.owner,
-        repo: repo.name,
-        path: path.split("/").map((segment) => encodeURIComponent(segment)).join("/"),
-        ref,
-      });
-      data = r.data;
-    } catch (err) {
-      if (httpStatus(err) === 404) return null;
-      throw err;
-    }
-    const record = asRecord(data);
-    if (!record) return null;
-    if (typeof record.content === "string" && record.content.length > 0) {
-      const text = Buffer.from(record.content, "base64").toString("utf8");
-      return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-    }
-    const downloadUrl = record.download_url;
-    if (typeof downloadUrl !== "string" || !downloadUrl) return null;
-    const res = await fetch(downloadUrl, { headers: { "user-agent": USER_AGENT } });
-    if (!res.ok) return null;
-    const text = await res.text();
-    return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+    const key = `${ref}\u0000${path}`;
+    const cached = fileCache.get(key);
+    if (cached !== undefined) return cached;
+    const text = await fetchFileText(path, ref);
+    // 分支名会移动，只有 SHA 指向的内容可以长期缓存。
+    if (text !== null && SHA_PATTERN.test(ref)) fileCache.set(key, text);
+    return text;
   },
 
   async getFiles(paths, ref) {
