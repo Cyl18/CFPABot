@@ -1,3 +1,5 @@
+import { chmod, mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 import { createAgentSession, SettingsManager, type AgentSession } from "@earendil-works/pi-coding-agent";
 import type {
   CreateSessionRequest,
@@ -15,13 +17,13 @@ import { type ToolContext } from "./context.ts";
 import { DRAFT_FILE, parseDraftFile, serializeDraftFile, validateDraft, type DraftContext } from "./draft.ts";
 import { SessionHub } from "./events.ts";
 import { loadConfig, llm, resolveModel, setModelsForTest } from "./llm.ts";
-import { listLocal, readLocal, readLocalSync, writeLocal } from "./local-store.ts";
+import { isLocalPath, listLocal, localDir, readLocal, readLocalSync, writeLocal } from "./local-store.ts";
 import { createModelRuntime, createResourceLoader, openSessionManager, sessionMessages } from "./pi.ts";
 import { mqmTable } from "./mqm.ts";
 import { LiveProjector, projectMessages } from "./projection.ts";
 import { buildSystemPrompt } from "./prompt.ts";
 import { publishDraft } from "./publish.ts";
-import { SessionStore, summarize, LOCAL_NAME_PATTERN, type SessionMeta, type SessionRecord } from "./sessions.ts";
+import { SessionStore, summarize, type SessionMeta, type SessionRecord } from "./sessions.ts";
 import { buildTools } from "./tools/index.ts";
 
 export { llm, setModelsForTest };
@@ -76,10 +78,11 @@ function toolContext(record: SessionRecord): ToolContext {
     baseSha: record.meta.baseSha ?? null,
     headSha: record.meta.headSha ?? null,
     writeScope: record.meta.writeScope,
+    evalScope: record.meta.evalScope,
     local: async (name) => readLocal(id, name),
     saveLocal: async (name, content) => {
-      if (!LOCAL_NAME_PATTERN.test(name)) {
-        throw new Error("本地文件名无效：只能是 1-64 位字母、数字、点、下划线或连字符。");
+      if (!isLocalPath(name)) {
+        throw new Error("本地路径无效：只能是相对路径，不能含 .. 或绝对路径。");
       }
       const entry = await writeLocal(id, name, content);
       const current = await store.get(id);
@@ -126,6 +129,11 @@ async function runTurn(id: string, prompt: string): Promise<void> {
   try {
     const record = await store.get(id);
     if (!record) return;
+    await mkdir(localDir(id), { recursive: true });
+    if (process.platform !== "win32") {
+      await chmod(dirname(localDir(id)), 0o711);
+      await chmod(localDir(id), 0o777);
+    }
     const systemPrompt = await buildSystemPrompt(record.meta.review);
     const { model, apiKey, endpoint } = await resolveModel(record.meta.model);
     const manager = await openSessionManager(record);

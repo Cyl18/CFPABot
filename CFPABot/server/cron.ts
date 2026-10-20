@@ -7,6 +7,7 @@ import { paths } from "./paths.ts";
 import { prdata } from "./prdata.ts";
 import { mirror } from "./mirror.ts";
 import { mods } from "./mods/index.ts";
+import { refreshRepo } from "./workspace.ts";
 
 const log = logger("cron");
 
@@ -43,6 +44,7 @@ export function startCron(): () => void {
     { name: "glossary-sync", intervalMs: DAY, run: () => syncGlossary() },
     { name: "pr-cache-refresh", intervalMs: HOUR, run: () => prdata.refreshAll() },
     { name: "mirror-sync", intervalMs: 6 * HOUR, run: () => mirror.sync() },
+    { name: "repo-worktree-refresh", intervalMs: HOUR, run: () => refreshRepo() },
     { name: "jar-cache-prune", intervalMs: DAY, run: () => Promise.resolve(pruneJars()) },
   ];
   if (env.CURSEFORGE_API_KEY) {

@@ -1,9 +1,9 @@
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import type { ToolContext } from "../context.ts";
-import { LOCAL_NAME_PATTERN } from "../sessions.ts";
+import { isLocalPath } from "../local-store.ts";
 import { jsonResult } from "../result.ts";
-import type { LocalUri } from "./uri.ts";
 import { replaceOnce } from "./replace.ts";
+import type { LocalUri } from "./uri.ts";
 
 export async function writeLocal(
   uri: LocalUri,
@@ -11,8 +11,8 @@ export async function writeLocal(
   ctx: ToolContext,
 ): Promise<AgentToolResult<Record<string, unknown>>> {
   const name = uri.path.trim();
-  if (!LOCAL_NAME_PATTERN.test(name)) {
-    throw new Error("本地文件名无效：只能是 1-64 位字母、数字、点、下划线或连字符。");
+  if (!isLocalPath(name)) {
+    throw new Error("本地路径无效：只能是相对路径，不能含 .. 或绝对路径。");
   }
   if (content === undefined) throw new Error("write 需要 content。");
   const saved = await ctx.saveLocal(name, content);
@@ -32,8 +32,8 @@ export async function editLocal(
   ctx: ToolContext,
 ): Promise<AgentToolResult<Record<string, unknown>>> {
   const name = uri.path.trim();
-  if (!LOCAL_NAME_PATTERN.test(name)) {
-    throw new Error("本地文件名无效：只能是 1-64 位字母、数字、点、下划线或连字符。");
+  if (!isLocalPath(name)) {
+    throw new Error("本地路径无效：只能是相对路径，不能含 .. 或绝对路径。");
   }
   const file = await ctx.local(name);
   if (file === null) throw new Error(`本地文件不存在：local://${name}`);

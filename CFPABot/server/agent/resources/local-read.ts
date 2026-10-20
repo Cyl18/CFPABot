@@ -1,6 +1,6 @@
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import type { ToolContext } from "../context.ts";
-import { LOCAL_NAME_PATTERN } from "../sessions.ts";
+import { isLocalPath } from "../local-store.ts";
 import { jsonResult } from "../result.ts";
 import { linesResult } from "./format.ts";
 import type { LocalUri } from "./uri.ts";
@@ -12,11 +12,10 @@ export async function readLocal(
   const name = uri.path.trim();
   if (name.length === 0) {
     const files = await ctx.listLocal();
-    files.sort((a, b) => a.name.localeCompare(b.name));
-    return jsonResult({ files });
+    return jsonResult({ files: [...files].sort((a, b) => a.name.localeCompare(b.name)) });
   }
-  if (!LOCAL_NAME_PATTERN.test(name)) {
-    throw new Error("本地文件名无效：只能是 1-64 位字母、数字、点、下划线或连字符。");
+  if (!isLocalPath(name)) {
+    throw new Error("本地路径无效：只能是相对路径，不能含 .. 或绝对路径。");
   }
   const entry = await ctx.local(name);
   if (entry === null) throw new Error(`本地文件不存在：local://${name}`);

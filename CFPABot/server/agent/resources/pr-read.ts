@@ -1,33 +1,21 @@
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import { getCheckReport } from "../../bot/index.ts";
 import { glossaryTerms } from "../../domain/glossary.ts";
-import { env, repo } from "../../env.ts";
-import { serverGraphql, gh } from "../../github/client.ts";
+import { env } from "../../env.ts";
+import { gh, serverGraphql } from "../../github/client.ts";
 import { anonymousReviewState } from "../../github/review.ts";
-import { mirror } from "../../mirror.ts";
 import { prdata } from "../../prdata.ts";
-import { crossVersionKeys } from "../../views/cross-version.ts";
 import { sidePaths } from "../../views/files.ts";
 import { prDetail } from "../../views/pr.ts";
-import { compareWorkspace } from "../../views/workspace.ts";
 import { specialPairContent, specialPairs } from "../../views/special.ts";
+import { compareWorkspace } from "../../views/workspace.ts";
 import type { ToolContext } from "../context.ts";
 import { buildPack, findingHistogram, selectRows, workspaceKey } from "../pack.ts";
 import { jsonResult, pageOf } from "../result.ts";
 import { linesResult, missingResource } from "./format.ts";
-import { uriSegments, type RepoUri } from "./uri.ts";
+import type { PrUri } from "./uri.ts";
 
 const BODY_LIMIT = 2000;
-const TOP_CHILDREN = [
-  "meta",
-  "pulls",
-  "issues",
-  "search",
-  "files",
-  "mods",
-  "versions",
-  "pr",
-] as const;
 const PR_CHILDREN = [
   "files",
   "discussion",
@@ -61,19 +49,14 @@ function visibleReviewComment(comment: { author: string; body: string }): boolea
   return !isMainBot(comment.author, comment.body) && (!comment.author.endsWith("[bot]") || isAgentBody(comment.body));
 }
 
-function readPrNumber(seg: string[]): number {
-  const n = Number(seg[1]);
-  if (!Number.isInteger(n) || n <= 0) throw new Error("PR 编号无效。");
-  return n;
-}
-
-async function readPr(uri: RepoUri, seg: string[], ctx: ToolContext): Promise<AgentToolResult<Record<string, unknown>>> {
-  const n = readPrNumber(seg);
-  const sub = seg[2];
+export async function readPr(uri: PrUri, ctx: ToolContext): Promise<AgentToolResult<Record<string, unknown>>> {
+  const n = uri.number;
+  const seg = uri.path.split("/").filter(Boolean);
+  const sub = seg[0];
   if (sub === undefined) return jsonResult(await prDetail(n));
 
   if (sub === "files") {
-    if (seg.length === 3) {
+    if (seg.length === 1) {
       const { files } = await prdata.files(n);
       return jsonResult({
         prNumber: n,
@@ -86,7 +69,7 @@ async function readPr(uri: RepoUri, seg: string[], ctx: ToolContext): Promise<Ag
         })),
       });
     }
-    const requested = seg.slice(3).join("/");
+    const requested = seg.slice(1).join("/");
     const { pull, files } = await prdata.files(n);
     const file = files.find((entry) => entry.path === requested || entry.previousPath === requested);
     if (file === undefined) throw new Error(`PR #${n} 没有变更文件：${requested}`);
@@ -137,7 +120,7 @@ async function readPr(uri: RepoUri, seg: string[], ctx: ToolContext): Promise<Ag
     const version = uri.query.get("version");
     const namespace = uri.query.get("namespace");
     if (!slug || !version || !namespace) {
-      throw new Error("repo://pr/<n>/compare 需要 ?slug=&version=&namespace=");
+      throw new Error("pr://<n>/compare 需要 ?slug=&version=&namespace=");
     }
     const result = await compareWorkspace(n, { slug, version, namespace });
     const page = pageOf(Number(uri.query.get("offset") ?? 0), Number(uri.query.get("limit") ?? 100), 200, 100);
@@ -151,9 +134,9 @@ async function readPr(uri: RepoUri, seg: string[], ctx: ToolContext): Promise<Ag
   }
 
   if (sub === "special") {
-    if (seg[3] === "content") {
+    if (seg[1] === "content") {
       const key = uri.query.get("key");
-      if (!key) throw new Error("repo://pr/<n>/special/content 需要 ?key=");
+      if (!key) throw new Error("pr://<n>/special/content 需要 ?key=");
       const content = await specialPairContent(n, key);
       if (content === null) throw new Error("特殊文件不存在。");
       return jsonResult(content);
@@ -196,7 +179,7 @@ async function readPr(uri: RepoUri, seg: string[], ctx: ToolContext): Promise<Ag
   }
 
   if (sub === "review") {
-    if (seg[3] === "rows") {
+    if (seg[1] === "rows") {
       const rebuild = uri.query.get("rebuild") === "1";
       const { pull, files } = await prdata.files(n);
       let pack = rebuild ? null : await ctx.packFor(n, pull.headSha);
@@ -242,7 +225,7 @@ async function readPr(uri: RepoUri, seg: string[], ctx: ToolContext): Promise<Ag
     const { pull } = await prdata.files(n);
     const pack = await ctx.packFor(n, pull.headSha);
     if (pack === null) {
-      return jsonResult({ built: false, headSha: pull.headSha, hint: "read repo://pr/<n>/review/rows to build" });
+      return jsonResult({ built: false, headSha: pull.headSha, hint: "read pr://<n>/review/rows to build" });
     }
     return jsonResult({
       built: true,
@@ -258,95 +241,10 @@ async function readPr(uri: RepoUri, seg: string[], ctx: ToolContext): Promise<Ag
         counts: workspace.counts,
         histogram: findingHistogram(workspace),
         duplicates: workspace.duplicates,
-        fileFindings: workspace.fileFindings,
+        files: workspace.fileFindings,
       })),
     });
   }
 
-  return missingResource(`repo://pr/${n}/${seg.slice(2).join("/")}`, PR_CHILDREN);
-}
-
-export async function readRepo(uri: RepoUri, ctx: ToolContext): Promise<AgentToolResult<Record<string, unknown>>> {
-  const seg = uriSegments(uri);
-  const head = seg[0];
-  if (head === undefined) return missingResource("repo://", TOP_CHILDREN);
-
-  if (head === "meta") {
-    return jsonResult({ owner: repo.owner, name: repo.name, fullName: repo.fullName, defaultBranch: repo.defaultBranch });
-  }
-
-  if (head === "pulls") {
-    const state = uri.query.get("state") ?? "open";
-    if (state !== "open" && state !== "closed" && state !== "merged" && state !== "all") {
-      throw new Error("state 只能是 open/closed/merged/all。");
-    }
-    return jsonResult(await prdata.list(state));
-  }
-
-  if (head === "issues") {
-    const n = Number(seg[1]);
-    if (!Number.isInteger(n) || n <= 0) throw new Error("issue 编号无效。");
-    if (seg.length === 2) return jsonResult(await gh.getIssue(n));
-    if (seg.length === 3 && seg[2] === "comments") {
-      const comments = await gh.listComments(n);
-      return jsonResult(
-        comments
-          .filter(visibleIssueComment)
-          .map((comment) => ({
-            author: comment.author,
-            body: trimBody(comment.body),
-            at: comment.createdAt,
-            isAgent: isAgentBody(comment.body),
-          })),
-      );
-    }
-    return missingResource(`repo://issues/${n}`, ["<issue>", "comments"]);
-  }
-
-  if (head === "search") {
-    const q = uri.query.get("q");
-    if (!q) throw new Error("repo://search 需要 ?q=");
-    const type = uri.query.get("type") === "pr" ? "pr" : "issue";
-    return jsonResult(await gh.search(q, type));
-  }
-
-  if (head === "files") {
-    const path = seg.slice(1).join("/");
-    if (!path) throw new Error("repo://files 需要文件路径。");
-    const ref = uri.query.get("ref");
-    if (!ref) throw new Error("repo://files 需要显式 ?ref=<sha>。");
-    const text = await gh.getFile(path, ref);
-    if (text === null) throw new Error(`文件不存在：${path} @ ${ref}`);
-    return jsonResult(linesResult(path, ref, text, uri.selector));
-  }
-
-  if (head === "mods") {
-    const list = await mirror.modList();
-    const q = uri.query.get("q")?.trim().toLowerCase();
-    if (!q) return jsonResult(list);
-    return jsonResult({
-      ...list,
-      mods: list.mods.filter((mod) => mod.slug.toLowerCase().includes(q) || (mod.name ?? "").toLowerCase().includes(q)),
-    });
-  }
-
-  if (head === "versions") {
-    const slug = seg[1];
-    if (!slug || seg[2] !== "keys") throw new Error("repo://versions/<slug>/keys 需要 slug。");
-    const prRaw = uri.query.get("pr");
-    const pr = prRaw === null || prRaw.trim() === "" ? undefined : Number(prRaw);
-    if (pr !== undefined && (!Number.isInteger(pr) || pr <= 0)) throw new Error("pr 参数无效。");
-    const versions = uri.query.get("versions")?.split(",").filter(Boolean);
-    return jsonResult(
-      await crossVersionKeys(slug, {
-        namespace: uri.query.get("namespace") ?? undefined,
-        ...(pr === undefined ? {} : { pr }),
-        ...(versions === undefined || versions.length === 0 ? {} : { versions }),
-      }),
-    );
-  }
-
-  if (head === "pr") return readPr(uri, seg, ctx);
-
-  return missingResource(`repo://${uri.path}`, TOP_CHILDREN);
+  return missingResource(`pr://${n}/${seg.join("/")}`, PR_CHILDREN);
 }

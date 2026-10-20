@@ -4,7 +4,7 @@ import type { ToolContext } from "../context.ts";
 import { editResource } from "../resources/index.ts";
 
 const EDIT_PARAMS = Type.Object({
-  path: Type.String({ description: "repo:// 评论或 local:// 文件" }),
+  path: Type.String({ description: "pr:// 评论或 local:// 文件" }),
   old_string: Type.String({ description: "要替换的原文，必须能被找到" }),
   new_string: Type.String({ description: "替换后的文本" }),
   replace_all: Type.Optional(Type.Boolean({ description: "出现多次时是否全部替换" })),
@@ -14,7 +14,7 @@ export function editTool(ctx: ToolContext): AgentTool<typeof EDIT_PARAMS> {
   return {
     name: "edit",
     label: "编辑资源",
-    description: "编辑 repo:// 评论或 local:// 文本；用法见 help://tools/edit。",
+    description: "编辑 pr:// 评论或 local:// 文本；用法见 help://tools/edit。",
     parameters: EDIT_PARAMS,
     execute: async (toolCallId, params) =>
       editResource(params.path, params.old_string, params.new_string, params.replace_all === true, ctx, toolCallId),

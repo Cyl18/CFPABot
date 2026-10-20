@@ -1,4 +1,4 @@
-import type { WriteScope } from "../../shared/api.ts";
+import type { EvalScope, WriteScope } from "../../shared/api.ts";
 import type { Pack } from "./pack.ts";
 
 export interface LocalEntry {
@@ -18,6 +18,7 @@ export interface ToolContext {
   baseSha: string | null;
   headSha: string | null;
   writeScope: WriteScope;
+  evalScope: EvalScope;
   local(name: string): Promise<LocalEntry | null>;
   saveLocal(name: string, content: string): Promise<LocalEntry>;
   listLocal(): Promise<LocalFileInfo[]>;

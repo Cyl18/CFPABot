@@ -16,6 +16,7 @@ function baseCtx(overrides: Partial<ToolContext> = {}): ToolContext {
     baseSha: null,
     headSha: null,
     writeScope: "off",
+    evalScope: "off",
     local: async (name) => files.get(name) ?? null,
     saveLocal: async (name, content) => {
       const entry = { content, updatedAt: "2026-01-01T00:00:00.000Z" };
@@ -87,10 +88,13 @@ describe("local:// 短名文件", () => {
     );
   });
 
-  test("拒绝带斜杠或越界的短名", async () => {
+  test("允许子目录，拒绝越界路径", async () => {
     const ctx = baseCtx();
-    await expect(writeResource("local://a/b", "x", ctx, "t1")).rejects.toThrow("文件名无效");
-    await expect(readResource("local://a/b", ctx)).rejects.toThrow("文件名无效");
+    await writeResource("local://src/a/b.txt", "x", ctx, "t1");
+    const readBack = JSON.parse(textOf(await readResource("local://src/a/b.txt", ctx))) as { lines: string[] };
+    expect(readBack.lines).toEqual(["1\tx"]);
+    await expect(writeResource("local://../escape.txt", "x", ctx, "t2")).rejects.toThrow("本地路径无效");
+    await expect(readResource("local://a/../../etc/passwd", ctx)).rejects.toThrow("本地路径无效");
   });
 
   test("读取不存在的本地文件报错", async () => {

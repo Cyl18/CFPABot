@@ -9,6 +9,7 @@ import {
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { evalExtension } from "@cfpa/pi-eval";
+import todoExtension from "@capdiem/pi-todo/index.min.js";
 import webAccess from "pi-web-access/dist/index.js";
 import { env } from "../env.ts";
 import { paths } from "../paths.ts";
@@ -28,7 +29,7 @@ export async function createResourceLoader(systemPrompt: string): Promise<Resour
     cwd: paths.root,
     agentDir: paths.piAgent,
     settingsManager: SettingsManager.inMemory(),
-    extensionFactories: [evalExtension({ image: env.EVAL_DOCKER_IMAGE }), webAccess],
+    extensionFactories: [evalExtension({ image: env.EVAL_DOCKER_IMAGE }), todoExtension, webAccess],
     noExtensions: true,
     noSkills: true,
     noPromptTemplates: true,

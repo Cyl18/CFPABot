@@ -10,8 +10,6 @@ import type { Pack } from "./pack.ts";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 
-export const LOCAL_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
-
 export interface SessionMeta {
   id: string;
   title: string;

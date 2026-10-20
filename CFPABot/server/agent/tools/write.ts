@@ -4,7 +4,7 @@ import type { ToolContext } from "../context.ts";
 import { writeResource } from "../resources/index.ts";
 
 const WRITE_PARAMS = Type.Object({
-  path: Type.String({ description: "资源 URI：repo:// 或 local://" }),
+  path: Type.String({ description: "资源 URI：pr:// 或 local://" }),
   content: Type.Optional(Type.String({ description: "评论正文、review/submit 或线程状态 JSON、本地文件全文" })),
 });
 
@@ -12,7 +12,7 @@ export function writeTool(ctx: ToolContext): AgentTool<typeof WRITE_PARAMS> {
   return {
     name: "write",
     label: "写入资源",
-    description: "写入 repo:// 或 local://；权限与可用路径见 help://tools/write。",
+    description: "写入 pr:// 或 local://；权限与可用路径见 help://tools/write。",
     parameters: WRITE_PARAMS,
     execute: async (toolCallId, params) => writeResource(params.path, params.content, ctx, toolCallId),
   };
