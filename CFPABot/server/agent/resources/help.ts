@@ -17,14 +17,14 @@ const TOPICS: Record<string, string> = {
 - help://tools/eval
 - help://tools/glossary
 - help://tools/web_search
-- help://tools/fetch_content
 - help://resources/repo
 - help://resources/pr
 - help://resources/gh
-- help://resources/local`,
+- help://resources/local
+- help://resources/skill`,
   "tools/read": `# read
 
-读取 repo://、pr://、gh://、local:// 或 help://；行范围写在路径末尾。
+读取 repo://、pr://、gh://、local://、skill:// 或 help://；行范围写在路径末尾。
 
 - repo://<path>:1-80
 - repo://<path>?ref=<sha>
@@ -32,6 +32,7 @@ const TOPICS: Record<string, string> = {
 - pr://<n>/review/rows?filter=changed&limit=100
 - gh://pulls?state=open
 - local://<path>
+- skill://review
 
 空 repo:// 列出仓库根目录，空 local:// 列出 workspace 文件。`,
   "tools/write": `# write
@@ -76,8 +77,7 @@ kernel 直接读写会话 workspace 与仓库文件；不要用 bash 再套 pyth
 查询原版术语表与外部词典：query、limit?（默认 10，最大 50）。`,
   "tools/web_search": `# web_search
 
-联网搜索；由 omp 内置工具提供。返回结果后核对来源，
-需要正文时再抓取对应 URL。`,
+联网搜索；由 omp 内置工具提供。返回结果后核对来源。`,
   "resources/repo": `# repo://
 
 仓库文件树，只读，默认读 origin 默认分支。空路径列出根目录，目录路径列出直接子项。
@@ -93,8 +93,13 @@ files 支持 ?side=head|base；rows 支持 ?workspace=&filter=changed|flagged|al
   "resources/local": `# local://
 
 会话 workspace，可读写，支持子目录；禁止 .. 与绝对路径。
-面板约定 local://draft.json 是审查草稿；其它名字只是普通文本。
+local:// 是普通文件区；审查草稿用任意 .json 文件名。
 local:// 写入不经过 writeScope，也不会发到 GitHub；发布时才校验草稿结构。`,
+  "resources/skill": `# skill://
+
+按技能名读取已加载的技能文件：skill://review。
+行范围：:N 或 :N-M；子路径相对于技能目录，禁止越界。
+审查流程、盲审公理、draft 形状和 MQM 词表都在 skill://review。`,
 };
 
 export function readHelp(uri: HelpUri): AgentToolResult<Record<string, unknown>> {

@@ -2,6 +2,7 @@ import type { AgentTool } from "@oh-my-pi/pi-agent-core";
 import { type } from "@oh-my-pi/omptype";
 import type { ToolContext } from "../context.ts";
 import { localDir } from "../local-store.ts";
+import { paths } from "../../paths.ts";
 
 const ENV_ALLOW: Record<string, true> = {
   PATH: true,
@@ -29,6 +30,7 @@ function sandboxEnv(env: NodeJS.ProcessEnv, cwd: string): NodeJS.ProcessEnv {
     if (ENV_ALLOW[key] === true || key.startsWith("PI_")) out[key] = value;
   }
   out.HOME = cwd;
+  out.CFPA_ROOT = paths.root;
   return out;
 }
 

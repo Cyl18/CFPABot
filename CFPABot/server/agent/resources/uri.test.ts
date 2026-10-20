@@ -58,6 +58,13 @@ describe("parseUri", () => {
     expect(parseUri("local://").path).toBe("");
   });
 
+  test("skill 路径与行范围", () => {
+    const uri = parseUri("skill://review:1-5");
+    expect(uri.scheme).toBe("skill");
+    expect(uri.path).toBe("review");
+    expect(uri.scheme === "help" ? undefined : uri.selector).toEqual({ from: 1, to: 5 });
+  });
+
   test("文件名里的冒号用 %3A 转义，不会被当成 selector", () => {
     const uri = parseUri("repo://notes%3A12");
     expect(uri.path).toBe("notes:12");

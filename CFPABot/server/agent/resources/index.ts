@@ -7,6 +7,7 @@ import { editLocal, writeLocal } from "./local-write.ts";
 import { editPr, unsupportedWrite, writePr } from "./pr-write.ts";
 import { readPr } from "./pr-read.ts";
 import { readRepo } from "./repo-files.ts";
+import { readSkill } from "./skill-read.ts";
 import { parseUri } from "./uri.ts";
 import { findWriteTarget } from "./write-targets.ts";
 
@@ -26,6 +27,8 @@ export async function readResource(
       return readPr(parsed);
     case "local":
       return readLocal(parsed, ctx);
+    case "skill":
+      return readSkill(parsed);
   }
 }
 

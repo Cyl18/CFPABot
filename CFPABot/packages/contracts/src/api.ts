@@ -314,6 +314,8 @@ export interface ReviewDraft {
 export interface SessionDetail extends SessionSummary {
   items: ChatItem[];
   draft?: ReviewDraft;
+  draftFile?: string;
+  draftFiles?: string[];
   headSha?: string;
 }
 

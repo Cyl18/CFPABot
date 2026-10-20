@@ -26,13 +26,17 @@ export interface LocalUri extends UriBase {
   scheme: "local";
 }
 
+export interface SkillUri extends UriBase {
+  scheme: "skill";
+}
+
 export interface HelpUri {
   scheme: "help";
   path: string;
   query: URLSearchParams;
 }
 
-export type ResourceUri = RepoUri | PrUri | GhUri | LocalUri | HelpUri;
+export type ResourceUri = RepoUri | PrUri | GhUri | LocalUri | SkillUri | HelpUri;
 
 interface UriParts {
   path: string;
@@ -69,6 +73,7 @@ export function parseUri(raw: string): ResourceUri {
   if (trimmed.startsWith("repo://")) return { scheme: "repo", ...parseParts(trimmed, "repo") };
   if (trimmed.startsWith("gh://")) return { scheme: "gh", ...parseParts(trimmed, "gh") };
   if (trimmed.startsWith("local://")) return { scheme: "local", ...parseParts(trimmed, "local") };
+  if (trimmed.startsWith("skill://")) return { scheme: "skill", ...parseParts(trimmed, "skill") };
   if (trimmed.startsWith("pr://")) {
     const parts = parseParts(trimmed, "pr");
     const slash = parts.path.indexOf("/");
@@ -83,7 +88,7 @@ export function parseUri(raw: string): ResourceUri {
     const { path, query } = parseParts(trimmed, "help");
     return { scheme: "help", path, query };
   }
-  throw new Error("不支持的 scheme。当前支持 repo://、pr://、gh://、local:// 与 help://。");
+  throw new Error("不支持的 scheme。当前支持 repo://、pr://、gh://、local://、skill:// 与 help://。");
 }
 
 export function uriSegments(uri: ResourceUri): string[] {

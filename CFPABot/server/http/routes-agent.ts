@@ -6,7 +6,7 @@ import { draftInputSchema } from "../agent/draft.ts";
 import { requireAdmin } from "./auth.ts";
 import type { AppEnv } from "./auth.ts";
 import { notFound, parseBody } from "./errors.ts";
-import type { CreateSessionRequest, ReviewDraft, SessionEvent } from "../../shared/api.ts";
+import type { CreateSessionRequest, SessionEvent } from "../../shared/api.ts";
 
 export const sessionRoutes = new Hono<AppEnv>();
 
@@ -24,7 +24,11 @@ const evalScopeSchema = z.object({ evalScope: z.enum(["off", "run"]) });
 
 const messageSchema = z.object({ text: z.string().min(1) });
 
-const draftSchema = draftInputSchema.omit({ event: true }).extend({ headSha: z.string().min(1) });
+const draftSchema = draftInputSchema.omit({ event: true }).extend({
+  headSha: z.string().min(1),
+  draftFile: z.string().min(1).optional(),
+});
+const publishSchema = z.object({ draftFile: z.string().min(1).optional() });
 
 sessionRoutes.use("*", async (c, next) => {
   await requireAdmin(c);
@@ -43,6 +47,12 @@ sessionRoutes.get("/:id", async (c) => {
   const session = await agent.get(c.req.param("id"));
   if (!session) throw notFound("会话不存在");
   return c.json(session);
+});
+
+sessionRoutes.get("/:id/draft", async (c) => {
+  const file = c.req.query("file");
+  if (!file) throw notFound("缺少草稿文件名");
+  return c.json(await agent.readDraft(c.req.param("id"), file));
 });
 
 sessionRoutes.patch("/:id/write-scope", async (c) => {
@@ -74,13 +84,14 @@ sessionRoutes.post("/:id/archive", async (c) => {
 });
 
 sessionRoutes.put("/:id/draft", async (c) => {
-  const draft = await parseBody<Omit<ReviewDraft, "updatedAt" | "publishedAt" | "publishedUrl">>(c, draftSchema);
-  return c.json(await agent.saveDraft(c.req.param("id"), draft));
+  const { draftFile, ...draft } = await parseBody(c, draftSchema);
+  return c.json(await agent.saveDraft(c.req.param("id"), draft, draftFile));
 });
 
 sessionRoutes.post("/:id/publish", async (c) => {
   const user = await requireAdmin(c);
-  return c.json(await agent.publish(c.req.param("id"), user.login));
+  const { draftFile } = await parseBody(c, publishSchema);
+  return c.json(await agent.publish(c.req.param("id"), user.login, draftFile));
 });
 
 sessionRoutes.get("/:id/events", async (c) => {

@@ -1,3 +1,8 @@
+---
+name: review
+description: PR 翻译审查流程、盲审公理、draft 与行内评论形状、MQM 受控词表；审查 PR 时必须先读。
+---
+
 # 翻译审查流程（review 模式）
 
 ## 步骤
@@ -6,16 +11,21 @@
 2. **加载审查数据**：`read pr://<n>/review/rows` 生成/读取逐 key 审查行。程序提示（program）是机械预审结论，只作参考，不是最终意见。可用 `?filter=changed|flagged|all`、`?workspace=`、`?query=`、`?offset=`、`?limit=` 过滤，`?rebuild=1` 强制重建。
 3. **精审**：逐条审阅 changed 行；`program` 提示是机械预审结论，只作参考，不是最终意见。对可疑项用 `read pr://<n>/review/rows?query=` 搜索同类，确认不是单点误判。
 4. **核对依据**：可疑的译名或句式用 `glossary` 查原版术语与词典；怀疑是批量问题时用 `read pr://<n>/review/rows?query=` 全文搜索同类。
-5. **落草稿**：`write local://draft.json` 保存 verdict、主评论与行内评论。本地写入不校验；发布时（`write pr://<n>/review` 或面板）才会校验并返回错误。允许写 GitHub 时用 `write pr://<n>/review` 发布；否则由管理员在面板发布。
+5. **落草稿**：`write local://<文件名>.json` 保存 verdict、主评论与行内评论。`write` 只是写文件，不做校验；文件名随意，建议 `draft.json`。写完后跑检查器（见下节）。允许写 GitHub 时，把 JSON 内容直接写给 `write pr://<n>/review` 发布；否则由管理员在面板发布。
 
-   `draft.json` 最小形状：`{ "prNumber": <n>, "headSha": "<当前 head>", "verdict": "approve|changes|reject", "summary": "...", "comments": [...] }`；`comments` 每项至少含 `path`、`line`、`key`、`severity`、`mqm`、`body`，`id` 与 `updatedAt` 可由服务端补。`headSha` 从 `read pr://<n>` 取。
+   draft JSON 最小形状：`{ "prNumber": <n>, "headSha": "<当前 head>", "verdict": "approve|changes|reject", "summary": "...", "comments": [...] }`；`comments` 每项至少含 `path`、`line`、`key`、`severity`、`mqm`、`body`，`id` 与 `updatedAt` 可由服务端补。`headSha` 从 `read pr://<n>` 取。
+
+## 检查器
+
+`bash` 运行 `bun "$CFPA_ROOT/skills/review/scripts/check-draft.mjs" <文件>`。
+只查 draft 结构、severity、suggestion/covers、suspected；MQM、行号、headSha 由发布时服务端校验。
 
 ## 盲审公理
 
 1. **只看 changes**：英文原文的改动都在 diff 里，不用跨版本全量扫。
 2. **机械预审是刚需**：占位符、§色码、换行、首尾空格、全半角标点、漏译先靠程序提示全扫一遍。
 3. **批量错模式→全文通查该 pattern**：发现一个术语或体例问题，用 `read pr://<n>/review/rows?query=` 抓全文同类。
-4. **受控词表是 join key**：`mqm` 只能用受控词表里的全形 `Dim/type`，不许自编。
+4. **受控词表是 join key**：`mqm` 只能用下面受控词表里的全形 `Dim/type`，不许自编。
 5. **旧译有误才改，改必联动**：修一处就联动修全文件同类。
 6. **Formatter 只单向崩**：实参多于占位安全（忽略），占位多于实参才崩。`zh 所需 > en 所需` 才是 critical；zh 少占位（含复数、换序、跳号）是 neutral。
 7. **severity 四档**：critical=撞车/崩溃/完全反义；major=错义/漏译/关键术语错；minor=体例/标点/风格；neutral=灰区。不确定就标 minor 或 neutral。
@@ -47,8 +57,31 @@ major 一览（{M} 条，见 inline）：
 - `suspected: true` 的条目 severity 不高于 minor。
 - 行号必须落在 `read pr://<n>/review/rows` 标记为 `inHunk` 的 head 行上，否则会被拒收。
 
+## 批量检查（`evalScope=run` 时）
+
+- `read pr://<n>/review/rows?filter=changed` 拿逐 key 行；需要整份数据时用 `write local://rows.json` 落盘。
+- 用 `eval`（py/js，持久 kernel）做 JSON 解析、正则、统计；用 `bash` 做 grep/rg/git。
+- 只打印摘要，不要把整份语言文件粘进对话。
+- 批量问题压缩成一条评论，其余实例进 `covers`。
+
 ## verdict
 
 - `approve` 可合：没有必须修改的问题。
 - `changes` 需改后合：存在需要修改的问题，但不至于整体退回。
 - `reject` 退回：整体质量不达标或方向错误。
+
+## 子代理
+
+`read pr://<n>/meta` 返回的 `localRoot` 是 PR head 文件的物化目录（只含变更文件）；仓库工作树在 `runtime/work/repo`。
+
+派生子代理时把 `localRoot` 写进 prompt，让子代理直接用 `read`/`grep`/`bash` 走文件系统。子代理没有 `repo://`/`pr://` 资源，不要把资源 URI 交给它。
+
+## MQM 受控词表
+
+`mqm` 必须取以下全形 `Dim/type`，不许自编：
+
+- Terminology 术语：`Terminology/wrong-term`（错术语）[major]、`Terminology/inappropriate-for-context`（术语误用于语境）[major]、`Terminology/inconsistent-use`（术语不一致）[major]、`Terminology/inconsistent-with-resource`（违反术语资源）[minor]
+- Accuracy 准确：`Accuracy/mistranslation`（错译）[major]、`Accuracy/omission`（漏译）[major]、`Accuracy/addition`（擅加）[minor]、`Accuracy/untranslated`（应译未译）[major]、`Accuracy/overly-literal`（死译）[minor]
+- Fluency 流畅：`Fluency/punctuation`（标点）[minor]、`Fluency/grammar`（语法）[minor]、`Fluency/word-order`（语序）[minor]、`Fluency/typo`（错字）[minor]、`Fluency/character-encoding`（字符编码）[minor]
+- Style 风格：`Style/awkward`（生硬）[minor]、`Style/inconsistent-style`（体例不一）[minor]、`Style/company-style`（违反自家体例）[minor]
+- Locale 本地化格式：`Locale/units`（单位）[minor]、`Locale/number-format`（数字日期格式）[minor]、`Locale/format-code`（格式代码）[major]

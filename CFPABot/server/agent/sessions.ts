@@ -1,11 +1,11 @@
-import { existsSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import type { EvalScope, SessionStatus, SessionSummary, WriteScope } from "../../shared/api.ts";
 import { paths } from "../paths.ts";
 import { readJson, withLock, writeJson } from "../store.ts";
-import { DRAFT_FILE } from "./draft.ts";
+import { localDir } from "./local-store.ts";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 
@@ -65,6 +65,13 @@ function toRecord(parsed: z.infer<typeof recordSchema>): SessionRecord {
 
 export function summarize(record: SessionRecord): SessionSummary {
   const meta = record.meta;
+  let hasDraft = false;
+  try {
+    const names = readdirSync(localDir(meta.id)) as string[];
+    hasDraft = names.some((name) => name.endsWith(".json"));
+  } catch {
+    // local 目录还没建
+  }
   return {
     id: meta.id,
     title: meta.title,
@@ -74,7 +81,7 @@ export function summarize(record: SessionRecord): SessionSummary {
     updatedAt: meta.updatedAt,
     createdBy: meta.createdBy,
     model: meta.model,
-    hasDraft: existsSync(join(paths.sessions, meta.id, "local", DRAFT_FILE)),
+    hasDraft,
     writeScope: meta.writeScope,
     evalScope: meta.evalScope,
     ...(meta.prNumber !== undefined ? { prNumber: meta.prNumber } : {}),

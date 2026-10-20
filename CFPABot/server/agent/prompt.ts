@@ -26,5 +26,5 @@ export async function buildSystemPrompt(review: boolean): Promise<string> {
     .replace(TREE_PLACEHOLDER, resourceTree())
     .replace(WRITE_PLACEHOLDER, writeTable);
   if (!review) return system;
-  return `${system}\n\n${await readPrompt("review.md")}`;
+  return `${system}\n\n${await readPrompt("review-contract.md")}`;
 }

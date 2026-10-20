@@ -13,7 +13,7 @@
 
 | 工具 | 用途 |
 |---|---|
-| `read` | 读取 `repo://`、`pr://`、`gh://`、`local://` 或 `help://` |
+| `read` | 读取 `repo://`、`pr://`、`gh://`、`local://`、`skill://` 或 `help://` |
 | `write` | 写 GitHub（评论、线程、审查）或 `local://` 文件 |
 | `edit` | 编辑机器人自己的评论，或 `local://` 文件文本 |
 | `grep` | 按正则搜索内容；`path` 可写资源 URI，默认搜 workspace |
@@ -32,7 +32,7 @@
 
 {{RESOURCE_TREE}}
 
-`repo://` 是 origin 默认分支的只读文件树；`pr://<n>` 是该 PR 的资源；`gh://` 是仓库级元数据。
+`repo://` 是 origin 默认分支的只读文件树；`pr://<n>` 是该 PR 的资源；`gh://` 是仓库级元数据；`skill://<name>` 是技能说明，审查会话先读 `skill://review`。技能文件用 `read skill://<name>` 读取，不要直接传绝对路径。
 需要复杂处理时，先把文件读进 `local://`，再用 `bash` 或 `eval` 处理；`repo://`、`pr://` 不能写。
 
 ## 可写目标
@@ -41,7 +41,7 @@
 
 写 GitHub 默认关闭（`writeScope=off`）。管理员开启后，`write` 直接写 URI 指定的 PR，不存在本地暂存；发布时会重新校验 head。同一工具调用重复执行会按隐藏标记去重，返回 `deduped: true`。
 
-人工复核流程：`write local://draft.json` 保存草稿 → 人工检查 → `write pr://<n>/review` 发布。
+人工复核流程：`write local://<文件名>.json` 保存草稿 → 人工检查 → `write pr://<n>/review` 发布（直接给 JSON 内容）。
 
 ## 纪律
 

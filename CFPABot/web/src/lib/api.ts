@@ -180,8 +180,12 @@ export const api = {
   sendMessage: (id: string, text: string) => send<{ ok: true }>("POST", `/api/sessions/${encodeURIComponent(id)}/messages`, { text }),
   abortSession: (id: string) => send<{ ok: true }>("POST", `/api/sessions/${encodeURIComponent(id)}/abort`),
   archiveSession: (id: string) => send<{ ok: true }>("POST", `/api/sessions/${encodeURIComponent(id)}/archive`),
-  saveDraft: (id: string, draft: ReviewDraft) => send<ReviewDraft>("PUT", `/api/sessions/${encodeURIComponent(id)}/draft`, draft),
-  publish: (id: string) => send<{ url: string }>("POST", `/api/sessions/${encodeURIComponent(id)}/publish`),
+  saveDraft: (id: string, draft: ReviewDraft, draftFile?: string) =>
+    send<ReviewDraft>("PUT", `/api/sessions/${encodeURIComponent(id)}/draft`, { ...draft, draftFile }),
+  readDraft: (id: string, file: string) =>
+    get<ReviewDraft>(`/api/sessions/${encodeURIComponent(id)}/draft?file=${encodeURIComponent(file)}`),
+  publish: (id: string, draftFile?: string) =>
+    send<{ url: string }>("POST", `/api/sessions/${encodeURIComponent(id)}/publish`, { draftFile }),
   sessionEventsUrl: (id: string) => `/api/sessions/${encodeURIComponent(id)}/events`,
 
   llm: (signal?: AbortSignal) => get<LlmConfigView>("/api/admin/llm", signal),

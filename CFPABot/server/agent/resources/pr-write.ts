@@ -12,7 +12,7 @@ import {
   submitPendingReview,
 } from "../../github/review.ts";
 import type { ToolContext } from "../context.ts";
-import { DRAFT_FILE, draftInputSchema, normalizeDraftJson, parseDraftFile } from "../draft.ts";
+import { draftInputSchema, normalizeDraftJson } from "../draft.ts";
 import { assertCanWrite } from "../policy.ts";
 import { publishDraft } from "../publish.ts";
 import { jsonResult } from "../result.ts";
@@ -110,15 +110,13 @@ async function writeThreadReply(uri: PrUri, content: string | undefined, ctx: To
 
 async function writeReview(uri: PrUri, content: string | undefined, ctx: ToolContext, toolCallId: string) {
   const n = uri.number;
+  if (content === undefined || content.trim().length === 0) {
+    throw new Error("write pr://<n>/review 需要审查 JSON 内容。");
+  }
   const marker = markerOf(ctx.sessionId, toolCallId);
   const existing = (await gh.listReviews(n)).find((review) => review.body.includes(marker));
   if (existing) return jsonResult({ ok: true, deduped: true, url: existing.htmlUrl });
-  const parsed =
-    content !== undefined && content.trim().length > 0
-      ? await parseDraft(content, n, ctx)
-      : { draft: parseDraftFile((await ctx.local(DRAFT_FILE))?.content), event: "COMMENT" as const };
-  if (parsed.draft === null) throw new Error("没有可发布的审查草稿。");
-  if (parsed.draft.prNumber !== n) throw new Error("草稿的 PR 与会话不一致。");
+  const parsed = await parseDraft(content, n, ctx);
   const { url } = await publishDraft(parsed.draft, { event: parsed.event, marker });
   return jsonResult({ ok: true, url });
 }

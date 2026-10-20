@@ -24,6 +24,8 @@ export function SessionPage({ id }: { id: string }) {
   const [items, setItems] = useState<readonly ChatItem[]>([]);
   const [status, setStatus] = useState<SessionStatus>("idle");
   const [draft, setDraft] = useState<ReviewDraft | null>(null);
+  const [draftFile, setDraftFile] = useState<string | undefined>(undefined);
+  const [draftFiles, setDraftFiles] = useState<readonly string[]>([]);
   const [dirty, setDirty] = useState(false);
   const [lastError, setLastError] = useState<string | undefined>(undefined);
   const [draftError, setDraftError] = useState<string | undefined>(undefined);
@@ -35,6 +37,8 @@ export function SessionPage({ id }: { id: string }) {
     setItems(data.items);
     setStatus(data.status);
     setDraft(data.draft ?? null);
+    setDraftFile(data.draftFile);
+    setDraftFiles(data.draftFiles ?? []);
     setDirty(false);
   }, [detail.data]);
 
@@ -45,6 +49,8 @@ export function SessionPage({ id }: { id: string }) {
           setItems(event.session.items);
           setStatus(event.session.status);
           setDraft(event.session.draft ?? null);
+          setDraftFile(event.session.draftFile);
+          setDraftFiles(event.session.draftFiles ?? []);
           setDirty(false);
           break;
         }
@@ -100,10 +106,24 @@ export function SessionPage({ id }: { id: string }) {
     },
   });
 
+  const loadDraft = useMutation({
+    mutationFn: (file: string) => api.readDraft(id, file),
+    onSuccess: (loaded, file) => {
+      setDraft(loaded);
+      setDraftFile(file);
+      setDraftFiles([]);
+      setDirty(false);
+      setDraftError(undefined);
+    },
+    onError: (error) => setDraftError(errorMessage(error)),
+  });
+
   const saveDraft = useMutation({
-    mutationFn: (value: ReviewDraft) => api.saveDraft(id, value),
-    onSuccess: (saved) => {
+    mutationFn: (value: { draft: ReviewDraft; draftFile?: string }) =>
+      api.saveDraft(id, value.draft, value.draftFile),
+    onSuccess: (saved, variables) => {
       setDraft(saved);
+      setDraftFile(variables.draftFile ?? draftFile);
       setDirty(false);
       setDraftError(undefined);
     },
@@ -111,7 +131,7 @@ export function SessionPage({ id }: { id: string }) {
   });
 
   const publish = useMutation({
-    mutationFn: () => api.publish(id),
+    mutationFn: () => api.publish(id, draftFile),
     onSuccess: () => {
       setDraftError(undefined);
       void client.invalidateQueries({ queryKey: qk.session(id) });
@@ -136,7 +156,7 @@ export function SessionPage({ id }: { id: string }) {
 
   const submit = () => {
     const value = text.trim();
-    if (value === "" || running) return;
+    if (value === "") return;
     setItems((previous) => [...previous, { id: `local-${Date.now()}`, kind: "user", text: value, at: new Date().toISOString() }]);
     setText("");
     send.mutate(value);
@@ -202,7 +222,7 @@ export function SessionPage({ id }: { id: string }) {
             <Textarea
               aria-label="消息输入"
               className="min-h-16"
-              placeholder={running ? "Agent 正在处理，请稍候…" : "输入消息，Enter 发送，Shift+Enter 换行"}
+              placeholder={running ? "Agent 正在处理，输入消息会排队…" : "输入消息，Enter 发送，Shift+Enter 换行"}
               value={text}
               onChange={(event) => setText(event.target.value)}
               onKeyDown={(event) => {
@@ -219,7 +239,7 @@ export function SessionPage({ id }: { id: string }) {
                 className="ml-auto"
                 variant="primary"
                 loading={send.isPending}
-                disabled={running || text.trim() === ""}
+                disabled={text.trim() === ""}
                 icon={<Send aria-hidden="true" className="size-3.5" />}
                 onClick={submit}
               >
@@ -231,6 +251,8 @@ export function SessionPage({ id }: { id: string }) {
 
         <DraftPanel
           draft={draft}
+          files={draftFiles}
+          selecting={loadDraft.isPending}
           saving={saveDraft.isPending}
           publishing={publish.isPending}
           error={draftError}
@@ -238,8 +260,9 @@ export function SessionPage({ id }: { id: string }) {
             setDraft(next);
             setDirty(true);
           }}
+          onSelect={(file) => loadDraft.mutate(file)}
           onSave={() => {
-            if (draft) saveDraft.mutate(draft);
+            if (draft) saveDraft.mutate({ draft, draftFile });
           }}
           onPublish={() => publish.mutate()}
         />

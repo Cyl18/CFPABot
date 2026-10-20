@@ -4,6 +4,7 @@ import { env } from "../../env.ts";
 import { gh, serverGraphql } from "../../github/client.ts";
 import { anonymousReviewState } from "../../github/review.ts";
 import { prdata } from "../../prdata.ts";
+import { ensurePrDir } from "../../workspace.ts";
 import { sidePaths } from "../../views/files.ts";
 import { prDetail } from "../../views/pr.ts";
 import { specialPairContent, specialPairs } from "../../views/special.ts";
@@ -162,6 +163,7 @@ export async function readPr(uri: PrUri): Promise<AgentToolResult<Record<string,
         headRef: detail.headRef,
         htmlUrl: detail.htmlUrl,
       },
+      localRoot: await ensurePrDir(n, detail.headSha),
       workspaces: detail.workspaces,
       specialFiles: detail.specialFiles,
       related: detail.related,
