@@ -1,9 +1,12 @@
 FROM oven/bun:1.4 AS build
 WORKDIR /app
-COPY package.json bun.lock ./
-COPY web/package.json web/package.json
+COPY CFPABot/package.json CFPABot/bun.lock ./
+COPY CFPABot/web/package.json web/package.json
+COPY CFPABot/packages/contracts/package.json packages/contracts/package.json
+COPY CFPABot/packages/pi-eval/package.json packages/pi-eval/package.json
+COPY CFPABot/packages/review-core/package.json packages/review-core/package.json
 RUN bun install --frozen-lockfile
-COPY . .
+COPY CFPABot/ .
 RUN bun run build
 
 FROM oven/bun:1.4

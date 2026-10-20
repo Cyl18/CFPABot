@@ -1,6 +1,8 @@
 services:
   cfpa-agent:
-    build: .
+    build:
+      context: ..
+      dockerfile: CFPABot/Dockerfile
     image: cfpa-agent2
     restart: unless-stopped
     ports:

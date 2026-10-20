@@ -4,10 +4,10 @@ public/
 runtime/
 logs/
 .env
-config/llm.json
-config/*.pem
-config/secret.key
-config/vanilla-terms/
+CFPABot/config/llm.json
+CFPABot/config/*.pem
+CFPABot/config/secret.key
+CFPABot/config/vanilla-terms/
 *.tsbuildinfo
 temp/
 desktop.ini
