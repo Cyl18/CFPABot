@@ -145,8 +145,9 @@ export async function readPr(uri: PrUri): Promise<AgentToolResult<Record<string,
   if (sub === "meta") {
     const detail = await prDetail(n);
     const report = await getCheckReport(n);
-    const counts = { error: 0, warn: 0, info: 0, ok: 0 };
-    for (const item of report?.items ?? []) counts[item.level] += 1;
+    const rank = { critical: 0, major: 1, minor: 2, neutral: 3 } as const;
+    const counts = { critical: 0, major: 0, minor: 0, neutral: 0 };
+    for (const finding of report?.findings ?? []) counts[finding.severity] += 1;
     return jsonResult({
       pr: {
         number: detail.number,
@@ -169,10 +170,13 @@ export async function readPr(uri: PrUri): Promise<AgentToolResult<Record<string,
           ? null
           : {
               counts,
-              top: report.items.filter((item) => item.level !== "ok").slice(0, 10),
+              top: [...report.findings].sort((a, b) => rank[a.severity] - rank[b.severity]).slice(0, 10),
               modFiles: report.modFiles,
             },
-      warnings: report?.items.filter((item) => item.level !== "ok").slice(0, 20) ?? [],
+      warnings:
+        report?.findings
+          .filter((finding) => finding.severity === "critical" || finding.severity === "major")
+          .slice(0, 20) ?? [],
     });
   }
 

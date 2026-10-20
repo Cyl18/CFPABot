@@ -1,7 +1,9 @@
 import { join } from "node:path";
 import { z } from "zod";
-import type { CheckItem, CheckReport, ModFileCheck } from "../../shared/api.ts";
+import type { CheckReport, Finding, ModFileCheck } from "../../shared/api.ts";
 import { entryFindings, keyParity, pathChecks, typoCheck, type TypoRule } from "../domain/checks.ts";
+import { glossaryTerms } from "../domain/glossary.ts";
+import { matchTerms, type TermIndex } from "../domain/terms.ts";
 import { patchAddedLines, withLiteralNewlines } from "../domain/diff.ts";
 import { parseLang, type ParsedLang } from "../domain/langfile.ts";
 import { parseLangPath } from "../domain/path.ts";
@@ -46,7 +48,7 @@ export async function loadTypoRules(): Promise<TypoRule[]> {
   return typoRulesCache;
 }
 
-function relatedItems(prNumber: number, ctx: PrContext): CheckItem[] {
+function relatedItems(prNumber: number, ctx: PrContext): Finding[] {
   const slugs = new Set(ctx.workspaces.map((workspace) => workspace.slug));
   const related = prdata.related(prNumber).filter((entry) => slugs.has(entry.slug));
   if (related.length === 0) return [];
@@ -54,20 +56,22 @@ function relatedItems(prNumber: number, ctx: PrContext): CheckItem[] {
     const numbers = [...new Set(related.map((entry) => entry.number))];
     return [
       {
-        level: "info",
         code: "related_pr",
-        message: `ℹ 有很多模组在 ${numbers.map((number) => `#${number}`).join(" ")} 中有提交`,
+        severity: "neutral",
+        source: "program",
+        detail: `有很多模组在 ${numbers.map((number) => `#${number}`).join(" ")} 中有提交`,
       },
     ];
   }
   return related.map((entry) => ({
-    level: "info" as const,
     code: "related_pr",
-    message: `ℹ ${entry.slug} 在其它 PR 中有提交：\n  - #${entry.number} 中包含此模组的 ${entry.versions.join("、")} 版本`,
+    severity: "neutral" as const,
+    source: "program" as const,
+    detail: `${entry.slug} 在其它 PR 中有提交：#${entry.number} 中包含此模组的 ${entry.versions.join("、")} 版本`,
   }));
 }
 
-function typoItems(ctx: PrContext, rules: TypoRule[]): CheckItem[] {
+function typoItems(ctx: PrContext, rules: TypoRule[]): Finding[] {
   if (rules.length === 0) return [];
   const lines: { path: string; line: number; text: string; version: string }[] = [];
   for (const file of ctx.files) {
@@ -80,20 +84,32 @@ function typoItems(ctx: PrContext, rules: TypoRule[]): CheckItem[] {
   return lines.length > 0 ? typoCheck(lines, rules) : [];
 }
 
-function entryItems(item: WorkspaceData): CheckItem[] {
-  const out: CheckItem[] = [];
+function entryItems(item: WorkspaceData, terms: TermIndex | null): Finding[] {
+  const out: Finding[] = [];
+  const unit = unitOf(item.workspace);
   for (const row of item.rows) {
     if (row.enStatus === "same" && row.zhStatus === "same") continue;
     for (const finding of entryFindings(row.key, row.headEn, row.headZh, { en: row.baseEn, zh: row.baseZh })) {
-      if (finding.hint !== "critical") continue;
-      out.push({ level: "error", code: finding.code, message: `❌ \`${row.key}\`：${finding.detail}` });
+      out.push({ ...finding, unit });
+    }
+    if (!terms || row.headEn === undefined) continue;
+    for (const hit of matchTerms(terms, row.key, row.headEn, row.headZh ?? "", item.workspace.version)) {
+      if (hit.ok) continue;
+      out.push({
+        source: "term",
+        code: `term:${hit.id ?? hit.en}`,
+        severity: "major",
+        detail: `${hit.en} → ${hit.zh.join(" / ")}${hit.reason ? `（${hit.reason}）` : ""}`,
+        key: row.key,
+        unit,
+      });
     }
   }
   return out;
 }
 
-async function autoDomainItems(ctx: PrContext): Promise<CheckItem[]> {
-  const items: CheckItem[] = [];
+async function autoDomainItems(ctx: PrContext): Promise<Finding[]> {
+  const items: Finding[] = [];
   const candidates = ctx.files.filter((file) => file.path.toLowerCase().includes("zh_cn") && file.path.split("/").length < 7).slice(0, 5);
   for (const file of candidates) {
     const names = file.path.split("/");
@@ -108,18 +124,25 @@ async function autoDomainItems(ctx: PrContext): Promise<CheckItem[]> {
     const jar = modFile ? await mods.readJar(modFile).catch(() => null) : null;
     const domain = jar?.domains[0];
     if (!domain) {
-      items.push({ level: "info", code: "bad_path_domain", path: file.path, message: "  无法找到该模组的 Mod Domain。" });
+      items.push({
+        code: "bad_path_domain",
+        severity: "neutral",
+        source: "program",
+        path: file.path,
+        detail: "无法找到该模组的 Mod Domain。",
+      });
       continue;
     }
     const rdir = `projects/assets/${slug}/${version}/${domain}/lang/`;
     const from = names.slice(0, missingDomain ? 4 : 5).join("/");
     items.push({
-      level: "info",
       code: "bad_path_domain",
+      severity: "neutral",
+      source: "program",
       path: file.path,
-      message: missingDomain
-        ? `  自动找到该模组 Domain 为 \`${domain}\`，可能正确文件夹为 \`${rdir}\`。使用命令 \`/mv "${from}/" "${rdir}"\` 来移动路径。`
-        : `  自动找到了该模组的 Mod Domain 为 \`${domain}\`，可能的正确文件夹为 \`${rdir}\`。 你可以使用命令 \`/mv "${from}/" "${rdir}"\` 来移动路径。`,
+      detail: missingDomain
+        ? `自动找到该模组 Domain 为 \`${domain}\`，可能正确文件夹为 \`${rdir}\`。使用命令 \`/mv "${from}/" "${rdir}"\` 来移动路径。`
+        : `自动找到了该模组的 Mod Domain 为 \`${domain}\`，可能的正确文件夹为 \`${rdir}\`。 你可以使用命令 \`/mv "${from}/" "${rdir}"\` 来移动路径。`,
     });
   }
   return items;
@@ -209,137 +232,170 @@ function unavailableRows(target: ModTarget, note: string): ModFileCheck[] {
   }));
 }
 
-function modEnItems(target: ModTarget, jar: JarInfo): CheckItem[] {
+function modEnItems(target: ModTarget, jar: JarInfo): Finding[] {
+  const unit = unitOf(target);
   const label = `${target.namespace}-${target.version}`;
   if (!target.data.headEn) {
     return [
       {
-        level: "error",
         code: "mod_en_missing",
-        message: `❌ 获取 PR 中 ${label} 英文语言文件失败。你可能没有提交此模组的英文语言文件。使用命令 \`/update-en ${target.slug} ${target.version}\` 来获取模组语言文件。`,
+        severity: "major",
+        source: "program",
+        unit,
+        detail: `获取 PR 中 ${label} 英文语言文件失败。你可能没有提交此模组的英文语言文件。使用命令 \`/update-en ${target.slug} ${target.version}\` 来获取模组语言文件。`,
       },
     ];
   }
   const files: JarLang[] = jar.lang.filter((entry) => entry.locale === "en_us" && entry.domain === target.namespace);
   if (files.length === 0) {
-    return [{ level: "info", code: "mod_en_missing", message: `ℹ 没有找到 ${label} 模组内语言文件。` }];
+    return [
+      {
+        code: "mod_en_missing",
+        severity: "neutral",
+        source: "program",
+        unit,
+        detail: `没有找到 ${label} 模组内语言文件。`,
+      },
+    ];
   }
   if (files.length > 1) {
-    return [{ level: "info", code: "mod_en_missing", message: `ℹ 找到了多个 ${label} 模组内语言文件。不进行模组语言文件检查。` }];
+    return [
+      {
+        code: "mod_en_missing",
+        severity: "neutral",
+        source: "program",
+        unit,
+        detail: `找到了多个 ${label} 模组内语言文件。不进行模组语言文件检查。`,
+      },
+    ];
   }
   const modFile = files[0];
   if (!modFile) return [];
   const prKeys = keysOf(target.data.headEn, target.data.format === "json");
   const modKeys = keysOf(parseLang(modFile.content, modFile.format), modFile.format === "json");
+  if (sameKeySet(prKeys, modKeys)) return [];
   const fileName = modFile.path.split("/").pop() ?? modFile.path;
-  if (sameKeySet(prKeys, modKeys)) {
-    return [{ level: "ok", code: "mod_en", message: `ℹ ${label} 模组内语言文件与 PR 相同。` }];
-  }
   return [
     {
-      level: "warn",
       code: "mod_en",
-      message: `⚠ PR 中 ${label} 英文文件与最新模组 \`${fileName}\` 文件不对应。自动获取只能反映多数情况，**可能并不需要更新**。如果你认为**确实**需要更新到**上面的版本**，使用命令 \`/update-en ${target.slug} ${target.version}\`。`,
+      severity: "major",
+      source: "program",
+      unit,
+      detail: `PR 中 ${label} 英文文件与最新模组 \`${fileName}\` 文件不对应。自动获取只能反映多数情况，可能并不需要更新。如果你认为确实需要更新到上面的版本，使用命令 \`/update-en ${target.slug} ${target.version}\`。`,
     },
   ];
 }
 
-async function targetItems(target: ModTarget): Promise<{ items: CheckItem[]; mcreator: boolean; modFiles: ModFileCheck[] }> {
-  const items: CheckItem[] = [];
+async function targetItems(target: ModTarget): Promise<{ findings: Finding[]; mcreator: boolean; modFiles: ModFileCheck[] }> {
+  const findings: Finding[] = [];
+  const unit = unitOf(target);
   if (target.slug === "1UNKNOWN" || target.slug === "0-modrinth-mod") {
-    return { items, mcreator: false, modFiles: unavailableRows(target, "未找到 Mod 下载信息") };
+    return { findings, mcreator: false, modFiles: unavailableRows(target, "未找到 Mod 下载信息") };
   }
   const info = await mods.resolve(target.slug).catch(() => null);
   if (!info) {
-    items.push({ level: "warn", code: "mod_not_found", message: `⚠ 找不到模组: ${target.slug}-${target.version}。` });
-    return { items, mcreator: false, modFiles: unavailableRows(target, `未找到 Mod ${target.slug} 的下载信息`) };
+    findings.push({
+      code: "mod_not_found",
+      severity: "neutral",
+      source: "program",
+      unit,
+      detail: `找不到模组: ${target.slug}-${target.version}。`,
+    });
+    return { findings, mcreator: false, modFiles: unavailableRows(target, `未找到 Mod ${target.slug} 的下载信息`) };
   }
   const expectedSlug = target.slug.startsWith("modrinth-") ? target.slug.slice("modrinth-".length) : target.slug;
   if (info.slug !== expectedSlug) {
-    items.push({
-      level: "error",
+    findings.push({
       code: "slug_changed",
-      message: `❌ 检测到此模组作者更改了 Slug 名，请使用以下命令进行路径移动：\n\`\`\`\n/mv projects/assets/${target.slug}/${target.version}/ projects/assets/${info.slug}/${target.version}/\n/add-mapping ${info.slug} ${info.id}\n\`\`\``,
+      severity: "major",
+      source: "program",
+      unit,
+      detail: `检测到此模组作者更改了 Slug 名，请使用以下命令进行路径移动：\n\`\`\`\n/mv projects/assets/${target.slug}/${target.version}/ projects/assets/${info.slug}/${target.version}/\n/add-mapping ${info.slug} ${info.id}\n\`\`\``,
     });
   }
   const file = await mods.pickFile(info, target.version).catch(() => null);
   const jar = file === null ? null : await mods.readJar(file).catch(() => null);
   if (file === null || jar === null) {
-    items.push(
-      info.allowDistribution === false
-        ? {
-            level: "info",
-            code: "mod_domain_unknown",
-            message: `ℹ ${target.namespace} 的作者不允许此模组自动下载，Bot 无法自动获取 Mod Domain。`,
-          }
-        : {
-            level: "info",
-            code: "mod_domain_unknown",
-            message: `ℹ 无法找到 \`${target.namespace}\` 的 Mod Domain。这不一定代表需要更改。`,
-          },
-    );
-    const note = file === null ? `未找到适用于 ${target.version} 的发布文件` : info.allowDistribution === false ? "模组作者不允许自动下载" : "无法下载或解析该 Mod 文件";
-    return { items, mcreator: info.isMCreator, modFiles: unavailableRows(target, note) };
+    findings.push({
+      code: "mod_domain_unknown",
+      severity: "neutral",
+      source: "program",
+      unit,
+      detail:
+        info.allowDistribution === false
+          ? `${target.namespace} 的作者不允许此模组自动下载，Bot 无法自动获取 Mod Domain。`
+          : `无法找到 \`${target.namespace}\` 的 Mod Domain。这不一定代表需要更改。`,
+    });
+    const note =
+      file === null
+        ? `未找到适用于 ${target.version} 的发布文件`
+        : info.allowDistribution === false
+          ? "模组作者不允许自动下载"
+          : "无法下载或解析该 Mod 文件";
+    return { findings, mcreator: info.isMCreator, modFiles: unavailableRows(target, note) };
   }
-  if (jar.domains.includes(target.namespace)) {
-    items.push({ level: "ok", code: "mod_domain", message: `✔ \`${target.namespace}\` Mod Domain 验证通过。` });
-  } else {
+  if (!jar.domains.includes(target.namespace)) {
     const replacement = jar.domains.length === 1 && jar.domains[0] ? jar.domains[0] : "{MOD_DOMAIN}";
-    items.push({
-      level: "warn",
+    findings.push({
       code: "mod_domain",
-      message: `❗ Domain 验证不通过。文件 Domain 为 \`${jar.domains.join("/")}\`；而 PR 所提供的 Domain 为 \`${target.namespace}\`。`,
+      severity: "major",
+      source: "program",
+      unit,
+      detail: `Domain 验证不通过。文件 Domain 为 \`${jar.domains.join("/")}\`；而 PR 所提供的 Domain 为 \`${target.namespace}\`。`,
     });
-    items.push({
-      level: "warn",
+    findings.push({
       code: "mod_domain",
-      message: `可以使用命令 \`/mv "projects/assets/${target.slug}/${target.version}/${target.namespace}/" "projects/assets/${target.slug}/${target.version}/${replacement}/"\` 来移动目录。`,
+      severity: "major",
+      source: "program",
+      unit,
+      detail: `可以使用命令 \`/mv "projects/assets/${target.slug}/${target.version}/${target.namespace}/" "projects/assets/${target.slug}/${target.version}/${replacement}/"\` 来移动目录。`,
     });
   }
-  items.push(...modEnItems(target, jar));
-  return { items, mcreator: info.isMCreator, modFiles: target.all.map((item) => modFileRow(item, file, jar)) };
+  findings.push(...modEnItems(target, jar));
+  return { findings, mcreator: info.isMCreator, modFiles: target.all.map((item) => modFileRow(item, file, jar)) };
 }
 
 function unitOf(workspace: { slug: string; version: string }): string {
   return `${workspace.slug}/${workspace.version}`;
 }
 
-function withUnit(items: CheckItem[], unit: string): CheckItem[] {
-  return items.map((item) => ({ ...item, unit }));
-}
-
 export async function collectChecks(prNumber: number, ctx: PrContext, data: WorkspaceData[]): Promise<ChecksResult> {
-  const items: CheckItem[] = [];
+  const findings: Finding[] = [];
   const modFiles: ModFileCheck[] = [];
   const extraLabels: string[] = [];
-  const report = (list: CheckItem[]): CheckReport => ({
+  const report = (list: Finding[]): CheckReport => ({
     prNumber,
     headSha: ctx.pull.headSha,
     generatedAt: new Date().toISOString(),
-    items: list,
+    units: [...new Set(data.map((item) => unitOf(item.workspace)))],
+    findings: list,
     modFiles,
   });
   if (ctx.files.length > MAX_CHECK_FILES) {
-    return { report: report([{ level: "warn", code: "too_many_files", message: TOO_MANY_FILES }]), extraLabels };
+    return {
+      report: report([{ code: "too_many_files", severity: "major", source: "program", detail: TOO_MANY_FILES }]),
+      extraLabels,
+    };
   }
 
-  items.push(...pathChecks(ctx.files));
-  items.push(...(await autoDomainItems(ctx)));
-  items.push(...relatedItems(prNumber, ctx));
-  items.push(...typoItems(ctx, await loadTypoRules()));
+  findings.push(...pathChecks(ctx.files));
+  findings.push(...(await autoDomainItems(ctx)));
+  findings.push(...relatedItems(prNumber, ctx));
+  findings.push(...typoItems(ctx, await loadTypoRules()));
+  const terms = await glossaryTerms().catch(() => null);
 
   for (const item of data) {
     const unit = unitOf(item.workspace);
-    items.push(...withUnit(keyParity(`${item.workspace.namespace}-${item.workspace.version}`, item.headEn, item.headZh), unit));
-    items.push(...withUnit(entryItems(item), unit));
+    findings.push(...keyParity(unit, item.headEn, item.headZh));
+    findings.push(...entryItems(item, terms));
   }
 
   for (const target of modTargets(data)) {
     const result = await targetItems(target);
-    items.push(...withUnit(result.items, unitOf(target)));
+    findings.push(...result.findings);
     modFiles.push(...result.modFiles);
     if (result.mcreator && !extraLabels.includes("MCreator")) extraLabels.push("MCreator");
   }
 
-  return { report: report(items), extraLabels };
+  return { report: report(findings), extraLabels };
 }

@@ -8,14 +8,7 @@ export interface TermHit {
   ok: boolean;
   reason?: string;
   domain?: string;
-}
-
-export interface QaHit {
-  id: string;
-  ok: boolean;
-  require?: string;
-  forbid?: string;
-  comment?: string;
+  id?: string;
 }
 
 interface TermRecord {
@@ -36,25 +29,17 @@ interface IndexEntry {
   versions?: string[];
   zhRegex?: boolean;
   enRe?: RegExp;
-}
-
-interface CompiledQa {
-  id: string;
+  id?: string;
+  exceptEn?: RegExp;
+  count?: boolean;
   keyRe?: RegExp;
   exceptKeyRe?: RegExp;
-  enRe: RegExp;
-  require?: string;
-  forbid?: string;
-  countMode: boolean;
-  exceptEnRe?: RegExp;
-  comment?: string;
 }
 
 export interface TermIndex {
   phrases: Map<string, IndexEntry[]>;
   regex: IndexEntry[];
   scopes: { domain: string; re: RegExp }[];
-  qa: CompiledQa[];
   maxPhraseTokens: number;
   all: TermRecord[];
 }
@@ -126,6 +111,8 @@ function versionOf(key: string): string | null {
 }
 
 function applies(entry: IndexEntry, key: string, scopes: { domain: string; re: RegExp }[], version?: string): boolean {
+  if (entry.keyRe && !entry.keyRe.test(key)) return false;
+  if (entry.exceptKeyRe && entry.exceptKeyRe.test(key)) return false;
   if (entry.domain !== undefined) {
     const scope = scopes.find((s) => s.domain === entry.domain);
     if (!scope || !scope.re.test(key)) return false;
@@ -175,7 +162,6 @@ export function buildTermIndex(files: Record<string, string>): TermIndex {
   const phrases = new Map<string, IndexEntry[]>();
   const regex: IndexEntry[] = [];
   const scopes: { domain: string; re: RegExp }[] = [];
-  const qa: CompiledQa[] = [];
   const all: TermRecord[] = [];
   let maxPhraseTokens = 1;
 
@@ -290,24 +276,26 @@ export function buildTermIndex(files: Record<string, string>): TermIndex {
       ] as const) {
         if (value && !safeRegex(value)) throw new Error(`qa-rules.tsv: ${id} ${col} 非法正则: ${value}`);
       }
+      const require = row.require;
+      if (!require) return;
       const keyRe = row.key ? safeRegex(row.key) : undefined;
       const exceptKeyRe = row.except_key ? safeRegex(row.except_key) : undefined;
-      const exceptEnRe = row.except_en ? safeRegex(row.except_en) : undefined;
-      qa.push({
-        id,
+      const exceptEn = row.except_en ? safeRegex(row.except_en) : undefined;
+      regex.push({
+        en,
+        zh: [require],
         enRe,
-        countMode: row.mode === "count",
+        id,
         ...(keyRe ? { keyRe } : {}),
         ...(exceptKeyRe ? { exceptKeyRe } : {}),
-        ...(row.require ? { require: row.require } : {}),
-        ...(row.forbid ? { forbid: row.forbid } : {}),
-        ...(exceptEnRe ? { exceptEnRe } : {}),
-        ...(row.comment ? { comment: row.comment } : {}),
+        ...(exceptEn ? { exceptEn } : {}),
+        ...(row.mode === "count" ? { count: true } : {}),
+        ...(row.comment ? { reason: row.comment } : {}),
       });
     });
   }
 
-  return { phrases, regex, scopes, qa, maxPhraseTokens, all };
+  return { phrases, regex, scopes, maxPhraseTokens, all };
 }
 
 export function matchTerms(
@@ -320,13 +308,19 @@ export function matchTerms(
   const hits: TermHit[] = [];
   const seen = new Set<string>();
   const push = (entry: IndexEntry, matchedEn: string): void => {
-    const sig = `${entry.domain ?? ""}|${matchedEn}`;
+    if (entry.exceptEn && entry.exceptEn.test(en)) return;
+    const sig = `${entry.id ?? ""}|${entry.domain ?? ""}|${matchedEn}`;
     if (seen.has(sig)) return;
     seen.add(sig);
+    const ok =
+      entry.count && entry.enRe
+        ? countOccurrences(zh, entry.zh[0] ?? "") >= countEnMatches(en, entry.enRe)
+        : zhContains(zh, entry.zh, entry.zhRegex);
     hits.push({
       en: entry.en,
       zh: entry.zh,
-      ok: zhContains(zh, entry.zh, entry.zhRegex),
+      ok,
+      ...(entry.id ? { id: entry.id } : {}),
       ...(entry.reason ? { reason: entry.reason } : {}),
       ...(entry.domain ? { domain: entry.domain } : {}),
     });
@@ -360,30 +354,6 @@ export function matchTerms(
     }
   }
 
-  return hits;
-}
-
-export function matchQa(index: TermIndex, key: string, en: string, zh: string): QaHit[] {
-  const hits: QaHit[] = [];
-  for (const rule of index.qa) {
-    if (rule.keyRe && !rule.keyRe.test(key)) continue;
-    if (rule.exceptKeyRe && rule.exceptKeyRe.test(key)) continue;
-    if (rule.exceptEnRe && rule.exceptEnRe.test(en)) continue;
-    const matched = countEnMatches(en, rule.enRe);
-    if (matched === 0) continue;
-    let ok = true;
-    if (rule.require !== undefined) {
-      ok = rule.countMode ? countOccurrences(zh, rule.require) >= matched : zh.includes(rule.require);
-    }
-    if (ok && rule.forbid !== undefined && zh.includes(rule.forbid)) ok = false;
-    hits.push({
-      id: rule.id,
-      ok,
-      ...(rule.require !== undefined ? { require: rule.require } : {}),
-      ...(rule.forbid !== undefined ? { forbid: rule.forbid } : {}),
-      ...(rule.comment ? { comment: rule.comment } : {}),
-    });
-  }
   return hits;
 }
 

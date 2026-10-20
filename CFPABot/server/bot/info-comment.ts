@@ -25,12 +25,16 @@ import {
   type CommentSections,
 } from "./render.ts";
 
-const checkItemSchema = z.object({
-  level: z.enum(["error", "warn", "info", "ok"]),
+const findingSchema = z.object({
   code: z.string(),
-  message: z.string(),
-  path: z.string().optional(),
+  severity: z.enum(["critical", "major", "minor", "neutral"]),
+  source: z.enum(["program", "term"]),
+  detail: z.string(),
   unit: z.string().optional(),
+  path: z.string().optional(),
+  key: z.string().optional(),
+  line: z.number().optional(),
+  keys: z.array(z.string()).optional(),
 });
 
 const modFileSchema = z.object({
@@ -51,7 +55,8 @@ const checkReportSchema = z.object({
   prNumber: z.number(),
   headSha: z.string(),
   generatedAt: z.string(),
-  items: z.array(checkItemSchema),
+  units: z.array(z.string()).default([]),
+  findings: z.array(findingSchema),
   modFiles: z.array(modFileSchema).default([]),
 });
 
@@ -62,7 +67,7 @@ const stateSchema = z.object({
   packer: z.string(),
   checks: z.string(),
   diffs: z.string(),
-  report: checkReportSchema.nullable(),
+  report: z.unknown().optional(),
 });
 
 type CommentState = z.infer<typeof stateSchema>;
@@ -102,7 +107,8 @@ async function safeSegment(fn: () => Promise<string>, fallback: (err: unknown) =
 
 export async function getCheckReport(prNumber: number): Promise<CheckReport | null> {
   const state = await readJson(statePath(prNumber), stateSchema);
-  return state?.report ?? null;
+  const parsed = checkReportSchema.safeParse(state?.report);
+  return parsed.success ? parsed.data : null;
 }
 
 export function isRefreshing(prNumber: number): boolean {
@@ -177,24 +183,34 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
       )
     : state.packer;
 
+  const previous = checkReportSchema.safeParse(state.report);
+  const previousReport = previous.success ? previous.data : null;
   let checks: string;
   let report: CheckReport | null;
-  const skipChecks = !opts.force && state.checks !== "" && (await Bun.file(checkReportPath(prNumber, ctx.pull.headSha)).exists());
+  const skipChecks =
+    !opts.force &&
+    state.checks !== "" &&
+    previousReport !== null &&
+    (await Bun.file(checkReportPath(prNumber, ctx.pull.headSha)).exists());
   if (skipChecks) {
     checks = state.checks;
-    report = state.report;
+    report = previousReport;
   } else {
     const items = await collectChecks(prNumber, ctx, data).catch((err: unknown) => {
       log.error("检查项收集失败", { pr: prNumber, error: err });
       return null;
     });
     if (items !== null) for (const label of items.extraLabels) await gh.addLabels(prNumber, [label]);
-    const comment = await safeSegment(
-      () => buildCheckComment(ctx, env.PUBLIC_URL),
-      (err) => `⚠ 检查出错: ${messageOf(err)}`,
-    );
+    const nextReport = items?.report ?? previousReport;
+    report = nextReport;
+    const comment =
+      nextReport === null
+        ? state.checks
+        : await safeSegment(
+            () => buildCheckComment(nextReport, env.PUBLIC_URL),
+            (err) => `⚠ 检查出错: ${messageOf(err)}`,
+          );
     checks = comment.trim() !== "" ? comment : state.checks;
-    report = items?.report ?? state.report;
   }
 
   const diffs = await safeSegment(

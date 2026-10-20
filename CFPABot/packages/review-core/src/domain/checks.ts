@@ -1,6 +1,7 @@
-import type { CheckItem, PrFile, Severity } from "@cfpa/contracts/api";
+import type { Finding, PrFile, Severity } from "@cfpa/contracts/api";
 import type { ParsedLang } from "./langfile.ts";
 import { compareMc } from "./path.ts";
+import { CJK_SPACE_RE, formatCodes, placeholders, tags } from "./lint.ts";
 
 const LANG_FILE_RE = /^(zh_cn|en_us)\.(json|lang)$/i;
 const ILLEGAL_PATH_RE = /[^0-9A-Za-z_\-./]/;
@@ -24,27 +25,29 @@ function badPathMessage(path: string): string | null {
   return null;
 }
 
-export function pathChecks(files: PrFile[]): CheckItem[] {
-  const items: CheckItem[] = [];
+export function pathChecks(files: PrFile[]): Finding[] {
+  const findings: Finding[] = [];
   const head = files.filter((file) => file.status !== "removed");
 
   const patchouli = head.find((f) => f.path.split("/").includes("patchouli_book"));
   if (patchouli) {
-    items.push({
-      level: "warn",
+    findings.push({
       code: "patchouli_book",
+      severity: "minor",
+      source: "program",
       path: patchouli.path,
-      message: "⚠ 检测到了一个名为 patchouli_book 的文件夹。你可能想说的是 patchouli_books？",
+      detail: "检测到了一个名为 patchouli_book 的文件夹。你可能想说的是 patchouli_books？",
     });
   }
 
   const illegal = head.find((f) => f.path.includes("lang") && ILLEGAL_PATH_RE.test(f.path));
   if (illegal) {
-    items.push({
-      level: "warn",
+    findings.push({
       code: "illegal_path",
+      severity: "major",
+      source: "program",
       path: illegal.path,
-      message: `⚠⚠⚠ **检测到了可能不合规的路径。**\n⚠⚠⚠ 例如： \`${illegal.path}\``,
+      detail: `检测到了可能不合规的路径。例如： \`${illegal.path}\``,
     });
   }
 
@@ -55,7 +58,7 @@ export function pathChecks(files: PrFile[]): CheckItem[] {
     if (file.path.split("/").length >= 7) continue;
     const message = badPathMessage(file.path);
     if (!message) continue;
-    items.push({ level: "warn", code: "bad_path", path: file.path, message });
+    findings.push({ code: "bad_path", severity: "major", source: "program", path: file.path, detail: message });
     badCount++;
   }
 
@@ -69,60 +72,65 @@ export function pathChecks(files: PrFile[]): CheckItem[] {
     );
   });
   if (uppercase) {
-    items.push({
-      level: "warn",
+    findings.push({
       code: "uppercase_path",
+      severity: "minor",
+      source: "program",
       path: uppercase.path,
-      message: `⚠ 警告：文件路径中含有大写字母。如 \`${uppercase.path}\``,
+      detail: `文件路径中含有大写字母。如 \`${uppercase.path}\``,
     });
   }
 
   for (const file of files) {
     if (file.status !== "removed") continue;
     if (!LANG_FILE_RE.test(file.path.split("/").pop() ?? "")) continue;
-    items.push({
-      level: "warn",
+    findings.push({
       code: "deleted_lang",
+      severity: "major",
+      source: "program",
       path: file.path,
-      message: `⚠ 删除了语言文件：\`${file.path}\``,
+      detail: `删除了语言文件：\`${file.path}\``,
     });
   }
 
   for (const file of head) {
     if (!LANG_FILE_RE.test(file.path.split("/").pop() ?? "")) continue;
     if (file.path.startsWith("projects/")) continue;
-    items.push({
-      level: "warn",
+    findings.push({
       code: "stray_lang",
+      severity: "major",
+      source: "program",
       path: file.path,
-      message: `⚠ 语言文件不在 projects/ 目录下：\`${file.path}\``,
+      detail: `语言文件不在 projects/ 目录下：\`${file.path}\``,
     });
   }
 
-  return items;
+  return findings;
 }
 
-export function keyParity(label: string, en: ParsedLang | null, zh: ParsedLang | null): CheckItem[] {
-  const items: CheckItem[] = [];
+export function keyParity(unit: string, en: ParsedLang | null, zh: ParsedLang | null): Finding[] {
+  const findings: Finding[] = [];
   const syntaxErrors = [en, zh].filter((parsed) => parsed !== null && parsed.format === "json" && parsed.errors.length > 0);
   for (const parsed of syntaxErrors) {
-    items.push({
-      level: "error",
+    findings.push({
       code: "json_syntax",
-      message: `❌ ${label} 的语言文件中有 JSON 语法错误：${parsed?.errors[0] ?? ""}`,
+      severity: "critical",
+      source: "program",
+      unit,
+      detail: `语言文件中有 JSON 语法错误：${parsed?.errors[0] ?? ""}`,
     });
   }
-  if (items.length > 0) return items;
+  if (findings.length > 0) return findings;
 
   const enEntries = en?.entries ?? new Map<string, string>();
   const zhEntries = zh?.entries ?? new Map<string, string>();
   if (enEntries.size === 0) {
-    items.push({ level: "info", code: "key_parity", message: `ℹ ${label} 英文文件为空。` });
+    findings.push({ code: "file_empty", severity: "major", source: "program", unit, detail: "英文文件为空" });
   }
   if (zhEntries.size === 0) {
-    items.push({ level: "info", code: "key_parity", message: `ℹ ${label} 中文文件为空。` });
+    findings.push({ code: "file_empty", severity: "major", source: "program", unit, detail: "中文文件为空" });
   }
-  if (enEntries.size === 0 || zhEntries.size === 0) return items;
+  if (enEntries.size === 0 || zhEntries.size === 0) return findings;
 
   const enKeys = [...enEntries.keys()].filter((key) => !key.startsWith("_"));
   const zhKeyList = [...zhEntries.keys()].filter((key) => !key.startsWith("_"));
@@ -131,31 +139,27 @@ export function keyParity(label: string, en: ParsedLang | null, zh: ParsedLang |
   const enExcept = enKeys.filter((key) => !zhKeys.has(key));
   const zhExcept = zhKeyList.filter((key) => !enKeySet.has(key));
 
-  if (enExcept.length === 0 && zhExcept.length === 0) {
-    items.push({ level: "ok", code: "key_parity", message: `ℹ ${label} 中英文 Key 相互对应。` });
-    return items;
-  }
-
-  const lines: string[] = [
-    `⚠ PR 中 ${label} 中英文 Key 不对应。`,
-    "<details><summary>详细报告</summary>",
-    "",
-  ];
   if (enExcept.length > 0) {
-    lines.push(`- 英文有 ${enExcept.length} 个 Key 多于中文。例如：`);
-    for (const key of enExcept.slice(0, 3)) {
-      lines.push(`  - 行 ${en?.lines.get(key) ?? 0}-\`${key}\``);
-    }
+    findings.push({
+      code: "key_parity",
+      severity: "major",
+      source: "program",
+      unit,
+      keys: enExcept,
+      detail: `英文有 ${enExcept.length} 个 Key 多于中文`,
+    });
   }
   if (zhExcept.length > 0) {
-    lines.push(`- 中文有 ${zhExcept.length} 个 Key 多于英文。例如：`);
-    for (const key of zhExcept.slice(0, 3)) {
-      lines.push(`  - 行 ${zh?.lines.get(key) ?? 0}-\`${key}\``);
-    }
+    findings.push({
+      code: "key_parity",
+      severity: "major",
+      source: "program",
+      unit,
+      keys: zhExcept,
+      detail: `中文有 ${zhExcept.length} 个 Key 多于英文`,
+    });
   }
-  lines.push("", "</details>");
-  items.push({ level: "warn", code: "key_parity", message: lines.join("\n") });
-  return items;
+  return findings;
 }
 
 export interface TypoRule {
@@ -184,8 +188,8 @@ export function shortenLine(line: string, checkname: string, version: string): s
 export function typoCheck(
   lines: { path: string; line: number; text: string; version: string }[],
   rules: TypoRule[],
-): CheckItem[] {
-  const items: CheckItem[] = [];
+): Finding[] {
+  const findings: Finding[] = [];
   const reported = new Set<string>();
   for (const entry of lines) {
     for (const rule of rules) {
@@ -196,29 +200,20 @@ export function typoCheck(
       if (rule.skipLegacy && entry.version === "1.12.2") continue;
       reported.add(rule.term);
       const example = shortenLine(entry.text, rule.term, entry.version);
-      const prefix = rule.level === "error" ? "❌ 可能错误译名" : "ℹ 可能争议译名";
-      items.push({
-        level: rule.level,
+      const prefix = rule.level === "error" ? "可能错误译名" : "可能争议译名";
+      findings.push({
         code: "typo",
+        severity: rule.level === "error" ? "major" : "minor",
+        source: "program",
         path: entry.path,
-        message: `${prefix}：\`${rule.term}\`，${rule.message}。例如 \`${example}\`。`,
+        detail: `${prefix}：\`${rule.term}\`，${rule.message}。例如 \`${example}\`。`,
       });
     }
   }
-  return items;
+  return findings;
 }
 
-export interface Finding {
-  code: string;
-  hint: Severity;
-  detail: string;
-}
-
-const CODE_RE = /[§&][0-9a-fk-or]/gi;
 const EN_KEEP_PATTERNS = [/shader\.name\./, /painting\..*\.(author|title)$/, /\.my_man_diorite$/];
-const KEPT_UNIT_RE = /mB|kHz|\bIF\b|Flux|flux|\bticks?\b/;
-const ENERGY_RE = /\b(FE|RF|MB|Forge Energy)\b/;
-const ENERGY_OK_RE = /\b(FE|RF|MB)\b/;
 const CJK_RE = /[\u4e00-\u9fff]/;
 
 function stripCodes(s: string): string {
@@ -231,52 +226,6 @@ function isFormatOnly(s: string): boolean {
     .replace(/%\d?\$?[sd]/g, "")
     .replace(/[%§&<>{}$\d\s.,:;!?'"()[\]-]/g, "");
   return rest === "" || /^(m|mB|kHz|IF|Flux|flux|ticks?)$/.test(rest);
-}
-
-function fmtRefs(s: string): Map<number, string> {
-  const refs = new Map<number, string>();
-  let ord = 0;
-  for (const m of s.matchAll(/%(?:(\d+)\$)?([sd])/g)) {
-    const pos = m[1] ? Number(m[1]) : ++ord;
-    refs.set(pos, m[2] as string);
-  }
-  return refs;
-}
-
-function checkPlaceholders(
-  en: string,
-  zh: string,
-): { level: "pass" | "neutral" | "major" | "critical"; msg: string } {
-  const a = fmtRefs(en);
-  const b = fmtRefs(zh);
-  const needA = a.size ? Math.max(...a.keys()) : 0;
-  const needB = b.size ? Math.max(...b.keys()) : 0;
-  const tmpl = (s: string): string =>
-    [...s.replace(/%(?:\d+\$)?[sd]/g, "").matchAll(/%[A-Za-z_%]+%/g)].map((m) => m[0]).sort().join(",");
-  const tA = tmpl(en);
-  const tB = tmpl(zh);
-  if (tA !== tB) return { level: "major", msg: `模板占位不一致 en[${tA}] zh[${tB}]` };
-  for (const [pos, type] of b) {
-    if (pos > needA) return { level: "critical", msg: `zh 需 ${needB} 参 > en 供 ${needA} 参，必崩` };
-    const enType = a.get(pos);
-    if (enType !== undefined && enType !== type) {
-      return { level: "major", msg: `占位类型变 %${pos}$${enType}→${type}，需核调用点` };
-    }
-  }
-  if (needB === needA && b.size === a.size) {
-    let same = true;
-    for (const [pos, type] of b) {
-      if (a.get(pos) !== type) same = false;
-    }
-    if (same && [...a.keys()].every((pos) => b.has(pos))) return { level: "pass", msg: "" };
-  }
-  return { level: "neutral", msg: `zh 少占位（en 需 ${needA} 参 / zh 用 ${needB} 参，多余实参被忽略，安全）` };
-}
-
-function checkCodes(en: string, zh: string): string | null {
-  const a = [...en.matchAll(CODE_RE)].map((m) => m[0].toLowerCase()).sort().join(",");
-  const b = [...zh.matchAll(CODE_RE)].map((m) => m[0].toLowerCase()).sort().join(",");
-  return a === b ? null : `en[${a}] zh[${b}]`;
 }
 
 function halfPunctHits(zh: string): string[] {
@@ -311,90 +260,119 @@ export function entryFindings(
   if (zh === undefined) return findings;
   const e = en ?? "";
   const z = zh;
+  const at = { source: "program" as const, key };
 
   if (z === "") {
-    findings.push({ code: "empty_value", hint: "minor", detail: "空翻译值" });
+    findings.push({ ...at, code: "empty_value", severity: "minor", detail: "空翻译值" });
   } else if (z === e && /[a-zA-Z]/.test(e)) {
     if (!isFormatOnly(e)) {
-      if (KEPT_UNIT_RE.test(e)) {
-        findings.push({
-          code: "units_kept",
-          hint: "neutral",
-          detail: "单位/格式串保留英文（mB/kHz/IF/tick 类），通常有意为之",
-        });
-      } else {
-        const kept = EN_KEEP_PATTERNS.some((re) => re.test(key));
-        findings.push({
-          code: "untranslated_value",
-          hint: kept ? "neutral" : "minor",
-          detail: kept
-            ? "命中刻意保留模式（皮肤/画作/专有裸键），大概率 neutral"
-            : "与英文完全相同，需判断是刻意保留还是漏译",
-        });
-      }
+      const kept = EN_KEEP_PATTERNS.some((re) => re.test(key));
+      findings.push({
+        ...at,
+        code: "untranslated_value",
+        severity: kept ? "neutral" : "minor",
+        detail: kept
+          ? "命中刻意保留模式（皮肤/画作/专有裸键），大概率 neutral"
+          : "与英文完全相同，需判断是刻意保留还是漏译",
+      });
     }
   } else {
-    const ph = checkPlaceholders(e, z);
-    if (ph.level !== "pass") {
-      findings.push({ code: "placeholder_mismatch", hint: ph.level, detail: ph.msg });
+    const a = placeholders(e);
+    const b = placeholders(z);
+    if (a.join("|") !== b.join("|")) {
+      findings.push({
+        ...at,
+        code: "placeholder_mismatch",
+        severity: b.length > a.length ? "critical" : "major",
+        detail: `占位符不一致 en[${a.join(",")}] zh[${b.join(",")}]`,
+      });
     }
-    const codes = checkCodes(e, z);
-    if (codes !== null) {
-      findings.push({ code: "format_code_mismatch", hint: "major", detail: codes });
+    const aCodes = formatCodes(e);
+    const bCodes = formatCodes(z);
+    if (aCodes.join("|") !== bCodes.join("|")) {
+      findings.push({
+        ...at,
+        code: "format_code_mismatch",
+        severity: "major",
+        detail: `格式码不一致 en[${aCodes.join(",")}] zh[${bCodes.join(",")}]`,
+      });
+    }
+    const aTags = tags(e);
+    const bTags = tags(z);
+    if (aTags.join("|") !== bTags.join("|")) {
+      findings.push({
+        ...at,
+        code: "tag_mismatch",
+        severity: "major",
+        detail: `HTML 标签不一致 en[${aTags.join(",")}] zh[${bTags.join(",")}]`,
+      });
+    }
+    const enLines = e.split("\n").length - 1;
+    const zhLines = z.split("\n").length - 1;
+    if (enLines !== zhLines) {
+      findings.push({
+        ...at,
+        code: "newline_mismatch",
+        severity: "major",
+        detail: `换行数量不一致 en[${enLines}] zh[${zhLines}]`,
+      });
+    }
+    const enTabs = e.split("\t").length - 1;
+    const zhTabs = z.split("\t").length - 1;
+    if (enTabs !== zhTabs) {
+      findings.push({
+        ...at,
+        code: "tab_mismatch",
+        severity: "minor",
+        detail: `制表符数量不一致 en[${enTabs}] zh[${zhTabs}]`,
+      });
     }
     const punct = halfPunctHits(z);
     if (punct.length > 0) {
       findings.push({
+        ...at,
         code: "half_punct",
-        hint: "minor",
+        severity: "minor",
         detail: `半角标点：${[...new Set(punct)].join(" ")}`,
       });
     }
-    const edge = (s: string): string => `${s.match(/^\s*/)?.[0] ?? ""}|${s.match(/\s*$/)?.[0] ?? ""}`;
     if (/ {2}/.test(z) && !/ {2}/.test(e)) {
-      findings.push({ code: "double_space", hint: "minor", detail: "连续双空格" });
+      findings.push({ ...at, code: "double_space", severity: "minor", detail: "连续双空格" });
     }
-    if (z !== z.trim() && edge(z) !== edge(e)) {
-      findings.push({ code: "edge_space", hint: "minor", detail: `首尾空格：${JSON.stringify(z)}` });
+    const zEdge = `${z.match(/^\s*/)?.[0] ?? ""}|${z.match(/\s*$/)?.[0] ?? ""}`;
+    const eEdge = `${e.match(/^\s*/)?.[0] ?? ""}|${e.match(/\s*$/)?.[0] ?? ""}`;
+    if (z !== z.trim() && zEdge !== eEdge) {
+      findings.push({ ...at, code: "edge_space", severity: "minor", detail: `首尾空格：${JSON.stringify(z)}` });
     }
-    if (/\bticks?\b/i.test(e) && !/刻/.test(z)) {
-      findings.push({
-        code: "tick_untranslated",
-        hint: "minor",
-        detail: /\bticks?\b/i.test(z)
-          ? "tick 残留英文（全文 Tick 应统一为刻）"
-          : "tick 未体现（译刻/保留/意译三选一，需全文件统一）",
-      });
-    }
-    if (ENERGY_RE.test(e) && !(ENERGY_OK_RE.test(z) || /锻造能量/.test(z))) {
-      findings.push({
-        code: "energy_unit_translated",
-        hint: "major",
-        detail: "能量/体积单位疑似被翻译或丢失（FE/RF/MB 应保留）",
-      });
+    if (CJK_SPACE_RE.test(z)) {
+      findings.push({ ...at, code: "cjk_space", severity: "minor", detail: "汉字之间有空格" });
     }
     if (/subtitle|subtitles|sound/.test(key) && !/[：:]/.test(z) && e.trim().split(/\s+/).length >= 2) {
       findings.push({
+        ...at,
         code: "subtitle_no_colon",
-        hint: "neutral",
+        severity: "neutral",
         detail: "字幕无冒号（主谓结构建议 主体：声音；无主语可豁免）",
       });
     }
     if (/\b(shift|ctrl)\b/.test(z)) {
       findings.push({
+        ...at,
         code: "modifier_key_case",
-        hint: "minor",
+        severity: "minor",
         detail: "功能键应首字母大写（Shift/Ctrl）且不翻译",
       });
     }
   }
 
   if (base && base.en !== undefined && base.zh !== undefined && en !== undefined) {
-    const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, " ").trim();
-    if (base.en !== e && base.zh === z && norm(base.en) !== norm(e)) {
+    const baseEnNorm = base.en.toLowerCase().replace(/\s+/g, " ").trim();
+    const eNorm = e.toLowerCase().replace(/\s+/g, " ").trim();
+    if (base.en !== e && base.zh === z && baseEnNorm !== eNorm) {
       findings.push({
+        ...at,
         code: "stale_translation",
-        hint: "major",
+        severity: "major",
         detail: `原文已变（${JSON.stringify(base.en)} → ${JSON.stringify(e)}）而译文未动`,
       });
     }
@@ -403,13 +381,25 @@ export function entryFindings(
   return findings;
 }
 
-export function fileFindings(content: string): Finding[] {
+export function fileFindings(path: string, content: string): Finding[] {
   const findings: Finding[] = [];
   if (!content.endsWith("\n")) {
-    findings.push({ code: "no_trailing_newline", hint: "neutral", detail: "文件末无换行" });
+    findings.push({
+      code: "no_trailing_newline",
+      severity: "neutral",
+      source: "program",
+      path,
+      detail: "文件末无换行",
+    });
   }
   if (/^\t/m.test(content) && /^ {2}/m.test(content)) {
-    findings.push({ code: "mixed_indent", hint: "neutral", detail: "tab 与空格缩进混用" });
+    findings.push({
+      code: "mixed_indent",
+      severity: "neutral",
+      source: "program",
+      path,
+      detail: "tab 与空格缩进混用",
+    });
   }
   return findings;
 }

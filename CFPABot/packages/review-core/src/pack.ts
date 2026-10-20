@@ -1,17 +1,10 @@
-import type { Severity, Workspace } from "@cfpa/contracts/api";
+import type { Finding, Workspace } from "@cfpa/contracts/api";
 import { entryFindings, duplicateZh, fileFindings } from "./domain/checks.ts";
 import { inHunks, patchHunks } from "./domain/diff.ts";
 import { parseLang, type ParsedLang } from "./domain/langfile.ts";
 import { parseLangPath, langPathFor, workspacesOf, type LangFormat, type Locale } from "./domain/path.ts";
-import { matchQa, matchTerms, type TermIndex } from "./domain/terms.ts";
+import { matchTerms, type TermIndex } from "./domain/terms.ts";
 import type { PackFile } from "./types.ts";
-
-export interface PackFinding {
-  source: "program" | "term" | "qa";
-  code: string;
-  severity: Severity;
-  detail: string;
-}
 
 export interface PackRow {
   key: string;
@@ -22,7 +15,7 @@ export interface PackRow {
   line: number | null;
   inHunk: boolean;
   changed: boolean;
-  findings: PackFinding[];
+  findings: Finding[];
 }
 
 export interface PackWorkspace {
@@ -33,7 +26,7 @@ export interface PackWorkspace {
   enPath: string | null;
   zhPath: string | null;
   rows: PackRow[];
-  fileFindings: { path: string; findings: PackFinding[] }[];
+  fileFindings: { path: string; findings: Finding[] }[];
   duplicates: { zh: string; keys: string[] }[];
   counts: { total: number; changed: number; flagged: number };
 }
@@ -132,24 +125,19 @@ function findingsFor(
   values: { baseEn?: string; headEn?: string; baseZh?: string; headZh?: string },
   version: string,
   terms: TermIndex | null,
-): PackFinding[] {
-  const findings: PackFinding[] = [];
-  for (const finding of entryFindings(key, values.headEn, values.headZh, { en: values.baseEn, zh: values.baseZh })) {
-    findings.push({ source: "program", code: finding.code, severity: finding.hint, detail: finding.detail });
-  }
+): Finding[] {
+  const findings: Finding[] = [];
+  findings.push(...entryFindings(key, values.headEn, values.headZh, { en: values.baseEn, zh: values.baseZh }));
   if (!terms || values.headEn === undefined) return findings;
   for (const hit of matchTerms(terms, key, values.headEn, values.headZh ?? "", version)) {
     if (hit.ok) continue;
     findings.push({
       source: "term",
-      code: `term:${hit.en}`,
+      code: `term:${hit.id ?? hit.en}`,
       severity: "major",
       detail: `${hit.en} → ${hit.zh.join(" / ")}${hit.reason ? `（${hit.reason}）` : ""}`,
+      key,
     });
-  }
-  for (const hit of matchQa(terms, key, values.headEn, values.headZh ?? "")) {
-    if (hit.ok) continue;
-    findings.push({ source: "qa", code: `qa:${hit.id}`, severity: "minor", detail: hit.comment ?? hit.require ?? hit.id });
   }
   return findings;
 }
@@ -213,21 +201,13 @@ async function buildWorkspace(
       findings: findingsFor(key, values, workspace.version, input.terms),
     });
   }
-  const fileLevel: { path: string; findings: PackFinding[] }[] = [];
+  const fileLevel: { path: string; findings: Finding[] }[] = [];
   for (const [path, content] of [
     [enPath, headEnText],
     [zhPath, headZhText],
   ] as [string | null, string | null][]) {
     if (!path || content === null) continue;
-    fileLevel.push({
-      path,
-      findings: fileFindings(content).map((finding) => ({
-        source: "program" as const,
-        code: finding.code,
-        severity: finding.hint,
-        detail: finding.detail,
-      })),
-    });
+    fileLevel.push({ path, findings: fileFindings(path, content) });
   }
   const duplicates = [...duplicateZh(rows.map((row) => ({ key: row.key, en: row.headEn, zh: row.headZh })))].map(
     ([zh, keys]) => ({ zh, keys }),

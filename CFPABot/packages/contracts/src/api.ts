@@ -69,14 +69,18 @@ export interface PrDetail extends PrSummary {
   related: RelatedPr[];
 }
 
-export type CheckLevel = "error" | "warn" | "info" | "ok";
+export type FindingSource = "program" | "term";
 
-export interface CheckItem {
-  level: CheckLevel;
+export interface Finding {
   code: string;
-  message: string;
-  path?: string;
+  severity: Severity;
+  source: FindingSource;
+  detail: string;
   unit?: string;
+  path?: string;
+  key?: string;
+  line?: number;
+  keys?: string[];
 }
 
 export type ModFileStatus = "ok" | "mismatch" | "extra" | "unavailable";
@@ -99,15 +103,9 @@ export interface CheckReport {
   prNumber: number;
   headSha: string;
   generatedAt: string;
-  items: CheckItem[];
+  units: string[];
+  findings: Finding[];
   modFiles: ModFileCheck[];
-}
-
-export interface PackFinding {
-  source: "program" | "term" | "qa";
-  code: string;
-  severity: Severity;
-  detail: string;
 }
 
 export interface PackWorkspaceSummary {
@@ -118,7 +116,7 @@ export interface PackWorkspaceSummary {
   counts: { total: number; changed: number; flagged: number };
   histogram: Record<string, number>;
   duplicates: { zh: string; keys: string[] }[];
-  files: { path: string; findings: PackFinding[] }[];
+  files: { path: string; findings: Finding[] }[];
 }
 
 export interface PackSummary {
