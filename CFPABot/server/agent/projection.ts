@@ -1,5 +1,5 @@
-import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
-import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type { AgentEvent, AgentMessage } from "@oh-my-pi/pi-agent-core";
+import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session-events";
 import type { ChatItem, ToolCallView } from "../../shared/api.ts";
 
 const RESULT_LIMIT = 2000;

@@ -1,13 +1,13 @@
-import type { AgentTool } from "@earendil-works/pi-agent-core";
-import { Type } from "typebox";
+import type { AgentTool } from "@oh-my-pi/pi-agent-core";
+import { type } from "@oh-my-pi/omptype";
 import { lookupTerm } from "../../domain/terms.ts";
 import { glossaryLookup } from "../glossary.ts";
 import { glossaryTerms } from "../../domain/glossary.ts";
 import { jsonResult } from "../result.ts";
 
-const GLOSSARY_PARAMS = Type.Object({
-  query: Type.String({ description: "要查的英文词或短语" }),
-  limit: Type.Optional(Type.Number({ description: "每个来源最多返回条数，默认 10，上限 50" })),
+const GLOSSARY_PARAMS = type({
+  query: type("string").describe("要查的英文词或短语"),
+  "limit?": type("number").describe("每个来源最多返回条数，默认 10，上限 50"),
 });
 
 export function glossaryTool(): AgentTool<typeof GLOSSARY_PARAMS> {

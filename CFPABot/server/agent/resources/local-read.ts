@@ -1,4 +1,4 @@
-import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import type { ToolContext } from "../context.ts";
 import { isLocalPath } from "../local-store.ts";
 import { jsonResult } from "../result.ts";

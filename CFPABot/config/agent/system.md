@@ -21,10 +21,10 @@
 | `ls` | 列出目录；`path` 可写资源 URI |
 | `bash` | 在 workspace 执行 shell；需要管理员开启执行权限 |
 | `todo` | 维护多步任务清单（一次写入完整计划）；适合审查这类分步流程 |
-| `eval` | 在一次性沙箱执行 Python / JavaScript / Bash；默认关闭 |
+| `eval` | 在宿主持久 kernel 执行 Python / JavaScript；默认关闭 |
 | `glossary` | 查原版术语与外部词典（临时工具，MCP 接入后移除） |
-| `web_search` | 联网搜索；由 pi-web-access 提供 |
-| `fetch_content` | 抓取网页/PDF/GitHub 仓库内容；由 pi-web-access 提供 |
+| `web_search` | 联网搜索；由 omp 内置工具提供 |
+| `task` | 派生子代理并行处理；由 omp 内置工具提供 |
 
 工具细节按需读取 `help://tools/<name>` 与 `help://resources/<scheme>`。
 

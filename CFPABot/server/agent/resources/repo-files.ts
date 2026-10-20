@@ -1,5 +1,5 @@
 import { readdir, readFile, stat } from "node:fs/promises";
-import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { mirror } from "../../mirror.ts";
 import { repoRoot, resolveInside } from "../../workspace.ts";
 import { jsonResult } from "../result.ts";

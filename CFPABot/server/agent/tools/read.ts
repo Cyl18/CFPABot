@@ -1,10 +1,10 @@
-import type { AgentTool } from "@earendil-works/pi-agent-core";
-import { Type } from "typebox";
+import type { AgentTool } from "@oh-my-pi/pi-agent-core";
+import { type } from "@oh-my-pi/omptype";
 import type { ToolContext } from "../context.ts";
 import { readResource } from "../resources/index.ts";
 
-const READ_PARAMS = Type.Object({
-  path: Type.String({ description: "资源 URI：repo://、pr://、gh://、local:// 或 help://；行范围用 :N-M" }),
+const READ_PARAMS = type({
+  path: type("string").describe("资源 URI：repo://、pr://、gh://、local:// 或 help://；行范围用 :N-M"),
 });
 
 export function readTool(ctx: ToolContext): AgentTool<typeof READ_PARAMS> {

@@ -1,4 +1,4 @@
-import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import type { ToolContext } from "../context.ts";
 import { readGh } from "./gh-read.ts";
 import { readHelp } from "./help.ts";

@@ -10,4 +10,5 @@ CFPABot/config/secret.key
 CFPABot/config/vanilla-terms/
 *.tsbuildinfo
 temp/
+CFPABot/native/
 desktop.ini

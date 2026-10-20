@@ -1,4 +1,4 @@
-import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { z } from "zod";
 import type { ReviewDraft } from "../../../shared/api.ts";
 import { env } from "../../env.ts";

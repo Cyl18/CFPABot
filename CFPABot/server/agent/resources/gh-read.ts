@@ -1,4 +1,4 @@
-import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { env, repo } from "../../env.ts";
 import { gh } from "../../github/client.ts";
 import { mirror } from "../../mirror.ts";

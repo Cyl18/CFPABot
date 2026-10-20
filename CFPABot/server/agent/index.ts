@@ -1,6 +1,10 @@
 import { chmod, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
-import { createAgentSession, SettingsManager, type AgentSession } from "@earendil-works/pi-coding-agent";
+import {
+  createAgentSession,
+  type AgentSession,
+  type SessionEntry,
+} from "@oh-my-pi/pi-coding-agent";
 import type {
   CreateSessionRequest,
   EvalScope,
@@ -16,9 +20,10 @@ import { paths } from "../paths.ts";
 import { type ToolContext } from "./context.ts";
 import { DRAFT_FILE, parseDraftFile, serializeDraftFile, validateDraft, type DraftContext } from "./draft.ts";
 import { SessionHub } from "./events.ts";
-import { loadConfig, llm, resolveModel, setModelsForTest } from "./llm.ts";
+import { loadConfig, llm, resolveModel, setModelForTest } from "./llm.ts";
+import { reasoningOf } from "./llm-providers.ts";
 import { isLocalPath, listLocal, localDir, readLocal, readLocalSync, writeLocal } from "./local-store.ts";
-import { createModelRuntime, createResourceLoader, openSessionManager, sessionMessages } from "./pi.ts";
+import { openSessionManager, sessionMessages } from "./pi.ts";
 import { mqmTable } from "./mqm.ts";
 import { LiveProjector, projectMessages } from "./projection.ts";
 import { buildSystemPrompt } from "./prompt.ts";
@@ -26,7 +31,7 @@ import { publishDraft } from "./publish.ts";
 import { SessionStore, summarize, type SessionMeta, type SessionRecord } from "./sessions.ts";
 import { buildTools } from "./tools/index.ts";
 
-export { llm, setModelsForTest };
+export { llm, setModelForTest };
 
 const log = logger("agent");
 const store = new SessionStore();
@@ -35,6 +40,21 @@ const runtimes = new Map<string, AgentSession>();
 const runs = new Map<string, Promise<void>>();
 const active = new Set<string>();
 const pendingAborts = new Set<string>();
+const abortRequested = new Set<string>();
+
+const ALLOWED_TOOLS: Record<string, true> = {
+  read: true,
+  write: true,
+  edit: true,
+  grep: true,
+  find: true,
+  ls: true,
+  glossary: true,
+  todo: true,
+  task: true,
+  wait: true,
+  web_search: true,
+};
 
 function httpError(message: string, status: number, code?: string): Error {
   return Object.assign(new Error(message), { status, ...(code === undefined ? {} : { code }) });
@@ -58,12 +78,12 @@ function firstPrompt(review: boolean, prNumber: number | undefined, message: str
   return message || "请查看当前 PR，完成用户要求的操作（默认：理解并汇报 PR 内容）。";
 }
 
-function detailOf(record: SessionRecord): SessionDetail {
+async function detailOf(record: SessionRecord): Promise<SessionDetail> {
   const meta = record.meta;
   const draft = parseDraftFile(readLocalSync(record.meta.id, DRAFT_FILE)?.content);
   return {
     ...summarize(record),
-    items: projectMessages(sessionMessages(record)),
+    items: projectMessages(await sessionMessages(record)),
     ...(draft === null ? {} : { draft }),
     ...(meta.headSha ? { headSha: meta.headSha } : {}),
   };
@@ -119,44 +139,48 @@ async function runTurn(id: string, prompt: string): Promise<void> {
     const { model, apiKey, endpoint } = await resolveModel(record.meta.model);
     const manager = await openSessionManager(record);
     sessionFile = manager.getSessionFile() ?? record.sessionFile;
-    const projector = new LiveProjector(
-      manager.getBranch().filter((entry) => entry.type === "message").length,
-    );
+    const entries: SessionEntry[] = manager.getEntries();
+    const projector = new LiveProjector(entries.filter((entry) => entry.type === "message").length);
     const created = await createAgentSession({
       cwd: paths.root,
+      agentDir: paths.piAgent,
       model,
-      modelRuntime: await createModelRuntime(model, apiKey),
+      getApiKey: async () => apiKey,
       sessionManager: manager,
-      settingsManager: SettingsManager.inMemory(),
-      resourceLoader: await createResourceLoader(systemPrompt),
       customTools: buildTools(toolContext(record)),
-      noTools: "builtin",
-      ...(endpoint?.thinking ? { thinkingLevel: endpoint.thinking } : {}),
+      disableExtensionDiscovery: true,
+      systemPrompt,
+      ...(endpoint ? { thinkingLevel: reasoningOf(endpoint) } : {}),
     });
     session = created.session;
     runtimes.set(id, session);
-    await session.bindExtensions({});
-    if (record.meta.evalScope !== "run") {
-      session.setActiveToolsByName(session.getActiveToolNames().filter((name) => name !== "eval"));
-    }
+    const exec = record.meta.evalScope === "run";
+    await session.setActiveToolsByName(
+      session.getActiveToolNames().filter(
+        (name) => ALLOWED_TOOLS[name] === true || ((name === "eval" || name === "bash") && exec),
+      ),
+    );
     session.subscribe((event) => {
-      if (event.type === "agent_settled") aborted = event.aborted;
       for (const item of projector.handle(event)) hub.emit(id, { type: "item", item });
     });
-    if (aborted || pendingAborts.delete(id)) {
+    if (aborted || abortRequested.delete(id) || pendingAborts.delete(id)) {
       aborted = true;
       await session.abort();
       return;
     }
     await session.prompt(prompt);
-    if (!aborted) error = session.state.errorMessage;
+    if (abortRequested.delete(id)) aborted = true;
+    if (!aborted) {
+      const last = session.agent.state.messages.at(-1);
+      if (last?.role === "assistant" && last.errorMessage) error = last.errorMessage;
+    }
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
     log.error("会话运行失败", { id, err });
   } finally {
     runtimes.delete(id);
     active.delete(id);
-    session?.dispose();
+    await session?.dispose();
     const fresh = await store.get(id).catch(() => null);
     if (fresh) {
       if (sessionFile) fresh.sessionFile = sessionFile;
@@ -208,7 +232,7 @@ export const agent = {
 
   async get(id: string): Promise<SessionDetail | null> {
     const record = await store.get(id);
-    return record ? detailOf(record) : null;
+    return record ? await detailOf(record) : null;
   },
 
   async create(request: CreateSessionRequest & { createdBy: string; source: "web" | "github" }): Promise<SessionDetail> {
@@ -272,6 +296,7 @@ export const agent = {
   async abort(id: string): Promise<void> {
     const runtime = runtimes.get(id);
     if (runtime) {
+      abortRequested.add(id);
       void runtime.abort();
       return;
     }
@@ -289,7 +314,11 @@ export const agent = {
 
   subscribe(id: string, listener: (event: SessionEvent) => void): () => void {
     const record = store.peek(id);
-    if (record) listener({ type: "snapshot", session: detailOf(record) });
+    if (record) {
+      void detailOf(record)
+        .then((session) => listener({ type: "snapshot", session }))
+        .catch(() => {});
+    }
     return hub.subscribe(id, listener);
   },
 

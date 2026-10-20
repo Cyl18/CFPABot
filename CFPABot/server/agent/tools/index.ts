@@ -1,4 +1,4 @@
-import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { ToolDefinition } from "@oh-my-pi/pi-coding-agent";
 import type { ToolContext } from "../context.ts";
 import { bashTool } from "./bash.ts";
 import { editTool } from "./edit.ts";

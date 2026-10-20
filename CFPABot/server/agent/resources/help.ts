@@ -1,4 +1,4 @@
-import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { jsonResult } from "../result.ts";
 import type { HelpUri } from "./uri.ts";
 
@@ -67,23 +67,17 @@ writeScope=off 时只允许 local://；on 时允许写 pr://<n>/...。
 多步工作开始时先 init 一份计划，完成后把状态改成 completed。`,
   "tools/eval": `# eval
 
-在一次性 Docker 沙箱执行 py/js/bash；需要 evalScope=run。
-参数：language、code、stdin?、inputs?、outputs?、timeout?。
-- stdin 可传文本或以 local:// 读文件
-- inputs 是 local:// 文件，挂到 /workspace/in
-- outputs 是 /workspace/out 下要保存回 local:// 的文件名
-完整 stdout/stderr 始终保存为 local://eval-<时间>.log。`,
+在宿主持久 kernel 执行 Python / JavaScript；需要 evalScope=run。
+一次调用一个 cell，变量在同一语言内保留；reset 重建 kernel。
+参数：language（py|js）、code、timeout?、reset?。
+kernel 直接读写会话 workspace 与仓库文件；不要用 bash 再套 python -c。`,
   "tools/glossary": `# glossary
 
 查询原版术语表与外部词典：query、limit?（默认 10，最大 50）。`,
   "tools/web_search": `# web_search
 
-联网搜索；由 pi-web-access 提供。返回结果后用 source_check 核对来源，
-需要正文时用 fetch_content。配置在 runtime/pi-agent/web-search.json。`,
-  "tools/fetch_content": `# fetch_content
-
-抓取网页、PDF 或 GitHub 仓库内容；由 pi-web-access 提供。
-先用 web_search 找 URL，再抓正文。`,
+联网搜索；由 omp 内置工具提供。返回结果后核对来源，
+需要正文时再抓取对应 URL。`,
   "resources/repo": `# repo://
 
 仓库文件树，只读，默认读 origin 默认分支。空路径列出根目录，目录路径列出直接子项。

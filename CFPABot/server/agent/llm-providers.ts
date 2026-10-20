@@ -1,24 +1,8 @@
-import {
-  createModels,
-  createProvider,
-  type Api,
-  type Model,
-  type MutableModels,
-  type ProviderStreams,
-  type ThinkingLevel as PiThinkingLevel,
-} from "@earendil-works/pi-ai";
-import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
-import { googleGenerativeAIApi } from "@earendil-works/pi-ai/api/google-generative-ai.lazy";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
-import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
+import type { Api, Model } from "@oh-my-pi/pi-ai";
+import { buildModel as buildCatalogModel } from "@oh-my-pi/pi-catalog/build";
+import type { Effort } from "@oh-my-pi/pi-catalog/effort";
+import type { ModelSpec } from "@oh-my-pi/pi-catalog/types";
 import type { LlmEndpoint, LlmProtocol } from "../../shared/api.ts";
-
-const FACTORIES: Record<LlmProtocol, () => ProviderStreams> = {
-  "openai-completions": openAICompletionsApi,
-  "openai-responses": openAIResponsesApi,
-  "anthropic-messages": anthropicMessagesApi,
-  "google-generative-ai": googleGenerativeAIApi,
-};
 
 export function endpointId(provider: string, model: string): string {
   return `${provider}/${model}`;
@@ -34,10 +18,10 @@ export function defaultBaseUrl(provider: string): string {
 }
 
 export function buildModel(endpoint: LlmEndpoint): Model<Api> {
-  return {
+  const spec: ModelSpec<Api> = {
     id: endpoint.model,
     name: endpoint.id,
-    api: endpoint.protocol,
+    api: endpoint.protocol as Api,
     provider: endpoint.provider,
     baseUrl: normalizeBaseUrl(endpoint.baseUrl || defaultBaseUrl(endpoint.provider), endpoint.protocol),
     reasoning: reasoningOf(endpoint) !== undefined,
@@ -46,52 +30,9 @@ export function buildModel(endpoint: LlmEndpoint): Model<Api> {
     contextWindow: endpoint.contextWindow ?? 128_000,
     maxTokens: endpoint.maxOutput ?? 8192,
   };
+  return buildCatalogModel(spec);
 }
 
-export function reasoningOf(endpoint: LlmEndpoint): PiThinkingLevel | undefined {
-  return endpoint.thinking && endpoint.thinking !== "off" ? endpoint.thinking : undefined;
-}
-
-export function modelsSyncKey(endpoints: readonly LlmEndpoint[]): string {
-  return endpoints
-    .map((endpoint) =>
-      [
-        endpoint.provider,
-        endpoint.model,
-        normalizeBaseUrl(endpoint.baseUrl, endpoint.protocol),
-        endpoint.protocol,
-        endpoint.contextWindow ?? "",
-        endpoint.maxOutput ?? "",
-        endpoint.apiKey ? "1" : "0",
-      ].join("\u0000"),
-    )
-    .join("|");
-}
-
-export function buildModels(endpoints: readonly LlmEndpoint[], existing?: MutableModels): MutableModels {
-  const models = existing ?? createModels();
-  models.clearProviders();
-  const grouped = new Map<string, LlmEndpoint[]>();
-  for (const endpoint of endpoints) {
-    const list = grouped.get(endpoint.provider);
-    if (list) list.push(endpoint);
-    else grouped.set(endpoint.provider, [endpoint]);
-  }
-  for (const [provider, list] of grouped) {
-    const api: Record<string, ProviderStreams> = {};
-    for (const endpoint of list) api[endpoint.protocol] ??= FACTORIES[endpoint.protocol]();
-    const first = list[0];
-    if (!first) continue;
-    models.setProvider(
-      createProvider({
-        id: provider,
-        name: provider,
-        baseUrl: normalizeBaseUrl(first.baseUrl || defaultBaseUrl(provider), first.protocol),
-        auth: { apiKey: { name: provider, resolve: async () => ({ auth: {} }) } },
-        models: list.map(buildModel),
-        api,
-      }),
-    );
-  }
-  return models;
+export function reasoningOf(endpoint: LlmEndpoint): Effort | undefined {
+  return endpoint.thinking && endpoint.thinking !== "off" ? (endpoint.thinking as Effort) : undefined;
 }

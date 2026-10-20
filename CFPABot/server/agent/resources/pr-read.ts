@@ -1,4 +1,4 @@
-import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { getCheckReport } from "../../bot/index.ts";
 import { env } from "../../env.ts";
 import { gh, serverGraphql } from "../../github/client.ts";

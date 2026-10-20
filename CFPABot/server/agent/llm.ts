@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { z } from "zod";
-import type { Model, MutableModels, Api } from "@earendil-works/pi-ai";
+import { completeSimple, type Api, type Model } from "@oh-my-pi/pi-ai";
 import type {
   LlmConfig,
   LlmConfigUpdate,
@@ -12,7 +12,7 @@ import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
 import { readJson, writeJson } from "../store.ts";
 import { probeModels } from "./llm-probe.ts";
-import { buildModel, buildModels, defaultBaseUrl, endpointId, modelsSyncKey, normalizeBaseUrl, reasoningOf } from "./llm-providers.ts";
+import { buildModel, defaultBaseUrl, endpointId, normalizeBaseUrl, reasoningOf } from "./llm-providers.ts";
 
 const log = logger("llm");
 const CONFIG_PATH = join(paths.config, "llm.json");
@@ -38,9 +38,7 @@ const configSchema = z.object({
 });
 
 let cache: LlmConfig | null = null;
-let models: MutableModels | null = null;
-let modelsKey = "";
-let override: { collection: MutableModels; model: Model<Api> } | null = null;
+let override: Model<Api> | null = null;
 
 function normalizeEndpoint(raw: z.infer<typeof storedSchema>): LlmEndpoint {
   const provider = raw.provider.trim();
@@ -75,36 +73,22 @@ export async function loadConfig(): Promise<LlmConfig> {
   return cache;
 }
 
-export async function modelsCollection(): Promise<MutableModels> {
-  if (override) return override.collection;
-  const config = await loadConfig();
-  const key = modelsSyncKey(config.endpoints);
-  if (!models || key !== modelsKey) {
-    models = buildModels(config.endpoints, models ?? undefined);
-    modelsKey = key;
-  }
-  return models;
-}
-
 export async function resolveModel(
   id?: string,
 ): Promise<{ model: Model<Api>; apiKey: string | undefined; endpoint: LlmEndpoint | null }> {
-  if (override && (!id || id === endpointId(override.model.provider, override.model.id))) {
-    return { model: override.model, apiKey: undefined, endpoint: null };
+  if (override && (!id || id === endpointId(override.provider, override.id))) {
+    return { model: override, apiKey: undefined, endpoint: null };
   }
   const config = await loadConfig();
   const endpoint = id ? config.endpoints.find((e) => e.id === id) : config.endpoints.find((e) => e.id === config.agent);
   if (!endpoint) {
     throw new Error(id ? `未找到 LLM 端点 ${id}` : "未配置默认 LLM 端点（config/llm.json 的 agent 字段）");
   }
-  const collection = await modelsCollection();
-  const model = collection.getModel(endpoint.provider, endpoint.model);
-  if (!model) throw new Error(`LLM 端点 ${endpoint.id} 未注册到模型集合`);
-  return { model, apiKey: endpoint.apiKey || undefined, endpoint };
+  return { model: buildModel(endpoint), apiKey: endpoint.apiKey || undefined, endpoint };
 }
 
-export function setModelsForTest(collection: MutableModels, model: Model<Api>): void {
-  override = { collection, model };
+export function setModelForTest(model: Model<Api>): void {
+  override = model;
 }
 
 function toView(config: LlmConfig): LlmConfigView {
@@ -162,8 +146,6 @@ export const llm = {
     const next: LlmConfig = { endpoints, ...(input.agent ? { agent: input.agent } : {}), reviewers };
     await writeJson(CONFIG_PATH, next, 0o600);
     cache = next;
-    models = null;
-    modelsKey = "";
     return toView(next);
   },
 
@@ -171,18 +153,16 @@ export const llm = {
     const config = await loadConfig();
     const endpoint = config.endpoints.find((e) => e.id === endpointIdToTest);
     if (!endpoint) return { ok: false, error: `未找到端点 ${endpointIdToTest}` };
-    const collection = buildModels([endpoint]);
-    const model = collection.getModel(endpoint.provider, endpoint.model) ?? buildModel(endpoint);
+    const model = buildModel(endpoint);
     try {
-      const response = await collection.completeSimple(
+      const response = await completeSimple(
         model,
         {
-          systemPrompt: "你是连接测试助手。",
+          systemPrompt: ["你是连接测试助手。"],
           messages: [{ role: "user", content: "你好", timestamp: Date.now() }],
         },
         {
           apiKey: endpoint.apiKey || undefined,
-          maxTokens: 1024,
           reasoning: reasoningOf(endpoint),
           signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
         },
