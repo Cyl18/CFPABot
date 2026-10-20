@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { env } from "../env.ts";
 import { logger } from "../log.ts";
 import { verifySignature } from "../github/webhook.ts";
@@ -19,7 +20,7 @@ function pruneDeliveries(now: number): void {
   }
 }
 
-webhookRoutes.post("/webhook", async (c) => {
+const handleWebhookRequest = async (c: Context<AppEnv>) => {
   const secret = env.GITHUB_WEBHOOK_SECRET;
   if (!secret) throw new HttpError(503, "未配置 GITHUB_WEBHOOK_SECRET", "webhook_disabled");
 
@@ -54,4 +55,7 @@ webhookRoutes.post("/webhook", async (c) => {
 
   void handleWebhook(event, payload).catch((err: unknown) => log.error("Webhook 处理失败", { event, err }));
   return c.json({ ok: true }, 202);
-});
+};
+
+webhookRoutes.post("/webhook", handleWebhookRequest);
+webhookRoutes.post("/WebhookListener", handleWebhookRequest);
