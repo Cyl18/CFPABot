@@ -16,7 +16,6 @@ function baseCtx(overrides: Partial<ToolContext> = {}): ToolContext {
     baseSha: null,
     headSha: null,
     writeScope: "off",
-    evalScope: "off",
     local: async (name) => files.get(name) ?? null,
     saveLocal: async (name, content) => {
       const entry = { content, updatedAt: "2026-01-01T00:00:00.000Z" };

@@ -1,0 +1,10 @@
+{
+  "name": "@cfpa/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./api": "./src/api.ts",
+    "./diffview": "./src/diffview.ts"
+  }
+}

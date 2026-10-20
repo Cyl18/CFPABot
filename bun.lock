@@ -5,6 +5,9 @@
     "": {
       "name": "cfpa-agent",
       "dependencies": {
+        "@cfpa/contracts": "workspace:*",
+        "@cfpa/pi-eval": "workspace:*",
+        "@cfpa/review-core": "workspace:*",
         "@earendil-works/pi-agent-core": "1.3.0",
         "@earendil-works/pi-ai": "1.3.0",
         "@earendil-works/pi-coding-agent": "1.3.0",
@@ -27,6 +30,29 @@
         "@types/bun": "1.4.2",
         "concurrently": "10.0.5",
         "typescript": "7.0.2",
+      },
+    },
+    "packages/contracts": {
+      "name": "@cfpa/contracts",
+      "version": "0.1.0",
+    },
+    "packages/pi-eval": {
+      "name": "@cfpa/pi-eval",
+      "version": "0.1.0",
+      "peerDependencies": {
+        "@earendil-works/pi-agent-core": "1.3.0",
+        "@earendil-works/pi-coding-agent": "1.3.0",
+        "typebox": "1.3.34",
+      },
+    },
+    "packages/review-core": {
+      "name": "@cfpa/review-core",
+      "version": "0.1.0",
+      "dependencies": {
+        "@cfpa/contracts": "workspace:*",
+        "diff": "^9.0.0",
+        "jsonc-parser": "^3.3.1",
+        "zod": "4.6.5",
       },
     },
     "web": {
@@ -98,6 +124,12 @@
     "@aws/lambda-invoke-store": ["@aws/lambda-invoke-store@0.3.0", "", {}, "sha512-sl4Bm6yiMNYrZKkqqDFWN0UfnWhlS8ivKxrYl+6t0gCLrqr8y3B2IqZZbFRkfaVVp7C/baApyh71P+LeE1A2sQ=="],
 
     "@babel/runtime": ["@babel/runtime@7.29.7", "", {}, "sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw=="],
+
+    "@cfpa/contracts": ["@cfpa/contracts@workspace:packages/contracts"],
+
+    "@cfpa/pi-eval": ["@cfpa/pi-eval@workspace:packages/pi-eval"],
+
+    "@cfpa/review-core": ["@cfpa/review-core@workspace:packages/review-core"],
 
     "@earendil-works/pi-agent-core": ["@earendil-works/pi-agent-core@1.3.0", "", { "dependencies": { "@earendil-works/pi-ai": "1.3.0", "typebox": "1.3.27" } }, "sha512-2jvpxZs47PFD5mSQb/yK0pGHJ5yO7Nu22u9mFjHbSLRgu62vZ9rupimDSIp4arnqOadyv0AWvYHtCSpFoJV7ag=="],
 

@@ -76,7 +76,6 @@ function toolContext(record: SessionRecord): ToolContext {
     baseSha: record.meta.baseSha ?? null,
     headSha: record.meta.headSha ?? null,
     writeScope: record.meta.writeScope,
-    evalScope: record.meta.evalScope,
     local: async (name) => readLocal(id, name),
     saveLocal: async (name, content) => {
       if (!LOCAL_NAME_PATTERN.test(name)) {
@@ -148,6 +147,9 @@ async function runTurn(id: string, prompt: string): Promise<void> {
     session = created.session;
     runtimes.set(id, session);
     await session.bindExtensions({});
+    if (record.meta.evalScope !== "run") {
+      session.setActiveToolsByName(session.getActiveToolNames().filter((name) => name !== "eval"));
+    }
     session.subscribe((event) => {
       if (event.type === "agent_settled") aborted = event.aborted;
       for (const item of projector.handle(event)) hub.emit(id, { type: "item", item });

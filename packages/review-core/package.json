@@ -1,0 +1,22 @@
+{
+  "name": "@cfpa/review-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./draft": "./src/draft.ts",
+    "./pack": "./src/pack.ts",
+    "./types": "./src/types.ts",
+    "./domain/checks": "./src/domain/checks.ts",
+    "./domain/diff": "./src/domain/diff.ts",
+    "./domain/langfile": "./src/domain/langfile.ts",
+    "./domain/path": "./src/domain/path.ts",
+    "./domain/terms": "./src/domain/terms.ts"
+  },
+  "dependencies": {
+    "@cfpa/contracts": "workspace:*",
+    "diff": "^9.0.0",
+    "jsonc-parser": "^3.3.1",
+    "zod": "4.6.5"
+  }
+}

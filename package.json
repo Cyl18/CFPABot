@@ -2,16 +2,19 @@
   "name": "cfpa-agent",
   "private": true,
   "type": "module",
-  "workspaces": ["web"],
+  "workspaces": ["web", "packages/*"],
   "scripts": {
     "dev": "concurrently -k -n server,web -c blue,green \"bun --watch server/main.ts\" \"bun run --cwd web dev\"",
     "dev:server": "bun --watch server/main.ts",
     "build": "bun run --cwd web build && bun build server/main.ts --outdir dist --target bun",
     "start": "bun dist/main.js",
     "typecheck": "tsc --noEmit -p . && bun run --cwd web typecheck",
-    "test": "bun test server"
+    "test": "bun test server && bun test packages/pi-eval && bun test packages/review-core"
   },
   "dependencies": {
+    "@cfpa/contracts": "workspace:*",
+    "@cfpa/pi-eval": "workspace:*",
+    "@cfpa/review-core": "workspace:*",
     "@earendil-works/pi-agent-core": "1.3.0",
     "@earendil-works/pi-ai": "1.3.0",
     "@earendil-works/pi-coding-agent": "1.3.0",

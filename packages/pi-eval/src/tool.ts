@@ -1,8 +1,8 @@
-import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import type { ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import type { ToolContext } from "../context.ts";
-import { runEval } from "../eval/index.ts";
-import { jsonResult } from "../result.ts";
+import { runEval, type EvalFiles } from "./eval.ts";
 
 const EVAL_PARAMS = Type.Object({
   language: Type.Union([Type.Literal("py"), Type.Literal("js"), Type.Literal("bash")]),
@@ -19,14 +19,30 @@ const EVAL_PARAMS = Type.Object({
   ),
 });
 
-export function evalTool(ctx: ToolContext): AgentTool<typeof EVAL_PARAMS> {
+export function evalTool(config: { image: string }): ToolDefinition<typeof EVAL_PARAMS> {
   return {
     name: "eval",
     label: "执行代码",
-    description: "在一次性沙箱执行代码；stdin、inputs、outputs 见 help://tools/eval。",
+    description:
+      "在一次性 Docker 沙箱执行 py/js/bash；stdin 支持文本或 local://，inputs 挂到 /workspace/in，outputs 写回会话 local/。",
     parameters: EVAL_PARAMS,
     executionMode: "sequential",
-    execute: async (_toolCallId, params, signal) => {
+    execute: async (_toolCallId, params, signal, _onUpdate, ctx: ExtensionToolContext) => {
+      const file = ctx.sessionManager.getSessionFile();
+      const dir = join(file ? dirname(file) : ctx.sessionManager.getSessionDir(), "local");
+      const files: EvalFiles = {
+        read: async (name) => {
+          try {
+            return await readFile(join(dir, name), "utf8");
+          } catch {
+            return null;
+          }
+        },
+        write: async (name, content) => {
+          await mkdir(dir, { recursive: true });
+          await writeFile(join(dir, name), content, "utf8");
+        },
+      };
       const result = await runEval(
         {
           language: params.language,
@@ -36,10 +52,12 @@ export function evalTool(ctx: ToolContext): AgentTool<typeof EVAL_PARAMS> {
           ...(params.inputs === undefined ? {} : { inputs: params.inputs }),
           ...(params.outputs === undefined ? {} : { outputs: params.outputs }),
         },
-        ctx,
+        files,
+        config,
         signal,
       );
-      return jsonResult({ ok: result.exitCode === 0, ...result });
+      const value = { ok: result.exitCode === 0, ...result };
+      return { content: [{ type: "text", text: JSON.stringify(value, null, 2) }], details: value };
     },
   };
 }

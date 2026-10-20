@@ -1,13 +1,16 @@
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
-import { env } from "../../env.ts";
 import { OutputSink } from "./output.ts";
 import { parseFrame, type RunnerFrame } from "./protocol.ts";
 
 export interface SandboxFile {
   path: string;
   content: string;
+}
+
+export interface SandboxOptions {
+  image: string;
 }
 
 export interface SandboxRequest {
@@ -77,7 +80,11 @@ function spawnDocker(args: string[]) {
   }
 }
 
-export async function runSandbox(request: SandboxRequest, signal?: AbortSignal): Promise<SandboxResult> {
+export async function runSandbox(
+  request: SandboxRequest,
+  options: SandboxOptions,
+  signal?: AbortSignal,
+): Promise<SandboxResult> {
   const release = await acquireContainer();
   try {
     const workdir = await mkdtemp(join(tmpdir(), "cfpa-eval-"));
@@ -95,7 +102,7 @@ export async function runSandbox(request: SandboxRequest, signal?: AbortSignal):
       await chmod(workdir, 0o777).catch(() => undefined);
       await chmod(join(workdir, "in"), 0o777).catch(() => undefined);
       await chmod(join(workdir, "out"), 0o777).catch(() => undefined);
-      const result = await executeSandbox(request, workdir, signal);
+      const result = await executeSandbox(request, options, workdir, signal);
       result.outputs = await readOutputs(workdir);
       return result;
     } finally {
@@ -108,6 +115,7 @@ export async function runSandbox(request: SandboxRequest, signal?: AbortSignal):
 
 async function executeSandbox(
   request: SandboxRequest,
+  options: SandboxOptions,
   workdir: string,
   signal?: AbortSignal,
 ): Promise<SandboxResult> {
@@ -141,7 +149,7 @@ async function executeSandbox(
     "65534:65534",
     "--env",
     "PYTHONUNBUFFERED=1",
-    env.EVAL_DOCKER_IMAGE,
+    options.image,
   ];
 
   const proc = spawnDocker(args);

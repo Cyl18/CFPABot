@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ReviewDraft } from "../../shared/api.ts";
+import type { ReviewDraft } from "@cfpa/contracts/api";
 import { DRAFT_FILE, draftInputSchema, normalizeDraftJson, parseDraftFile, serializeDraftFile } from "./draft.ts";
 
 const draft: ReviewDraft = {

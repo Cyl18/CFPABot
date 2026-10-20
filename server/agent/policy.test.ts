@@ -10,7 +10,6 @@ function ctxOf(writeScope: WriteScope, prNumber: number | null): ToolContext {
     baseSha: null,
     headSha: null,
     writeScope,
-    evalScope: "off",
     local: async () => null,
     saveLocal: async () => ({ content: "", updatedAt: "" }),
     listLocal: async () => [],
