@@ -37,6 +37,13 @@ describe("parseUri", () => {
     expect(parseUri("local://").path).toBe("");
   });
 
+  test("help 路径没有 selector", () => {
+    const uri = parseUri("help://tools/read");
+    expect(uri.scheme).toBe("help");
+    expect(uri.path).toBe("tools/read");
+    expect("selector" in uri).toBe(false);
+  });
+
   test("非支持 scheme 报错", () => {
     expect(() => parseUri("gh://pr/1")).toThrow("不支持的 scheme");
   });

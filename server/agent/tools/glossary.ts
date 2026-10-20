@@ -14,7 +14,7 @@ export function glossaryTool(): AgentTool<typeof GLOSSARY_PARAMS> {
   return {
     name: "glossary",
     label: "术语查询",
-    description: "查询原版术语表与外部词典，用于确认译名依据。",
+    description: "查询原版术语与外部词典；用法见 help://tools/glossary。",
     parameters: GLOSSARY_PARAMS,
     execute: async (_toolCallId, params) => {
       const limit = Math.min(50, Math.max(1, Math.floor(params.limit ?? 10)));

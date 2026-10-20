@@ -1,5 +1,5 @@
 import type { DraftComment, ReviewDraft, Severity, Verdict } from "@shared/api.ts";
-import { ExternalLink, Save, Send, Trash2, TriangleAlert } from "lucide-react";
+import { ExternalLink, Save, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { SeverityBadge, VerdictBadge, VERDICT_OPTIONS } from "@/components/StatusBadges.tsx";
 import { Badge } from "@/ui/Badge.tsx";
@@ -19,7 +19,6 @@ const SEVERITY_OPTIONS: readonly { value: Severity; label: string }[] = [
 
 export interface DraftPanelProps {
   draft: ReviewDraft | null;
-  stale: boolean;
   saving: boolean;
   publishing: boolean;
   error?: string;
@@ -28,7 +27,7 @@ export interface DraftPanelProps {
   onPublish: () => void;
 }
 
-export function DraftPanel({ draft, stale, saving, publishing, error, onChange, onSave, onPublish }: DraftPanelProps) {
+export function DraftPanel({ draft, saving, publishing, error, onChange, onSave, onPublish }: DraftPanelProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   if (draft === null) {
@@ -62,12 +61,6 @@ export function DraftPanel({ draft, stale, saving, publishing, error, onChange, 
           }
         />
         <CardBody className="flex flex-col gap-3">
-          {stale && (
-            <p className="flex items-center gap-2 rounded border border-warn/40 bg-warn/10 px-2 py-1.5 text-xs text-warn">
-              <TriangleAlert aria-hidden="true" className="size-3.5" />
-              PR head 已变更，草稿已过期，需要重新生成后才能发布。
-            </p>
-          )}
           {error !== undefined && <p className="rounded border border-danger/40 bg-danger/10 px-2 py-1.5 text-xs text-danger">{error}</p>}
 
           <Select
@@ -180,7 +173,7 @@ export function DraftPanel({ draft, stale, saving, publishing, error, onChange, 
           <Button
             variant="primary"
             icon={<Send aria-hidden="true" className="size-3.5" />}
-            disabled={published || stale}
+            disabled={published}
             onClick={() => setConfirmOpen(true)}
           >
             发布

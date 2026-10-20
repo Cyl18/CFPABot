@@ -8,7 +8,6 @@ import { SessionStatusBadge } from "@/components/StatusBadges.tsx";
 import { useSessionEvents } from "@/hooks/useSessionEvents.ts";
 import { api, errorMessage } from "@/lib/api.ts";
 import { qk, useSession } from "@/lib/queries.ts";
-import { Badge } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
 import { Card, CardBody, CardHeader } from "@/ui/Card.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
@@ -151,7 +150,6 @@ export function SessionPage({ id }: { id: string }) {
           <span className="flex flex-wrap items-center gap-2">
             <span>{meta?.title || id}</span>
             <SessionStatusBadge status={status} />
-            {meta?.stale === true && <Badge tone="warn">已过期</Badge>}
           </span>
         }
         description={
@@ -233,7 +231,6 @@ export function SessionPage({ id }: { id: string }) {
 
         <DraftPanel
           draft={draft}
-          stale={meta?.stale === true}
           saving={saveDraft.isPending}
           publishing={publish.isPending}
           error={draftError}

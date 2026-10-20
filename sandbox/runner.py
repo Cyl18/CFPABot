@@ -37,6 +37,7 @@ def main():
     request = json.loads(raw)
     language = request["language"]
     code = request["code"]
+    stdin_data = request.get("stdin")
     suffix = {"py": ".py", "js": ".js", "bash": ".sh"}[language]
     path = os.path.join(tempfile.gettempdir(), f"cell{suffix}")
     with open(path, "w", encoding="utf-8") as handle:
@@ -44,18 +45,18 @@ def main():
     command = {
         "py": [sys.executable, "-u", path],
         "js": ["bun", path],
-        "bash": ["bash", "-s"],
+        "bash": ["bash", path],
     }[language]
     started = time.time()
     process = subprocess.Popen(
         command,
-        stdin=subprocess.PIPE if language == "bash" else subprocess.DEVNULL,
+        stdin=subprocess.PIPE if stdin_data is not None else subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         start_new_session=True,
     )
-    if language == "bash":
-        process.stdin.write(code.encode("utf-8"))
+    if stdin_data is not None:
+        process.stdin.write(stdin_data.encode("utf-8"))
         process.stdin.close()
     threads = [
         threading.Thread(target=pump, args=(process.stdout, "stdout"), daemon=True),

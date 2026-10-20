@@ -1,12 +1,11 @@
+import { existsSync } from "node:fs";
 import { mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { EvalScope, SessionStatus, SessionSummary, WriteScope } from "../../shared/api.ts";
 import { paths } from "../paths.ts";
 import { readJson, withLock, writeJson } from "../store.ts";
-import type { LocalEntry } from "./context.ts";
-import { DRAFT_FILE, parseDraftFile, reviewDraftSchema } from "./draft.ts";
+import { DRAFT_FILE } from "./draft.ts";
 import type { Pack } from "./pack.ts";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
@@ -30,15 +29,12 @@ export interface SessionMeta {
   lastError?: string;
   baseSha?: string;
   headSha?: string;
-  stale?: boolean;
 }
 
 export interface SessionRecord {
   meta: SessionMeta;
-  messages: AgentMessage[];
-  pack?: Pack;
+  sessionFile?: string;
   packs?: Record<string, Pack>;
-  local?: Record<string, LocalEntry>;
 }
 
 const metaSchema = z.object({
@@ -52,29 +48,19 @@ const metaSchema = z.object({
   createdBy: z.string(),
   source: z.enum(["web", "github"]),
   model: z.string(),
-  writeScope: z.enum(["off", "bound", "any"]).default("off"),
+  writeScope: z.enum(["off", "on"]).default("off"),
   evalScope: z.enum(["off", "run"]).default("off"),
   review: z.boolean().default(false),
   lastError: z.string().optional(),
   baseSha: z.string().optional(),
   headSha: z.string().optional(),
-  stale: z.boolean().optional(),
 });
 
 const recordSchema = z.object({
   meta: metaSchema,
-  messages: z.array(z.unknown()).default([]),
-  draft: reviewDraftSchema.optional(),
-  pack: z.unknown().optional(),
+  sessionFile: z.string().optional(),
   packs: z.record(z.string(), z.unknown()).optional(),
-  local: z.record(z.string(), z.object({ content: z.string(), updatedAt: z.string() })).optional(),
 });
-
-function isMessage(value: unknown): value is AgentMessage {
-  if (!value || typeof value !== "object" || !("role" in value)) return false;
-  const role = value.role;
-  return role === "system" || role === "user" || role === "assistant" || role === "toolResult";
-}
 
 function isPack(value: unknown): value is Pack {
   if (!value || typeof value !== "object") return false;
@@ -84,24 +70,14 @@ function isPack(value: unknown): value is Pack {
 }
 
 function toRecord(parsed: z.infer<typeof recordSchema>): SessionRecord {
-  const messages: AgentMessage[] = [];
-  for (const item of parsed.messages) if (isMessage(item)) messages.push(item);
-  const record: SessionRecord = { meta: parsed.meta, messages };
-  if (isPack(parsed.pack)) record.pack = parsed.pack;
+  const record: SessionRecord = { meta: parsed.meta };
+  if (parsed.sessionFile) record.sessionFile = parsed.sessionFile;
   if (parsed.packs) {
     record.packs = {};
     for (const [key, value] of Object.entries(parsed.packs)) {
       if (isPack(value)) record.packs[key] = value;
     }
   }
-  const local: Record<string, LocalEntry> = {};
-  for (const [name, entry] of Object.entries(parsed.local ?? {})) {
-    if (LOCAL_NAME_PATTERN.test(name)) local[name] = entry;
-  }
-  if (local[DRAFT_FILE] === undefined && parsed.draft !== undefined) {
-    local[DRAFT_FILE] = { content: JSON.stringify(parsed.draft), updatedAt: parsed.draft.updatedAt };
-  }
-  if (Object.keys(local).length > 0) record.local = local;
   return record;
 }
 
@@ -116,7 +92,7 @@ export function summarize(record: SessionRecord): SessionSummary {
     updatedAt: meta.updatedAt,
     createdBy: meta.createdBy,
     model: meta.model,
-    hasDraft: parseDraftFile(record.local?.[DRAFT_FILE]?.content) !== null,
+    hasDraft: existsSync(join(paths.sessions, meta.id, "local", DRAFT_FILE)),
     writeScope: meta.writeScope,
     evalScope: meta.evalScope,
     ...(meta.prNumber !== undefined ? { prNumber: meta.prNumber } : {}),

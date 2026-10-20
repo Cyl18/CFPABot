@@ -12,7 +12,14 @@ export interface LocalUri {
   selector?: { from: number; to?: number };
 }
 
-export type ResourceUri = RepoUri | LocalUri;
+export interface HelpUri {
+  scheme: "help";
+  path: string;
+  query: URLSearchParams;
+  selector?: undefined;
+}
+
+export type ResourceUri = RepoUri | LocalUri | HelpUri;
 
 interface UriParts {
   path: string;
@@ -22,7 +29,7 @@ interface UriParts {
 
 const SELECTOR = /:(\d+)(?:-(\d*))?$/;
 
-function parseParts(trimmed: string, scheme: "repo" | "local"): UriParts {
+function parseParts(trimmed: string, scheme: "repo" | "local" | "help"): UriParts {
   const rest = trimmed.slice(scheme.length + 3);
   const queryAt = rest.indexOf("?");
   let pathname = queryAt === -1 ? rest : rest.slice(0, queryAt);
@@ -47,7 +54,11 @@ export function parseUri(raw: string): ResourceUri {
   const trimmed = raw.trim();
   if (trimmed.startsWith("repo://")) return { scheme: "repo", ...parseParts(trimmed, "repo") };
   if (trimmed.startsWith("local://")) return { scheme: "local", ...parseParts(trimmed, "local") };
-  throw new Error("不支持的 scheme。当前支持 repo:// 与 local://。");
+  if (trimmed.startsWith("help://")) {
+    const { path, query } = parseParts(trimmed, "help");
+    return { scheme: "help", path, query };
+  }
+  throw new Error("不支持的 scheme。当前支持 repo://、local:// 与 help://。");
 }
 
 export function uriSegments(uri: ResourceUri): string[] {

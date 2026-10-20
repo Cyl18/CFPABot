@@ -1,4 +1,5 @@
 import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { ChatItem, ToolCallView } from "../../shared/api.ts";
 
 const RESULT_LIMIT = 2000;
@@ -121,7 +122,7 @@ export class LiveProjector {
     this.nextIndex = startIndex;
   }
 
-  handle(event: AgentEvent): ChatItem[] {
+  handle(event: AgentEvent | AgentSessionEvent): ChatItem[] {
     switch (event.type) {
       case "message_start":
         this.currentIndex = this.nextIndex++;

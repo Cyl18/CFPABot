@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import { env } from "../../env.ts";
@@ -14,6 +14,7 @@ export interface SandboxRequest {
   language: "py" | "js" | "bash";
   code: string;
   timeoutMs: number;
+  stdin?: string;
   files?: SandboxFile[];
 }
 
@@ -25,9 +26,26 @@ export interface SandboxResult {
   truncated: boolean;
   cancelled: boolean;
   outputLimited: boolean;
+  fullStdout?: string;
+  fullStderr?: string;
+  outputs?: SandboxFile[];
 }
 
 type ResultFrame = Extract<RunnerFrame, { type: "result" }>;
+
+async function readOutputs(workdir: string): Promise<SandboxFile[]> {
+  const files: SandboxFile[] = [];
+  const walk = async (dir: string, prefix: string): Promise<void> => {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) await walk(join(dir, entry.name), relative);
+      else if (entry.isFile()) files.push({ path: relative, content: await readFile(join(dir, entry.name), "utf8") });
+    }
+  };
+  await walk(join(workdir, "out"), "");
+  return files;
+}
 
 const MAX_CONTAINERS = 2;
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
@@ -77,7 +95,9 @@ export async function runSandbox(request: SandboxRequest, signal?: AbortSignal):
       await chmod(workdir, 0o777).catch(() => undefined);
       await chmod(join(workdir, "in"), 0o777).catch(() => undefined);
       await chmod(join(workdir, "out"), 0o777).catch(() => undefined);
-      return await executeSandbox(request, workdir, signal);
+      const result = await executeSandbox(request, workdir, signal);
+      result.outputs = await readOutputs(workdir);
+      return result;
     } finally {
       await rm(workdir, { recursive: true, force: true, maxRetries: 3 }).catch(() => undefined);
     }
@@ -129,6 +149,8 @@ async function executeSandbox(
 
   const stdoutSink = new OutputSink();
   const stderrSink = new OutputSink();
+  const fullStdout: string[] = [];
+  const fullStderr: string[] = [];
   const state: { result: ResultFrame | null } = { result: null };
   let cancelled = false;
   let outputLimited = false;
@@ -150,10 +172,18 @@ async function executeSandbox(
     const consume = (line: string): void => {
       const frame = parseFrame(line);
       if (frame === null) return;
-      if (frame.type === "stdout") stdoutSink.push(frame.data);
-      else if (frame.type === "stderr") stderrSink.push(frame.data);
-      else if (frame.type === "result") state.result = frame;
-      else stderrSink.push(`${frame.message}\n`);
+      if (frame.type === "stdout") {
+        stdoutSink.push(frame.data);
+        fullStdout.push(frame.data);
+      } else if (frame.type === "stderr") {
+        stderrSink.push(frame.data);
+        fullStderr.push(frame.data);
+      } else if (frame.type === "result") state.result = frame;
+      else {
+        const text = `${frame.message}\n`;
+        stderrSink.push(text);
+        fullStderr.push(text);
+      }
       enforceOutputLimit();
     };
     for (;;) {
@@ -176,7 +206,9 @@ async function executeSandbox(
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
-      stderrSink.push(decoder.decode(value, { stream: true }));
+      const text = decoder.decode(value, { stream: true });
+      stderrSink.push(text);
+      fullStderr.push(text);
       enforceOutputLimit();
     }
   };
@@ -210,7 +242,14 @@ async function executeSandbox(
   if (signal?.aborted === true) cancel();
   else signal?.addEventListener("abort", cancel, { once: true });
 
-  writeLine(`${JSON.stringify({ type: "run", language: request.language, code: request.code })}\n`);
+  writeLine(
+    `${JSON.stringify({
+      type: "run",
+      language: request.language,
+      code: request.code,
+      ...(request.stdin === undefined ? {} : { stdin: request.stdin }),
+    })}\n`,
+  );
   const frames = readFrames();
   const errors = readStderr();
   const exitCode = await proc.exited;
@@ -233,6 +272,8 @@ async function executeSandbox(
         truncated: out.truncated || err.truncated,
         cancelled: true,
         outputLimited,
+        fullStdout: fullStdout.join(""),
+        fullStderr: fullStderr.join(""),
       };
     }
     const detail = err.text.trim();
@@ -246,5 +287,7 @@ async function executeSandbox(
     truncated: out.truncated || err.truncated,
     cancelled: result.cancelled === true || cancelled,
     outputLimited,
+    fullStdout: fullStdout.join(""),
+    fullStderr: fullStderr.join(""),
   };
 }

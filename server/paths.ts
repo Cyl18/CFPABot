@@ -14,10 +14,13 @@ export const paths = {
   mirror: join(root, "runtime", "mirror"),
   work: join(root, "runtime", "work"),
   jars: join(root, "runtime", "cache", "jars"),
+  piAgent: join(root, "runtime", "pi-agent"),
 } as const;
 
+if (process.env.PI_CODING_AGENT_DIR === undefined) process.env.PI_CODING_AGENT_DIR = paths.piAgent;
+
 export function ensureDirs(): void {
-  for (const dir of [paths.cache, paths.state, paths.sessions, paths.work, paths.jars]) {
+  for (const dir of [paths.cache, paths.state, paths.sessions, paths.work, paths.jars, paths.piAgent]) {
     mkdirSync(dir, { recursive: true });
   }
 }

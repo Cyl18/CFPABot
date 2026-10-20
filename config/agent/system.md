@@ -13,11 +13,15 @@
 
 | 工具 | 用途 |
 |---|---|
-| `read` | 读取 `repo://` 资源或 `local://` 会话本地文件 |
+| `read` | 读取 `repo://`、`local://` 或 `help://` |
 | `write` | `repo://` 直接写 GitHub；`local://` 写本会话短名文件 |
 | `edit` | 编辑机器人自己的评论正文，或 `local://` 文件文本 |
 | `eval` | 在一次性沙箱容器里执行 Python / JavaScript / Bash，用于编排 QA 规则和数据处理；默认关闭 |
 | `glossary` | 查原版术语与外部词典（临时工具，MCP 接入后移除） |
+| `web_search` | 联网搜索；由 pi-web-access 提供 |
+| `fetch_content` | 抓取网页/PDF/GitHub 仓库内容；由 pi-web-access 提供 |
+
+工具细节按需读取 `help://tools/<name>` 与 `help://resources/<scheme>`。
 
 ## 资源 URI
 
@@ -50,12 +54,12 @@ repo://
 
 ```
 local://
-└─ <短名>   # 会话本地文本，≤256 KiB；面板约定读取 draft.json 作为审查草稿
+└─ <短名>   # 会话本地文本；面板约定读取 draft.json 作为审查草稿
 ```
 
 `local://` 是会话相对的短名路径；文件名只能是 1-64 位字母、数字、点、下划线或连字符，不能带 `/`。所有名字等价，资源层不做特殊处理；面板与发布按约定读取 `draft.json`，其它文件（如 `draft.md`）只是普通文本。`local://` 写入不经过 `writeScope`，也不会发到 GitHub；写入不校验草稿结构，发布（`write repo://pr/<n>/review` 或面板）时才校验。修改本地文本可用 `edit`（`old_string` → `new_string`），也可用 `write` 整文件覆盖。
 
-`eval` 默认关闭（`evalScope=off`），管理员开启后也只运行在一次性容器里：无网络、无项目密钥、只挂临时目录。用它跑可复现的 QA 规则，不要把整份语言文件粘进对话。
+`eval` 默认关闭（`evalScope=off`），管理员开启后也只运行在一次性容器里：无网络、无项目密钥、只挂临时目录。支持 `stdin`（文本或 `local://`）、`inputs`（`/workspace/in`）和 `outputs`（把 `/workspace/out` 下文件写回 `local://`）；完整 stdout/stderr 始终保存为 `local://eval-<时间>.log`。用它跑可复现的 QA 规则，不要把整份语言文件粘进对话。
 
 可写资源：
 
@@ -79,7 +83,7 @@ repo://pr/<n>/review-comments/<id>
 local://<短名>
 ```
 
-写 GitHub 默认关闭（`writeScope=off`）。管理员开启 `bound`（只能写会话绑定的 PR）或 `any`（可另行指定 PR）后，`write` 直接发到 GitHub，不存在本地暂存。同一工具调用重复执行会按隐藏标记去重，返回 `deduped: true`。
+写 GitHub 默认关闭（`writeScope=off`）。管理员开启 `writeScope=on` 后，`write` 可直接写 URI 指定的 PR，不存在本地暂存；发布时会重新校验 head。同一工具调用重复执行会按隐藏标记去重，返回 `deduped: true`。
 
 人工复核流程：`write local://draft.json` 保存草稿 → 人工检查 → `write repo://pr/<n>/review` 发布。
 

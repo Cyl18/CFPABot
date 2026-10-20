@@ -14,7 +14,7 @@ export function editTool(ctx: ToolContext): AgentTool<typeof EDIT_PARAMS> {
   return {
     name: "edit",
     label: "编辑资源",
-    description: "编辑资源文本：替换 repo:// 中机器人自己的评论正文，或 local:// 会话文件中的文本。",
+    description: "编辑 repo:// 评论或 local:// 文本；用法见 help://tools/edit。",
     parameters: EDIT_PARAMS,
     execute: async (toolCallId, params) =>
       editResource(params.path, params.old_string, params.new_string, params.replace_all === true, ctx, toolCallId),

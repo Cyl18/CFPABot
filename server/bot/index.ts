@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { agent } from "../agent/index.ts";
 import { env, repo } from "../env.ts";
 import { gh } from "../github/client.ts";
 import { logger } from "../log.ts";
@@ -57,9 +56,8 @@ async function step(name: string, fn: () => Promise<void>): Promise<void> {
   }
 }
 
-async function refreshPull(prNumber: number, staleSha: string | null, refreshPacker: boolean): Promise<void> {
+async function refreshPull(prNumber: number, refreshPacker: boolean): Promise<void> {
   await step("prdata.refresh", () => prdata.refresh(prNumber));
-  if (staleSha) await step("agent.markStale", () => agent.markStale(prNumber, staleSha));
   await step("info-comment", () => refreshInfoComment(prNumber, { refreshPacker }));
   await step("labels", () => syncLabels(prNumber));
   await step("label-check", () => labelCheck(prNumber));
@@ -75,15 +73,9 @@ async function onPullRequest(payload: unknown): Promise<void> {
     log.warn("pull_request 负载无效", { issues: parsed.error.issues.length });
     return;
   }
-  const { action, number, pull_request } = parsed.data;
+  const { action, number } = parsed.data;
   if (action === "opened" || action === "reopened" || action === "synchronize") {
-    track(
-      refreshPull(
-        number,
-        action === "synchronize" ? pull_request.head.sha : null,
-        action !== "opened",
-      ),
-    );
+    track(refreshPull(number, action !== "opened"));
     return;
   }
   if (action === "edited") {

@@ -21,22 +21,10 @@ function ctxOf(writeScope: WriteScope, prNumber: number | null): ToolContext {
 
 describe("assertCanWrite", () => {
   test("off 拒绝一切写入", () => {
-    expect(() => assertCanWrite(ctxOf("off", 1), 1)).toThrow("writeScope=off");
+    expect(() => assertCanWrite(ctxOf("off", 1))).toThrow("writeScope=off");
   });
 
-  test("bound 允许写绑定的 PR", () => {
-    expect(() => assertCanWrite(ctxOf("bound", 1), 1)).not.toThrow();
-  });
-
-  test("bound 拒绝写其它 PR", () => {
-    expect(() => assertCanWrite(ctxOf("bound", 1), 2)).toThrow("只能写 PR #1");
-  });
-
-  test("bound 未绑定 PR 时不生效", () => {
-    expect(() => assertCanWrite(ctxOf("bound", null), 1)).toThrow("未绑定 PR");
-  });
-
-  test("any 允许任意 PR", () => {
-    expect(() => assertCanWrite(ctxOf("any", null), 9)).not.toThrow();
+  test("on 允许任意 PR", () => {
+    expect(() => assertCanWrite(ctxOf("on", null))).not.toThrow();
   });
 });

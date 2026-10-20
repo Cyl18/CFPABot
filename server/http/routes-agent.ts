@@ -15,11 +15,11 @@ const createSchema = z.object({
   message: z.string().optional(),
   review: z.boolean().optional(),
   model: z.string().optional(),
-  writeScope: z.enum(["off", "bound", "any"]).optional(),
+  writeScope: z.enum(["off", "on"]).optional(),
   evalScope: z.enum(["off", "run"]).optional(),
 });
 
-const writeScopeSchema = z.object({ writeScope: z.enum(["off", "bound", "any"]) });
+const writeScopeSchema = z.object({ writeScope: z.enum(["off", "on"]) });
 const evalScopeSchema = z.object({ evalScope: z.enum(["off", "run"]) });
 
 const messageSchema = z.object({ text: z.string().min(1) });

@@ -36,16 +36,17 @@ function withMarker(body: string, sessionId: string, toolCallId: string): string
   return body.includes(AGENT_MARKER_PREFIX) ? body : `${body}\n\n${markerOf(sessionId, toolCallId)}`;
 }
 
-function parseDraft(content: string, n: number, ctx: ToolContext): {
+async function parseDraft(content: string, n: number, ctx: ToolContext): Promise<{
   draft: ReviewDraft;
   event: "COMMENT" | "APPROVE" | "REQUEST_CHANGES";
-} {
+}> {
   const input = draftInputSchema.parse(normalizeDraftJson(JSON.parse(content) as unknown));
   if (input.prNumber !== n) throw new Error("草稿的 PR 与会话不一致。");
+  const headSha = input.headSha ?? (ctx.prNumber === n ? ctx.headSha : null) ?? (await gh.getPull(n)).headSha;
   return {
     draft: {
       prNumber: input.prNumber,
-      headSha: input.headSha ?? ctx.headSha ?? "",
+      headSha,
       verdict: input.verdict,
       summary: input.summary,
       comments: input.comments,
@@ -75,7 +76,7 @@ export async function writeRepo(
 ): Promise<AgentToolResult<Record<string, unknown>>> {
   const seg = uriSegments(uri);
   const n = prNumberOf(seg, "write");
-  assertCanWrite(ctx, n);
+  assertCanWrite(ctx);
 
   if (seg.length === 3 && seg[2] === "comments") {
     const marker = markerOf(ctx.sessionId, toolCallId);
@@ -124,8 +125,8 @@ export async function writeRepo(
     const existing = (await gh.listReviews(n)).find((review) => review.body.includes(marker));
     if (existing) return jsonResult({ ok: true, deduped: true, url: existing.htmlUrl });
     const parsed =
-      content?.trim() !== undefined && content.trim().length > 0
-        ? parseDraft(content, n, ctx)
+      content !== undefined && content.trim().length > 0
+        ? await parseDraft(content, n, ctx)
         : { draft: parseDraftFile((await ctx.local(DRAFT_FILE))?.content), event: "COMMENT" as const };
     if (parsed.draft === null) throw new Error("没有可发布的审查草稿。");
     if (parsed.draft.prNumber !== n) throw new Error("草稿的 PR 与会话不一致。");
@@ -171,7 +172,7 @@ export async function editRepo(
 ): Promise<AgentToolResult<Record<string, unknown>>> {
   const seg = uriSegments(uri);
   const n = prNumberOf(seg, "edit");
-  assertCanWrite(ctx, n);
+  assertCanWrite(ctx);
 
   if (seg.length === 4 && seg[2] === "comments") {
     const id = Number(seg[3]);

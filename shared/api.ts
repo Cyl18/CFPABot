@@ -225,7 +225,7 @@ export interface ModList {
 
 export type SessionStatus = "idle" | "running";
 
-export type WriteScope = "off" | "bound" | "any";
+export type WriteScope = "off" | "on";
 
 export type EvalScope = "off" | "run";
 
@@ -291,7 +291,6 @@ export interface SessionDetail extends SessionSummary {
   items: ChatItem[];
   draft?: ReviewDraft;
   headSha?: string;
-  stale?: boolean;
 }
 
 export interface CreateSessionRequest {

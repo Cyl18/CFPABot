@@ -11,8 +11,7 @@ export function readTool(ctx: ToolContext): AgentTool<typeof READ_PARAMS> {
   return {
     name: "read",
     label: "读取资源",
-    description:
-      "读取资源：repo://（PR 元数据、变更文件、讨论、审查行、特殊文件、跨版本 key）或 local://（本会话短名文本）。行范围用 :N-M。",
+    description: "读取 repo://、local:// 或 help:// 资源；完整用法见 help://tools/read。",
     parameters: READ_PARAMS,
     execute: async (_toolCallId, params) => readResource(params.path, ctx),
   };
