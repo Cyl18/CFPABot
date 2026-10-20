@@ -131,10 +131,21 @@ async function storePull(pull: GhPull, files: GhFile[]): Promise<PrFileCache> {
     entries,
     updatedAt: new Date().toISOString(),
   };
-  await writeJson(prPath(pull.number), cache);
+  if (pull.state === "open") {
+    await writeJson(prPath(pull.number), cache);
+    meta.set(pull.number, { headSha: cache.headSha, slugs: cache.slugs, entries });
+    openIndex.set(pull.number, summarize(pull, cache.slugs));
+  }
   fileCaches.set(String(pull.number), cache);
-  if (pull.state === "open") meta.set(pull.number, { headSha: cache.headSha, slugs: cache.slugs, entries });
   return cache;
+}
+
+/** head 没变时文件列表不用重拉，但 pull 快照必须跟着刷新，否则标题、标签、baseSha 永远停在旧值。 */
+async function touchPull(pull: GhPull): Promise<void> {
+  const cached = fileCaches.get(String(pull.number)) ?? (await readJson(prPath(pull.number), cacheSchema));
+  if (!cached || cached.headSha !== pull.headSha) return;
+  if (JSON.stringify(cached.pull) === JSON.stringify(pull)) return;
+  await storePull(pull, cached.files);
 }
 
 function rebuildRelation(): void {
@@ -169,6 +180,8 @@ async function loadMetaFromDisk(): Promise<void> {
     if (cached?.pull.state === "open") {
       meta.set(cached.pull.number, { headSha: cached.headSha, slugs: cached.slugs, entries: cached.entries });
       if (!openIndex.has(cached.pull.number)) openIndex.set(cached.pull.number, summarize(cached.pull, cached.slugs));
+    } else if (cached !== null) {
+      await removeFile(join(PR_DIR, name));
     }
   }
 }
@@ -192,8 +205,11 @@ export const prdata = {
       await pMap(
         pulls,
         async (pull) => {
-          if (meta.get(pull.number)?.headSha === pull.headSha) return;
           try {
+            if (meta.get(pull.number)?.headSha === pull.headSha) {
+              await touchPull(pull);
+              return;
+            }
             await storePull(pull, await gh.listPullFiles(pull.number));
           } catch (err) {
             log.warn("获取 PR 文件列表失败", { pr: pull.number, err });
@@ -227,6 +243,8 @@ export const prdata = {
       }
       if (meta.get(n)?.headSha !== pull.headSha) {
         await storePull(pull, await gh.listPullFiles(n));
+      } else {
+        await touchPull(pull);
       }
       openIndex.set(n, summarize(pull, meta.get(n)?.slugs ?? []));
       rebuildRelation();
@@ -260,6 +278,7 @@ export const prdata = {
     }
     const pull = await gh.getPull(n);
     const stored = await storePull(pull, await gh.listPullFiles(n));
+    if (stored.pull.state === "open") await persistIndex();
     return { pull: stored.pull, files: stored.files };
   },
 
