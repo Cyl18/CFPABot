@@ -263,7 +263,8 @@ export interface SessionSummary {
   updatedAt: string;
   createdBy: string;
   model: string;
-  hasDraft: boolean;
+  workflow: string;
+  hasArtifact: boolean;
   writeScope: WriteScope;
   evalScope: EvalScope;
   lastError?: string;
@@ -313,16 +314,16 @@ export interface ReviewDraft {
 
 export interface SessionDetail extends SessionSummary {
   items: ChatItem[];
-  draft?: ReviewDraft;
-  draftFile?: string;
-  draftFiles?: string[];
+  artifact?: unknown;
+  artifactFile?: string;
+  artifactFiles?: string[];
   headSha?: string;
 }
 
 export interface CreateSessionRequest {
   prNumber?: number;
   message?: string;
-  review?: boolean;
+  workflow?: string;
   model?: string;
   writeScope?: WriteScope;
   evalScope?: EvalScope;
@@ -340,7 +341,7 @@ export type SessionEvent =
   | { type: "snapshot"; session: SessionDetail }
   | { type: "status"; status: SessionStatus; lastError?: string }
   | { type: "item"; item: ChatItem }
-  | { type: "draft"; draft: ReviewDraft }
+  | { type: "artifact"; artifact: unknown }
   | { type: "ping" };
 
 export type LlmProtocol = "openai-completions" | "openai-responses" | "anthropic-messages" | "google-generative-ai";

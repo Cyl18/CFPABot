@@ -10,7 +10,6 @@ import {
 import type {
   CreateSessionRequest,
   EvalScope,
-  ReviewDraft,
   SessionDetail,
   SessionEvent,
   SessionSummary,
@@ -20,19 +19,18 @@ import { prdata } from "../prdata.ts";
 import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
 import { type ToolContext } from "./context.ts";
-import { DRAFT_FILE, parseDraftFile, serializeDraftFile, validateDraft, type DraftContext } from "./draft.ts";
 import { SessionHub } from "./events.ts";
 import { loadConfig, llm, resolveModel, setModelForTest } from "./llm.ts";
 import { reasoningOf } from "./llm-providers.ts";
 import { isLocalPath, listLocal, localDir, readLocal, writeLocal } from "./local-store.ts";
 import { openSessionManager, sessionMessages } from "./pi.ts";
-import { mqmTable } from "./mqm.ts";
 import { LiveProjector, projectMessages } from "./projection.ts";
 import { buildSystemPrompt } from "./prompt.ts";
-import { publishDraft } from "./publish.ts";
 import { secretGuard } from "./secret-guard.ts";
 import { SessionStore, summarize, type SessionMeta, type SessionRecord } from "./sessions.ts";
 import { buildTools } from "./tools/index.ts";
+import { DEFAULT_WORKFLOW, resolveWorkflow, workflows } from "./workflows/index.ts";
+import type { WorkflowDefinition } from "./workflows/types.ts";
 
 export { llm, setModelForTest };
 
@@ -77,51 +75,32 @@ function now(): string {
   return new Date().toISOString();
 }
 
-function titleFor(review: boolean, prNumber: number | undefined, message: string | undefined): string {
-  if (review && prNumber !== undefined) return `审查 PR #${prNumber}`;
-  const head = message?.split(/\r?\n/)[0]?.trim();
-  if (head) return head.slice(0, 60);
-  return prNumber !== undefined ? `PR #${prNumber} 会话` : "新会话";
-}
-
-function firstPrompt(review: boolean, prNumber: number | undefined, message: string | undefined): string {
-  if (review && prNumber !== undefined) {
-    return [`审查 PR #${prNumber}`, "先读 skill://review。", message].filter(Boolean).join("\n\n");
-  }
-  return message || "请查看当前 PR，完成用户要求的操作（默认：理解并汇报 PR 内容）。";
-}
-
-async function agentSkills(review: boolean): Promise<Skill[]> {
-  if (!review) return [];
+async function agentSkills(workflow: WorkflowDefinition): Promise<Skill[]> {
+  if (workflow.skills.length === 0) return [];
   const { skills, warnings } = await loadSkillsFromDir({ dir: SKILLS_DIR, source: "cfpa" });
   for (const warning of warnings) log.warn("技能加载告警", { warning });
-  return skills;
-}
-
-async function listDrafts(id: string): Promise<{ file: string; draft: ReviewDraft }[]> {
-  const files = await listLocal(id);
-  const json = files
-    .filter((file) => file.name.endsWith(".json"))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  const drafts: { file: string; draft: ReviewDraft }[] = [];
-  for (const file of json) {
-    const draft = parseDraftFile((await readLocal(id, file.name))?.content);
-    if (draft !== null) drafts.push({ file: file.name, draft });
+  const wanted = new Set(workflow.skills);
+  const selected = skills.filter((skill) => wanted.has(skill.name));
+  for (const name of workflow.skills) {
+    if (!selected.some((skill) => skill.name === name)) {
+      log.warn("工作流技能未找到", { workflow: workflow.id, name });
+    }
   }
-  return drafts;
+  return selected;
 }
 
 async function detailOf(record: SessionRecord): Promise<SessionDetail> {
   const meta = record.meta;
-  const drafts = await listDrafts(meta.id);
-  const preferred = drafts.find((entry) => entry.file === DRAFT_FILE);
+  const adapter = resolveWorkflow(meta.workflow).artifacts;
+  const entries = adapter ? await adapter.list(meta.id) : [];
+  const preferred = adapter ? entries.find((entry) => entry.file === adapter.preferredFile) : undefined;
   const live = runtimes.get(meta.id)?.session.agent.state.messages;
   const messages = live ? [...live] : await sessionMessages(record);
   return {
     ...summarize(record),
     items: projectMessages(messages),
-    ...(preferred ? { draft: preferred.draft, draftFile: preferred.file } : {}),
-    ...(!preferred && drafts.length > 0 ? { draftFiles: drafts.map((entry) => entry.file) } : {}),
+    ...(preferred ? { artifact: preferred.value, artifactFile: preferred.file } : {}),
+    ...(!preferred && entries.length > 0 ? { artifactFiles: entries.map((entry) => entry.file) } : {}),
     ...(meta.headSha ? { headSha: meta.headSha } : {}),
   };
 }
@@ -151,13 +130,6 @@ function toolContext(record: SessionRecord): ToolContext {
   };
 }
 
-async function draftContext(prNumber: number): Promise<DraftContext> {
-  const table = await mqmTable();
-  const data = await prdata.files(prNumber).catch(() => null);
-  const patches = new Map<string, string | undefined>((data?.files ?? []).map((file) => [file.path, file.patch]));
-  return { mqmIds: table.ids, labels: table.labels, patches };
-}
-
 async function disposeRuntime(id: string): Promise<void> {
   const runtime = runtimes.get(id);
   if (!runtime) return;
@@ -171,8 +143,9 @@ async function getRuntime(record: SessionRecord): Promise<Runtime> {
   if (staleRuntimes.delete(id)) await disposeRuntime(id);
   const existing = runtimes.get(id);
   if (existing) return existing;
-  const systemPrompt = await buildSystemPrompt(record.meta.review);
-  const skills = await agentSkills(record.meta.review);
+  const workflow = resolveWorkflow(record.meta.workflow);
+  const systemPrompt = await buildSystemPrompt(workflow);
+  const skills = await agentSkills(workflow);
   const { model, apiKey, endpoint } = await resolveModel(record.meta.model);
   const manager = await openSessionManager(record);
   const sessionFile = manager.getSessionFile() ?? record.sessionFile;
@@ -321,10 +294,15 @@ export const agent = {
   },
 
   async create(request: CreateSessionRequest & { createdBy: string; source: "web" | "github" }): Promise<SessionDetail> {
-    const review = request.review === true && request.prNumber !== undefined;
+    const workflowId = request.workflow?.trim() || DEFAULT_WORKFLOW;
+    const workflow = workflows[workflowId];
+    if (!workflow) throw httpError(`未知工作流：${workflowId}`, 400);
     const message = request.message?.trim();
-    if (!review && !message && request.prNumber === undefined) {
-      throw httpError("需要提供 message，或设置 review 并给出 PR 编号", 400);
+    if (workflow.requiresPr && request.prNumber === undefined) {
+      throw httpError(`工作流 ${workflow.id} 需要 PR 编号`, 400);
+    }
+    if (!workflow.requiresPr && !message && request.prNumber === undefined) {
+      throw httpError("需要提供 message，或绑定 PR", 400);
     }
     let baseSha: string | undefined;
     let headSha: string | undefined;
@@ -340,11 +318,11 @@ export const agent = {
     if (!model) throw httpError("未配置默认 LLM 模型（config/llm.json 的 agent 字段）", 503);
     const id = crypto.randomUUID();
     const createdAt = now();
-    const writeScope: WriteScope = request.writeScope ?? "off";
-    const evalScope: EvalScope = request.evalScope ?? (review ? "run" : "off");
+    const writeScope: WriteScope = request.writeScope ?? workflow.defaults.writeScope;
+    const evalScope: EvalScope = request.evalScope ?? workflow.defaults.evalScope;
     const meta: SessionMeta = {
       id,
-      title: titleFor(review, request.prNumber, message),
+      title: workflow.title({ prNumber: request.prNumber, message }),
       status: "idle",
       archived: false,
       createdAt,
@@ -354,13 +332,13 @@ export const agent = {
       model,
       writeScope,
       evalScope,
-      review,
+      workflow: workflow.id,
       ...(request.prNumber !== undefined ? { prNumber: request.prNumber } : {}),
       ...(baseSha ? { baseSha } : {}),
       ...(headSha ? { headSha } : {}),
     };
     await store.put({ meta });
-    await launch(id, firstPrompt(review, request.prNumber, message));
+    await launch(id, workflow.firstPrompt({ prNumber: request.prNumber, message }));
     const detail = await agent.get(id);
     if (!detail) throw new Error("会话创建失败");
     return detail;
@@ -430,51 +408,51 @@ export const agent = {
     return hub.subscribe(id, listener);
   },
 
-  async readDraft(id: string, file: string): Promise<ReviewDraft> {
+  async readArtifact(id: string, file: string): Promise<unknown> {
     const record = await store.get(id);
     if (!record) throw httpError("会话不存在", 404);
-    const draft = parseDraftFile((await readLocal(id, file))?.content);
-    if (draft === null) throw httpError("草稿文件不存在或不是合法 draft", 404);
-    return draft;
+    const adapter = resolveWorkflow(record.meta.workflow).artifacts;
+    if (!adapter) throw httpError("该工作流没有产物", 404);
+    const value = await adapter.read(id, file);
+    if (value === null) throw httpError("产物文件不存在或格式不合法", 404);
+    return value;
   },
 
-  async saveDraft(
-    id: string,
-    draft: Omit<ReviewDraft, "updatedAt" | "publishedAt" | "publishedUrl">,
-    draftFile?: string,
-  ): Promise<ReviewDraft> {
+  async saveArtifact(id: string, input: unknown, file?: string): Promise<unknown> {
     const record = await store.get(id);
     if (!record) throw httpError("会话不存在", 404);
-    const errors = validateDraft(draft, await draftContext(draft.prNumber));
+    const adapter = resolveWorkflow(record.meta.workflow).artifacts;
+    if (!adapter) throw httpError("该工作流没有产物", 404);
+    const errors = await adapter.validate(input);
     if (errors.length > 0) throw httpError(errors.join("；"), 400);
-    const next: ReviewDraft = { ...draft, updatedAt: now() };
-    await writeLocal(id, draftFile ?? DRAFT_FILE, serializeDraftFile(next));
-    record.meta.updatedAt = next.updatedAt;
+    const value = await adapter.save(input);
+    await writeLocal(id, file ?? adapter.preferredFile, adapter.serialize(value));
+    record.meta.updatedAt = now();
     await store.put(record);
-    hub.emit(id, { type: "draft", draft: next });
-    return next;
+    hub.emit(id, { type: "artifact", artifact: value });
+    return value;
   },
 
-  async publish(id: string, by: string, draftFile?: string): Promise<{ url: string }> {
+  async publishArtifact(id: string, by: string, file?: string): Promise<{ url: string }> {
     const record = await store.get(id);
     if (!record) throw httpError("会话不存在", 404);
-    const found = draftFile
-      ? { file: draftFile, draft: parseDraftFile((await readLocal(id, draftFile))?.content) }
-      : ((await listDrafts(id)).find((entry) => entry.file === DRAFT_FILE) ?? null);
-    if (found === null || found.draft === null) throw httpError("没有可发布的审查草稿", 400);
-    const draft = found.draft;
-    if (record.meta.prNumber !== undefined && record.meta.prNumber !== draft.prNumber) {
-      throw httpError("草稿的 PR 与当前会话绑定的 PR 不一致", 409);
-    }
-    const { url } = await publishDraft(draft);
-    const publishedAt = now();
-    const published: ReviewDraft = { ...draft, publishedAt, publishedUrl: url };
-    await writeLocal(id, found.file, serializeDraftFile(published));
-    record.meta.updatedAt = publishedAt;
+    const adapter = resolveWorkflow(record.meta.workflow).artifacts;
+    if (!adapter) throw httpError("该工作流没有产物", 404);
+    const found = file
+      ? { file, value: await adapter.read(id, file) }
+      : ((await adapter.list(id)).find((entry) => entry.file === adapter.preferredFile) ?? null);
+    if (found === null || found.value === null) throw httpError("没有可发布的产物", 400);
+    const result = await adapter.publish(found.value, {
+      sessionId: id,
+      ...(record.meta.prNumber !== undefined ? { prNumber: record.meta.prNumber } : {}),
+      by,
+    });
+    await writeLocal(id, found.file, adapter.serialize(result.value));
+    record.meta.updatedAt = now();
     await store.put(record);
-    hub.emit(id, { type: "draft", draft: published });
-    log.info("审查已发布", { sessionId: id, prNumber: draft.prNumber, by, url });
-    return { url };
+    hub.emit(id, { type: "artifact", artifact: result.value });
+    log.info("产物已发布", { sessionId: id, workflow: record.meta.workflow, by, url: result.url });
+    return { url: result.url };
   },
 
   async setWriteScope(id: string, writeScope: WriteScope): Promise<void> {

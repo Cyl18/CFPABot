@@ -22,7 +22,7 @@ export interface SessionMeta {
   model: string;
   writeScope: WriteScope;
   evalScope: EvalScope;
-  review: boolean;
+  workflow: string;
   lastError?: string;
   baseSha?: string;
   headSha?: string;
@@ -46,7 +46,8 @@ const metaSchema = z.object({
   model: z.string(),
   writeScope: z.enum(["off", "on"]).default("off"),
   evalScope: z.enum(["off", "run"]).default("off"),
-  review: z.boolean().default(false),
+  workflow: z.string().optional(),
+  review: z.boolean().optional(),
   lastError: z.string().optional(),
   baseSha: z.string().optional(),
   headSha: z.string().optional(),
@@ -58,17 +59,20 @@ const recordSchema = z.object({
 });
 
 function toRecord(parsed: z.infer<typeof recordSchema>): SessionRecord {
-  const record: SessionRecord = { meta: parsed.meta };
+  const { review, workflow, ...meta } = parsed.meta;
+  const record: SessionRecord = {
+    meta: { ...meta, workflow: workflow || (review ? "review" : "general") },
+  };
   if (parsed.sessionFile) record.sessionFile = parsed.sessionFile;
   return record;
 }
 
 export function summarize(record: SessionRecord): SessionSummary {
   const meta = record.meta;
-  let hasDraft = false;
+  let hasArtifact = false;
   try {
     const names = readdirSync(localDir(meta.id)) as string[];
-    hasDraft = names.some((name) => name.endsWith(".json"));
+    hasArtifact = names.some((name) => name.endsWith(".json"));
   } catch {
     // local 目录还没建
   }
@@ -81,7 +85,8 @@ export function summarize(record: SessionRecord): SessionSummary {
     updatedAt: meta.updatedAt,
     createdBy: meta.createdBy,
     model: meta.model,
-    hasDraft,
+    workflow: meta.workflow,
+    hasArtifact,
     writeScope: meta.writeScope,
     evalScope: meta.evalScope,
     ...(meta.prNumber !== undefined ? { prNumber: meta.prNumber } : {}),

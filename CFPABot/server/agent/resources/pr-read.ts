@@ -17,12 +17,12 @@ import type { PrUri } from "./uri.ts";
 const BODY_LIMIT = 2000;
 const PR_CHILDREN = [
   "files",
-  "discussion",
+  "comments",
   "threads",
   "checks",
   "workspaces",
   "compare",
-  "special",
+  "special-files",
   "meta",
   "review",
 ] as const;
@@ -80,7 +80,7 @@ export async function readPr(uri: PrUri): Promise<AgentToolResult<Record<string,
     return jsonResult({ ...linesResult(sidePath, side, text, uri.selector), requestedPath: requested });
   }
 
-  if (sub === "discussion") {
+  if (sub === "comments") {
     const [comments, reviews] = await Promise.all([gh.listComments(n), gh.listReviewComments(n)]);
     return jsonResult({
       issueComments: comments
@@ -132,10 +132,10 @@ export async function readPr(uri: PrUri): Promise<AgentToolResult<Record<string,
     });
   }
 
-  if (sub === "special") {
+  if (sub === "special-files") {
     if (seg[1] === "content") {
       const key = uri.query.get("key");
-      if (!key) throw new Error("pr://<n>/special/content 需要 ?key=");
+      if (!key) throw new Error("pr://<n>/special-files/content 需要 ?key=");
       const content = await specialPairContent(n, key);
       if (content === null) throw new Error("特殊文件不存在。");
       return jsonResult(content);

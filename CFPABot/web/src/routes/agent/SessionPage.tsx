@@ -23,6 +23,7 @@ export function SessionPage({ id }: { id: string }) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const [items, setItems] = useState<readonly ChatItem[]>([]);
   const [status, setStatus] = useState<SessionStatus>("idle");
+  const [workflow, setWorkflow] = useState<string>("general");
   const [draft, setDraft] = useState<ReviewDraft | null>(null);
   const [draftFile, setDraftFile] = useState<string | undefined>(undefined);
   const [draftFiles, setDraftFiles] = useState<readonly string[]>([]);
@@ -36,9 +37,10 @@ export function SessionPage({ id }: { id: string }) {
     if (!data) return;
     setItems(data.items);
     setStatus(data.status);
-    setDraft(data.draft ?? null);
-    setDraftFile(data.draftFile);
-    setDraftFiles(data.draftFiles ?? []);
+    setWorkflow(data.workflow);
+    setDraft(data.artifact === undefined ? null : (data.artifact as ReviewDraft));
+    setDraftFile(data.artifactFile);
+    setDraftFiles(data.artifactFiles ?? []);
     setDirty(false);
   }, [detail.data]);
 
@@ -48,9 +50,10 @@ export function SessionPage({ id }: { id: string }) {
         case "snapshot": {
           setItems(event.session.items);
           setStatus(event.session.status);
-          setDraft(event.session.draft ?? null);
-          setDraftFile(event.session.draftFile);
-          setDraftFiles(event.session.draftFiles ?? []);
+          setWorkflow(event.session.workflow);
+          setDraft(event.session.artifact === undefined ? null : (event.session.artifact as ReviewDraft));
+          setDraftFile(event.session.artifactFile);
+          setDraftFiles(event.session.artifactFiles ?? []);
           setDirty(false);
           break;
         }
@@ -74,8 +77,8 @@ export function SessionPage({ id }: { id: string }) {
           setLastError(event.lastError);
           break;
         }
-        case "draft": {
-          if (!dirty) setDraft(event.draft);
+        case "artifact": {
+          if (!dirty) setDraft(event.artifact as ReviewDraft);
           break;
         }
         default:
@@ -107,9 +110,9 @@ export function SessionPage({ id }: { id: string }) {
   });
 
   const loadDraft = useMutation({
-    mutationFn: (file: string) => api.readDraft(id, file),
+    mutationFn: (file: string) => api.readArtifact(id, file),
     onSuccess: (loaded, file) => {
-      setDraft(loaded);
+      setDraft(loaded as ReviewDraft);
       setDraftFile(file);
       setDraftFiles([]);
       setDirty(false);
@@ -120,9 +123,9 @@ export function SessionPage({ id }: { id: string }) {
 
   const saveDraft = useMutation({
     mutationFn: (value: { draft: ReviewDraft; draftFile?: string }) =>
-      api.saveDraft(id, value.draft, value.draftFile),
+      api.saveArtifact(id, value.draft, value.draftFile),
     onSuccess: (saved, variables) => {
-      setDraft(saved);
+      setDraft(saved as ReviewDraft);
       setDraftFile(variables.draftFile ?? draftFile);
       setDirty(false);
       setDraftError(undefined);
@@ -131,7 +134,7 @@ export function SessionPage({ id }: { id: string }) {
   });
 
   const publish = useMutation({
-    mutationFn: () => api.publish(id, draftFile),
+    mutationFn: () => api.publishArtifact(id, draftFile),
     onSuccess: () => {
       setDraftError(undefined);
       void client.invalidateQueries({ queryKey: qk.session(id) });
@@ -249,23 +252,25 @@ export function SessionPage({ id }: { id: string }) {
           </footer>
         </Card>
 
-        <DraftPanel
-          draft={draft}
-          files={draftFiles}
-          selecting={loadDraft.isPending}
-          saving={saveDraft.isPending}
-          publishing={publish.isPending}
-          error={draftError}
-          onChange={(next) => {
-            setDraft(next);
-            setDirty(true);
-          }}
-          onSelect={(file) => loadDraft.mutate(file)}
-          onSave={() => {
-            if (draft) saveDraft.mutate({ draft, draftFile });
-          }}
-          onPublish={() => publish.mutate()}
-        />
+        {workflow === "review" && (
+          <DraftPanel
+            draft={draft}
+            files={draftFiles}
+            selecting={loadDraft.isPending}
+            saving={saveDraft.isPending}
+            publishing={publish.isPending}
+            error={draftError}
+            onChange={(next) => {
+              setDraft(next);
+              setDirty(true);
+            }}
+            onSelect={(file) => loadDraft.mutate(file)}
+            onSave={() => {
+              if (draft) saveDraft.mutate({ draft, draftFile });
+            }}
+            onPublish={() => publish.mutate()}
+          />
+        )}
       </div>
     </>
   );

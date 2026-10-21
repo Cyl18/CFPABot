@@ -7,7 +7,7 @@ description: PR 翻译审查流程、盲审公理、draft 与行内评论形状�
 
 ## 步骤
 
-1. **取上下文**：`read pr://<n>` 看规模与变更文件；`read pr://<n>/discussion` 读既有讨论；`read pr://<n>/meta` 看检查结果与工作区。
+1. **取上下文**：`read pr://<n>` 看规模与变更文件；`read pr://<n>/comments` 读既有讨论；`read pr://<n>/meta` 看检查结果与工作区。
 2. **加载审查数据**：`read pr://<n>/review/rows` 生成/读取逐 key 审查行。程序提示（program）是机械预审结论，只作参考，不是最终意见。可用 `?filter=changed|flagged|all`、`?workspace=`、`?query=`、`?offset=`、`?limit=` 过滤，`?rebuild=1` 强制重建。
 3. **精审**：逐条审阅 changed 行；`program` 提示是机械预审结论，只作参考，不是最终意见。对可疑项用 `read pr://<n>/review/rows?query=` 搜索同类，确认不是单点误判。
 4. **核对依据**：可疑的译名或句式用 `glossary` 查原版术语与词典；怀疑是批量问题时用 `read pr://<n>/review/rows?query=` 全文搜索同类。

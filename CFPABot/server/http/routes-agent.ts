@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { agent } from "../agent/index.ts";
-import { draftInputSchema } from "../agent/draft.ts";
 import { requireAdmin } from "./auth.ts";
 import type { AppEnv } from "./auth.ts";
 import { notFound, parseBody } from "./errors.ts";
@@ -13,7 +12,7 @@ export const sessionRoutes = new Hono<AppEnv>();
 const createSchema = z.object({
   prNumber: z.number().int().positive().optional(),
   message: z.string().optional(),
-  review: z.boolean().optional(),
+  workflow: z.string().optional(),
   model: z.string().optional(),
   writeScope: z.enum(["off", "on"]).optional(),
   evalScope: z.enum(["off", "run"]).optional(),
@@ -24,11 +23,7 @@ const evalScopeSchema = z.object({ evalScope: z.enum(["off", "run"]) });
 
 const messageSchema = z.object({ text: z.string().min(1) });
 
-const draftSchema = draftInputSchema.omit({ event: true }).extend({
-  headSha: z.string().min(1),
-  draftFile: z.string().min(1).optional(),
-});
-const publishSchema = z.object({ draftFile: z.string().min(1).optional() });
+const publishSchema = z.object({ file: z.string().min(1).optional() });
 
 sessionRoutes.use("*", async (c, next) => {
   await requireAdmin(c);
@@ -49,10 +44,10 @@ sessionRoutes.get("/:id", async (c) => {
   return c.json(session);
 });
 
-sessionRoutes.get("/:id/draft", async (c) => {
+sessionRoutes.get("/:id/artifact", async (c) => {
   const file = c.req.query("file");
-  if (!file) throw notFound("缺少草稿文件名");
-  return c.json(await agent.readDraft(c.req.param("id"), file));
+  if (!file) throw notFound("缺少产物文件名");
+  return c.json(await agent.readArtifact(c.req.param("id"), file));
 });
 
 sessionRoutes.patch("/:id/write-scope", async (c) => {
@@ -83,15 +78,16 @@ sessionRoutes.post("/:id/archive", async (c) => {
   return c.json({ ok: true });
 });
 
-sessionRoutes.put("/:id/draft", async (c) => {
-  const { draftFile, ...draft } = await parseBody(c, draftSchema);
-  return c.json(await agent.saveDraft(c.req.param("id"), draft, draftFile));
+sessionRoutes.put("/:id/artifact", async (c) => {
+  const file = c.req.query("file");
+  const input = await parseBody(c, z.unknown());
+  return c.json(await agent.saveArtifact(c.req.param("id"), input, file));
 });
 
 sessionRoutes.post("/:id/publish", async (c) => {
   const user = await requireAdmin(c);
-  const { draftFile } = await parseBody(c, publishSchema);
-  return c.json(await agent.publish(c.req.param("id"), user.login, draftFile));
+  const { file } = await parseBody(c, publishSchema);
+  return c.json(await agent.publishArtifact(c.req.param("id"), user.login, file));
 });
 
 sessionRoutes.get("/:id/events", async (c) => {

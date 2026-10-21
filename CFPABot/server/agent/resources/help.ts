@@ -85,7 +85,7 @@ kernel 直接读写会话 workspace 与仓库文件；不要用 bash 再套 pyth
 ?ref=<sha> 从 git 对象读指定版本。`,
   "resources/pr": `# pr://
 
-pr://<n>/ 下的资源：files、files/<path>、discussion、threads、checks、workspaces、compare、special、meta、review、review/rows。
+pr://<n>/ 下的资源：files、files/<path>、comments、threads、checks、workspaces、compare、special-files、meta、review、review/rows。
 files 支持 ?side=head|base；rows 支持 ?workspace=&filter=changed|flagged|all&query=&offset=&limit=&rebuild=1。`,
   "resources/gh": `# gh://
 

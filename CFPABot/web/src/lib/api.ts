@@ -19,7 +19,6 @@ import type {
   PrSummary,
   ProbeModelsRequest,
   ReviewComment,
-  ReviewDraft,
   ReviewHtmlRequest,
   ReviewHtmlResult,
   ReviewThread,
@@ -180,12 +179,16 @@ export const api = {
   sendMessage: (id: string, text: string) => send<{ ok: true }>("POST", `/api/sessions/${encodeURIComponent(id)}/messages`, { text }),
   abortSession: (id: string) => send<{ ok: true }>("POST", `/api/sessions/${encodeURIComponent(id)}/abort`),
   archiveSession: (id: string) => send<{ ok: true }>("POST", `/api/sessions/${encodeURIComponent(id)}/archive`),
-  saveDraft: (id: string, draft: ReviewDraft, draftFile?: string) =>
-    send<ReviewDraft>("PUT", `/api/sessions/${encodeURIComponent(id)}/draft`, { ...draft, draftFile }),
-  readDraft: (id: string, file: string) =>
-    get<ReviewDraft>(`/api/sessions/${encodeURIComponent(id)}/draft?file=${encodeURIComponent(file)}`),
-  publish: (id: string, draftFile?: string) =>
-    send<{ url: string }>("POST", `/api/sessions/${encodeURIComponent(id)}/publish`, { draftFile }),
+  saveArtifact: (id: string, value: unknown, file?: string) =>
+    send<unknown>(
+      "PUT",
+      `/api/sessions/${encodeURIComponent(id)}/artifact${file === undefined ? "" : `?file=${encodeURIComponent(file)}`}`,
+      value,
+    ),
+  readArtifact: (id: string, file: string) =>
+    get<unknown>(`/api/sessions/${encodeURIComponent(id)}/artifact?file=${encodeURIComponent(file)}`),
+  publishArtifact: (id: string, file?: string) =>
+    send<{ url: string }>("POST", `/api/sessions/${encodeURIComponent(id)}/publish`, { file }),
   sessionEventsUrl: (id: string) => `/api/sessions/${encodeURIComponent(id)}/events`,
 
   llm: (signal?: AbortSignal) => get<LlmConfigView>("/api/admin/llm", signal),

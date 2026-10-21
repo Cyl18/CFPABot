@@ -80,7 +80,7 @@ function SessionsTable({ n }: { n: number }) {
       ),
     },
     { id: "status", header: "状态", width: 100, cell: (row) => <SessionStatusBadge status={row.status} /> },
-    { id: "draft", header: "草稿", width: 100, cell: (row) => (row.hasDraft ? <Badge tone="ok">有</Badge> : <Badge>无</Badge>) },
+    { id: "artifact", header: "产物", width: 100, cell: (row) => (row.hasArtifact ? <Badge tone="ok">有</Badge> : <Badge>无</Badge>) },
     {
       id: "model",
       header: "模型",

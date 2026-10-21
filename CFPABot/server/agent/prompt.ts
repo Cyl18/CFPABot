@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { paths } from "../paths.ts";
 import { resourceTree } from "./resources/tree.ts";
 import { WRITE_TARGETS } from "./resources/write-targets.ts";
+import type { WorkflowDefinition } from "./workflows/types.ts";
 
 const AGENT_DIR = join(paths.config, "agent");
 const TREE_PLACEHOLDER = "{{RESOURCE_TREE}}";
@@ -16,7 +17,7 @@ async function readPrompt(file: string): Promise<string> {
   }
 }
 
-export async function buildSystemPrompt(review: boolean): Promise<string> {
+export async function buildSystemPrompt(workflow: WorkflowDefinition): Promise<string> {
   const writeTable = [
     "```",
     ...WRITE_TARGETS.map((target) => `${target.methods.join("/")}\t${target.uri}\t# ${target.summary}`),
@@ -25,6 +26,6 @@ export async function buildSystemPrompt(review: boolean): Promise<string> {
   const system = (await readPrompt("system.md"))
     .replace(TREE_PLACEHOLDER, resourceTree())
     .replace(WRITE_PLACEHOLDER, writeTable);
-  if (!review) return system;
-  return `${system}\n\n${await readPrompt("review-contract.md")}`;
+  const fragments = await Promise.all(workflow.promptFiles.map(readPrompt));
+  return [system, ...fragments].filter(Boolean).join("\n\n");
 }

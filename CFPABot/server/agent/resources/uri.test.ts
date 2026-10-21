@@ -43,7 +43,7 @@ describe("parseUri", () => {
   });
 
   test("query 中的编码路径还原", () => {
-    const uri = parseUri("pr://1/special/content?key=guide%2F_zh_cn%2Fx.md");
+    const uri = parseUri("pr://1/special-files/content?key=guide%2F_zh_cn%2Fx.md");
     expect(uri.query.get("key")).toBe("guide/_zh_cn/x.md");
   });
 

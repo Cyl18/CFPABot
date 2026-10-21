@@ -292,7 +292,7 @@ export async function runCommands(input: CommandRunInput): Promise<void> {
           case "agent-review": {
             const session = await agent.create({
               prNumber: input.prNumber,
-              review: line.name === "agent-review",
+              ...(line.name === "agent-review" ? { workflow: "review" } : {}),
               message: line.rest.trim().length > 0 ? line.rest.trim() : undefined,
               createdBy: input.login,
               source: "github",

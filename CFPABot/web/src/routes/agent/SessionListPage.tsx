@@ -74,7 +74,7 @@ export function SessionListPage() {
         ),
     },
     { id: "status", header: "状态", width: 100, cell: (row) => <SessionStatusBadge status={row.status} /> },
-    { id: "draft", header: "草稿", width: 90, cell: (row) => (row.hasDraft ? <Badge tone="ok">有</Badge> : <Badge>无</Badge>) },
+    { id: "artifact", header: "产物", width: 90, cell: (row) => (row.hasArtifact ? <Badge tone="ok">有</Badge> : <Badge>无</Badge>) },
     { id: "model", header: "模型", width: 200, hideBelow: "lg", cell: (row) => <code className="block truncate font-mono text-xs text-muted">{row.model}</code> },
     { id: "by", header: "创建者", width: 120, hideBelow: "xl", cell: (row) => row.createdBy },
     { id: "updated", header: "更新", width: 110, cell: (row) => <span className="text-muted">{formatRelative(row.updatedAt)}</span> },

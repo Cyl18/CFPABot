@@ -2,6 +2,8 @@
 
 开始前先读 `skill://review`；完整流程、盲审公理、draft 形状和 MQM 词表都在那里。
 
+草稿流程：`write local://<文件名>.json` 保存草稿 → 人工检查 → `write pr://<n>/review` 发布（直接给 JSON 内容）。
+
 1. 只审 diff 里的 changes，不做跨版本全量扫。
 2. `program` 提示是机械预审，只作参考；结论必须能指回 key、原文、译文、行号。
 3. `mqm` 只能取 `skill://review` 里的受控词表，不许自编。

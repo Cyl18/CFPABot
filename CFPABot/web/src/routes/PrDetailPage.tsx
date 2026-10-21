@@ -41,7 +41,7 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
   const navigate = useNavigate();
 
   const startReview = useMutation({
-    mutationFn: () => api.createSession({ prNumber: n, review: true }),
+    mutationFn: () => api.createSession({ prNumber: n, workflow: "review" }),
     onSuccess: (session) => {
       void navigate({ to: "/agent/$id", params: { id: session.id } });
     },

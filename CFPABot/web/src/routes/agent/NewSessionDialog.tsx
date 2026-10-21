@@ -25,7 +25,7 @@ export function NewSessionDialog({ open, onClose, onCreated }: NewSessionDialogP
       api.createSession({
         ...(prNumber.trim() === "" ? {} : { prNumber: Number(prNumber) }),
         ...(message.trim() === "" ? {} : { message: message.trim() }),
-        review,
+        ...(review ? { workflow: "review" } : {}),
         ...(model === "" ? {} : { model }),
       }),
     onSuccess: (session) => {
