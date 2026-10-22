@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { DraftComment, ReviewDraft, Severity, Verdict } from "@cfpa/contracts/api";
 import { inHunks, patchHunks } from "./domain/diff.ts";
-import type { MqmLabel } from "./types.ts";
 
 export const draftInputSchema = z.object({
   prNumber: z.number().int().positive(),
@@ -67,8 +66,6 @@ export function serializeDraftFile(draft: ReviewDraft): string {
 }
 
 export interface DraftContext {
-  mqmIds: Set<string>;
-  labels: Map<string, MqmLabel>;
   patches: Map<string, string | undefined>;
 }
 
@@ -89,9 +86,6 @@ export function validateDraft(
     if (!Number.isInteger(comment.line) || comment.line <= 0) errors.push(`${where}: line 必须是正整数`);
     if (!SEVERITIES.includes(comment.severity)) errors.push(`${where}: severity 非法: ${comment.severity}`);
     if (!comment.body.trim()) errors.push(`${where}: body 不能为空`);
-    if (ctx.mqmIds.size > 0 && !ctx.mqmIds.has(comment.mqm)) {
-      errors.push(`${where}: mqm 非法（须 Dim/type 全形）: ${comment.mqm}`);
-    }
     if (comment.covers && comment.covers.length > 0 && comment.suggestion) {
       errors.push(`${where}: covers 非空时不能同时给 suggestion`);
     }
@@ -126,11 +120,10 @@ export function foldDisplayBreaks(text: string): string {
     .replace(/<p>/g, "\n");
 }
 
-export function renderInlineBody(comment: DraftComment, labels: Map<string, MqmLabel>): string {
-  const label = labels.get(comment.mqm);
+export function renderInlineBody(comment: DraftComment): string {
   const covers = comment.covers?.length ?? 0;
   const parts = [
-    `\`${comment.severity}\` · ${comment.mqm}${label ? `（${label.dimZh}/${label.typeZh}）` : ""}${covers > 0 ? ` · covers ${covers} key` : ""}`,
+    `\`${comment.severity}\` · ${comment.mqm}${covers > 0 ? ` · covers ${covers} key` : ""}`,
   ];
   if (comment.en !== undefined) parts.push(`原文：\n\`\`\`\n${foldDisplayBreaks(comment.en)}\n\`\`\``);
   if (comment.zh !== undefined) parts.push(`译文：\n\`\`\`\n${foldDisplayBreaks(comment.zh)}\n\`\`\``);

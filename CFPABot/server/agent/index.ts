@@ -35,7 +35,6 @@ import { scopeGuard } from "./scope-guard.ts";
 import { sessionTitle } from "./title.ts";
 import { SessionStore, summarize, type SessionMeta, type SessionRecord } from "./sessions.ts";
 import { buildTools } from "./tools/index.ts";
-import { mqmTable } from "./workflows/review/mqm.ts";
 import { publishDraft } from "./workflows/review/publish.ts";
 import { generalWorkflow } from "./workflows/general.ts";
 import { resolveWorkflow } from "./workflows/index.ts";
@@ -120,10 +119,9 @@ async function detailOf(record: SessionRecord): Promise<SessionDetail> {
 const draftInput = draftInputSchema.omit({ event: true }).extend({ headSha: z.string().min(1) });
 
 async function draftContext(prNumber: number): Promise<DraftContext> {
-  const table = await mqmTable();
   const data = await prdata.files(prNumber).catch(() => null);
   const patches = new Map<string, string | undefined>((data?.files ?? []).map((file) => [file.path, file.patch]));
-  return { mqmIds: table.ids, labels: table.labels, patches };
+  return { patches };
 }
 
 function toolContext(record: SessionRecord): ToolContext {

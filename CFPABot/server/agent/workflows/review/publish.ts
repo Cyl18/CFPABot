@@ -2,7 +2,6 @@ import type { ReviewDraft } from "../../../../shared/api.ts";
 import { gh } from "../../../github/client.ts";
 import { logger } from "../../../log.ts";
 import { renderInlineBody, renderReviewBody, validateDraft } from "../../draft.ts";
-import { mqmTable } from "./mqm.ts";
 
 const log = logger("agent-publish");
 
@@ -23,8 +22,7 @@ export async function publishDraft(
   }
   const files = await gh.listPullFiles(draft.prNumber);
   const patches = new Map(files.map((file) => [file.path, file.patch]));
-  const table = await mqmTable();
-  const errors = validateDraft(draft, { mqmIds: table.ids, labels: table.labels, patches });
+  const errors = validateDraft(draft, { patches });
   if (errors.length > 0) throw new Error(`草稿校验失败：${errors.join("；")}`);
   const body = opts.marker === undefined ? renderReviewBody(draft) : `${renderReviewBody(draft)}\n\n${opts.marker}`;
   const review = await gh.createReview(draft.prNumber, {
@@ -35,7 +33,7 @@ export async function publishDraft(
       path: comment.path,
       line: comment.line,
       side: "RIGHT",
-      body: renderInlineBody(comment, table.labels),
+      body: renderInlineBody(comment),
     })),
   });
   log.info("已发布审查", { prNumber: draft.prNumber, comments: draft.comments.length, url: review.htmlUrl });

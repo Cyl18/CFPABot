@@ -5,8 +5,3 @@ export interface PackFile {
   status: PrFile["status"];
   patch?: string;
 }
-
-export interface MqmLabel {
-  dimZh: string;
-  typeZh: string;
-}
