@@ -19,6 +19,11 @@ const createSchema = z.object({
 
 const writeScopeSchema = z.object({ writeScope: z.enum(["off", "on"]) });
 const evalScopeSchema = z.object({ evalScope: z.enum(["off", "run"]) });
+const configSchema = z.object({
+  model: z.string().optional(),
+  thinking: z.union([z.enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"]), z.null()]).optional(),
+  prNumber: z.union([z.number().int().positive(), z.null()]).optional(),
+});
 
 const messageSchema = z.object({ text: z.string().min(1) });
 
@@ -53,6 +58,12 @@ sessionRoutes.patch("/:id/eval-scope", async (c) => {
   const { evalScope } = await parseBody(c, evalScopeSchema);
   await agent.setEvalScope(c.req.param("id"), evalScope);
   return c.json({ ok: true, evalScope });
+});
+
+sessionRoutes.patch("/:id/config", async (c) => {
+  const patch = await parseBody(c, configSchema);
+  await agent.setConfig(c.req.param("id"), patch);
+  return c.json({ ok: true });
 });
 
 sessionRoutes.post("/:id/messages", async (c) => {

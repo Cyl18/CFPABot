@@ -274,6 +274,7 @@ export interface SessionSummary {
   draft?: SessionDraftSummary;
   writeScope: WriteScope;
   evalScope: EvalScope;
+  thinking?: ThinkingLevel;
   lastError?: string;
 }
 
@@ -339,6 +340,12 @@ export interface SetWriteScopeRequest {
 
 export interface SetEvalScopeRequest {
   evalScope: EvalScope;
+}
+
+export interface SetSessionConfigRequest {
+  model?: string;
+  thinking?: ThinkingLevel | null;
+  prNumber?: number | null;
 }
 
 export type SessionEvent =

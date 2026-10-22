@@ -8,12 +8,14 @@ import {
   type SessionEntry,
   type Skill,
 } from "@oh-my-pi/pi-coding-agent";
+import type { Effort } from "@oh-my-pi/pi-catalog/effort";
 import type {
   CreateSessionRequest,
   EvalScope,
   SessionDetail,
   SessionEvent,
   SessionSummary,
+  ThinkingLevel,
   WriteScope,
 } from "../../shared/api.ts";
 import { prdata } from "../prdata.ts";
@@ -162,6 +164,9 @@ async function getRuntime(record: SessionRecord): Promise<Runtime> {
   const systemPrompt = await buildSystemPrompt(workflow);
   const skills = await agentSkills(workflow);
   const { model, apiKey, endpoint } = await resolveModel(record.meta.model);
+  const configured = record.meta.thinking;
+  const thinkingLevel: Effort | undefined =
+    configured === "off" ? undefined : ((configured as Effort | undefined) ?? (endpoint ? reasoningOf(endpoint) : undefined));
   const manager = await openSessionManager(record);
   const sessionFile = manager.getSessionFile() ?? record.sessionFile;
   if (sessionFile) {
@@ -179,7 +184,7 @@ async function getRuntime(record: SessionRecord): Promise<Runtime> {
     extensions: [secretGuard, scopeGuard(async () => (await store.get(id))?.meta.evalScope === "run")],
     disableExtensionDiscovery: true,
     systemPrompt,
-    ...(endpoint ? { thinkingLevel: reasoningOf(endpoint) } : {}),
+    ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
   });
   const session: AgentSession = created.session;
   const entries: SessionEntry[] = manager.getEntries();
@@ -317,8 +322,11 @@ export const agent = {
     const message = request.message?.trim();
     if (!message) throw httpError("需要提供 message", 400);
     const config = await loadConfig();
-    const model = request.model?.trim() || config.agent;
-    if (!model) throw httpError("未配置默认 LLM 模型（config/llm.json 的 agent 字段）", 503);
+    const model = request.model?.trim() || config.agent || "";
+    const modelError = await resolveModel(model === "" ? undefined : model).then(
+      () => undefined,
+      (err: unknown) => (err instanceof Error ? err.message : String(err)),
+    );
     const workflow = generalWorkflow;
     const id = crypto.randomUUID();
     const createdAt = now();
@@ -338,8 +346,21 @@ export const agent = {
       workflow: workflow.id,
       ...(request.prNumber === undefined ? {} : { prNumber: request.prNumber }),
     };
-    await store.put({ meta });
-    await launch(id, message);
+    const record: SessionRecord = { meta };
+    await store.put(record);
+    if (modelError === undefined) {
+      await launch(id, message);
+    } else {
+      meta.lastError = modelError;
+      try {
+        const manager = await openSessionManager(record);
+        manager.appendMessage({ role: "user", content: message, timestamp: Date.now() });
+        await manager.ensureOnDisk();
+      } catch (err) {
+        log.warn("首条消息写入失败", { id, err });
+      }
+      await store.put(record);
+    }
     const detail = await agent.get(id);
     if (!detail) throw new Error("会话创建失败");
     return detail;
@@ -465,6 +486,52 @@ export const agent = {
     record.meta.evalScope = evalScope;
     record.meta.updatedAt = now();
     await store.put(record);
+  },
+
+  async setConfig(
+    id: string,
+    patch: { model?: string; thinking?: ThinkingLevel | null; prNumber?: number | null },
+  ): Promise<void> {
+    const record = await store.get(id);
+    if (!record) throw httpError("会话不存在", 404);
+    const meta = record.meta;
+    let runtimeChanged = false;
+
+    if (patch.model !== undefined) {
+      meta.model = patch.model.trim();
+      runtimeChanged = true;
+    }
+    if (patch.thinking !== undefined) {
+      if (patch.thinking === null) delete meta.thinking;
+      else meta.thinking = patch.thinking;
+      runtimeChanged = true;
+    }
+    if (patch.prNumber !== undefined) {
+      const base = meta.title.replace(/^PR #\d+ · /u, "");
+      if (patch.prNumber === null) {
+        delete meta.prNumber;
+        meta.title = base;
+      } else {
+        meta.prNumber = patch.prNumber;
+        meta.title = `PR #${patch.prNumber} · ${base}`;
+      }
+    }
+
+    if (runtimeChanged) {
+      const modelError = await resolveModel(meta.model || undefined).then(
+        () => undefined,
+        (err: unknown) => (err instanceof Error ? err.message : String(err)),
+      );
+      if (modelError === undefined) delete meta.lastError;
+      else meta.lastError = modelError;
+    }
+
+    meta.updatedAt = now();
+    await store.put(record);
+    if (runtimeChanged) {
+      if (active.has(id)) staleRuntimes.add(id);
+      else await disposeRuntime(id);
+    }
   },
 
   async shutdown(): Promise<void> {
