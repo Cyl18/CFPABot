@@ -18,6 +18,15 @@ const errors = [];
 const verdicts = new Set(["approve", "changes", "reject"]);
 const severities = new Set(["critical", "major", "minor", "neutral"]);
 
+const section = (await readFile(new URL("../SKILL.md", import.meta.url), "utf8")).split("## MQM 受控词表")[1] ?? "";
+const knownMqm = new Set(
+  [...section.matchAll(/`([A-Za-z]+\/[A-Za-z-]+)`/g)].map((match) => match[1]).filter((id) => id !== "Dim/type"),
+);
+if (knownMqm.size === 0) {
+  console.error("无法从 SKILL.md 解析 MQM 词表");
+  process.exit(2);
+}
+
 if (!verdicts.has(draft.verdict)) errors.push(`verdict 非法: ${draft.verdict}`);
 if (typeof draft.summary !== "string" || draft.summary.trim() === "") errors.push("summary 不能为空");
 if (!Number.isInteger(draft.prNumber) || draft.prNumber <= 0) errors.push("prNumber 非法");
@@ -35,6 +44,7 @@ if (!Array.isArray(draft.comments)) {
     if (typeof comment?.key !== "string") errors.push(`${where}: key 必须是字符串`);
     if (!severities.has(comment?.severity)) errors.push(`${where}: severity 非法: ${comment?.severity}`);
     if (typeof comment?.mqm !== "string" || comment.mqm.trim() === "") errors.push(`${where}: mqm 不能为空`);
+    else if (!knownMqm.has(comment.mqm)) errors.push(`${where}: mqm 不在 SKILL.md 词表中: ${comment.mqm}`);
     if (typeof comment?.body !== "string" || comment.body.trim() === "") errors.push(`${where}: body 不能为空`);
     if (comment?.covers !== undefined && !Array.isArray(comment.covers)) errors.push(`${where}: covers 必须是数组`);
     if (comment?.suggestion !== undefined && typeof comment.suggestion !== "string") {
@@ -61,4 +71,4 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`ok: ${draft.comments.length} 条 inline；MQM、行号、headSha 由发布时服务端校验`);
+console.log(`ok: ${draft.comments.length} 条 inline；行号、headSha 由发布时服务端校验`);

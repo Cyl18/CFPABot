@@ -29,7 +29,7 @@ description: PR 翻译审查流程、盲审公理、draft 与行内评论形状�
 ## 检查器
 
 `bash` 运行 `bun "$CFPA_ROOT/skills/review/scripts/check-draft.mjs" <文件>`。
-只查 draft 结构、severity、suggestion/covers、suspected；MQM、行号、headSha 由发布时服务端校验。
+只查 draft 结构、severity、suggestion/covers、suspected 与 MQM 词表；行号、headSha 由发布时服务端校验。
 
 ## 盲审公理
 

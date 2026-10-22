@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadSkillsFromDir } from "@oh-my-pi/pi-coding-agent";
-import { mqmIds } from "../domain/mqm.ts";
 import { paths } from "../paths.ts";
 
 const dir = join(paths.root, "skills");
@@ -15,9 +15,22 @@ describe("review skill", () => {
     expect(review?.description).toContain("审查");
   });
 
-  test("包含全部 MQM 词表", async () => {
-    const skill = await readFile(join(dir, "review", "SKILL.md"), "utf8");
-    const json: unknown = JSON.parse(await readFile(join(paths.config, "mqm-types.json"), "utf8"));
-    for (const id of mqmIds(json)) expect(skill).toContain(id);
+  test("检查器拒绝词表外的 mqm", async () => {
+    const work = await mkdtemp(join(tmpdir(), "cfpa-check-"));
+    const file = join(work, "draft.json");
+    await writeFile(
+      file,
+      JSON.stringify({
+        prNumber: 1,
+        headSha: "abc",
+        verdict: "changes",
+        summary: "s",
+        comments: [{ path: "a.lang", line: 2, key: "k", severity: "minor", mqm: "Foo/bar", body: "b", suggestion: "x" }],
+      }),
+    );
+    const proc = Bun.spawn(["bun", join(dir, "review", "scripts", "check-draft.mjs"), file], { stderr: "pipe" });
+    const stderr = await new Response(proc.stderr).text();
+    expect(await proc.exited).toBe(1);
+    expect(stderr).toContain("不在 SKILL.md 词表中");
   });
 });
