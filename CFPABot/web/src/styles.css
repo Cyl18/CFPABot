@@ -11,16 +11,19 @@
   --bg: #f6f7f7;
   --surface: #ffffff;
   --elevated: #edeeee;
+  --elevated-hover: color-mix(in oklab, var(--elevated), #000 5%);
   --fg: #1e201f;
   --muted: #575958;
   --line: #d7dad8;
   --brand: #a7e8cb;
   --brand-fg: #012115;
+  --brand-hover: color-mix(in oklab, var(--brand), #000 10%);
   --accent: #2f6f56;
   --accent-soft: #d2e4db;
   --ok: #007433;
   --warn: #975000;
   --danger: #b23731;
+  --danger-hover: color-mix(in oklab, var(--danger), #000 10%);
   --info: #2e5fbe;
   --shadow-panel: 0 1px 2px rgb(55 56 55 / 0.06), 0 8px 24px -16px rgb(55 56 55 / 0.25);
 }
@@ -29,16 +32,19 @@
   --bg: #0a0b0b;
   --surface: #171818;
   --elevated: #222322;
+  --elevated-hover: color-mix(in oklab, var(--elevated), #fff 8%);
   --fg: #e6e8e7;
   --muted: #a5a7a6;
   --line: #2e2f2f;
   --brand: #539a7c;
   --brand-fg: #012115;
+  --brand-hover: color-mix(in oklab, var(--brand), #fff 12%);
   --accent: #70b799;
   --accent-soft: #23352d;
   --ok: #3ebf67;
   --warn: #f98d22;
   --danger: #ff8579;
+  --danger-hover: color-mix(in oklab, var(--danger), #fff 12%);
   --info: #7aa8ff;
   --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 30px -18px rgb(0 0 0 / 0.9);
 }
@@ -53,16 +59,19 @@
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-elevated: var(--elevated);
+  --color-elevated-hover: var(--elevated-hover);
   --color-fg: var(--fg);
   --color-muted: var(--muted);
   --color-line: var(--line);
   --color-brand: var(--brand);
   --color-brand-fg: var(--brand-fg);
+  --color-brand-hover: var(--brand-hover);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
   --color-info: var(--info);
 }
 
