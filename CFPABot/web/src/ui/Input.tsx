@@ -1,4 +1,4 @@
-import { useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
+import { useEffect, useId, useRef, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/cn.ts";
 
 export interface FieldProps {
@@ -59,12 +59,23 @@ export function Input({ label, hint, error, wrapperClassName, className, id, ico
   );
 }
 
-export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement>, FieldProps {}
+export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement>, FieldProps {
+  autoGrow?: boolean;
+}
 
-export function Textarea({ label, hint, error, wrapperClassName, className, id, ...rest }: TextareaProps) {
+const MAX_GROW = 240;
+
+export function Textarea({ label, hint, error, wrapperClassName, className, id, autoGrow = false, ...rest }: TextareaProps) {
   const generated = useId();
   const fieldId = id ?? generated;
   const describedBy = error !== undefined ? `${fieldId}-error` : hint !== undefined ? `${fieldId}-hint` : undefined;
+  const area = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    const node = area.current;
+    if (node === null || !autoGrow) return;
+    node.style.height = "auto";
+    node.style.height = `${Math.min(node.scrollHeight, MAX_GROW)}px`;
+  }, [autoGrow, rest.value]);
   return (
     <div className={cn("flex flex-col gap-1", wrapperClassName)}>
       {label !== undefined && (
@@ -74,9 +85,10 @@ export function Textarea({ label, hint, error, wrapperClassName, className, id, 
       )}
       <textarea
         id={fieldId}
+        ref={area}
         aria-invalid={error !== undefined ? true : undefined}
         aria-describedby={describedBy}
-        className={cn(FIELD_BASE, "scroll-thin min-h-20 py-2 leading-relaxed", error !== undefined && "border-danger", className)}
+        className={cn(FIELD_BASE, "scroll-thin min-h-20 py-2 leading-relaxed", autoGrow && "resize-none", error !== undefined && "border-danger", className)}
         {...rest}
       />
       {hint !== undefined && error === undefined && (

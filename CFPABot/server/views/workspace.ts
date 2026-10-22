@@ -98,6 +98,7 @@ export async function compareWorkspace(n: number, key: WorkspaceKey): Promise<Co
     rows: compareLang(base, head),
     missing,
     review: compareReview(headZhText, head.zh, files),
+    reviewEn: compareReview(headEnText, head.en, files),
   };
 }
 

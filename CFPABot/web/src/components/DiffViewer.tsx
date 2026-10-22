@@ -1,7 +1,7 @@
 import type { DiffCell, DiffCombine, DiffEntry, DiffFacet, DiffFacts, DiffFilterState, DiffLane } from "@shared/diffview.ts";
 import { DEFAULT_DIFF_FILTER, DIFF_FACETS, FACET_MATCH, diffFacts, matchesFilter, matchesQuery } from "@shared/diffview.ts";
 import { elementScroll, observeElementOffset, observeElementRect, useWindowVirtualizer, type VirtualizerOptions } from "@tanstack/react-virtual";
-import { ArrowLeftRight, Check, Info, Search, X } from "lucide-react";
+import { AlignRight, ArrowLeftRight, Check, Info, Search, X } from "lucide-react";
 import { Fragment, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { DiffModePicker } from "@/components/DiffModePicker.tsx";
 import { cn } from "@/lib/cn.ts";
@@ -9,6 +9,7 @@ import { consensusOf } from "@/lib/consensus.ts";
 import { inlineDiff, type DiffMode, type DiffSegment } from "@/lib/diff.ts";
 import { useDiffMode } from "@/lib/diffMode.ts";
 import { expandNewlines } from "@/lib/format.ts";
+import { useStoredFlag } from "@/lib/storedFlag.ts";
 import { Badge } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
 import { Card, CardBody } from "@/ui/Card.tsx";
@@ -24,6 +25,7 @@ export type DiffLayout = "merge" | "lanes" | "grid";
 
 const LAYOUT_KEY = "cfpa-diff-layout";
 const SWAP_KEY = "cfpa-diff-swap";
+const EN_RIGHT_KEY = "cfpa-diff-en-right";
 
 const LAYOUTS: readonly TabItem<DiffLayout>[] = [
   { id: "merge", label: "合并" },
@@ -411,6 +413,8 @@ function MergeRow({
   facts,
   lanes,
   compare,
+  enRight,
+  anchor,
   action,
   onShowLanes,
 }: {
@@ -418,6 +422,8 @@ function MergeRow({
   facts: DiffFacts;
   lanes: readonly DiffLane[];
   compare: boolean;
+  enRight: boolean;
+  anchor?: (side: "en" | "zh") => ReactNode;
   action?: ReactNode;
   onShowLanes: () => void;
 }) {
@@ -449,15 +455,22 @@ function MergeRow({
           ) : undefined
         }
       />
-      <div className={CELL}>
-        {whole === null ? (
-          <Inline before={fromCell?.en ?? null} after={toCell?.en ?? null} />
-        ) : (
-          <Inline {...wholeEdge(whole, wholeCell?.en ?? null)} />
-        )}
+      <div className="flex min-w-0 flex-1 items-start gap-2">
+        {anchor !== undefined && !enRight && <span className="flex w-7 shrink-0 justify-center">{anchor("en")}</span>}
+        <div className={cn(CELL, enRight && "md:text-right")}>
+          {whole === null ? (
+            <Inline before={fromCell?.en ?? null} after={toCell?.en ?? null} />
+          ) : (
+            <Inline {...wholeEdge(whole, wholeCell?.en ?? null)} />
+          )}
+        </div>
+        {anchor !== undefined && enRight && <span className="flex w-7 shrink-0 justify-center">{anchor("en")}</span>}
       </div>
-      <div className={CELL}>
-        {wholeLane === null ? <ZhText lane={to} cell={toCell} before={zhReference(from, fromCell)} /> : <ZhText lane={wholeLane} cell={wholeCell} />}
+      <div className="flex min-w-0 flex-1 items-start gap-2">
+        {anchor !== undefined && <span className="flex w-7 shrink-0 justify-center">{anchor("zh")}</span>}
+        <div className={CELL}>
+          {wholeLane === null ? <ZhText lane={to} cell={toCell} before={zhReference(from, fromCell)} /> : <ZhText lane={wholeLane} cell={wholeCell} />}
+        </div>
       </div>
     </article>
   );
@@ -818,6 +831,7 @@ export interface DiffViewerProps {
   noDiff?: (outside: number) => ReactNode;
   sortTouchedFirst?: boolean;
   rowAction?: (entry: DiffEntry) => ReactNode;
+  rowAnchor?: (entry: DiffEntry, side: "en" | "zh") => ReactNode;
   rowFooter?: (entry: DiffEntry) => ReactNode;
   scroller?: HTMLElement | null;
 }
@@ -843,10 +857,12 @@ export function DiffViewer({
   noDiff,
   sortTouchedFirst = false,
   rowAction,
+  rowAnchor,
   rowFooter,
   scroller = null,
 }: DiffViewerProps) {
   const [layout, setLayout] = useLayout(defaultLayout);
+  const [enRight, setEnRight] = useStoredFlag(EN_RIGHT_KEY);
   const [swapped, setSwapped] = useState(() => {
     try {
       return localStorage.getItem(SWAP_KEY) === "1";
@@ -857,6 +873,7 @@ export function DiffViewer({
   const activeKey = active.join("\u0000");
   const activeLanes = useMemo(() => lanes.filter((lane) => active.includes(lane.id)), [lanes, activeKey]);
   const compare = mode === "compare";
+  const anchored = rowAnchor !== undefined;
   const display = useMemo(() => {
     if (!compare || !swapped) return activeLanes;
     return [...activeLanes].reverse();
@@ -1004,6 +1021,16 @@ export function DiffViewer({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Tabs items={LAYOUTS} value={layout} onChange={setLayout} ariaLabel="排列方式" />
+            {layout === "merge" && (
+              <ToggleChip
+                pressed={enRight}
+                title={enRight ? "英文列右对齐，贴近中文列；点一下改成左对齐" : "英文列左对齐；点一下改成右对齐"}
+                onClick={() => setEnRight(!enRight)}
+              >
+                <AlignRight aria-hidden="true" className="size-3.5" />
+                英文右对齐
+              </ToggleChip>
+            )}
             {compare && layout !== "merge" && (
               <ToggleChip
                 pressed={swapped}
@@ -1098,10 +1125,10 @@ export function DiffViewer({
           {layout === "merge" && (
             <div className={cn(headShell, HEADER, "flex-col md:flex-row")}>
               <span className="md:w-52 md:shrink-0">Key</span>
-              <span className="md:flex-1">
+              <span className={cn("md:flex-1", enRight && "md:text-right", anchored && (enRight ? "md:pr-7" : "md:pl-7"))}>
                 英文 <span className="font-mono">{mergeLabel}</span>
               </span>
-              <span className="md:flex-1">
+              <span className={cn("md:flex-1", anchored && "md:pl-7")}>
                 中文 <span className="font-mono">{mergeLabel}</span>
               </span>
             </div>
@@ -1160,7 +1187,16 @@ export function DiffViewer({
                   style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
                 >
                   {layout === "merge" ? (
-                    <MergeRow entry={row.entry} facts={row.facts} lanes={activeLanes} compare={compare} action={action} onShowLanes={() => setLayout("lanes")} />
+                    <MergeRow
+                      entry={row.entry}
+                      facts={row.facts}
+                      lanes={activeLanes}
+                      compare={compare}
+                      enRight={enRight}
+                      anchor={rowAnchor === undefined ? undefined : (side) => rowAnchor(row.entry, side)}
+                      action={action}
+                      onShowLanes={() => setLayout("lanes")}
+                    />
                   ) : layout === "grid" ? (
                     <GridRow entry={row.entry} facts={row.facts} runs={runs} columns={columns} compare={compare} action={action} />
                   ) : (

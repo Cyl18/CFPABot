@@ -1,16 +1,15 @@
 import type { CompareRow, PrDetail, Workspace } from "@shared/api.ts";
 import { formatDiffFilter, parseDiffFilter } from "@shared/diffview.ts";
 import { ChevronRight } from "lucide-react";
-import { Fragment, useMemo } from "react";
+import { Fragment, useMemo, type ReactNode } from "react";
 import { DiffViewer } from "@/components/DiffViewer.tsx";
-import { CARDS_KEY, CommentButton, CommentsToggle, LineComments, LineThreads, LooseThreads, ViewedToggle } from "@/components/Review.tsx";
+import { CommentAnchor, LineThreads, LooseThreads, ViewedToggle } from "@/components/Review.tsx";
 import { useReview } from "@/hooks/useReview.tsx";
 import { parseWorkspaceKey } from "@/lib/api.ts";
 import { compareEntries, compareLanes } from "@/lib/compareView.ts";
 import { groupWorkspaces, pickCompareFiles, workspaceParam } from "@/lib/paths.ts";
 import { useCompare } from "@/lib/queries.ts";
 import type { PrSearch, SearchPatch } from "@/lib/search.ts";
-import { useStoredFlag } from "@/lib/storedFlag.ts";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
@@ -57,22 +56,29 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
 
   const rows: readonly CompareRow[] = compare.data?.rows ?? [];
   const target = compare.data?.review ?? null;
+  const enTarget = compare.data?.reviewEn ?? null;
   const review = useReview();
-  const [cards] = useStoredFlag(CARDS_KEY);
   // 依赖 review 的底层数据而不是 review 本身：后者每次渲染都是新对象，这层 memo 会白算。
   const commentedKeys = useMemo(() => {
     const keys = new Set<string>();
-    if (target === null) return keys;
-    for (const [key, spot] of Object.entries(target.keys)) {
-      if (review.threadsAt(target.path, spot.line).length > 0 || review.outgoingAt(target.path, spot.line).length > 0) keys.add(key);
+    for (const source of [enTarget, target]) {
+      if (source === null) continue;
+      for (const [key, spot] of Object.entries(source.keys)) {
+        if (review.threadsAt(source.path, spot.line).length > 0 || review.outgoingAt(source.path, spot.line).length > 0) keys.add(key);
+      }
     }
     return keys;
-  }, [target, review.state, review.deleting, review.outgoing]);
+  }, [enTarget, target, review.state, review.deleting, review.outgoing]);
 
-  const anchored = new Set(Object.values(target?.keys ?? {}).map((spot) => spot.line));
-  const loose = sources.flatMap((path) =>
-    review.threadsOf(path).filter((thread) => path !== target?.path || thread.line === null || !anchored.has(thread.line)),
-  );
+  const anchored = new Map<string, Set<number>>();
+  for (const source of [enTarget, target]) {
+    if (source === null) continue;
+    anchored.set(source.path, new Set(Object.values(source.keys).map((spot) => spot.line)));
+  }
+  const loose = sources.flatMap((path) => {
+    const lines = anchored.get(path);
+    return review.threadsOf(path).filter((thread) => lines === undefined || thread.line === null || !lines.has(thread.line));
+  });
 
   const lanes = useMemo(() => compareLanes(rows, n), [rows, n]);
   const entries = useMemo(() => compareEntries(rows), [rows]);
@@ -146,12 +152,10 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
         中文文件未改动，不能行内评论
       </span>
     ) : (
-      <>
-        <CommentsToggle />
-        <span className="text-xs text-muted" title="点 key 旁的气泡评论；中文改动范围外的行 GitHub 不允许评论">
-          {Object.keys(target.keys).length} 个 key 可评论
-        </span>
-      </>
+      <span className="text-xs text-muted" title="点英文、中文列之间的加号评论；只有 PR 改动过的行 GitHub 才允许评论">
+        中文 {Object.keys(target.keys).length} 个 key 可评论
+        {enTarget !== null && ` · 英文 ${Object.keys(enTarget.keys).length} 个`}
+      </span>
     );
 
   return (
@@ -171,25 +175,36 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
       error={compare.error}
       onRetry={() => void compare.refetch()}
       commented={commentedKeys}
-      rowAction={
-        target === null
+      rowAnchor={
+        target === null && enTarget === null
           ? undefined
-          : (entry) => {
-              const spot = target.keys[entry.key];
-              return spot === undefined ? null : (
-                <div className="flex shrink-0 flex-col items-end gap-0.5">
-                  <CommentButton path={target.path} line={spot.line} />
-                  <LineComments path={target.path} line={spot.line} />
-                </div>
+          : (entry, side) => {
+              const source = side === "en" ? enTarget : target;
+              const spot = source?.keys[entry.key];
+              if (source === null || spot === undefined) return null;
+              return (
+                <CommentAnchor
+                  path={source.path}
+                  line={spot.line}
+                  label={side === "en" ? "英文" : "中文"}
+                  active={review.isOpen(source.path, spot.line)}
+                />
               );
             }
       }
       rowFooter={
-        target === null || !cards
+        target === null && enTarget === null
           ? undefined
           : (entry) => {
-              const spot = target.keys[entry.key];
-              return spot === undefined ? null : <LineThreads path={target.path} line={spot.line} raw={spot.raw} />;
+              const zones: ReactNode[] = [];
+              for (const source of [enTarget, target]) {
+                if (source === null) continue;
+                const spot = source.keys[entry.key];
+                if (spot === undefined) continue;
+                if (!review.isOpen(source.path, spot.line)) continue;
+                zones.push(<LineThreads key={source.path} path={source.path} line={spot.line} raw={spot.raw} />);
+              }
+              return zones.length === 0 ? null : <div className="flex flex-col gap-3">{zones}</div>;
             }
       }
     />

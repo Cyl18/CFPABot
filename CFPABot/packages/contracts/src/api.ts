@@ -147,6 +147,7 @@ export interface CompareResult {
   rows: CompareRow[];
   missing: string[];
   review: CompareReview | null;
+  reviewEn: CompareReview | null;
 }
 
 export interface ReviewHunk {

@@ -1,6 +1,7 @@
 import type { ReviewComment, ReviewEvent, ReviewThread } from "@shared/api.ts";
-import { AlertTriangle, CheckCheck, CornerDownRight, ExternalLink, LoaderCircle, MessageSquare, MessageSquarePlus, RotateCcw, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, CheckCheck, CornerDownRight, Diff, ExternalLink, LoaderCircle, MessageSquare, MessageSquarePlus, RotateCcw, Trash2, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Markdown, MarkdownHtml } from "@/components/Markdown.tsx";
 import { useReview, useThreadHtml, type OutgoingComment } from "@/hooks/useReview.tsx";
 import { errorMessage, loginUrl } from "@/lib/api.ts";
@@ -112,6 +113,96 @@ export function LineComments({ path, line }: { path: string; line: number }) {
   );
 }
 
+export function CommentAnchor({ path, line, label, active }: { path: string; line: number; label: string; active: boolean }) {
+  const review = useReview();
+  const threads = review.threadsAt(path, line);
+  const open = threads.filter((thread) => !thread.resolved).length;
+  const count = open > 0 ? open : threads.length;
+  const opened = review.isOpen(path, line);
+  const [hover, setHover] = useState(false);
+  const [peek, setPeek] = useState<{ left: number; top: number } | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  const show = (el: HTMLElement) => {
+    setHover(true);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      const rect = el.getBoundingClientRect();
+      const width = 320;
+      setPeek({
+        left: Math.max(12, Math.min(rect.right + 10, window.innerWidth - width - 12)),
+        top: Math.max(12, Math.min(rect.top - 4, window.innerHeight - 220)),
+      });
+    }, 180);
+  };
+  const hide = () => {
+    setHover(false);
+    window.clearTimeout(timer.current);
+    setPeek(null);
+  };
+  const title = count === 0 ? `评论${label}这一行` : open > 0 ? `${label}有 ${open} 条未解决对话` : `${label}的对话都已解决`;
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={opened}
+        aria-label={title}
+        title={title}
+        onMouseEnter={(event) => show(event.currentTarget)}
+        onMouseLeave={hide}
+        onFocus={(event) => show(event.currentTarget)}
+        onBlur={hide}
+        onClick={() => {
+          hide();
+          review.setOpen(path, line, !opened);
+        }}
+        className={cn(
+          "inline-flex h-5 items-center gap-1 rounded-md border px-1.5 text-[11px] tabular-nums transition-colors",
+          count === 0 && "border-transparent opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+          count > 0 && open > 0 && "border-danger/40 bg-danger/10 text-danger",
+          count > 0 && open === 0 && "border-line bg-elevated text-muted",
+          hover && "border-accent/50 bg-accent-soft text-accent opacity-100",
+          active && "ring-1 ring-accent/50",
+        )}
+      >
+        {hover ? <MessageSquarePlus aria-hidden="true" className="size-3" /> : <MessageSquare aria-hidden="true" className="size-3" />}
+        {count > 0 && <span>{count}</span>}
+      </button>
+      {peek !== null && createPortal(<ThreadPeek path={path} line={line} left={peek.left} top={peek.top} />, document.body)}
+    </>
+  );
+}
+
+function ThreadPeek({ path, line, left, top }: { path: string; line: number; left: number; top: number }) {
+  const review = useReview();
+  const threads = review.threadsAt(path, line);
+  const open = threads.filter((thread) => !thread.resolved);
+  const done = threads.filter((thread) => thread.resolved);
+  const first = open[0] ?? done[0];
+  if (first === undefined) return null;
+  const more: string[] = [];
+  if (open.length > 1) more.push(`${open.length - 1} 条未解决`);
+  if (done.length > 0) more.push(`${done.length} 条已解决`);
+  return (
+    <div
+      style={{ left, top, width: 320 }}
+      className="pointer-events-none fixed z-50 flex flex-col gap-2 rounded-lg border border-line bg-elevated p-3 text-xs shadow-xl"
+    >
+      <p className={cn("font-medium", open.length > 0 ? "text-danger" : "text-muted")}>
+        {open.length > 0 ? "未解决" : "已解决"} · {first.comments[0]?.author ?? "—"}
+        {first.comments.length > 1 ? ` · ${first.comments.length} 条` : ""}
+      </p>
+      {first.comments.slice(0, 2).map((comment) => (
+        <div key={comment.id} className="flex flex-col gap-0.5">
+          <span className="font-medium text-fg">{comment.author}</span>
+          <span className="line-clamp-2 text-fg/90">{comment.body}</span>
+        </div>
+      ))}
+      {more.length > 0 && <p className="text-muted">另有 {more.join("、")}</p>}
+      <p className="border-t border-line pt-1.5 text-muted">点击展开 · 回复或新开一条</p>
+    </div>
+  );
+}
+
 function ThreadGroup({ title, tone, threads }: { title: string; tone?: "danger"; threads: readonly ReviewThread[] }) {
   return (
     <section className="flex flex-col gap-2">
@@ -127,7 +218,7 @@ function ThreadGroup({ title, tone, threads }: { title: string; tone?: "danger";
   );
 }
 
-function PeekThread({ thread }: { thread: ReviewThread }) {
+function PeekThread({ thread, raw }: { thread: ReviewThread; raw?: string }) {
   const review = useReview();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -173,28 +264,41 @@ function PeekThread({ thread }: { thread: ReviewThread }) {
         </span>
       </div>
       {ready && replying && (
-        <div className="flex flex-col gap-1.5 border-t border-line/60 p-2">
+        <div className="flex flex-col gap-2 border-t border-line/60 p-2">
           <Textarea
+            autoGrow
             aria-label="回复这条评论"
             autoFocus
             value={text}
             placeholder="回复会追加到这条对话"
             onChange={(event) => setText(event.target.value)}
           />
-          <div className="flex items-center gap-1.5">
-            <Button size="sm" variant="primary" loading={busy} disabled={text.trim() === ""} onClick={send}>
-              发送
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setReplying(false);
-                setText("");
-              }}
-            >
-              取消
-            </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {raw !== undefined && (
+              <Button
+                size="sm"
+                variant="primary"
+                aria-label="插入修改建议"
+                title="插入修改建议"
+                icon={<Diff aria-hidden="true" className="size-3.5" />}
+                onClick={() => setText((current) => `${current}${current === "" || current.endsWith("\n") ? "" : "\n"}\`\`\`suggestion\n${raw}\n\`\`\`\n`)}
+              />
+            )}
+            <span className="ml-auto flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setReplying(false);
+                  setText("");
+                }}
+              >
+                取消
+              </Button>
+              <Button size="sm" variant="primary" loading={busy} disabled={text.trim() === ""} onClick={send}>
+                发送
+              </Button>
+            </span>
           </div>
         </div>
       )}
@@ -231,16 +335,46 @@ export function LineThreads({ path, line, raw, className }: { path: string; line
   const threads = review.threadsAt(path, line);
   const outgoing = review.outgoingAt(path, line);
   const open = review.isOpen(path, line);
+  const [showDone, setShowDone] = useState(false);
   if (threads.length === 0 && outgoing.length === 0 && !open) return null;
+  const pending = threads.filter((thread) => !thread.resolved);
+  const done = threads.filter((thread) => thread.resolved);
   return (
     <div className={cn("flex flex-col gap-2 font-sans text-sm", className)}>
-      {threads.map((thread) => (
-        <ThreadCard key={thread.id} thread={thread} />
+      {pending.map((thread) => (
+        <ThreadBlock key={thread.id} thread={thread} raw={raw} />
       ))}
+      {done.length > 0 &&
+        (showDone ? (
+          <div className="flex flex-col gap-2">
+            {done.map((thread) => (
+              <ThreadBlock key={thread.id} thread={thread} raw={raw} />
+            ))}
+            <button type="button" className="w-fit text-xs text-muted hover:text-fg hover:underline" onClick={() => setShowDone(false)}>
+              收起已解决
+            </button>
+          </div>
+        ) : (
+          <button type="button" className="w-fit text-xs text-muted hover:text-fg hover:underline" onClick={() => setShowDone(true)}>
+            已解决 {done.length} 条 · 展开
+          </button>
+        ))}
       {outgoing.map((item) => (
         <OutgoingCard key={item.id} item={item} />
       ))}
-      {open && <Composer path={path} line={line} raw={raw} />}
+      {open && <Composer path={path} line={line} raw={raw} divided={pending.length + done.length + outgoing.length > 0} />}
+    </div>
+  );
+}
+
+function ThreadBlock({ thread, raw }: { thread: ReviewThread; raw?: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className={cn("text-xs font-medium", thread.resolved ? "text-muted" : "text-danger")}>
+        {thread.resolved ? "已解决" : "未解决"} · {thread.comments[0]?.author ?? "—"}
+        {thread.comments.length > 1 ? ` · ${thread.comments.length} 条` : ""}
+      </p>
+      <PeekThread thread={thread} raw={raw} />
     </div>
   );
 }
@@ -331,7 +465,7 @@ function OutgoingCard({ item }: { item: OutgoingComment }) {
   );
 }
 
-function Composer({ path, line, raw }: { path: string; line: number; raw?: string }) {
+function Composer({ path, line, raw, divided = false }: { path: string; line: number; raw?: string; divided?: boolean }) {
   const review = useReview();
   const [text, setText] = useState(() => review.draftOf(path, line));
   const update = (next: string) => {
@@ -361,38 +495,44 @@ function Composer({ path, line, raw }: { path: string; line: number; raw?: strin
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-accent/40 bg-surface p-2">
-      <Textarea
-        aria-label={`评论 ${path} 第 ${line} 行`}
-        autoFocus
-        value={text}
-        placeholder="写下评论，支持 Markdown"
-        onChange={(event) => update(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-            event.preventDefault();
-            commit();
-          } else if (event.key === "Escape") {
-            event.preventDefault();
-            close();
-          }
-        }}
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        {raw !== undefined && (
-          <Button size="sm" variant="ghost" onClick={() => update(`${text}${text === "" || text.endsWith("\n") ? "" : "\n"}\`\`\`suggestion\n${raw}\n\`\`\`\n`)}>
-            插入修改建议
-          </Button>
-        )}
-        <span className="text-xs text-muted">先存进待提交审查，点页面顶部「完成审查」才会公开</span>
-        <span className="ml-auto flex gap-2">
-          <Button size="sm" variant="ghost" onClick={close}>
-            取消
-          </Button>
-          <Button size="sm" variant="primary" disabled={text.trim() === ""} onClick={commit} title="Ctrl+Enter">
-            加入审查
-          </Button>
-        </span>
+    <div className={cn("flex flex-col gap-2", divided && "border-t border-line/60 pt-2")}>
+      <div className="flex flex-col gap-2 px-2">
+        <Textarea
+          autoGrow
+          aria-label={`评论 ${path} 第 ${line} 行`}
+          autoFocus
+          value={text}
+          placeholder="写下评论，支持 Markdown"
+          onChange={(event) => update(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+              event.preventDefault();
+              commit();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              close();
+            }
+          }}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="primary"
+            aria-label="插入修改建议"
+            title="插入修改建议"
+            icon={<Diff aria-hidden="true" className="size-3.5" />}
+            onClick={() => update(`${text}${text === "" || text.endsWith("\n") ? "" : "\n"}\`\`\`suggestion\n${raw}\n\`\`\`\n`)}
+          />
+          <span className="text-xs text-muted">先存进待提交审查，点页面顶部「完成审查」才会公开</span>
+          <span className="ml-auto flex gap-2">
+            <Button size="sm" variant="ghost" onClick={close}>
+              取消
+            </Button>
+            <Button size="sm" variant="primary" disabled={text.trim() === ""} onClick={commit} title="Ctrl+Enter">
+              加入审查
+            </Button>
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -446,6 +586,56 @@ export function ViewedToggle({ path, compact = false }: { path: string; compact?
       />
       {!compact && (state === "DISMISSED" ? "已看（有新改动）" : "已看")}
     </label>
+  );
+}
+
+interface PendingItem {
+  key: string;
+  path: string;
+  line: number | null;
+  body: string;
+  saving: boolean;
+}
+
+function PendingList() {
+  const review = useReview();
+  const items: PendingItem[] = [];
+  for (const thread of review.state?.threads ?? []) {
+    for (const comment of thread.comments) {
+      if (!comment.pending || !comment.mine || review.deleting.has(comment.id)) continue;
+      items.push({ key: comment.id, path: thread.path, line: thread.line, body: comment.body, saving: false });
+    }
+  }
+  for (const item of review.outgoing) {
+    if (item.error === null) items.push({ key: item.id, path: item.path, line: item.line, body: item.body, saving: true });
+  }
+  if (items.length === 0) return null;
+  items.sort((a, b) => a.path.localeCompare(b.path) || (a.line ?? 0) - (b.line ?? 0));
+  return (
+    <section className="flex flex-col gap-2 rounded-md border border-line bg-elevated/40 p-2">
+      <h3 className="text-xs font-medium text-muted">
+        待提交的评论 <span className="tabular-nums text-fg">{items.length}</span>
+      </h3>
+      <ul className="scroll-thin flex max-h-56 flex-col gap-2 overflow-y-auto">
+        {items.map((item) => (
+          <li key={item.key} className="rounded-md border border-line bg-surface px-2.5 py-1.5">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+              <code className="break-all font-mono">
+                {item.path}
+                {item.line !== null && `:${item.line}`}
+              </code>
+              {item.saving && (
+                <span className="ml-auto inline-flex items-center gap-1">
+                  <LoaderCircle aria-hidden="true" className="size-3 animate-spin" />
+                  正在同步
+                </span>
+              )}
+            </div>
+            <Markdown>{item.body}</Markdown>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -555,6 +745,7 @@ export function ReviewSubmit({ author }: { author: string }) {
               <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">有 {review.failedCount} 条评论没发出去，不会包含在这次审查里。可以先回到对应行重试。</p>
             )}
             {review.syncing && <p className="text-xs text-muted">还有改动在同步，提交会排在它们后面。</p>}
+            <PendingList />
             <Textarea label="总结（可选）" value={body} onChange={(e) => setBody(e.target.value)} placeholder="支持 Markdown" />
             <fieldset className="flex flex-col gap-1.5">
               <legend className="mb-1 text-xs font-medium text-muted">结论</legend>
