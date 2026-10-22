@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
-import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join, resolve, sep } from "node:path";
+import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { repo } from "./env.ts";
 import { runGit } from "./git.ts";
 import { gh } from "./github/client.ts";
@@ -27,18 +27,32 @@ export function resolveInside(root: string, path: string): string {
   return target;
 }
 
+const WORKTREE_ADMIN = join(paths.mirror, ".git", "worktrees", basename(paths.repo));
+const STALE_LOCK_MS = 10 * 60_000;
+
+/** 健康 = 管理目录写完了 index，且没有 worktree add 中断留下的 locked 标记。 */
 async function ensureRepoUnlocked(): Promise<string> {
-  if (existsSync(join(paths.repo, ".git"))) return paths.repo;
+  if (existsSync(join(WORKTREE_ADMIN, "index")) && !existsSync(join(WORKTREE_ADMIN, "locked"))) return paths.repo;
   await mirror.sync();
+  await rm(WORKTREE_ADMIN, { recursive: true, force: true });
   await rm(paths.repo, { recursive: true, force: true });
   await mkdir(paths.work, { recursive: true });
+  await runGit(paths.mirror, ["worktree", "prune"], null);
   await runGit(paths.mirror, ["worktree", "add", "--detach", paths.repo, repo.defaultBranch], null);
   log.info("仓库工作树已创建", { dir: paths.repo });
   return paths.repo;
 }
 
+/** 单次 git 操作上限 180s，超过这个窗口的 index.lock 只可能是被杀掉的进程留下的。 */
+async function clearStaleIndexLock(): Promise<void> {
+  const lock = join(WORKTREE_ADMIN, "index.lock");
+  const info = await stat(lock).catch(() => null);
+  if (info === null || Date.now() - info.mtimeMs < STALE_LOCK_MS) return;
+  await rm(lock, { force: true });
+  log.warn("已清理残留的 git index.lock", { path: lock });
+}
+
 export async function repoRoot(): Promise<string> {
-  if (existsSync(join(paths.repo, ".git"))) return paths.repo;
   return withLock("repo-worktree", ensureRepoUnlocked);
 }
 
@@ -47,6 +61,7 @@ export async function refreshRepo(): Promise<void> {
     const root = await ensureRepoUnlocked();
     await runGit(paths.mirror, ["fetch", "--depth", "1", "origin", repo.defaultBranch], null);
     await runGit(paths.mirror, ["update-ref", `refs/heads/${repo.defaultBranch}`, "FETCH_HEAD"], null);
+    await clearStaleIndexLock();
     await runGit(root, ["reset", "--hard", "--quiet", repo.defaultBranch], null);
   });
 }
