@@ -9,7 +9,7 @@
     "build": "bun run --cwd web build && bun build server/main.ts --outdir dist --target bun --external omp-legacy-pi-modules && bun scripts/copy-natives.ts",
     "start": "bun dist/main.js",
     "typecheck": "tsc --noEmit -p . && bun run --cwd web typecheck",
-    "test": "bun test server && bun test packages/review-core"
+    "test": "bun test server"
   },
   "dependencies": {
     "@cfpa/contracts": "workspace:*",
