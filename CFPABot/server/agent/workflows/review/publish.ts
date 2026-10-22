@@ -1,7 +1,7 @@
-import type { ReviewDraft } from "../../shared/api.ts";
-import { gh } from "../github/client.ts";
-import { logger } from "../log.ts";
-import { renderInlineBody, renderReviewBody, validateDraft } from "./draft.ts";
+import type { ReviewDraft } from "../../../../shared/api.ts";
+import { gh } from "../../../github/client.ts";
+import { logger } from "../../../log.ts";
+import { renderInlineBody, renderReviewBody, validateDraft } from "../../draft.ts";
 import { mqmTable } from "./mqm.ts";
 
 const log = logger("agent-publish");

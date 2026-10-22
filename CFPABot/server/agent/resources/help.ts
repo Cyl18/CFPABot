@@ -58,7 +58,7 @@ writeScope=off 时只允许 local://；on 时允许写 pr://<n>/...。
 参数：path?、limit?。`,
   "tools/bash": `# bash
 
-在会话 workspace（local://）执行 shell。需要管理员开启执行权限（evalScope=run）。
+在会话 workspace（local://）执行 shell。默认开启（evalScope=run），管理员可在会话上关闭。
 子进程只拿到白名单环境变量；repo:// 与 pr:// 不能直接写，需要处理时先复制到 local://。`,
   "tools/todo": `# todo
 
@@ -68,7 +68,7 @@ writeScope=off 时只允许 local://；on 时允许写 pr://<n>/...。
 多步工作开始时先 init 一份计划，完成后把状态改成 completed。`,
   "tools/eval": `# eval
 
-在宿主持久 kernel 执行 Python / JavaScript；需要 evalScope=run。
+在宿主持久 kernel 执行 Python / JavaScript。默认开启（evalScope=run），管理员可在会话上关闭。
 一次调用一个 cell，变量在同一语言内保留；reset 重建 kernel。
 参数：language（py|js）、code、timeout?、reset?。
 kernel 直接读写会话 workspace 与仓库文件；不要用 bash 再套 python -c。`,

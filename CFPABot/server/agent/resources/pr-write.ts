@@ -14,7 +14,7 @@ import {
 import type { ToolContext } from "../context.ts";
 import { draftInputSchema, normalizeDraftJson } from "../draft.ts";
 import { assertCanWrite } from "../policy.ts";
-import { publishDraft } from "../publish.ts";
+import { publishDraft } from "../workflows/review/publish.ts";
 import { jsonResult } from "../result.ts";
 import { replaceOnce } from "./replace.ts";
 import { parseThreadState } from "./thread-state.ts";
@@ -40,11 +40,10 @@ function withMarker(body: string, sessionId: string, toolCallId: string): string
 async function parseDraft(
   content: string,
   n: number,
-  ctx: ToolContext,
 ): Promise<{ draft: ReviewDraft; event: "COMMENT" | "APPROVE" | "REQUEST_CHANGES" }> {
   const input = draftInputSchema.parse(normalizeDraftJson(JSON.parse(content) as unknown));
-  if (input.prNumber !== n) throw new Error("草稿的 PR 与会话不一致。");
-  const headSha = input.headSha ?? (ctx.prNumber === n ? ctx.headSha : null) ?? (await gh.getPull(n)).headSha;
+  if (input.prNumber !== n) throw new Error("草稿的 PR 与目标不一致。");
+  const headSha = input.headSha ?? (await gh.getPull(n)).headSha;
   return {
     draft: {
       prNumber: input.prNumber,
@@ -116,7 +115,7 @@ async function writeReview(uri: PrUri, content: string | undefined, ctx: ToolCon
   const marker = markerOf(ctx.sessionId, toolCallId);
   const existing = (await gh.listReviews(n)).find((review) => review.body.includes(marker));
   if (existing) return jsonResult({ ok: true, deduped: true, url: existing.htmlUrl });
-  const parsed = await parseDraft(content, n, ctx);
+  const parsed = await parseDraft(content, n);
   const { url } = await publishDraft(parsed.draft, { event: parsed.event, marker });
   return jsonResult({ ok: true, url });
 }

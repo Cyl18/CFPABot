@@ -25,6 +25,7 @@ const schema = z.object({
   CURSEFORGE_API_KEY: optional,
   GLOSSARY_BIN: optional,
   DEV_LOGIN: optional,
+  DEV_GITHUB_TOKEN: optional,
 });
 
 export type Env = z.infer<typeof schema>;

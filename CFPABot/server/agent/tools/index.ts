@@ -16,7 +16,7 @@ export function buildTools(ctx: ToolContext): ToolDefinition[] {
     findTool(ctx),
     lsTool(ctx),
     glossaryTool(),
-    ...(ctx.evalScope === "run" ? [bashTool(ctx)] : []),
+    bashTool(ctx),
   ];
   // 内置工具的泛型比 ToolDefinition 的默认参数更窄，运行时同构。
   return tools as ToolDefinition[];

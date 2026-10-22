@@ -253,10 +253,15 @@ export type WriteScope = "off" | "on";
 
 export type EvalScope = "off" | "run";
 
+export interface SessionDraftSummary {
+  prNumber: number;
+  verdict: Verdict;
+  comments: number;
+}
+
 export interface SessionSummary {
   id: string;
   title: string;
-  prNumber?: number;
   status: SessionStatus;
   archived: boolean;
   createdAt: string;
@@ -264,7 +269,9 @@ export interface SessionSummary {
   createdBy: string;
   model: string;
   workflow: string;
+  prNumber?: number;
   hasArtifact: boolean;
+  draft?: SessionDraftSummary;
   writeScope: WriteScope;
   evalScope: EvalScope;
   lastError?: string;
@@ -316,15 +323,12 @@ export interface SessionDetail extends SessionSummary {
   items: ChatItem[];
   artifact?: unknown;
   artifactFile?: string;
-  artifactFiles?: string[];
-  headSha?: string;
 }
 
 export interface CreateSessionRequest {
-  prNumber?: number;
   message?: string;
-  workflow?: string;
   model?: string;
+  prNumber?: number;
   writeScope?: WriteScope;
   evalScope?: EvalScope;
 }

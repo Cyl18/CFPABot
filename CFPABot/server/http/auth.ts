@@ -116,7 +116,7 @@ function devUser(login: string): Me {
 export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (isDev && env.DEV_LOGIN) {
     c.set("user", devUser(env.DEV_LOGIN));
-    c.set("token", null);
+    c.set("token", env.DEV_GITHUB_TOKEN ?? null);
     return next();
   }
   const raw = getCookie(c, SESSION_COOKIE);

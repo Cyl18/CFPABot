@@ -48,7 +48,7 @@ export function bashTool(ctx: ToolContext): AgentTool<typeof BASH_PARAMS> {
   return {
     name: "bash",
     label: "执行 shell",
-    description: "在会话 workspace 执行 bash；需要 evalScope=run。",
+    description: "在会话 workspace 执行 bash；evalScope=off 时调用会被拒绝。",
     parameters: BASH_PARAMS,
     execute: async (_toolCallId, params, signal) => {
       const cwd = localDir(ctx.sessionId);

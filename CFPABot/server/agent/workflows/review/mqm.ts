@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import { paths } from "../paths.ts";
-import { readJson } from "../store.ts";
-import { mqmIds, mqmPrompt } from "../domain/mqm.ts";
+import { paths } from "../../../paths.ts";
+import { readJson } from "../../../store.ts";
+import { mqmIds, mqmPrompt } from "../../../domain/mqm.ts";
 
 export interface MqmLabel {
   dimZh: string;

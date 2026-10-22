@@ -1,5 +1,6 @@
 import { chmod, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { z } from "zod";
 import {
   createAgentSession,
   loadSkillsFromDir,
@@ -19,6 +20,7 @@ import { prdata } from "../prdata.ts";
 import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
 import { type ToolContext } from "./context.ts";
+import { DRAFT_FILE, draftInputSchema, parseDraftFile, serializeDraftFile, validateDraft, type DraftContext } from "./draft.ts";
 import { SessionHub } from "./events.ts";
 import { loadConfig, llm, resolveModel, setModelForTest } from "./llm.ts";
 import { reasoningOf } from "./llm-providers.ts";
@@ -27,9 +29,14 @@ import { openSessionManager, sessionMessages } from "./pi.ts";
 import { LiveProjector, projectMessages } from "./projection.ts";
 import { buildSystemPrompt } from "./prompt.ts";
 import { secretGuard } from "./secret-guard.ts";
+import { scopeGuard } from "./scope-guard.ts";
+import { sessionTitle } from "./title.ts";
 import { SessionStore, summarize, type SessionMeta, type SessionRecord } from "./sessions.ts";
 import { buildTools } from "./tools/index.ts";
-import { DEFAULT_WORKFLOW, resolveWorkflow, workflows } from "./workflows/index.ts";
+import { mqmTable } from "./workflows/review/mqm.ts";
+import { publishDraft } from "./workflows/review/publish.ts";
+import { generalWorkflow } from "./workflows/general.ts";
+import { resolveWorkflow } from "./workflows/index.ts";
 import type { WorkflowDefinition } from "./workflows/types.ts";
 
 export { llm, setModelForTest };
@@ -65,6 +72,8 @@ const ALLOWED_TOOLS: Record<string, true> = {
   task: true,
   wait: true,
   web_search: true,
+  bash: true,
+  eval: true,
 };
 
 function httpError(message: string, status: number, code?: string): Error {
@@ -91,29 +100,35 @@ async function agentSkills(workflow: WorkflowDefinition): Promise<Skill[]> {
 
 async function detailOf(record: SessionRecord): Promise<SessionDetail> {
   const meta = record.meta;
-  const adapter = resolveWorkflow(meta.workflow).artifacts;
-  const entries = adapter ? await adapter.list(meta.id) : [];
-  const preferred = adapter ? entries.find((entry) => entry.file === adapter.preferredFile) : undefined;
+  const raw = await readLocal(meta.id, DRAFT_FILE);
+  const draft = raw === null ? null : parseDraftFile(raw.content);
   const live = runtimes.get(meta.id)?.session.agent.state.messages;
   const messages = live ? [...live] : await sessionMessages(record);
   return {
-    ...summarize(record),
+    ...summarize(
+      record,
+      draft !== null,
+      draft ? { prNumber: draft.prNumber, verdict: draft.verdict, comments: draft.comments.length } : undefined,
+    ),
     items: projectMessages(messages),
-    ...(preferred ? { artifact: preferred.value, artifactFile: preferred.file } : {}),
-    ...(!preferred && entries.length > 0 ? { artifactFiles: entries.map((entry) => entry.file) } : {}),
-    ...(meta.headSha ? { headSha: meta.headSha } : {}),
+    ...(draft !== null ? { artifact: draft, artifactFile: DRAFT_FILE } : {}),
   };
+}
+
+const draftInput = draftInputSchema.omit({ event: true }).extend({ headSha: z.string().min(1) });
+
+async function draftContext(prNumber: number): Promise<DraftContext> {
+  const table = await mqmTable();
+  const data = await prdata.files(prNumber).catch(() => null);
+  const patches = new Map<string, string | undefined>((data?.files ?? []).map((file) => [file.path, file.patch]));
+  return { mqmIds: table.ids, labels: table.labels, patches };
 }
 
 function toolContext(record: SessionRecord): ToolContext {
   const id = record.meta.id;
   return {
     sessionId: id,
-    prNumber: record.meta.prNumber ?? null,
-    baseSha: record.meta.baseSha ?? null,
-    headSha: record.meta.headSha ?? null,
     writeScope: record.meta.writeScope,
-    evalScope: record.meta.evalScope,
     local: async (name) => readLocal(id, name),
     saveLocal: async (name, content) => {
       if (!isLocalPath(name)) {
@@ -161,7 +176,7 @@ async function getRuntime(record: SessionRecord): Promise<Runtime> {
     sessionManager: manager,
     customTools: buildTools(toolContext(record)),
     skills,
-    extensions: [secretGuard],
+    extensions: [secretGuard, scopeGuard(async () => (await store.get(id))?.meta.evalScope === "run")],
     disableExtensionDiscovery: true,
     systemPrompt,
     ...(endpoint ? { thinkingLevel: reasoningOf(endpoint) } : {}),
@@ -172,12 +187,9 @@ async function getRuntime(record: SessionRecord): Promise<Runtime> {
   const unsubscribe = session.subscribe((event) => {
     for (const item of projector.handle(event)) hub.emit(id, { type: "item", item });
   });
-  const exec = record.meta.evalScope === "run";
   try {
     await session.setActiveToolsByName(
-      session.getActiveToolNames().filter(
-        (name) => ALLOWED_TOOLS[name] === true || ((name === "eval" || name === "bash") && exec),
-      ),
+      session.getActiveToolNames().filter((name) => ALLOWED_TOOLS[name] === true),
     );
   } catch (err) {
     unsubscribe();
@@ -282,10 +294,18 @@ export const agent = {
   },
 
   async list(): Promise<SessionSummary[]> {
-    return store
-      .all()
-      .map(summarize)
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const summaries = await Promise.all(
+      store.all().map(async (record) => {
+        const raw = await readLocal(record.meta.id, DRAFT_FILE);
+        const draft = raw === null ? null : parseDraftFile(raw.content);
+        return summarize(
+          record,
+          raw !== null,
+          draft ? { prNumber: draft.prNumber, verdict: draft.verdict, comments: draft.comments.length } : undefined,
+        );
+      }),
+    );
+    return summaries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   },
 
   async get(id: string): Promise<SessionDetail | null> {
@@ -294,35 +314,18 @@ export const agent = {
   },
 
   async create(request: CreateSessionRequest & { createdBy: string; source: "web" | "github" }): Promise<SessionDetail> {
-    const workflowId = request.workflow?.trim() || DEFAULT_WORKFLOW;
-    const workflow = workflows[workflowId];
-    if (!workflow) throw httpError(`未知工作流：${workflowId}`, 400);
     const message = request.message?.trim();
-    if (workflow.requiresPr && request.prNumber === undefined) {
-      throw httpError(`工作流 ${workflow.id} 需要 PR 编号`, 400);
-    }
-    if (!workflow.requiresPr && !message && request.prNumber === undefined) {
-      throw httpError("需要提供 message，或绑定 PR", 400);
-    }
-    let baseSha: string | undefined;
-    let headSha: string | undefined;
-    if (request.prNumber !== undefined) {
-      if (!Number.isInteger(request.prNumber) || request.prNumber <= 0) throw httpError("PR 编号非法", 400);
-      const data = await prdata.files(request.prNumber).catch(() => null);
-      if (!data) throw httpError(`无法获取 PR #${request.prNumber} 信息，请稍后重试`, 502);
-      baseSha = data.pull.baseSha;
-      headSha = data.pull.headSha;
-    }
+    if (!message) throw httpError("需要提供 message", 400);
     const config = await loadConfig();
     const model = request.model?.trim() || config.agent;
     if (!model) throw httpError("未配置默认 LLM 模型（config/llm.json 的 agent 字段）", 503);
+    const workflow = generalWorkflow;
     const id = crypto.randomUUID();
     const createdAt = now();
-    const writeScope: WriteScope = request.writeScope ?? workflow.defaults.writeScope;
-    const evalScope: EvalScope = request.evalScope ?? workflow.defaults.evalScope;
+    const prefix = request.prNumber === undefined ? "" : `PR #${request.prNumber} · `;
     const meta: SessionMeta = {
       id,
-      title: workflow.title({ prNumber: request.prNumber, message }),
+      title: `${prefix}${await sessionTitle(message, model)}`,
       status: "idle",
       archived: false,
       createdAt,
@@ -330,15 +333,13 @@ export const agent = {
       createdBy: request.createdBy,
       source: request.source,
       model,
-      writeScope,
-      evalScope,
+      writeScope: request.writeScope ?? workflow.defaults.writeScope,
+      evalScope: request.evalScope ?? workflow.defaults.evalScope,
       workflow: workflow.id,
-      ...(request.prNumber !== undefined ? { prNumber: request.prNumber } : {}),
-      ...(baseSha ? { baseSha } : {}),
-      ...(headSha ? { headSha } : {}),
+      ...(request.prNumber === undefined ? {} : { prNumber: request.prNumber }),
     };
     await store.put({ meta });
-    await launch(id, workflow.firstPrompt({ prNumber: request.prNumber, message }));
+    await launch(id, message);
     const detail = await agent.get(id);
     if (!detail) throw new Error("会话创建失败");
     return detail;
@@ -408,51 +409,44 @@ export const agent = {
     return hub.subscribe(id, listener);
   },
 
-  async readArtifact(id: string, file: string): Promise<unknown> {
+  async readArtifact(id: string): Promise<unknown> {
     const record = await store.get(id);
     if (!record) throw httpError("会话不存在", 404);
-    const adapter = resolveWorkflow(record.meta.workflow).artifacts;
-    if (!adapter) throw httpError("该工作流没有产物", 404);
-    const value = await adapter.read(id, file);
-    if (value === null) throw httpError("产物文件不存在或格式不合法", 404);
-    return value;
+    const raw = await readLocal(id, DRAFT_FILE);
+    const draft = raw === null ? null : parseDraftFile(raw.content);
+    if (draft === null) throw httpError("草稿不存在或格式不合法", 404);
+    return draft;
   },
 
-  async saveArtifact(id: string, input: unknown, file?: string): Promise<unknown> {
+  async saveArtifact(id: string, input: unknown): Promise<unknown> {
     const record = await store.get(id);
     if (!record) throw httpError("会话不存在", 404);
-    const adapter = resolveWorkflow(record.meta.workflow).artifacts;
-    if (!adapter) throw httpError("该工作流没有产物", 404);
-    const errors = await adapter.validate(input);
+    const parsed = draftInput.safeParse(input);
+    if (!parsed.success) throw httpError(parsed.error.issues.map((issue) => issue.message).join("；"), 400);
+    const errors = await validateDraft(parsed.data, await draftContext(parsed.data.prNumber));
     if (errors.length > 0) throw httpError(errors.join("；"), 400);
-    const value = await adapter.save(input);
-    await writeLocal(id, file ?? adapter.preferredFile, adapter.serialize(value));
+    const value = { ...parsed.data, updatedAt: now() };
+    await writeLocal(id, DRAFT_FILE, serializeDraftFile(value));
     record.meta.updatedAt = now();
     await store.put(record);
     hub.emit(id, { type: "artifact", artifact: value });
     return value;
   },
 
-  async publishArtifact(id: string, by: string, file?: string): Promise<{ url: string }> {
+  async publishArtifact(id: string, by: string): Promise<{ url: string }> {
     const record = await store.get(id);
     if (!record) throw httpError("会话不存在", 404);
-    const adapter = resolveWorkflow(record.meta.workflow).artifacts;
-    if (!adapter) throw httpError("该工作流没有产物", 404);
-    const found = file
-      ? { file, value: await adapter.read(id, file) }
-      : ((await adapter.list(id)).find((entry) => entry.file === adapter.preferredFile) ?? null);
-    if (found === null || found.value === null) throw httpError("没有可发布的产物", 400);
-    const result = await adapter.publish(found.value, {
-      sessionId: id,
-      ...(record.meta.prNumber !== undefined ? { prNumber: record.meta.prNumber } : {}),
-      by,
-    });
-    await writeLocal(id, found.file, adapter.serialize(result.value));
+    const raw = await readLocal(id, DRAFT_FILE);
+    const draft = raw === null ? null : parseDraftFile(raw.content);
+    if (draft === null) throw httpError("没有可发布的草稿", 400);
+    const { url } = await publishDraft(draft);
+    const value = { ...draft, publishedAt: now(), publishedUrl: url };
+    await writeLocal(id, DRAFT_FILE, serializeDraftFile(value));
     record.meta.updatedAt = now();
     await store.put(record);
-    hub.emit(id, { type: "artifact", artifact: result.value });
-    log.info("产物已发布", { sessionId: id, workflow: record.meta.workflow, by, url: result.url });
-    return { url: result.url };
+    hub.emit(id, { type: "artifact", artifact: value });
+    log.info("草稿已发布", { sessionId: id, by, url });
+    return { url };
   },
 
   async setWriteScope(id: string, writeScope: WriteScope): Promise<void> {
@@ -471,8 +465,6 @@ export const agent = {
     record.meta.evalScope = evalScope;
     record.meta.updatedAt = now();
     await store.put(record);
-    if (active.has(id)) staleRuntimes.add(id);
-    else await disposeRuntime(id);
   },
 
   async shutdown(): Promise<void> {

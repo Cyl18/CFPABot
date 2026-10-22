@@ -10,10 +10,9 @@ import type { CreateSessionRequest, SessionEvent } from "../../shared/api.ts";
 export const sessionRoutes = new Hono<AppEnv>();
 
 const createSchema = z.object({
-  prNumber: z.number().int().positive().optional(),
   message: z.string().optional(),
-  workflow: z.string().optional(),
   model: z.string().optional(),
+  prNumber: z.number().int().positive().optional(),
   writeScope: z.enum(["off", "on"]).optional(),
   evalScope: z.enum(["off", "run"]).optional(),
 });
@@ -22,8 +21,6 @@ const writeScopeSchema = z.object({ writeScope: z.enum(["off", "on"]) });
 const evalScopeSchema = z.object({ evalScope: z.enum(["off", "run"]) });
 
 const messageSchema = z.object({ text: z.string().min(1) });
-
-const publishSchema = z.object({ file: z.string().min(1).optional() });
 
 sessionRoutes.use("*", async (c, next) => {
   await requireAdmin(c);
@@ -44,11 +41,7 @@ sessionRoutes.get("/:id", async (c) => {
   return c.json(session);
 });
 
-sessionRoutes.get("/:id/artifact", async (c) => {
-  const file = c.req.query("file");
-  if (!file) throw notFound("缺少产物文件名");
-  return c.json(await agent.readArtifact(c.req.param("id"), file));
-});
+sessionRoutes.get("/:id/artifact", async (c) => c.json(await agent.readArtifact(c.req.param("id"))));
 
 sessionRoutes.patch("/:id/write-scope", async (c) => {
   const { writeScope } = await parseBody(c, writeScopeSchema);
@@ -79,15 +72,13 @@ sessionRoutes.post("/:id/archive", async (c) => {
 });
 
 sessionRoutes.put("/:id/artifact", async (c) => {
-  const file = c.req.query("file");
   const input = await parseBody(c, z.unknown());
-  return c.json(await agent.saveArtifact(c.req.param("id"), input, file));
+  return c.json(await agent.saveArtifact(c.req.param("id"), input));
 });
 
 sessionRoutes.post("/:id/publish", async (c) => {
   const user = await requireAdmin(c);
-  const { file } = await parseBody(c, publishSchema);
-  return c.json(await agent.publishArtifact(c.req.param("id"), user.login, file));
+  return c.json(await agent.publishArtifact(c.req.param("id"), user.login));
 });
 
 sessionRoutes.get("/:id/events", async (c) => {

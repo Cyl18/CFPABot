@@ -15,10 +15,7 @@ export async function resolveToolPath(ctx: ToolContext, input: string | undefine
   if (uri.scheme === "local") return uri.path === "" ? local : resolveInside(local, uri.path);
   if (uri.scheme === "repo") return resolveInside(await repoRoot(), uri.path);
   if (uri.scheme === "pr") {
-    const headSha =
-      ctx.prNumber === uri.number && ctx.headSha !== null
-        ? ctx.headSha
-        : (await prdata.files(uri.number)).pull.headSha;
+    const headSha = (await prdata.files(uri.number)).pull.headSha;
     return resolveInside(await ensurePrDir(uri.number, headSha), uri.path);
   }
   throw new Error(`${uri.scheme}:// 不是文件资源，不能用这个工具访问。`);

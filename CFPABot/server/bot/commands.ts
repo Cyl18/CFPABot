@@ -290,10 +290,14 @@ export async function runCommands(input: CommandRunInput): Promise<void> {
           }
           case "agent":
           case "agent-review": {
+            const note = line.rest.trim();
+            const message =
+              line.name === "agent-review"
+                ? `审查 PR #${input.prNumber}${note ? `\n\n${note}` : ""}`
+                : note || `查看 PR #${input.prNumber}`;
             const session = await agent.create({
+              message,
               prNumber: input.prNumber,
-              ...(line.name === "agent-review" ? { workflow: "review" } : {}),
-              message: line.rest.trim().length > 0 ? line.rest.trim() : undefined,
               createdBy: input.login,
               source: "github",
             });

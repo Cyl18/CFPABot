@@ -1,18 +1,15 @@
-import { readdirSync } from "node:fs";
 import { mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import type { EvalScope, SessionStatus, SessionSummary, WriteScope } from "../../shared/api.ts";
+import type { EvalScope, SessionDraftSummary, SessionStatus, SessionSummary, WriteScope } from "../../shared/api.ts";
 import { paths } from "../paths.ts";
 import { readJson, withLock, writeJson } from "../store.ts";
-import { localDir } from "./local-store.ts";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 
 export interface SessionMeta {
   id: string;
   title: string;
-  prNumber?: number;
   status: SessionStatus;
   archived: boolean;
   createdAt: string;
@@ -23,9 +20,8 @@ export interface SessionMeta {
   writeScope: WriteScope;
   evalScope: EvalScope;
   workflow: string;
+  prNumber?: number;
   lastError?: string;
-  baseSha?: string;
-  headSha?: string;
 }
 
 export interface SessionRecord {
@@ -36,7 +32,6 @@ export interface SessionRecord {
 const metaSchema = z.object({
   id: z.string(),
   title: z.string(),
-  prNumber: z.number().optional(),
   status: z.enum(["idle", "running"]),
   archived: z.boolean(),
   createdAt: z.string(),
@@ -47,10 +42,8 @@ const metaSchema = z.object({
   writeScope: z.enum(["off", "on"]).default("off"),
   evalScope: z.enum(["off", "run"]).default("off"),
   workflow: z.string().optional(),
-  review: z.boolean().optional(),
+  prNumber: z.number().int().positive().optional(),
   lastError: z.string().optional(),
-  baseSha: z.string().optional(),
-  headSha: z.string().optional(),
 });
 
 const recordSchema = z.object({
@@ -59,23 +52,19 @@ const recordSchema = z.object({
 });
 
 function toRecord(parsed: z.infer<typeof recordSchema>): SessionRecord {
-  const { review, workflow, ...meta } = parsed.meta;
   const record: SessionRecord = {
-    meta: { ...meta, workflow: workflow || (review ? "review" : "general") },
+    meta: { ...parsed.meta, workflow: parsed.meta.workflow || "general" },
   };
   if (parsed.sessionFile) record.sessionFile = parsed.sessionFile;
   return record;
 }
 
-export function summarize(record: SessionRecord): SessionSummary {
+export function summarize(
+  record: SessionRecord,
+  hasArtifact: boolean,
+  draft?: SessionDraftSummary,
+): SessionSummary {
   const meta = record.meta;
-  let hasArtifact = false;
-  try {
-    const names = readdirSync(localDir(meta.id)) as string[];
-    hasArtifact = names.some((name) => name.endsWith(".json"));
-  } catch {
-    // local 目录还没建
-  }
   return {
     id: meta.id,
     title: meta.title,
@@ -86,10 +75,11 @@ export function summarize(record: SessionRecord): SessionSummary {
     createdBy: meta.createdBy,
     model: meta.model,
     workflow: meta.workflow,
+    ...(meta.prNumber !== undefined ? { prNumber: meta.prNumber } : {}),
     hasArtifact,
+    ...(draft ? { draft } : {}),
     writeScope: meta.writeScope,
     evalScope: meta.evalScope,
-    ...(meta.prNumber !== undefined ? { prNumber: meta.prNumber } : {}),
     ...(meta.lastError ? { lastError: meta.lastError } : {}),
   };
 }
