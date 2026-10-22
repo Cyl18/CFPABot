@@ -14,7 +14,7 @@ export function EmptyState({ title, description, icon, action, compact = false, 
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line px-4 text-center",
+        "flex flex-col items-center justify-center gap-2 px-4 text-center",
         compact ? "py-5" : "py-12",
         className,
       )}

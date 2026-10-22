@@ -3,6 +3,8 @@ import { AppShell } from "@/components/AppShell.tsx";
 import { RequireAdmin } from "@/components/RequireAdmin.tsx";
 import { parseSearch, stringifySearch, type ModsSearch, type PrListSearch, type PrSearch, type VersionsSearch } from "@/lib/search.ts";
 import { AdminPage, type AdminTab } from "@/routes/admin/AdminPage.tsx";
+import { AgentLayout } from "@/routes/agent/AgentLayout.tsx";
+import { NewSessionPage } from "@/routes/agent/NewSessionPage.tsx";
 import { SessionPage } from "@/routes/agent/SessionPage.tsx";
 import { CommandsPage } from "@/routes/CommandsPage.tsx";
 import { ComparePage } from "@/routes/ComparePage.tsx";
@@ -10,7 +12,6 @@ import { ModsPage } from "@/routes/ModsPage.tsx";
 import { NotFoundPage } from "@/routes/NotFoundPage.tsx";
 import { PrDetailPage, type PrTab } from "@/routes/PrDetailPage.tsx";
 import { PrListPage } from "@/routes/PrListPage.tsx";
-import { SessionListPage } from "@/routes/agent/SessionListPage.tsx";
 import { VersionsPage } from "@/routes/VersionsPage.tsx";
 
 const PR_TABS: readonly PrTab[] = ["overview", "files", "compare", "versions", "special", "reviews"];
@@ -64,7 +65,8 @@ const modsRoute = createRoute({
 
 const commandsRoute = createRoute({ getParentRoute: () => rootRoute, path: "/commands", component: CommandsPage });
 const agentRoute = createRoute({ getParentRoute: () => rootRoute, path: "/agent", component: AgentRoot });
-const agentSessionRoute = createRoute({ getParentRoute: () => rootRoute, path: "/agent/$id", component: AgentSessionRoot });
+const agentIndexRoute = createRoute({ getParentRoute: () => agentRoute, path: "/", component: NewSessionPage });
+const agentSessionRoute = createRoute({ getParentRoute: () => agentRoute, path: "$id", component: AgentSessionRoot });
 
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -135,7 +137,7 @@ function ModsRoot() {
 function AgentRoot() {
   return (
     <RequireAdmin>
-      <SessionListPage />
+      <AgentLayout />
     </RequireAdmin>
   );
 }
@@ -167,8 +169,7 @@ const routeTree = rootRoute.addChildren([
   compareRoute,
   modsRoute,
   commandsRoute,
-  agentRoute,
-  agentSessionRoute,
+  agentRoute.addChildren([agentIndexRoute, agentSessionRoute]),
   adminRoute,
 ]);
 

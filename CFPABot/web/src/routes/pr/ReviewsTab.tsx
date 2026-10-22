@@ -4,7 +4,7 @@ import { Bot } from "lucide-react";
 import { formatRelative } from "@/lib/format.ts";
 import { usePack, useSessions } from "@/lib/queries.ts";
 import { RequireAdmin } from "@/components/RequireAdmin.tsx";
-import { SessionStatusBadge } from "@/components/StatusBadges.tsx";
+import { SessionStatusBadge, VerdictBadge } from "@/components/StatusBadges.tsx";
 import { Badge } from "@/ui/Badge.tsx";
 import { buttonClass } from "@/ui/Button.tsx";
 import { Card, CardBody, CardHeader } from "@/ui/Card.tsx";
@@ -67,7 +67,7 @@ function PackCard({ n }: { n: number }) {
 
 function SessionsTable({ n }: { n: number }) {
   const sessions = useSessions();
-  const rows = (sessions.data ?? []).filter((session) => session.prNumber === n);
+  const rows = (sessions.data ?? []).filter((session) => session.draft?.prNumber === n);
 
   const columns: readonly Column<SessionSummary>[] = [
     {
@@ -79,8 +79,21 @@ function SessionsTable({ n }: { n: number }) {
         </Link>
       ),
     },
+    {
+      id: "draft",
+      header: "草稿",
+      width: 160,
+      cell: (row) =>
+        row.draft ? (
+          <span className="flex items-center gap-1.5">
+            <VerdictBadge verdict={row.draft.verdict} />
+            <span className="text-xs text-muted">{row.draft.comments} 条</span>
+          </span>
+        ) : (
+          <Badge>无</Badge>
+        ),
+    },
     { id: "status", header: "状态", width: 100, cell: (row) => <SessionStatusBadge status={row.status} /> },
-    { id: "artifact", header: "产物", width: 100, cell: (row) => (row.hasArtifact ? <Badge tone="ok">有</Badge> : <Badge>无</Badge>) },
     {
       id: "model",
       header: "模型",
@@ -92,8 +105,17 @@ function SessionsTable({ n }: { n: number }) {
         </code>
       ),
     },
-    { id: "by", header: "创建者", width: 140, cell: (row) => row.createdBy },
     { id: "updated", header: "更新", width: 110, cell: (row) => <span className="text-muted">{formatRelative(row.updatedAt)}</span> },
+    {
+      id: "open",
+      header: "",
+      width: 110,
+      cell: (row) => (
+        <Link to="/agent/$id" params={{ id: row.id }} className={buttonClass("ghost")}>
+          打开会话
+        </Link>
+      ),
+    },
   ];
 
   if (sessions.error !== null) return <ErrorState error={sessions.error} onRetry={() => void sessions.refetch()} />;

@@ -1,6 +1,5 @@
-import type { ChatItem, ReviewDraft, SessionEvent, SessionStatus } from "@shared/api.ts";
+import type { ChatItem, EvalScope, ReviewDraft, SessionEvent, SessionStatus, WriteScope } from "@shared/api.ts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { Ban, Bot, Send, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/PageHeader.tsx";
@@ -14,8 +13,14 @@ import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
 import { Textarea } from "@/ui/Input.tsx";
 import { SkeletonText, Spinner } from "@/ui/Spinner.tsx";
+import { ToggleChip } from "@/ui/ToggleChip.tsx";
 import { ChatItemView } from "@/routes/agent/ChatItems.tsx";
 import { DraftPanel } from "@/routes/agent/DraftPanel.tsx";
+
+function isReviewDraft(value: unknown): value is ReviewDraft {
+  if (typeof value !== "object" || value === null) return false;
+  return "verdict" in value && "comments" in value && Array.isArray(value.comments);
+}
 
 export function SessionPage({ id }: { id: string }) {
   const detail = useSession(id);
@@ -23,24 +28,19 @@ export function SessionPage({ id }: { id: string }) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const [items, setItems] = useState<readonly ChatItem[]>([]);
   const [status, setStatus] = useState<SessionStatus>("idle");
-  const [workflow, setWorkflow] = useState<string>("general");
   const [draft, setDraft] = useState<ReviewDraft | null>(null);
-  const [draftFile, setDraftFile] = useState<string | undefined>(undefined);
-  const [draftFiles, setDraftFiles] = useState<readonly string[]>([]);
   const [dirty, setDirty] = useState(false);
   const [lastError, setLastError] = useState<string | undefined>(undefined);
   const [draftError, setDraftError] = useState<string | undefined>(undefined);
   const [text, setText] = useState("");
+  const [actionError, setActionError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const data = detail.data;
     if (!data) return;
     setItems(data.items);
     setStatus(data.status);
-    setWorkflow(data.workflow);
-    setDraft(data.artifact === undefined ? null : (data.artifact as ReviewDraft));
-    setDraftFile(data.artifactFile);
-    setDraftFiles(data.artifactFiles ?? []);
+    setDraft(isReviewDraft(data.artifact) ? data.artifact : null);
     setDirty(false);
   }, [detail.data]);
 
@@ -50,10 +50,7 @@ export function SessionPage({ id }: { id: string }) {
         case "snapshot": {
           setItems(event.session.items);
           setStatus(event.session.status);
-          setWorkflow(event.session.workflow);
-          setDraft(event.session.artifact === undefined ? null : (event.session.artifact as ReviewDraft));
-          setDraftFile(event.session.artifactFile);
-          setDraftFiles(event.session.artifactFiles ?? []);
+          setDraft(isReviewDraft(event.session.artifact) ? event.session.artifact : null);
           setDirty(false);
           break;
         }
@@ -78,7 +75,7 @@ export function SessionPage({ id }: { id: string }) {
           break;
         }
         case "artifact": {
-          if (!dirty) setDraft(event.artifact as ReviewDraft);
+          if (!dirty && isReviewDraft(event.artifact)) setDraft(event.artifact);
           break;
         }
         default:
@@ -109,24 +106,10 @@ export function SessionPage({ id }: { id: string }) {
     },
   });
 
-  const loadDraft = useMutation({
-    mutationFn: (file: string) => api.readArtifact(id, file),
-    onSuccess: (loaded, file) => {
-      setDraft(loaded as ReviewDraft);
-      setDraftFile(file);
-      setDraftFiles([]);
-      setDirty(false);
-      setDraftError(undefined);
-    },
-    onError: (error) => setDraftError(errorMessage(error)),
-  });
-
   const saveDraft = useMutation({
-    mutationFn: (value: { draft: ReviewDraft; draftFile?: string }) =>
-      api.saveArtifact(id, value.draft, value.draftFile),
-    onSuccess: (saved, variables) => {
-      setDraft(saved as ReviewDraft);
-      setDraftFile(variables.draftFile ?? draftFile);
+    mutationFn: (value: ReviewDraft) => api.saveArtifact(id, value),
+    onSuccess: (saved) => {
+      setDraft(isReviewDraft(saved) ? saved : null);
       setDirty(false);
       setDraftError(undefined);
     },
@@ -134,13 +117,36 @@ export function SessionPage({ id }: { id: string }) {
   });
 
   const publish = useMutation({
-    mutationFn: () => api.publishArtifact(id, draftFile),
+    mutationFn: () => api.publishArtifact(id),
     onSuccess: () => {
       setDraftError(undefined);
       void client.invalidateQueries({ queryKey: qk.session(id) });
       void client.invalidateQueries({ queryKey: qk.sessions });
     },
     onError: (error) => setDraftError(errorMessage(error)),
+  });
+
+  const refreshSession = () => {
+    void client.invalidateQueries({ queryKey: qk.session(id) });
+    void client.invalidateQueries({ queryKey: qk.sessions });
+  };
+
+  const setEval = useMutation({
+    mutationFn: (evalScope: EvalScope) => api.setSessionEvalScope(id, { evalScope }),
+    onSuccess: () => {
+      setActionError(undefined);
+      refreshSession();
+    },
+    onError: (error) => setActionError(errorMessage(error)),
+  });
+
+  const setWrite = useMutation({
+    mutationFn: (writeScope: WriteScope) => api.setSessionWriteScope(id, { writeScope }),
+    onSuccess: () => {
+      setActionError(undefined);
+      refreshSession();
+    },
+    onError: (error) => setActionError(errorMessage(error)),
   });
 
   if (detail.error !== null) return <ErrorState error={detail.error} onRetry={() => void detail.refetch()} />;
@@ -168,7 +174,6 @@ export function SessionPage({ id }: { id: string }) {
   return (
     <>
       <PageHeader
-        back={{ to: "/agent", label: "返回会话列表" }}
         title={
           <span className="flex flex-wrap items-center gap-2">
             <span>{meta?.title || id}</span>
@@ -179,19 +184,34 @@ export function SessionPage({ id }: { id: string }) {
           <span className="flex flex-wrap items-center gap-2">
             <code className="font-mono">{id}</code>
             {meta?.model !== undefined && <span className="font-mono">{meta.model}</span>}
-            {meta?.prNumber !== undefined && (
-              <Link to="/pr/$n" params={{ n: String(meta.prNumber) }} className="text-accent hover:underline">
-                PR #{meta.prNumber}
-              </Link>
+            {meta !== undefined && (
+              <>
+                <ToggleChip
+                  pressed={meta.evalScope === "run"}
+                  onClick={() => setEval.mutate(meta.evalScope === "run" ? "off" : "run")}
+                  title="切换执行权限（bash / eval）"
+                >
+                  Eval/Bash {meta.evalScope === "run" ? "开" : "关"}
+                </ToggleChip>
+                <ToggleChip
+                  pressed={meta.writeScope === "on"}
+                  onClick={() => setWrite.mutate(meta.writeScope === "on" ? "off" : "on")}
+                  title="切换 GitHub 写权限"
+                >
+                  GitHub 写 {meta.writeScope === "on" ? "开" : "关"}
+                </ToggleChip>
+              </>
             )}
           </span>
         }
         actions={
-          running ? (
-            <Button variant="danger" loading={abort.isPending} icon={<Ban aria-hidden="true" className="size-3.5" />} onClick={() => abort.mutate()}>
-              中止
-            </Button>
-          ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            {running && (
+              <Button variant="danger" loading={abort.isPending} icon={<Ban aria-hidden="true" className="size-3.5" />} onClick={() => abort.mutate()}>
+                中止
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -205,6 +225,10 @@ export function SessionPage({ id }: { id: string }) {
           {connection === "disconnected" ? "连接中断，正在重连" : connection === "connecting" ? "正在连接事件流…" : ""}
           {lastError !== undefined && <span className="text-danger">· {lastError}</span>}
         </p>
+      )}
+
+      {actionError !== undefined && (
+        <p className="mb-3 rounded border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">{actionError}</p>
       )}
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_400px]">
@@ -252,11 +276,9 @@ export function SessionPage({ id }: { id: string }) {
           </footer>
         </Card>
 
-        {workflow === "review" && (
+        {draft !== null && (
           <DraftPanel
             draft={draft}
-            files={draftFiles}
-            selecting={loadDraft.isPending}
             saving={saveDraft.isPending}
             publishing={publish.isPending}
             error={draftError}
@@ -264,10 +286,7 @@ export function SessionPage({ id }: { id: string }) {
               setDraft(next);
               setDirty(true);
             }}
-            onSelect={(file) => loadDraft.mutate(file)}
-            onSave={() => {
-              if (draft) saveDraft.mutate({ draft, draftFile });
-            }}
+            onSave={() => saveDraft.mutate(draft)}
             onPublish={() => publish.mutate()}
           />
         )}

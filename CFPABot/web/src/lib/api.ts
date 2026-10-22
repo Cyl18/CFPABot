@@ -24,8 +24,10 @@ import type {
   ReviewThread,
   SessionDetail,
   SessionSummary,
+  SetEvalScopeRequest,
   SetFileViewedRequest,
   SetThreadResolvedRequest,
+  SetWriteScopeRequest,
   SpecialPair,
   SpecialPairContent,
   SubmitReviewRequest,
@@ -105,8 +107,12 @@ function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   return request<T>(path, signal ? { signal } : {});
 }
 
-function send<T>(method: "POST" | "PUT" | "DELETE", path: string, body?: unknown): Promise<T> {
-  return request<T>(path, body === undefined ? { method } : { method, body: JSON.stringify(body) });
+function send<T>(method: "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, timeoutMs?: number): Promise<T> {
+  return request<T>(path, {
+    method,
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    ...(timeoutMs === undefined ? {} : { signal: AbortSignal.timeout(timeoutMs) }),
+  });
 }
 
 function query(params: Record<string, string | number | undefined>): string {
@@ -179,16 +185,14 @@ export const api = {
   sendMessage: (id: string, text: string) => send<{ ok: true }>("POST", `/api/sessions/${encodeURIComponent(id)}/messages`, { text }),
   abortSession: (id: string) => send<{ ok: true }>("POST", `/api/sessions/${encodeURIComponent(id)}/abort`),
   archiveSession: (id: string) => send<{ ok: true }>("POST", `/api/sessions/${encodeURIComponent(id)}/archive`),
-  saveArtifact: (id: string, value: unknown, file?: string) =>
-    send<unknown>(
-      "PUT",
-      `/api/sessions/${encodeURIComponent(id)}/artifact${file === undefined ? "" : `?file=${encodeURIComponent(file)}`}`,
-      value,
-    ),
-  readArtifact: (id: string, file: string) =>
-    get<unknown>(`/api/sessions/${encodeURIComponent(id)}/artifact?file=${encodeURIComponent(file)}`),
-  publishArtifact: (id: string, file?: string) =>
-    send<{ url: string }>("POST", `/api/sessions/${encodeURIComponent(id)}/publish`, { file }),
+  setSessionWriteScope: (id: string, body: SetWriteScopeRequest) =>
+    send<{ ok: true; writeScope: string }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/write-scope`, body),
+  setSessionEvalScope: (id: string, body: SetEvalScopeRequest) =>
+    send<{ ok: true; evalScope: string }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/eval-scope`, body),
+  saveArtifact: (id: string, value: unknown) =>
+    send<unknown>("PUT", `/api/sessions/${encodeURIComponent(id)}/artifact`, value),
+  readArtifact: (id: string) => get<unknown>(`/api/sessions/${encodeURIComponent(id)}/artifact`),
+  publishArtifact: (id: string) => send<{ url: string }>("POST", `/api/sessions/${encodeURIComponent(id)}/publish`, {}),
   sessionEventsUrl: (id: string) => `/api/sessions/${encodeURIComponent(id)}/events`,
 
   llm: (signal?: AbortSignal) => get<LlmConfigView>("/api/admin/llm", signal),

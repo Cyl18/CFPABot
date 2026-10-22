@@ -6,7 +6,6 @@ import { Badge } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
 import { Card, CardBody, CardHeader } from "@/ui/Card.tsx";
 import { Dialog } from "@/ui/Dialog.tsx";
-import { EmptyState } from "@/ui/EmptyState.tsx";
 import { Select } from "@/ui/Select.tsx";
 import { Textarea } from "@/ui/Input.tsx";
 
@@ -18,66 +17,25 @@ const SEVERITY_OPTIONS: readonly { value: Severity; label: string }[] = [
 ];
 
 export interface DraftPanelProps {
-  draft: ReviewDraft | null;
-  files: readonly string[];
-  selecting: boolean;
+  draft: ReviewDraft;
   saving: boolean;
   publishing: boolean;
   error?: string;
   onChange: (draft: ReviewDraft) => void;
-  onSelect: (file: string) => void;
   onSave: () => void;
   onPublish: () => void;
 }
 
 export function DraftPanel({
   draft,
-  files,
-  selecting,
   saving,
   publishing,
   error,
   onChange,
-  onSelect,
   onSave,
   onPublish,
 }: DraftPanelProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
-
-  if (draft === null) {
-    return (
-      <Card>
-        <CardHeader title="审查草稿" />
-        <CardBody>
-          {files.length === 0 ? (
-            <EmptyState
-              compact
-              title="还没有草稿"
-              description="Agent 写 local://draft.json 或其它 .json 审查草稿后即可显示。"
-            />
-          ) : (
-            <div className="flex flex-col gap-2">
-              <Select
-                label="选择草稿文件"
-                hint="没有 draft.json，选择要加载的合法 draft。"
-                options={[
-                  { value: "", label: selecting ? "加载中…" : "选择文件" },
-                  ...files.map((file) => ({ value: file, label: file })),
-                ]}
-                value=""
-                disabled={selecting}
-                onChange={(event) => {
-                  const file = event.target.value;
-                  if (file !== "") onSelect(file);
-                }}
-              />
-              {error !== undefined && <p className="text-xs text-danger">{error}</p>}
-            </div>
-          )}
-        </CardBody>
-      </Card>
-    );
-  }
 
   const published = draft.publishedAt !== undefined;
   const updateComment = (index: number, patch: Partial<DraftComment>) => {
