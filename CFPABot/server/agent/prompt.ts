@@ -20,7 +20,7 @@ async function readPrompt(file: string): Promise<string> {
 export async function buildSystemPrompt(workflow: WorkflowDefinition): Promise<string> {
   const writeTable = [
     "```",
-    ...WRITE_TARGETS.map((target) => `${target.methods.join("/")}\t${target.uri}\t# ${target.summary}`),
+    ...WRITE_TARGETS.map((target) => `${target.uri}\t# ${target.summary}`),
     "```",
   ].join("\n");
   const system = (await readPrompt("system.md"))

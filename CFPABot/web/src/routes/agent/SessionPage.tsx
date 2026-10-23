@@ -7,8 +7,8 @@ import type {
   SetSessionConfigRequest,
   ThinkingLevel,
   WriteScope,
-} from "@shared/api.ts";
-import { parseModelSelector } from "@shared/api.ts";
+} from "@cfpa/contracts/api";
+import { parseModelSelector } from "@cfpa/contracts/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Archive, Ban, Bot, Brain, Cpu, GitPullRequest, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";

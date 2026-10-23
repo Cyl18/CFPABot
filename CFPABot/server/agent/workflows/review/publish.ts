@@ -1,4 +1,4 @@
-import type { ReviewDraft } from "../../../../shared/api.ts";
+import type { ReviewDraft } from "@cfpa/contracts/api";
 import { gh } from "../../../github/client.ts";
 import { logger } from "../../../log.ts";
 import { renderInlineBody, renderReviewBody, validateDraft } from "../../draft.ts";

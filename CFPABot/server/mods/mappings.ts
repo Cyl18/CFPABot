@@ -4,7 +4,7 @@ import { env } from "../env.ts";
 import { paths } from "../paths.ts";
 import { readJson, writeJson, withLock } from "../store.ts";
 import { logger } from "../log.ts";
-import type { MappingEntry } from "../../shared/api.ts";
+import type { MappingEntry } from "@cfpa/contracts/api";
 import { getModsByIds, type CfMod } from "./curseforge.ts";
 
 const log = logger("mods");

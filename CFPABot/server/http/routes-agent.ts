@@ -5,7 +5,7 @@ import { agent } from "../agent/index.ts";
 import { requireAdmin } from "./auth.ts";
 import type { AppEnv } from "./auth.ts";
 import { notFound, parseBody } from "./errors.ts";
-import type { CreateSessionRequest, SessionEvent } from "../../shared/api.ts";
+import type { CreateSessionRequest, SessionEvent } from "@cfpa/contracts/api";
 
 export const sessionRoutes = new Hono<AppEnv>();
 

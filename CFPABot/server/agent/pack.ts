@@ -1,5 +1,5 @@
 import { buildPack, findingHistogram, workspaceKey, type Pack } from "@cfpa/review-core/pack";
-import type { PackSummary } from "../../shared/api.ts";
+import type { PackSummary } from "@cfpa/contracts/api";
 import { glossaryTerms } from "../domain/glossary.ts";
 import { gh } from "../github/client.ts";
 import { prdata } from "../prdata.ts";

@@ -1,6 +1,6 @@
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { z } from "zod";
-import type { ReviewDraft } from "../../../shared/api.ts";
+import type { ReviewDraft } from "@cfpa/contracts/api";
 import { env } from "../../env.ts";
 import { gh, serverGraphql } from "../../github/client.ts";
 import {
@@ -11,15 +11,13 @@ import {
   setThreadResolved,
   submitPendingReview,
 } from "../../github/review.ts";
-import type { ToolContext } from "../context.ts";
 import { draftInputSchema, normalizeDraftJson } from "../draft.ts";
-import { assertCanWrite } from "../policy.ts";
+import { assertCanWrite, type WriteSession } from "../policy.ts";
 import { publishDraft } from "../workflows/review/publish.ts";
 import { jsonResult } from "../result.ts";
-import { replaceOnce } from "./replace.ts";
 import { parseThreadState } from "./thread-state.ts";
-import { writableUris, type WriteMethod, type WriteTarget } from "./write-targets.ts";
-import type { PrUri } from "./uri.ts";
+import type { WriteTarget } from "./write-targets.ts";
+import type { PrParts } from "./uri.ts";
 
 const AGENT_MARKER_PREFIX = "<!--CFPA-AGENT:";
 const REVIEW_EVENTS = ["COMMENT", "APPROVE", "REQUEST_CHANGES"] as const;
@@ -62,7 +60,7 @@ function parseSubmit(content: string | undefined): { event: "COMMENT" | "APPROVE
   return submitSchema.parse(JSON.parse(content) as unknown);
 }
 
-async function writeComment(uri: PrUri, content: string | undefined, ctx: ToolContext, toolCallId: string) {
+async function writeComment(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
   const marker = markerOf(ctx.sessionId, toolCallId);
   const existing = (await gh.listComments(uri.number)).find((comment) => comment.body.includes(marker));
   if (existing) return jsonResult({ ok: true, deduped: true, id: existing.id, url: existing.htmlUrl });
@@ -70,7 +68,7 @@ async function writeComment(uri: PrUri, content: string | undefined, ctx: ToolCo
   return jsonResult({ ok: true, id: comment.id, url: comment.htmlUrl });
 }
 
-async function writeInlineComment(uri: PrUri, content: string | undefined, ctx: ToolContext, toolCallId: string) {
+async function writeInlineComment(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
   const seg = uri.path.split("/").filter(Boolean);
   const path = seg.slice(1, -1).join("/");
   if (!path) throw new Error("行内评论需要文件路径。");
@@ -88,7 +86,7 @@ async function writeInlineComment(uri: PrUri, content: string | undefined, ctx: 
   return jsonResult({ ok: true, thread });
 }
 
-async function writeThreadState(uri: PrUri, content: string | undefined) {
+async function writeThreadState(uri: PrParts, content: string | undefined) {
   const seg = uri.path.split("/").filter(Boolean);
   const threadId = seg[1] ?? "";
   const resolved = parseThreadState(content);
@@ -96,7 +94,7 @@ async function writeThreadState(uri: PrUri, content: string | undefined) {
   return jsonResult({ ok: true, threadId, resolved });
 }
 
-async function writeThreadReply(uri: PrUri, content: string | undefined, ctx: ToolContext, toolCallId: string) {
+async function writeThreadReply(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
   const seg = uri.path.split("/").filter(Boolean);
   const comment = await replyToReviewThread(
     serverGraphql,
@@ -107,7 +105,7 @@ async function writeThreadReply(uri: PrUri, content: string | undefined, ctx: To
   return jsonResult({ ok: true, comment });
 }
 
-async function writeReview(uri: PrUri, content: string | undefined, ctx: ToolContext, toolCallId: string) {
+async function writeReview(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
   const n = uri.number;
   if (content === undefined || content.trim().length === 0) {
     throw new Error("write pr://<n>/review 需要审查 JSON 内容。");
@@ -120,7 +118,7 @@ async function writeReview(uri: PrUri, content: string | undefined, ctx: ToolCon
   return jsonResult({ ok: true, url });
 }
 
-async function writeReviewSubmit(uri: PrUri, content: string | undefined, ctx: ToolContext, toolCallId: string) {
+async function writeReviewSubmit(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
   const n = uri.number;
   const input = parseSubmit(content);
   const marker = markerOf(ctx.sessionId, toolCallId);
@@ -141,42 +139,35 @@ async function writeReviewSubmit(uri: PrUri, content: string | undefined, ctx: T
   return jsonResult({ ok: true, url });
 }
 
-async function editComment(uri: PrUri, oldString: string, newString: string, replaceAll: boolean, ctx: ToolContext, toolCallId: string) {
+async function replaceComment(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
   const seg = uri.path.split("/").filter(Boolean);
   const id = Number(seg[1]);
   if (!Number.isInteger(id) || id <= 0) throw new Error("评论编号无效。");
+  if (content === undefined) throw new Error("替换评论需要提供新的完整正文。");
   const comment = (await gh.listComments(uri.number)).find((entry) => entry.id === id);
   if (comment === undefined) throw new Error("评论不存在。");
   if (comment.author !== env.BOT_LOGIN) throw new Error("只能编辑机器人自己的评论。");
-  const next = withMarker(replaceOnce(comment.body, oldString, newString, replaceAll), ctx.sessionId, toolCallId);
-  await gh.updateComment(id, next);
+  await gh.updateComment(id, withMarker(content, ctx.sessionId, toolCallId));
   return jsonResult({ ok: true, url: comment.htmlUrl });
 }
 
-async function editReviewComment(
-  uri: PrUri,
-  oldString: string,
-  newString: string,
-  replaceAll: boolean,
-  ctx: ToolContext,
-  toolCallId: string,
-) {
+async function replaceReviewComment(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
   const seg = uri.path.split("/").filter(Boolean);
   const id = Number(seg[1]);
   if (!Number.isInteger(id) || id <= 0) throw new Error("行内评论编号无效。");
+  if (content === undefined) throw new Error("替换行内评论需要提供新的完整正文。");
   const comment = (await gh.listReviewComments(uri.number)).find((entry) => entry.id === id);
   if (comment === undefined) throw new Error("行内评论不存在。");
   if (comment.author !== env.BOT_LOGIN) throw new Error("只能编辑机器人自己的评论。");
-  const next = withMarker(replaceOnce(comment.body, oldString, newString, replaceAll), ctx.sessionId, toolCallId);
-  await gh.updateReviewComment(id, next);
+  await gh.updateReviewComment(id, withMarker(content, ctx.sessionId, toolCallId));
   return jsonResult({ ok: true, url: comment.htmlUrl });
 }
 
 export async function writePr(
-  uri: PrUri,
+  uri: PrParts,
   target: WriteTarget,
   content: string | undefined,
-  ctx: ToolContext,
+  ctx: WriteSession,
   toolCallId: string,
 ): Promise<AgentToolResult<Record<string, unknown>>> {
   assertCanWrite(ctx);
@@ -193,31 +184,11 @@ export async function writePr(
       return writeReview(uri, content, ctx, toolCallId);
     case "pr-review-submit":
       return writeReviewSubmit(uri, content, ctx, toolCallId);
+    case "pr-comment-replace":
+      return replaceComment(uri, content, ctx, toolCallId);
+    case "pr-review-comment-replace":
+      return replaceReviewComment(uri, content, ctx, toolCallId);
     default:
       throw new Error(`write 不支持的资源：${target.uri}`);
   }
-}
-
-export async function editPr(
-  uri: PrUri,
-  target: WriteTarget,
-  oldString: string,
-  newString: string,
-  replaceAll: boolean,
-  ctx: ToolContext,
-  toolCallId: string,
-): Promise<AgentToolResult<Record<string, unknown>>> {
-  assertCanWrite(ctx);
-  switch (target.id) {
-    case "pr-comment-edit":
-      return editComment(uri, oldString, newString, replaceAll, ctx, toolCallId);
-    case "pr-review-comment-edit":
-      return editReviewComment(uri, oldString, newString, replaceAll, ctx, toolCallId);
-    default:
-      throw new Error(`edit 不支持的资源：${target.uri}`);
-  }
-}
-
-export function unsupportedWrite(method: WriteMethod): Error {
-  return new Error(`不支持的${method === "write" ? "写入" : "编辑"}目标。可写：${writableUris(method).join("、")}`);
 }

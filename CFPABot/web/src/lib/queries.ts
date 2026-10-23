@@ -1,4 +1,4 @@
-import type { CheckReport, CompareResult, CrossVersionKeysResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, PackSummary, PrDetail, PrState, PrSummary, SessionDetail, SessionSummary, SpecialPair, SpecialPairContent, SystemStatus } from "@shared/api.ts";
+import type { CheckReport, CompareResult, CrossVersionKeysResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, PackSummary, PrDetail, PrState, PrSummary, SessionDetail, SessionSummary, SpecialPair, SpecialPairContent, SystemStatus } from "@cfpa/contracts/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { api, type CompareKey } from "@/lib/api.ts";

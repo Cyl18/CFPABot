@@ -1,4 +1,4 @@
-import type { SessionEvent } from "@shared/api.ts";
+import type { SessionEvent } from "@cfpa/contracts/api";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api.ts";
 

@@ -1,4 +1,4 @@
-import type { PrState, SessionStatus, Severity, Verdict } from "@shared/api.ts";
+import type { PrState, SessionStatus, Severity, Verdict } from "@cfpa/contracts/api";
 import { Badge } from "@/ui/Badge.tsx";
 
 const PR_STATE: Record<PrState, { label: string; tone: "ok" | "info" | "neutral" }> = {

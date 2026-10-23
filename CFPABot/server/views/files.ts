@@ -1,5 +1,5 @@
 import { gh } from "../github/client.ts";
-import type { PrFile } from "../../shared/api.ts";
+import type { PrFile } from "@cfpa/contracts/api";
 
 export function sidePaths(file: PrFile): { base: string | null; head: string | null } {
   return {

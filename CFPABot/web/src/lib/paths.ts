@@ -1,4 +1,4 @@
-import type { Workspace } from "@shared/api.ts";
+import type { Workspace } from "@cfpa/contracts/api";
 
 export interface ParsedLangFile {
   slug: string;

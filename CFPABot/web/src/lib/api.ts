@@ -35,7 +35,7 @@ import type {
   SystemStatus,
   TextCompareRequest,
   TextCompareResult,
-} from "@shared/api.ts";
+} from "@cfpa/contracts/api";
 
 const TIMEOUT_MS = 30_000;
 

@@ -1,4 +1,4 @@
-import type { DiffEntry, DiffLane } from "@shared/diffview.ts";
+import type { DiffEntry, DiffLane } from "@cfpa/contracts/diffview";
 import { CircleCheck } from "lucide-react";
 import { useMemo } from "react";
 import { DiffViewer } from "@/components/DiffViewer.tsx";

@@ -1,5 +1,5 @@
-import type { PrFile } from "../../shared/api.ts";
-import { modInfosOf } from "../domain/path.ts";
+import type { PrFile } from "@cfpa/contracts/api";
+import { modInfosOf } from "@cfpa/review-core/domain/path";
 import { repo } from "../env.ts";
 import { logger } from "../log.ts";
 import { mirror } from "../mirror.ts";

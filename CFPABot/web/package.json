@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@cfpa/contracts": "workspace:*",
     "@floating-ui/react": "^0.27.20",
     "@radix-ui/react-dialog": "^1.1.23",
     "@tanstack/react-query": "5.104.0",

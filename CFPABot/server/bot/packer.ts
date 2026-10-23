@@ -1,4 +1,4 @@
-import type { PrFile } from "../../shared/api.ts";
+import type { PrFile } from "@cfpa/contracts/api";
 import { repo } from "../env.ts";
 import type { GhPull } from "../github/client.ts";
 import { gh } from "../github/client.ts";

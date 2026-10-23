@@ -1,12 +1,12 @@
 import { join } from "node:path";
 import { z } from "zod";
-import type { CheckReport, Finding, ModFileCheck } from "../../shared/api.ts";
-import { entryFindings, keyParity, pathChecks, typoCheck, type TypoRule } from "../domain/checks.ts";
+import type { CheckReport, Finding, ModFileCheck } from "@cfpa/contracts/api";
+import { entryFindings, keyParity, pathChecks, typoCheck, type TypoRule } from "@cfpa/review-core/domain/checks";
 import { glossaryTerms } from "../domain/glossary.ts";
-import { matchTerms, type TermIndex } from "../domain/terms.ts";
-import { patchAddedLines, withLiteralNewlines } from "../domain/diff.ts";
-import { parseLang, type ParsedLang } from "../domain/langfile.ts";
-import { parseLangPath } from "../domain/path.ts";
+import { matchTerms, type TermIndex } from "@cfpa/review-core/domain/terms";
+import { patchAddedLines, withLiteralNewlines } from "@cfpa/review-core/domain/diff";
+import { parseLang, type ParsedLang } from "@cfpa/review-core/domain/langfile";
+import { parseLangPath } from "@cfpa/review-core/domain/path";
 import type { JarInfo, JarLang, ModFile } from "../mods/index.ts";
 import { mods } from "../mods/index.ts";
 import { paths } from "../paths.ts";

@@ -46,4 +46,4 @@ description: PR 翻译审查：取行、裁定、落草稿。审查 PR 前必须
 
 ## 子代理
 
-`read pr://<n>/meta` 的 `localRoot` 是 head 文件的物化目录，仓库工作树在 `runtime/work/repo`。子代理同样能用 `read`/`grep` 读 `pr://`、`repo://`；要批量走文件系统时，把 `localRoot` 写进 prompt。
+`read pr://<n>/meta` 的 `localRoot` 是 head 文件的物化目录，仓库工作树在 `runtime/work/repo`。子代理能用 `read` 读 `pr://`、`repo://`；`grep`/`find` 只认文件系统路径，批量处理时把 `localRoot` 或 `runtime/work/repo` 写进 prompt。

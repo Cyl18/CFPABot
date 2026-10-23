@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { commentVersionDir, compareMc, invalidVersionError, parseLangPath } from "../domain/path.ts";
+import { commentVersionDir, compareMc, invalidVersionError, parseLangPath } from "@cfpa/review-core/domain/path";
 import { env, repo } from "../env.ts";
 import { gh } from "../github/client.ts";
 import type { GhFile } from "../github/client.ts";
@@ -9,7 +9,7 @@ import * as cf from "../mods/curseforge.ts";
 import { mappingMissingMessage, mods } from "../mods/index.ts";
 import { checkReportPath } from "../paths.ts";
 import { prdata } from "../prdata.ts";
-import type { RelatedPr } from "../../shared/api.ts";
+import type { RelatedPr } from "@cfpa/contracts/api";
 import type { AppContext, AppEnv } from "./auth.ts";
 import { HttpError, parseQuery } from "./errors.ts";
 

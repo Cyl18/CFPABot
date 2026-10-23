@@ -1,4 +1,4 @@
-import type { SessionSummary } from "@shared/api.ts";
+import type { SessionSummary } from "@cfpa/contracts/api";
 import { Link } from "@tanstack/react-router";
 import { Bot } from "lucide-react";
 import { formatRelative } from "@/lib/format.ts";

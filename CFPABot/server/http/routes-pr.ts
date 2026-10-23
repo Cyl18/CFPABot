@@ -2,7 +2,7 @@ import { statSync } from "node:fs";
 import { join } from "node:path";
 import { Hono } from "hono";
 import { z } from "zod";
-import { commentVersionDir, compareMc } from "../domain/path.ts";
+import { commentVersionDir, compareMc } from "@cfpa/review-core/domain/path";
 import { env, repo } from "../env.ts";
 import { paths } from "../paths.ts";
 import { ttlCache } from "../ttl.ts";
@@ -23,7 +23,7 @@ import { textCompare } from "../views/text.ts";
 import { currentUser, requireAdmin } from "./auth.ts";
 import type { AppContext, AppEnv } from "./auth.ts";
 import { HttpError, isUpstreamNotFound, notFound, parseBody, parseQuery } from "./errors.ts";
-import type { SystemStatus, TextCompareRequest } from "../../shared/api.ts";
+import type { SystemStatus, TextCompareRequest } from "@cfpa/contracts/api";
 
 export const prRoutes = new Hono<AppEnv>();
 

@@ -12,7 +12,7 @@ import { parseRoleSelector } from "../llm-providers.ts";
 import { paths } from "../../paths.ts";
 import { openAuthStorage, openModelRuntime } from "../pi.ts";
 
-const CHILD_TOOLS: Record<string, true> = { read: true, grep: true, find: true, ls: true, glossary: true, bash: true };
+const CHILD_TOOLS: Record<string, true> = { read: true, grep: true, find: true, glob: true, glossary: true, bash: true };
 
 const DELEGATE_PARAMS = type({
   model: type("string").describe("模型别名，例如 @taska"),

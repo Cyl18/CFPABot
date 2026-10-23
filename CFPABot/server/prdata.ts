@@ -2,13 +2,13 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import pMap from "p-map";
 import { z } from "zod";
-import { compareMc, parseLangPath } from "./domain/path.ts";
+import { compareMc, parseLangPath } from "@cfpa/review-core/domain/path";
 import { gh, type GhFile, type GhPull } from "./github/client.ts";
 import { logger } from "./log.ts";
 import { paths } from "./paths.ts";
 import { readJson, removeFile, withLock, writeJson } from "./store.ts";
 import { ttlCache } from "./ttl.ts";
-import type { PrState, PrSummary, RelatedPr } from "../shared/api.ts";
+import type { PrState, PrSummary, RelatedPr } from "@cfpa/contracts/api";
 
 const log = logger("prdata");
 const INDEX_PATH = join(paths.cache, "prs.json");

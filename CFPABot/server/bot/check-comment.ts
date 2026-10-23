@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { CheckReport, Finding, Severity } from "../../shared/api.ts";
+import type { CheckReport, Finding, Severity } from "@cfpa/contracts/api";
 import { checkReportPath } from "../paths.ts";
 import { CHECK_TRANSLATE_HINT, Lines } from "./render.ts";
 

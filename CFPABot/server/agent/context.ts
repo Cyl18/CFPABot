@@ -1,4 +1,4 @@
-import type { WriteScope } from "../../shared/api.ts";
+import type { WriteScope } from "@cfpa/contracts/api";
 
 export interface LocalEntry {
   content: string;

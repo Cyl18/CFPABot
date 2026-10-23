@@ -5,31 +5,12 @@ import { mirror } from "../../mirror.ts";
 import { prdata } from "../../prdata.ts";
 import { crossVersionKeys } from "../../views/cross-version.ts";
 import { jsonResult } from "../result.ts";
-import { missingResource } from "./format.ts";
-import type { GhUri } from "./uri.ts";
-
-const BODY_LIMIT = 2000;
-
-function trimBody(body: string): string {
-  const trimmed = body.trim();
-  return trimmed.length > BODY_LIMIT ? `${trimmed.slice(0, BODY_LIMIT)}…[已截断]` : trimmed;
-}
-
-function isMainBot(author: string, body: string): boolean {
-  return body.startsWith("<!--CYBOT-->") && (author === env.BOT_LOGIN || author === "Cyl18-Bot");
-}
-
-function isAgentBody(body: string): boolean {
-  return body.includes("<!--CFPA-AGENT:");
-}
-
-function visibleIssueComment(comment: { author: string; body: string; isBot: boolean }): boolean {
-  return !isMainBot(comment.author, comment.body) && (!comment.isBot || isAgentBody(comment.body));
-}
+import { isAgentBody, missingResource, trimBody, visibleIssueComment } from "./format.ts";
+import type { ResourceParts } from "./uri.ts";
 
 const CHILDREN = ["meta", "pulls", "issues", "search", "mods", "versions"] as const;
 
-export async function readGh(uri: GhUri): Promise<AgentToolResult<Record<string, unknown>>> {
+export async function readGh(uri: ResourceParts): Promise<AgentToolResult<Record<string, unknown>>> {
   const seg = uri.path.split("/").filter(Boolean);
   const head = seg[0];
   if (head === undefined) return missingResource("gh://", CHILDREN);

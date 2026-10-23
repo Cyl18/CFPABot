@@ -1,5 +1,5 @@
-import type { CompareRow, PrDetail, Workspace } from "@shared/api.ts";
-import { formatDiffFilter, parseDiffFilter } from "@shared/diffview.ts";
+import type { CompareRow, PrDetail, Workspace } from "@cfpa/contracts/api";
+import { formatDiffFilter, parseDiffFilter } from "@cfpa/contracts/diffview";
 import { ChevronRight } from "lucide-react";
 import { Fragment, useMemo, type ReactNode } from "react";
 import { DiffViewer } from "@/components/DiffViewer.tsx";

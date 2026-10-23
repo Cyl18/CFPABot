@@ -1,5 +1,5 @@
-import type { CompareRow } from "@shared/api.ts";
-import type { DiffCell, DiffEntry, DiffLane } from "@shared/diffview.ts";
+import type { CompareRow } from "@cfpa/contracts/api";
+import type { DiffCell, DiffEntry, DiffLane } from "@cfpa/contracts/diffview";
 
 function cellOf(en: string | undefined, zh: string | undefined): DiffCell | null {
   return en === undefined && zh === undefined ? null : { en: en ?? "", zh: zh ?? null };

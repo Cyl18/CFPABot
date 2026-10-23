@@ -1,4 +1,4 @@
-import { mcMatches, modRefOf, parseVersionDir, standardVersionOf } from "../domain/path.ts";
+import { mcMatches, modRefOf, parseVersionDir, standardVersionOf } from "@cfpa/review-core/domain/path";
 import { env } from "../env.ts";
 import { logger } from "../log.ts";
 import { ttlCache } from "../ttl.ts";

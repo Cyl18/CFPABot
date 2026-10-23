@@ -23,11 +23,11 @@
 | 工具 | 用途 |
 |---|---|
 | `read` | 读取 `repo://`、`pr://`、`gh://`、`local://`、`skill://` 或 `help://` |
-| `write` | 写 GitHub（评论、线程、审查）或 `local://` 文件 |
-| `edit` | 编辑机器人自己的评论，或 `local://` 文件文本 |
-| `grep` | 按正则搜索内容；`path` 可写资源 URI，默认搜 workspace |
-| `find` | 按 glob 找文件；`path` 可写资源 URI |
-| `ls` | 列出目录；`path` 可写资源 URI |
+| `write` | 写 `local://`（始终可用）或 `pr://`（`writeScope=on`） |
+| `edit` | 编辑 `local://` 文本；GitHub 评论用 `write pr://<n>/comments/<id>` 整段覆盖 |
+| `grep` | 按正则搜文件系统；`repo://`、`pr://` 不是路径，用 `pr://<n>/meta` 的 `localRoot` |
+| `find` | 按 glob 找文件系统路径；规则同 `grep` |
+| `glob` | 文件系统通配；规则同 `grep` |
 | `bash` | 在 workspace 执行 shell（默认开启，管理员可关闭） |
 | `todo` | 维护多步任务清单（一次写入完整计划）；适合分步流程 |
 | `eval` | 在宿主持久 kernel 执行 Python / JavaScript（默认开启，管理员可关闭） |

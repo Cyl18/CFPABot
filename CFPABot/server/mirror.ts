@@ -1,7 +1,7 @@
 import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { commentVersionDir, compareMc, langFormatFor, parseLangPath, type LangPath } from "./domain/path.ts";
+import { commentVersionDir, compareMc, langFormatFor, parseLangPath, type LangPath } from "@cfpa/review-core/domain/path";
 import { env, repo } from "./env.ts";
 import { runGit, runGitBytes } from "./git.ts";
 import { logger } from "./log.ts";
@@ -9,7 +9,7 @@ import { getModsByIds } from "./mods/curseforge.ts";
 import { mappings } from "./mods/mappings.ts";
 import { paths } from "./paths.ts";
 import { readJson, writeJson, withLock } from "./store.ts";
-import type { ModEntry, ModList } from "../shared/api.ts";
+import type { ModEntry, ModList } from "@cfpa/contracts/api";
 
 const log = logger("mirror");
 const MIRROR_URL = `https://github.com/${repo.owner}/${repo.name}.git`;

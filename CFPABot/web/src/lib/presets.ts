@@ -1,5 +1,5 @@
-import type { LlmProtocol } from "@shared/api.ts";
-import { LLM_PROVIDER_PRESETS } from "@shared/api.ts";
+import type { LlmProtocol } from "@cfpa/contracts/api";
+import { LLM_PROVIDER_PRESETS } from "@cfpa/contracts/api";
 
 export const PROVIDER_PRESETS = LLM_PROVIDER_PRESETS;
 

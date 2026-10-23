@@ -1,14 +1,14 @@
-import { parseLang } from "../domain/langfile.ts";
-import { alignKeys } from "../domain/diff.ts";
-import type { CrossVersionInput } from "../domain/diff.ts";
-import { parseLangPath, compareMc } from "../domain/path.ts";
-import type { LangFormat, LangPath } from "../domain/path.ts";
+import { parseLang } from "@cfpa/review-core/domain/langfile";
+import { alignKeys } from "@cfpa/review-core/domain/diff";
+import type { CrossVersionInput } from "@cfpa/review-core/domain/diff";
+import { parseLangPath, compareMc } from "@cfpa/review-core/domain/path";
+import type { LangFormat, LangPath } from "@cfpa/review-core/domain/path";
 import { gh } from "../github/client.ts";
 import type { GhFile, GhPull } from "../github/client.ts";
 import { mirror } from "../mirror.ts";
 import { prdata } from "../prdata.ts";
 import { ttlCache } from "../ttl.ts";
-import type { CrossVersionKeysResult } from "../../shared/api.ts";
+import type { CrossVersionKeysResult } from "@cfpa/contracts/api";
 
 export interface CrossVersionOpts {
   namespace?: string;

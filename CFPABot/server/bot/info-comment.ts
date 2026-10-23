@@ -1,7 +1,7 @@
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import type { CheckReport } from "../../shared/api.ts";
+import type { CheckReport } from "@cfpa/contracts/api";
 import { env } from "../env.ts";
 import type { GhComment } from "../github/client.ts";
 import { gh } from "../github/client.ts";

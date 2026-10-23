@@ -1,5 +1,5 @@
 import { env, isDev } from "./env.ts";
-import type { LogEntry, LogLevel } from "../shared/api.ts";
+import type { LogEntry, LogLevel } from "@cfpa/contracts/api";
 
 const ORDER: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 const RING_SIZE = 2000;

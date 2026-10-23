@@ -1,7 +1,7 @@
 import { mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import type { EvalScope, SessionDraftSummary, SessionStatus, SessionSummary, ThinkingLevel, WriteScope } from "../../shared/api.ts";
+import type { EvalScope, SessionDraftSummary, SessionStatus, SessionSummary, ThinkingLevel, WriteScope } from "@cfpa/contracts/api";
 import { paths } from "../paths.ts";
 import { readJson, withLock, writeJson } from "../store.ts";
 

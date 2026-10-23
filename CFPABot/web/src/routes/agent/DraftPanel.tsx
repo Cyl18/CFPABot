@@ -1,5 +1,5 @@
-import type { DraftComment, ReviewDraft, Severity, Verdict } from "@shared/api.ts";
-import { MQM_BY_ID, mqmLabel } from "@shared/mqm.ts";
+import type { DraftComment, ReviewDraft, Severity, Verdict } from "@cfpa/contracts/api";
+import { MQM_BY_ID, mqmLabel } from "@cfpa/contracts/mqm";
 import { ExternalLink, Save, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { SeverityBadge, VerdictBadge, VERDICT_OPTIONS } from "@/components/StatusBadges.tsx";

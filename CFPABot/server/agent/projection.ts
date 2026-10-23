@@ -1,6 +1,6 @@
 import type { AgentEvent, AgentMessage } from "@oh-my-pi/pi-agent-core";
 import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session-events";
-import type { ChatItem, ToolCallView } from "../../shared/api.ts";
+import type { ChatItem, ToolCallView } from "@cfpa/contracts/api";
 
 const RESULT_LIMIT = 2000;
 const STREAM_THROTTLE_MS = 150;

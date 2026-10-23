@@ -1,4 +1,4 @@
-import type { EvalScope, WriteScope } from "../../../shared/api.ts";
+import type { EvalScope, WriteScope } from "@cfpa/contracts/api";
 
 export interface WorkflowDefinition {
   id: string;

@@ -1,13 +1,13 @@
-import { parseLang } from "../domain/langfile.ts";
-import type { ParsedLang } from "../domain/langfile.ts";
-import { compareLang, inHunks } from "../domain/diff.ts";
-import { buildLangPath, parseLangPath, langPathFor } from "../domain/path.ts";
-import type { LangFormat, Locale } from "../domain/path.ts";
+import { parseLang } from "@cfpa/review-core/domain/langfile";
+import type { ParsedLang } from "@cfpa/review-core/domain/langfile";
+import { compareLang, inHunks } from "@cfpa/review-core/domain/diff";
+import { buildLangPath, parseLangPath, langPathFor } from "@cfpa/review-core/domain/path";
+import type { LangFormat, Locale } from "@cfpa/review-core/domain/path";
 import type { GhFile } from "../github/client.ts";
 import { prdata } from "../prdata.ts";
 import { commentableHunks } from "../review.ts";
 import { memoReader, sidePaths } from "./files.ts";
-import type { CompareResult, CompareReview } from "../../shared/api.ts";
+import type { CompareResult, CompareReview } from "@cfpa/contracts/api";
 
 export interface WorkspaceKey {
   slug: string;

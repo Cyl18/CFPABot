@@ -1,5 +1,5 @@
 import { repo } from "../env.ts";
-import { inHunks } from "../domain/diff.ts";
+import { inHunks } from "@cfpa/review-core/domain/diff";
 import { HttpError } from "../http/errors.ts";
 import { prdata } from "../prdata.ts";
 import { commentableHunks } from "../review.ts";
@@ -11,7 +11,7 @@ import type {
   ReviewComment,
   ReviewEvent,
   ReviewThread,
-} from "../../shared/api.ts";
+} from "@cfpa/contracts/api";
 
 const PAGE_SIZE = 100;
 

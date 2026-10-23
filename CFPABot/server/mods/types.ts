@@ -1,4 +1,4 @@
-import type { LangFormat, Locale } from "../domain/path.ts";
+import type { LangFormat, Locale } from "@cfpa/review-core/domain/path";
 
 export interface ModDep {
   id: string;

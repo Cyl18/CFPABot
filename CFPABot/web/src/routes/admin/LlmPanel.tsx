@@ -1,4 +1,4 @@
-import { parseModelSelector, SEARCH_PROVIDER_PRESETS, type LlmConfigUpdate, type LlmConfigView } from "@shared/api.ts";
+import { parseModelSelector, SEARCH_PROVIDER_PRESETS, type LlmConfigUpdate, type LlmConfigView } from "@cfpa/contracts/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";

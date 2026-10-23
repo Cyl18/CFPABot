@@ -1,4 +1,4 @@
-import type { FileViewedState, PrReviewState, ReviewEvent, ReviewHtmlResult, ReviewThread } from "@shared/api.ts";
+import type { FileViewedState, PrReviewState, ReviewEvent, ReviewHtmlResult, ReviewThread } from "@cfpa/contracts/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, errorMessage, isApiError } from "@/lib/api.ts";

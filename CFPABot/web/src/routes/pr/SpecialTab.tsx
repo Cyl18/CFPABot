@@ -1,5 +1,5 @@
-import type { SpecialKeyRow, SpecialPair, SpecialPairContent, SpecialText } from "@shared/api.ts";
-import { DEFAULT_DIFF_FILTER, type DiffFilterState } from "@shared/diffview.ts";
+import type { SpecialKeyRow, SpecialPair, SpecialPairContent, SpecialText } from "@cfpa/contracts/api";
+import { DEFAULT_DIFF_FILTER, type DiffFilterState } from "@cfpa/contracts/diffview";
 import { Check, FileDiff, Maximize2, MessageSquarePlus, Minimize2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DiffModePicker } from "@/components/DiffModePicker.tsx";

@@ -1,4 +1,4 @@
-import type { CheckReport, ModFileCheck, ModFileStatus } from "@shared/api.ts";
+import type { CheckReport, ModFileCheck, ModFileStatus } from "@cfpa/contracts/api";
 import { ChevronRight, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { errorMessage } from "@/lib/api.ts";

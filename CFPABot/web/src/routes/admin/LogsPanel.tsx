@@ -1,4 +1,4 @@
-import type { LogLevel } from "@shared/api.ts";
+import type { LogLevel } from "@cfpa/contracts/api";
 import { ChevronRight, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/cn.ts";

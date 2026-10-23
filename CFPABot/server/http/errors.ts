@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { z } from "zod";
-import type { ApiError } from "../../shared/api.ts";
+import type { ApiError } from "@cfpa/contracts/api";
 
 export const MAX_BODY_BYTES = 10 * 1024 * 1024;
 

@@ -1,4 +1,4 @@
-import type { SessionSummary } from "@shared/api.ts";
+import type { SessionSummary } from "@cfpa/contracts/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { Archive, ChevronsLeft, ChevronsRight, Plus } from "lucide-react";

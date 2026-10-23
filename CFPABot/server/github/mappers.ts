@@ -1,4 +1,4 @@
-import type { PrFile } from "../../shared/api.ts";
+import type { PrFile } from "@cfpa/contracts/api";
 import type { GhComment, GhFile, GhPull, GhReviewComment, GhRun } from "./types.ts";
 
 export interface RawPull {

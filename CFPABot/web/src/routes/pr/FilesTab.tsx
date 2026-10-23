@@ -1,4 +1,4 @@
-import type { PrDetail, PrFile } from "@shared/api.ts";
+import type { PrDetail, PrFile } from "@cfpa/contracts/api";
 import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { useMemo } from "react";

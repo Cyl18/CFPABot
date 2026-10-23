@@ -9,7 +9,7 @@ import type {
   LlmSearch,
   ProbeModelsRequest,
   ThinkingLevel,
-} from "../../shared/api.ts";
+} from "@cfpa/contracts/api";
 import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
 import { readJson, writeJson } from "../store.ts";

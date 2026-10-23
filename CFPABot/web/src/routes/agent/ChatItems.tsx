@@ -1,4 +1,4 @@
-import type { ChatItem, ToolCallView } from "@shared/api.ts";
+import type { ChatItem, ToolCallView } from "@cfpa/contracts/api";
 import { Bot, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { Markdown } from "@/components/Markdown.tsx";

@@ -1,4 +1,4 @@
-import type { CheckReport, Finding, Severity } from "@shared/api.ts";
+import type { CheckReport, Finding, Severity } from "@cfpa/contracts/api";
 import { CircleCheck, CircleX, Info, TriangleAlert } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Markdown } from "@/components/Markdown.tsx";

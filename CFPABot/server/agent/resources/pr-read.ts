@@ -1,6 +1,5 @@
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { getCheckReport } from "../../bot/index.ts";
-import { env } from "../../env.ts";
 import { gh, serverGraphql } from "../../github/client.ts";
 import { anonymousReviewState } from "../../github/review.ts";
 import { prdata } from "../../prdata.ts";
@@ -10,11 +9,10 @@ import { prDetail } from "../../views/pr.ts";
 import { specialPairContent, specialPairs } from "../../views/special.ts";
 import { compareWorkspace } from "../../views/workspace.ts";
 import { loadPack, packSummary, peekPack, selectRows, workspaceKey } from "../pack.ts";
-import { jsonResult, pageOf } from "../result.ts";
-import { linesResult, missingResource } from "./format.ts";
-import type { PrUri } from "./uri.ts";
+import { jsonResult, pageOf, textResult } from "../result.ts";
+import { isAgentBody, missingResource, trimBody, visibleIssueComment, visibleReviewComment } from "./format.ts";
+import type { PrParts } from "./uri.ts";
 
-const BODY_LIMIT = 2000;
 const PR_CHILDREN = [
   "files",
   "comments",
@@ -27,28 +25,7 @@ const PR_CHILDREN = [
   "review",
 ] as const;
 
-function trimBody(body: string): string {
-  const trimmed = body.trim();
-  return trimmed.length > BODY_LIMIT ? `${trimmed.slice(0, BODY_LIMIT)}…[已截断]` : trimmed;
-}
-
-function isMainBot(author: string, body: string): boolean {
-  return body.startsWith("<!--CYBOT-->") && (author === env.BOT_LOGIN || author === "Cyl18-Bot");
-}
-
-function isAgentBody(body: string): boolean {
-  return body.includes("<!--CFPA-AGENT:");
-}
-
-function visibleIssueComment(comment: { author: string; body: string; isBot: boolean }): boolean {
-  return !isMainBot(comment.author, comment.body) && (!comment.isBot || isAgentBody(comment.body));
-}
-
-function visibleReviewComment(comment: { author: string; body: string }): boolean {
-  return !isMainBot(comment.author, comment.body) && (!comment.author.endsWith("[bot]") || isAgentBody(comment.body));
-}
-
-export async function readPr(uri: PrUri): Promise<AgentToolResult<Record<string, unknown>>> {
+export async function readPr(uri: PrParts): Promise<AgentToolResult<Record<string, unknown>>> {
   const n = uri.number;
   const seg = uri.path.split("/").filter(Boolean);
   const sub = seg[0];
@@ -77,7 +54,7 @@ export async function readPr(uri: PrUri): Promise<AgentToolResult<Record<string,
     if (sidePath === null) throw new Error(`该文件在 ${side} 侧不存在。`);
     const text = await gh.getFile(sidePath, side === "base" ? pull.baseSha : pull.headSha);
     if (text === null) throw new Error(`文件不存在：${sidePath}`);
-    return jsonResult({ ...linesResult(sidePath, side, text, uri.selector), requestedPath: requested });
+    return textResult(text, { requestedPath: requested });
   }
 
   if (sub === "comments") {

@@ -1,4 +1,4 @@
-import type { ModEntry } from "@shared/api.ts";
+import type { ModEntry } from "@cfpa/contracts/api";
 import { Link } from "@tanstack/react-router";
 import { PackageSearch, Search } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader.tsx";

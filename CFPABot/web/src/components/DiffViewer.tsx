@@ -1,5 +1,5 @@
-import type { DiffCell, DiffCombine, DiffEntry, DiffFacet, DiffFacts, DiffFilterState, DiffLane } from "@shared/diffview.ts";
-import { DEFAULT_DIFF_FILTER, DIFF_FACETS, FACET_MATCH, diffFacts, matchesFilter, matchesQuery } from "@shared/diffview.ts";
+import type { DiffCell, DiffCombine, DiffEntry, DiffFacet, DiffFacts, DiffFilterState, DiffLane } from "@cfpa/contracts/diffview";
+import { DEFAULT_DIFF_FILTER, DIFF_FACETS, FACET_MATCH, diffFacts, matchesFilter, matchesQuery } from "@cfpa/contracts/diffview";
 import { elementScroll, observeElementOffset, observeElementRect, useWindowVirtualizer, type VirtualizerOptions } from "@tanstack/react-virtual";
 import { AlignRight, ArrowLeftRight, Check, Info, Search, X } from "lucide-react";
 import { Fragment, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";

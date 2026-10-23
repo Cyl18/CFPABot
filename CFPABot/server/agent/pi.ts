@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 import {
   discoverAuthStorage,
   ModelRegistry,
@@ -8,7 +9,7 @@ import {
   type SessionEntry,
 } from "@oh-my-pi/pi-coding-agent";
 import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import type { LlmEndpoint } from "../../shared/api.ts";
+import type { LlmEndpoint } from "@cfpa/contracts/api";
 import { paths } from "../paths.ts";
 import type { SessionRecord } from "./sessions.ts";
 
@@ -63,9 +64,10 @@ export async function openSessionManager(record: SessionRecord): Promise<Session
   if (record.sessionFile && existsSync(record.sessionFile)) {
     return SessionManager.open(record.sessionFile, paths.sessions);
   }
+  // 会话文件定在 runtime/sessions/<id>.jsonl：omp 的 artifacts 目录随之等于 <id>/，local:// 直接落在 workspace。
   const manager = SessionManager.create(paths.root, paths.sessions);
-  const file = manager.getSessionFile();
-  if (!file) throw new Error("无法创建会话文件。");
+  const file = join(paths.sessions, `${record.meta.id}.jsonl`);
+  await manager.setSessionFile(file);
   record.sessionFile = file;
   return manager;
 }

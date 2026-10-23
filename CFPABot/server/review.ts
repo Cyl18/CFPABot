@@ -1,5 +1,5 @@
-import { patchHunks } from "./domain/diff.ts";
-import type { ReviewHunk } from "../shared/api.ts";
+import { patchHunks } from "@cfpa/review-core/domain/diff";
+import type { ReviewHunk } from "@cfpa/contracts/api";
 import type { GhFile } from "./github/types.ts";
 
 export function commentableHunks(

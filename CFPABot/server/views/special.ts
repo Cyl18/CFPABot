@@ -1,4 +1,4 @@
-import { compareLang } from "../domain/diff.ts";
+import { compareLang } from "@cfpa/review-core/domain/diff";
 import { parseFlatten, specialFormat } from "../domain/flatten.ts";
 import type { FlattenParsed } from "../domain/flatten.ts";
 import { isSpecialPath, planSpecial, resolveDerived, resolveSpecial } from "../domain/special.ts";
@@ -8,7 +8,7 @@ import { mirror } from "../mirror.ts";
 import { prdata } from "../prdata.ts";
 import { commentableHunks } from "../review.ts";
 import { memoReader, sidePaths } from "./files.ts";
-import type { SpecialKeyRow, SpecialPair, SpecialPairContent, SpecialParsed, SpecialText } from "../../shared/api.ts";
+import type { SpecialKeyRow, SpecialPair, SpecialPairContent, SpecialParsed, SpecialText } from "@cfpa/contracts/api";
 
 const SPECIAL_MAX_BYTES = 200 * 1024;
 

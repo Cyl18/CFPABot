@@ -5,7 +5,7 @@ import { paths } from "../paths.ts";
 import { logger } from "../log.ts";
 import { downloadBytes } from "./http.ts";
 import type { JarInfo, JarLang, JarLangLoose, ModFile } from "./types.ts";
-import type { Locale } from "../domain/path.ts";
+import type { Locale } from "@cfpa/review-core/domain/path";
 
 const log = logger("mods");
 const MAX_JAR_BYTES = 200 * 1024 * 1024;

@@ -1,6 +1,6 @@
 import type { AgentTool } from "@oh-my-pi/pi-agent-core";
 import { type } from "@oh-my-pi/omptype";
-import { lookupTerm } from "../../domain/terms.ts";
+import { lookupTerm } from "@cfpa/review-core/domain/terms";
 import { glossaryLookup } from "../glossary.ts";
 import { glossaryTerms } from "../../domain/glossary.ts";
 import { jsonResult } from "../result.ts";

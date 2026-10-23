@@ -14,5 +14,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["server", "shared", "packages"]
+  "include": ["server", "packages"]
 }

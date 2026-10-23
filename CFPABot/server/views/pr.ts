@@ -1,8 +1,8 @@
-import { parseLangPath, workspacesOf } from "../domain/path.ts";
+import { parseLangPath, workspacesOf } from "@cfpa/review-core/domain/path";
 import { isSpecialPath } from "../domain/special.ts";
 import type { GhFile, GhPull } from "../github/client.ts";
 import { prdata } from "../prdata.ts";
-import type { PrDetail, PrState, PrSummary } from "../../shared/api.ts";
+import type { PrDetail, PrState, PrSummary } from "@cfpa/contracts/api";
 
 function prStateOf(pull: GhPull): PrState {
   if (pull.state === "open") return "open";

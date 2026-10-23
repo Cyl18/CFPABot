@@ -1,24 +1,26 @@
-export function linesResult(
-  path: string,
-  ref: string,
-  text: string,
-  selector?: { from: number; to?: number },
-): Record<string, unknown> {
-  const lines = text.split(/\r?\n/);
-  const total = lines.length;
-  const start = Math.min(Math.max(selector?.from ?? 1, 1), total);
-  const requestedEnd = selector?.to ?? Math.min(total, start + 1999);
-  const end = Math.min(Math.max(requestedEnd, start), total);
-  const result: Record<string, unknown> = {
-    path,
-    ref,
-    totalLines: total,
-    from: start,
-    to: end,
-    lines: lines.slice(start - 1, end).map((line, index) => `${start + index}\t${line}`),
-  };
-  if (selector?.to === undefined && end < total) result.truncated = true;
-  return result;
+import { env } from "../../env.ts";
+
+const BODY_LIMIT = 2000;
+
+export function trimBody(body: string): string {
+  const trimmed = body.trim();
+  return trimmed.length > BODY_LIMIT ? `${trimmed.slice(0, BODY_LIMIT)}…[已截断]` : trimmed;
+}
+
+export function isMainBot(author: string, body: string): boolean {
+  return body.startsWith("<!--CYBOT-->") && (author === env.BOT_LOGIN || author === "Cyl18-Bot");
+}
+
+export function isAgentBody(body: string): boolean {
+  return body.includes("<!--CFPA-AGENT:");
+}
+
+export function visibleIssueComment(comment: { author: string; body: string; isBot: boolean }): boolean {
+  return !isMainBot(comment.author, comment.body) && (!comment.isBot || isAgentBody(comment.body));
+}
+
+export function visibleReviewComment(comment: { author: string; body: string }): boolean {
+  return !isMainBot(comment.author, comment.body) && (!comment.author.endsWith("[bot]") || isAgentBody(comment.body));
 }
 
 export function missingResource(resource: string, children: readonly string[]): never {

@@ -1,4 +1,4 @@
-import type { ReviewComment, ReviewEvent, ReviewThread } from "@shared/api.ts";
+import type { ReviewComment, ReviewEvent, ReviewThread } from "@cfpa/contracts/api";
 import { AlertTriangle, CheckCheck, CornerDownRight, Diff, ExternalLink, LoaderCircle, MessageSquare, MessageSquarePlus, RotateCcw, Trash2, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";

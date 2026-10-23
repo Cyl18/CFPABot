@@ -1,4 +1,4 @@
-import { formatDiffFilter, parseDiffFilter, type DiffFilterState } from "@shared/diffview.ts";
+import { formatDiffFilter, parseDiffFilter, type DiffFilterState } from "@cfpa/contracts/diffview";
 import type { SearchPatch } from "@/lib/search.ts";
 
 export interface CrossVersionQuery {

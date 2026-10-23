@@ -1,7 +1,7 @@
 import { extname } from "node:path";
-import type { PrFile, SpecialPair, SpecialSide } from "../../shared/api.ts";
+import type { PrFile, SpecialPair, SpecialSide } from "@cfpa/contracts/api";
 import { specialFormat } from "./flatten.ts";
-import { parseLangPath } from "./path.ts";
+import { parseLangPath } from "@cfpa/review-core/domain/path";
 
 export interface SpecialToken {
   start: number;
@@ -149,7 +149,7 @@ export function counterpartPath(path: string): string {
   return replaceTokens(path, specialTokens(path), (token) => swapToken(token.text));
 }
 
-// 语言目录有两种写法：`_zh_cn` 这类覆盖目录的原文就在基础路径上，`zh_cn` 这类同级目录的原文在同结构的另一侧。两个候选都留着，最后看仓库里哪个真的存在。
+// 覆盖目录的原文在基础路径，同级目录的原文在另一侧；两个候选都留，最后看哪个真实存在。
 function counterpartCandidates(path: string, key: string): [string, string] {
   const override = specialTokens(path).some((token) => {
     const before = path.charAt(token.start - 1);

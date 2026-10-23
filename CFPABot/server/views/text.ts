@@ -1,6 +1,6 @@
-import { parseLang, guessFormat } from "../domain/langfile.ts";
-import { compareTwo } from "../domain/diff.ts";
-import type { TextCompareRequest, TextCompareResult } from "../../shared/api.ts";
+import { parseLang, guessFormat } from "@cfpa/review-core/domain/langfile";
+import { compareTwo } from "@cfpa/review-core/domain/diff";
+import type { TextCompareRequest, TextCompareResult } from "@cfpa/contracts/api";
 
 export function textCompare(req: TextCompareRequest): TextCompareResult {
   const left = parseLang(req.left.content, guessFormat(req.left.content));

@@ -1,9 +1,9 @@
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
-import type { PrFile } from "../../shared/api.ts";
+import type { PrFile } from "@cfpa/contracts/api";
 import { agent } from "../agent/index.ts";
-import { editJsonValues, insertJsonKeyAfter, normalizeLang, parseLang, sortLang } from "../domain/langfile.ts";
-import { buildLangPath, langFormatFor, modRefOf } from "../domain/path.ts";
+import { editJsonValues, insertJsonKeyAfter, normalizeLang, parseLang, sortLang } from "@cfpa/review-core/domain/langfile";
+import { buildLangPath, langFormatFor, modRefOf } from "@cfpa/review-core/domain/path";
 import { env, repo } from "../env.ts";
 import { withWorkspace, type Workspace } from "../git.ts";
 import { gh } from "../github/client.ts";

@@ -1,4 +1,4 @@
-import type { PrFile } from "../../shared/api.ts";
+import type { PrFile } from "@cfpa/contracts/api";
 
 export interface GhPull {
   number: number;

@@ -1,4 +1,4 @@
-import type { LlmProtocol } from "@shared/api.ts";
+import type { LlmProtocol } from "@cfpa/contracts/api";
 import { useMutation } from "@tanstack/react-query";
 import { Download, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";

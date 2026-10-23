@@ -10,7 +10,7 @@ import { paths } from "../paths.ts";
 import { ttlCache } from "../ttl.ts";
 import { gh } from "../github/client.ts";
 import { HttpError } from "./errors.ts";
-import type { Me } from "../../shared/api.ts";
+import type { Me } from "@cfpa/contracts/api";
 
 export const SESSION_COOKIE = "cfpa_session";
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;

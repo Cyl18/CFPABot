@@ -18,7 +18,7 @@ import type {
   SessionSummary,
   ThinkingLevel,
   WriteScope,
-} from "../../shared/api.ts";
+} from "@cfpa/contracts/api";
 import { prdata } from "../prdata.ts";
 import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
@@ -35,6 +35,7 @@ import { secretGuard } from "./secret-guard.ts";
 import { scopeGuard } from "./scope-guard.ts";
 import { sessionTitle } from "./title.ts";
 import { SessionStore, summarize, type SessionMeta, type SessionRecord } from "./sessions.ts";
+import { registerSchemes } from "./schemes.ts";
 import { buildTools } from "./tools/index.ts";
 import { publishDraft } from "./workflows/review/publish.ts";
 import { generalWorkflow } from "./workflows/general.ts";
@@ -69,7 +70,7 @@ const ALLOWED_TOOLS: Record<string, true> = {
   edit: true,
   grep: true,
   find: true,
-  ls: true,
+  glob: true,
   glossary: true,
   todo: true,
   delegate: true,
@@ -179,7 +180,13 @@ async function getRuntime(record: SessionRecord): Promise<Runtime> {
   const authStorage = await openAuthStorage(config.endpoints);
   const modelRuntime = await openModelRuntime(authStorage, config.endpoints, config.roles);
   const thinkingLevel: Effort | undefined = thinking === "off" ? undefined : effortOf(thinking);
-  const extensions = [secretGuard, scopeGuard(async () => (await store.get(id))?.meta.evalScope === "run")];
+  const extensions = [
+    secretGuard,
+    scopeGuard(
+      async () => (await store.get(id))?.meta.evalScope === "run",
+      async () => (await store.get(id))?.meta.writeScope ?? "off",
+    ),
+  ];
   const manager = await openSessionManager(record);
   const sessionFile = manager.getSessionFile() ?? record.sessionFile;
   if (sessionFile) {
@@ -314,6 +321,13 @@ async function launch(id: string, prompt: string): Promise<void> {
 export const agent = {
   async init(): Promise<void> {
     await store.init();
+    registerSchemes({
+      sessionOf: (sessionFile) => {
+        if (sessionFile === undefined) return undefined;
+        const record = store.all().find((entry) => entry.sessionFile === sessionFile);
+        return record === undefined ? undefined : { sessionId: record.meta.id, writeScope: record.meta.writeScope };
+      },
+    });
     log.info("会话索引已加载", { sessions: store.all().length });
   },
 

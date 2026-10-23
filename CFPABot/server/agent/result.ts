@@ -4,6 +4,10 @@ export function jsonResult(value: unknown, details: Record<string, unknown> = {}
   return { content: [{ type: "text", text: JSON.stringify(value) }], details };
 }
 
+export function textResult(text: string, details: Record<string, unknown> = {}): AgentToolResult<Record<string, unknown>> {
+  return { content: [{ type: "text", text }], details };
+}
+
 export function pageOf(
   offset: number | undefined,
   limit: number | undefined,

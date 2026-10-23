@@ -1,4 +1,4 @@
-import type { PrDetail } from "@shared/api.ts";
+import type { PrDetail } from "@cfpa/contracts/api";
 import { Link } from "@tanstack/react-router";
 import { Fragment, type ReactNode } from "react";
 import { CheckReportView } from "@/components/CheckReport.tsx";

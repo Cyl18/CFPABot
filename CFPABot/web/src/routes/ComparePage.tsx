@@ -1,4 +1,4 @@
-import type { TextCompareResult } from "@shared/api.ts";
+import type { TextCompareResult } from "@cfpa/contracts/api";
 import { useMutation } from "@tanstack/react-query";
 import { ArrowLeftRight, FileUp } from "lucide-react";
 import { useRef, useState } from "react";

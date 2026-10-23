@@ -1,4 +1,4 @@
-import type { ProbeModelsRequest } from "../../shared/api.ts";
+import type { ProbeModelsRequest } from "@cfpa/contracts/api";
 import { normalizeBaseUrl } from "./llm-providers.ts";
 
 const PROBE_TIMEOUT_MS = 15_000;

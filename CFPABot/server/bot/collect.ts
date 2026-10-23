@@ -1,11 +1,11 @@
 import { parse, type ParseError } from "jsonc-parser";
 import pMap from "p-map";
-import type { CompareRow, PrFile, Workspace } from "../../shared/api.ts";
-import { compareLang } from "../domain/diff.ts";
-import { jsonErrorMessage, parseLang, type ParsedLang } from "../domain/langfile.ts";
-import { diffModPathsOf, langPathFor, parseLangPath, workspacesOf, type LangFormat, type Locale } from "../domain/path.ts";
+import type { CompareRow, PrFile, Workspace } from "@cfpa/contracts/api";
+import { compareLang } from "@cfpa/review-core/domain/diff";
+import { jsonErrorMessage, parseLang, type ParsedLang } from "@cfpa/review-core/domain/langfile";
+import { diffModPathsOf, langPathFor, parseLangPath, workspacesOf, type LangFormat, type Locale } from "@cfpa/review-core/domain/path";
 import { glossaryTerms } from "../domain/glossary.ts";
-import { matchTerms } from "../domain/terms.ts";
+import { matchTerms } from "@cfpa/review-core/domain/terms";
 import { repo } from "../env.ts";
 import type { GhFile, GhPull } from "../github/client.ts";
 import { gh } from "../github/client.ts";

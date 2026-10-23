@@ -4,7 +4,7 @@ import { runGit } from "../git.ts";
 import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
 import { withLock } from "../store.ts";
-import { loadTermIndex, type TermIndex } from "./terms.ts";
+import { loadTermIndex, type TermIndex } from "@cfpa/review-core/domain/terms";
 
 const log = logger("glossary");
 const GLOSSARY_URL = "https://github.com/CFPAOrg/Glossary.git";

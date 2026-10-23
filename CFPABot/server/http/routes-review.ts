@@ -27,7 +27,7 @@ import type {
   SetFileViewedRequest,
   SetThreadResolvedRequest,
   SubmitReviewRequest,
-} from "../../shared/api.ts";
+} from "@cfpa/contracts/api";
 
 export const reviewRoutes = new Hono<AppEnv>();
 
