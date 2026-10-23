@@ -8,7 +8,7 @@ import { glossaryTerms } from "../domain/glossary.ts";
 import { matchTerms } from "@cfpa/review-core/domain/terms";
 import { repo } from "../env.ts";
 import type { GhFile, GhPull } from "../github/client.ts";
-import { gh } from "../github/client.ts";
+import { botWritesEnabled, gh } from "../github/client.ts";
 import { logger } from "../log.ts";
 import { prdata } from "../prdata.ts";
 import { collapseBlankRuns, DIFF_EXCEPTION, Lines, messageOf } from "./render.ts";
@@ -301,7 +301,7 @@ export async function buildDiffComment(pull: GhPull, files: PrFile[], publicUrl:
       sb.line(`异常：\n\`\`\`\n${exceptions.join("\n\n")}\n\`\`\``);
     }
     result = collapseBlankRuns(`${sb.text()}\n`);
-    if (result.length > MAX_DIFF_GIST) {
+    if (result.length > MAX_DIFF_GIST && botWritesEnabled()) {
       try {
         const url = await gh.createGist(
           `pr-${pull.number}-diff`,
