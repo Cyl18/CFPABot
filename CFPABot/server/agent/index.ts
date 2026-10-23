@@ -5,6 +5,7 @@ import {
   createAgentSession,
   loadSkillsFromDir,
   type AgentSession,
+  type AuthStorage,
   type SessionEntry,
   type Skill,
 } from "@oh-my-pi/pi-coding-agent";
@@ -25,9 +26,9 @@ import { type ToolContext } from "./context.ts";
 import { DRAFT_FILE, draftInputSchema, parseDraftFile, serializeDraftFile, validateDraft, type DraftContext } from "./draft.ts";
 import { SessionHub } from "./events.ts";
 import { applySearchEnv, loadConfig, llm, resolveModel, setModelForTest } from "./llm.ts";
-import { effortOf } from "./llm-providers.ts";
+import { effortOf, parseRoleSelector } from "./llm-providers.ts";
 import { isLocalPath, listLocal, localDir, readLocal, writeLocal } from "./local-store.ts";
-import { openSessionManager, sessionMessages } from "./pi.ts";
+import { openAuthStorage, openModelRuntime, openSessionManager, sessionMessages } from "./pi.ts";
 import { LiveProjector, projectMessages } from "./projection.ts";
 import { buildSystemPrompt } from "./prompt.ts";
 import { secretGuard } from "./secret-guard.ts";
@@ -49,6 +50,7 @@ const hub = new SessionHub();
 interface Runtime {
   session: AgentSession;
   unsubscribe: () => void;
+  authStorage: AuthStorage;
 }
 
 const runtimes = new Map<string, Runtime>();
@@ -70,7 +72,7 @@ const ALLOWED_TOOLS: Record<string, true> = {
   ls: true,
   glossary: true,
   todo: true,
-  task: true,
+  delegate: true,
   wait: true,
   web_search: true,
   bash: true,
@@ -150,7 +152,11 @@ async function disposeRuntime(id: string): Promise<void> {
   if (!runtime) return;
   runtimes.delete(id);
   runtime.unsubscribe();
-  await runtime.session.dispose();
+  try {
+    await runtime.session.dispose();
+  } finally {
+    runtime.authStorage.close();
+  }
 }
 
 async function getRuntime(record: SessionRecord): Promise<Runtime> {
@@ -159,12 +165,21 @@ async function getRuntime(record: SessionRecord): Promise<Runtime> {
   const existing = runtimes.get(id);
   if (existing) return existing;
   const workflow = resolveWorkflow(record.meta.workflow);
-  applySearchEnv((await loadConfig()).search);
-  const systemPrompt = await buildSystemPrompt(workflow);
+  const config = await loadConfig();
+  applySearchEnv(config.search);
+  const basePrompt = await buildSystemPrompt(workflow);
+  const aliases = Object.keys(config.roles).filter((role) => role !== "default");
+  const systemPrompt =
+    aliases.length === 0
+      ? basePrompt
+      : `${basePrompt}\n\n可用模型别名：${aliases.map((role) => `@${role}`).join("、")}。派子代理时用 delegate({ model: "@别名", task: "…" })；单次调用可用 eval 的 await completion(prompt, model="@别名")。`;
   const skills = await agentSkills(workflow);
   const configured = record.meta.thinking;
-  const { model, apiKey, thinking } = await resolveModel(record.meta.model, configured);
+  const { model, thinking } = await resolveModel(record.meta.model, configured);
+  const authStorage = await openAuthStorage(config.endpoints);
+  const modelRuntime = await openModelRuntime(authStorage, config.endpoints, config.roles);
   const thinkingLevel: Effort | undefined = thinking === "off" ? undefined : effortOf(thinking);
+  const extensions = [secretGuard, scopeGuard(async () => (await store.get(id))?.meta.evalScope === "run")];
   const manager = await openSessionManager(record);
   const sessionFile = manager.getSessionFile() ?? record.sessionFile;
   if (sessionFile) {
@@ -175,14 +190,19 @@ async function getRuntime(record: SessionRecord): Promise<Runtime> {
     cwd: paths.root,
     agentDir: paths.piAgent,
     model,
-    getApiKey: async () => apiKey,
+    authStorage,
+    modelRegistry: modelRuntime.registry,
+    settings: modelRuntime.settings,
     sessionManager: manager,
-    customTools: buildTools(toolContext(record)),
+    customTools: buildTools(toolContext(record), extensions),
     skills,
-    extensions: [secretGuard, scopeGuard(async () => (await store.get(id))?.meta.evalScope === "run")],
+    extensions,
     disableExtensionDiscovery: true,
     systemPrompt,
     ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
+  }).catch((err) => {
+    authStorage.close();
+    throw err;
   });
   const session: AgentSession = created.session;
   const entries: SessionEntry[] = manager.getEntries();
@@ -197,9 +217,10 @@ async function getRuntime(record: SessionRecord): Promise<Runtime> {
   } catch (err) {
     unsubscribe();
     await session.dispose();
+    authStorage.close();
     throw err;
   }
-  const runtime: Runtime = { session, unsubscribe };
+  const runtime: Runtime = { session, unsubscribe, authStorage };
   runtimes.set(id, runtime);
   return runtime;
 }
@@ -320,7 +341,7 @@ export const agent = {
     const message = request.message?.trim();
     if (!message) throw httpError("需要提供 message", 400);
     const config = await loadConfig();
-    const model = request.model?.trim() || config.agent || "";
+    const model = request.model?.trim() || parseRoleSelector(config.roles.default ?? "").endpoint;
     const modelError = await resolveModel(model === "" ? undefined : model).then(
       () => undefined,
       (err: unknown) => (err instanceof Error ? err.message : String(err)),

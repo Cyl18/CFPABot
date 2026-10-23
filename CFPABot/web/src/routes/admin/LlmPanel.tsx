@@ -1,4 +1,4 @@
-import { SEARCH_PROVIDER_PRESETS, type LlmConfigUpdate, type LlmConfigView, type ThinkingLevel } from "@shared/api.ts";
+import { parseModelSelector, SEARCH_PROVIDER_PRESETS, type LlmConfigUpdate, type LlmConfigView } from "@shared/api.ts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -25,7 +25,6 @@ interface TestResult {
 }
 
 function updateFrom(view: LlmConfigView): LlmConfigUpdate {
-  const ids = new Set(view.endpoints.map((endpoint) => endpoint.id));
   return {
     endpoints: view.endpoints.map((endpoint) => ({
       id: endpoint.id,
@@ -36,11 +35,7 @@ function updateFrom(view: LlmConfigView): LlmConfigUpdate {
       ...(endpoint.contextWindow !== undefined ? { contextWindow: endpoint.contextWindow } : {}),
       ...(endpoint.maxOutput !== undefined ? { maxOutput: endpoint.maxOutput } : {}),
     })),
-    agent: view.agent !== undefined && ids.has(view.agent) ? view.agent : "",
-    agentThinking: view.agentThinking ?? null,
-    reviewers: view.reviewers
-      .filter((reviewer) => ids.has(reviewer.id))
-      .map((reviewer) => ({ id: reviewer.id, ...(reviewer.thinking ? { thinking: reviewer.thinking } : {}) })),
+    roles: { ...view.roles },
     search: view.search ? { provider: view.search.provider, endpoint: view.search.endpoint } : null,
   };
 }
@@ -60,7 +55,8 @@ export function LlmPanel() {
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [testResult, setTestResult] = useState<Record<string, TestResult>>({});
   const [pendingDelete, setPendingDelete] = useState<EndpointDraft | null>(null);
-  const [reviewerToAdd, setReviewerToAdd] = useState("");
+  const [roleName, setRoleName] = useState("");
+  const [roleEndpoint, setRoleEndpoint] = useState("");
   const [searchProvider, setSearchProvider] = useState("");
   const [searchEndpoint, setSearchEndpoint] = useState("");
   const [searchKey, setSearchKey] = useState("");
@@ -115,15 +111,9 @@ export function LlmPanel() {
   if (llm.isPending || !data) return <SkeletonText lines={6} />;
 
   const endpoints = data.endpoints;
-  const agentValue = data.agent !== undefined && endpoints.some((endpoint) => endpoint.id === data.agent) ? data.agent : "";
-  const reviewers = data.reviewers.filter((reviewer) => endpoints.some((endpoint) => endpoint.id === reviewer.id));
-  const resolvedAgent = agentValue !== "" ? agentValue : endpoints[0]?.id;
-  const agentEndpoint = endpoints.find((endpoint) => endpoint.id === resolvedAgent);
-  const agentThinkingOptions = withCurrentThinking(
-    thinkingOptionsFor(modelsDevIndex, agentEndpoint?.model ?? "", agentEndpoint?.provider),
-    data.agentThinking,
+  const roleEntries = Object.entries(data.roles).sort(([a], [b]) =>
+    a === "default" ? -1 : b === "default" ? 1 : a.localeCompare(b),
   );
-  const reviewerCandidates = endpoints.filter((endpoint) => !reviewers.some((reviewer) => reviewer.id === endpoint.id));
   const searchPreset = SEARCH_PROVIDER_PRESETS.find((preset) => preset.id === searchProvider);
 
   const submitEndpoint = (drafts: EndpointDraft[]) => {
@@ -147,11 +137,14 @@ export function LlmPanel() {
       if (index >= 0) endpoints[index] = next;
       else endpoints.push(next);
     }
-    const agent = oldId !== undefined && base.agent === oldId && newId !== undefined ? newId : base.agent;
-    const reviewers = base.reviewers
-      .map((reviewer) => (oldId !== undefined && reviewer.id === oldId && newId !== undefined ? { ...reviewer, id: newId } : reviewer))
-      .filter((reviewer, index, all) => all.findIndex((item) => item.id === reviewer.id) === index);
-    persist({ ...base, endpoints, agent: agent ?? "", reviewers }, () => {
+    const roles = Object.fromEntries(
+      Object.entries(base.roles).map(([name, selector]) => {
+        const { endpoint, thinking } = parseModelSelector(selector);
+        if (oldId === undefined || newId === undefined || endpoint !== oldId) return [name, selector];
+        return [name, thinking === undefined ? newId : `${newId}:${thinking}`];
+      }),
+    );
+    persist({ ...base, endpoints, roles }, () => {
       setFormOpen(false);
       setEditing(null);
     });
@@ -165,41 +158,43 @@ export function LlmPanel() {
       {
         ...base,
         endpoints: base.endpoints.filter((endpoint) => endpoint.id !== id),
-        agent: base.agent === id ? "" : (base.agent ?? ""),
-        reviewers: base.reviewers.filter((reviewer) => reviewer.id !== id),
+        roles: Object.fromEntries(Object.entries(base.roles).filter(([, selector]) => parseModelSelector(selector).endpoint !== id)),
       },
       () => setPendingDelete(null),
     );
   };
 
-  const changeAgent = (value: string) => {
-    const nextId = value === "" ? endpoints[0]?.id : value;
-    const endpoint = endpoints.find((item) => item.id === nextId);
-    const options = thinkingOptionsFor(modelsDevIndex, endpoint?.model ?? "", endpoint?.provider);
-    const keep = data.agentThinking !== undefined && options.some((option) => option.value === data.agentThinking);
-    persist({ ...updateFrom(data), agent: value, agentThinking: keep && data.agentThinking !== undefined ? data.agentThinking : null });
+  const saveRole = (name: string, selector: string) => {
+    persist({ ...updateFrom(data), roles: { ...data.roles, [name]: selector } });
   };
 
-  const changeAgentThinking = (value: string) => {
-    persist({ ...updateFrom(data), agentThinking: value === "" ? null : (value as ThinkingLevel) });
+  const changeRoleEndpoint = (name: string, endpointId: string) => {
+    const endpoint = endpoints.find((item) => item.id === endpointId);
+    const thinking = parseModelSelector(data.roles[name] ?? "").thinking;
+    const keep =
+      thinking !== undefined &&
+      thinkingOptionsFor(modelsDevIndex, endpoint?.model ?? "", endpoint?.provider).some((option) => option.value === thinking);
+    saveRole(name, keep ? `${endpointId}:${thinking}` : endpointId);
   };
 
-  const addReviewer = () => {
-    if (reviewerToAdd === "" || reviewers.some((reviewer) => reviewer.id === reviewerToAdd)) return;
-    persist({ ...updateFrom(data), reviewers: [...reviewers, { id: reviewerToAdd }] }, () => setReviewerToAdd(""));
+  const changeRoleThinking = (name: string, value: string) => {
+    const endpoint = parseModelSelector(data.roles[name] ?? "").endpoint;
+    saveRole(name, value === "" ? endpoint : `${endpoint}:${value}`);
   };
 
-  const removeReviewer = (id: string) => {
-    persist({ ...updateFrom(data), reviewers: reviewers.filter((reviewer) => reviewer.id !== id) });
-  };
-
-  const changeReviewerThinking = (id: string, value: string) => {
-    persist({
-      ...updateFrom(data),
-      reviewers: reviewers.map((reviewer) =>
-        reviewer.id === id ? { id: reviewer.id, ...(value !== "" ? { thinking: value as ThinkingLevel } : {}) } : reviewer,
-      ),
+  const addRole = () => {
+    const name = roleName.trim();
+    if (name === "" || roleEndpoint === "" || data.roles[name] !== undefined) return;
+    persist({ ...updateFrom(data), roles: { ...data.roles, [name]: roleEndpoint } }, () => {
+      setRoleName("");
+      setRoleEndpoint("");
     });
+  };
+
+  const removeRole = (name: string) => {
+    const roles = { ...data.roles };
+    delete roles[name];
+    persist({ ...updateFrom(data), roles });
   };
 
   const saveSearch = (provider: string, endpoint: string, apiKey?: string) => {
@@ -267,7 +262,7 @@ export function LlmPanel() {
           {endpoints.length === 0 ? (
             <EmptyState
               title="还没有端点"
-              description="先添加至少一个模型端点，再配置主模型与审查模型集。"
+              description="先添加至少一个模型端点，再配置模型别名。"
               compact
               action={
                 <Button size="sm" variant="primary" icon={<Plus aria-hidden="true" className="size-3.5" />} onClick={() => setFormOpen(true)}>
@@ -338,102 +333,82 @@ export function LlmPanel() {
       </Card>
 
       <Card>
-        <CardHeader title="Agent 默认模型" description="新建会话使用主模型；审查任务使用审查模型集。" />
-        <CardBody className="flex flex-col gap-4">
-          <div>
-            <div className="flex flex-wrap items-end gap-2">
-              <Select
-                wrapperClassName="min-w-64 flex-1"
-                label="主模型"
-                options={[{ value: "", label: "自动（使用第一个端点）" }, ...endpoints.map((endpoint) => ({ value: endpoint.id, label: endpoint.id }))]}
-                value={agentValue}
-                disabled={endpoints.length === 0 || save.isPending}
-                onChange={(event) => changeAgent(event.target.value)}
-              />
-              <Select
-                wrapperClassName="w-40"
-                label="思考强度"
-                options={agentThinkingOptions}
-                value={data.agentThinking ?? ""}
-                disabled={endpoints.length === 0 || save.isPending || modelsDevLoading}
-                onChange={(event) => changeAgentThinking(event.target.value)}
-              />
-            </div>
-            <p className="mt-1 text-xs text-muted">
-              {endpoints.length === 0
-                ? "先添加至少一个端点。"
-                : agentValue !== ""
-                  ? `显式指定 ${agentValue}。`
-                  : `留空时自动使用 ${resolvedAgent}（列表中的第一个端点）。`}
-            </p>
-            <p className="mt-1 text-xs text-muted">
-              {modelsDev.status === "loading"
-                ? "正在加载 models.dev 模型规格…"
-                : modelsDev.status === "error"
-                  ? "models.dev 不可用，暂用通用思考选项。"
-                  : "思考强度选项来自 models.dev 的 reasoning_options。"}
-            </p>
+        <CardHeader
+          title="模型别名"
+          description="别名 → 端点[:思考强度]。default 是主模型，其余别名在 eval 的 completion 里按 @name 使用。"
+        />
+        <CardBody className="flex flex-col gap-3">
+          <ul className="flex flex-col gap-1">
+            {roleEntries.map(([name, selector]) => {
+              const { endpoint: endpointId, thinking } = parseModelSelector(selector);
+              const endpoint = endpoints.find((item) => item.id === endpointId);
+              const options = withCurrentThinking(
+                thinkingOptionsFor(modelsDevIndex, endpoint?.model ?? "", endpoint?.provider),
+                thinking,
+              );
+              return (
+                <li key={name} className="flex flex-wrap items-center gap-2 rounded border border-line bg-elevated/40 px-2 py-1">
+                  <code className="w-28 truncate font-mono text-xs">@{name}</code>
+                  <Select
+                    wrapperClassName="min-w-56 flex-1"
+                    aria-label={`端点 ${name}`}
+                    options={endpoints.map((item) => ({ value: item.id, label: item.id }))}
+                    value={endpoint?.id ?? ""}
+                    disabled={save.isPending || endpoints.length === 0}
+                    onChange={(event) => changeRoleEndpoint(name, event.target.value)}
+                  />
+                  <Select
+                    wrapperClassName="w-36"
+                    aria-label={`思考强度 ${name}`}
+                    options={options}
+                    value={thinking ?? ""}
+                    disabled={save.isPending || modelsDevLoading}
+                    onChange={(event) => changeRoleThinking(name, event.target.value)}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={name === "default" ? undefined : "text-danger"}
+                    title={name === "default" ? "default 是主模型" : "移除"}
+                    aria-label={`移除别名 ${name}`}
+                    icon={<X aria-hidden="true" className="size-3.5" />}
+                    disabled={save.isPending || name === "default"}
+                    onClick={() => removeRole(name)}
+                  />
+                </li>
+              );
+            })}
+            {roleEntries.length === 0 && <li className="text-xs text-muted">还没有别名。先加一个 default。</li>}
+          </ul>
+          <div className="flex flex-wrap items-end gap-2">
+            <Input
+              wrapperClassName="w-40"
+              label="新别名"
+              placeholder="taska"
+              value={roleName}
+              disabled={save.isPending}
+              onChange={(event) => setRoleName(event.target.value)}
+            />
+            <Select
+              wrapperClassName="min-w-56 flex-1"
+              label="端点"
+              options={[{ value: "", label: "选择端点…" }, ...endpoints.map((item) => ({ value: item.id, label: item.id }))]}
+              value={roleEndpoint}
+              disabled={save.isPending || endpoints.length === 0}
+              onChange={(event) => setRoleEndpoint(event.target.value)}
+            />
+            <Button
+              size="sm"
+              icon={<Plus aria-hidden="true" className="size-3.5" />}
+              disabled={roleName.trim() === "" || roleEndpoint === "" || save.isPending}
+              onClick={addRole}
+            >
+              添加
+            </Button>
           </div>
-
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-muted">审查模型集（MoA）</span>
-              <span className={reviewers.length > 0 && reviewers.length < 2 ? "text-xs text-warn" : "text-xs text-muted"}>
-                {reviewers.length} 个{reviewers.length > 0 && reviewers.length < 2 ? "，至少需要 2 个" : ""}
-              </span>
-            </div>
-            <ul className="mt-2 flex flex-col gap-1">
-              {reviewers.map((reviewer) => {
-                const endpoint = endpoints.find((item) => item.id === reviewer.id);
-                const options = withCurrentThinking(
-                  thinkingOptionsFor(modelsDevIndex, endpoint?.model ?? "", endpoint?.provider),
-                  reviewer.thinking,
-                );
-                return (
-                  <li key={reviewer.id} className="flex items-center gap-2 rounded border border-line bg-elevated/40 px-2 py-1">
-                    <code className="flex-1 truncate font-mono text-xs">{reviewer.id}</code>
-                    <Select
-                      wrapperClassName="w-36"
-                      aria-label={`思考强度 ${reviewer.id}`}
-                      options={options}
-                      value={reviewer.thinking ?? ""}
-                      disabled={save.isPending || modelsDevLoading}
-                      onChange={(event) => changeReviewerThinking(reviewer.id, event.target.value)}
-                    />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-danger"
-                      title="移除"
-                      aria-label={`移除 ${reviewer.id}`}
-                      icon={<X aria-hidden="true" className="size-3.5" />}
-                      disabled={save.isPending}
-                      onClick={() => removeReviewer(reviewer.id)}
-                    />
-                  </li>
-                );
-              })}
-              {reviewers.length === 0 && <li className="text-xs text-muted">尚未配置审查模型。</li>}
-            </ul>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Select
-                wrapperClassName="w-72"
-                aria-label="添加审查模型"
-                options={[{ value: "", label: "选择端点…" }, ...reviewerCandidates.map((endpoint) => ({ value: endpoint.id, label: endpoint.id }))]}
-                value={reviewerToAdd}
-                disabled={reviewerCandidates.length === 0 || save.isPending}
-                onChange={(event) => setReviewerToAdd(event.target.value)}
-              />
-              <Button
-                size="sm"
-                icon={<Plus aria-hidden="true" className="size-3.5" />}
-                disabled={reviewerToAdd === "" || save.isPending}
-                onClick={addReviewer}
-              >
-                添加
-              </Button>
-            </div>
-          </div>
+          <p className="text-xs text-muted">
+            派子代理用 <code className="font-mono">delegate</code>，单次调用用 <code className="font-mono">completion(prompt, model=&quot;@taska&quot;)</code>。
+          </p>
         </CardBody>
       </Card>
 
@@ -531,7 +506,7 @@ export function LlmPanel() {
           </>
         }
       >
-        <p className="text-sm text-muted">引用该端点的主模型与审查模型集会自动清理。</p>
+        <p className="text-sm text-muted">引用该端点的模型别名会自动清理。</p>
       </Dialog>
     </div>
   );

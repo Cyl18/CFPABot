@@ -25,8 +25,6 @@ const mappingSchema = z.object({
   curseforgeId: z.number().int().positive(),
 });
 
-const thinkingSchema = z.enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
-
 const llmUpdateSchema = z.object({
   endpoints: z.array(
     z.object({
@@ -40,9 +38,7 @@ const llmUpdateSchema = z.object({
       maxOutput: z.number().int().positive().optional(),
     }),
   ),
-  agent: z.string().optional(),
-  agentThinking: thinkingSchema.nullable().optional(),
-  reviewers: z.array(z.object({ id: z.string().min(1), thinking: thinkingSchema.optional() })),
+  roles: z.record(z.string(), z.string()),
   search: z
     .object({
       provider: z.string(),

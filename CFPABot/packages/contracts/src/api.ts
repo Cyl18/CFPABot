@@ -359,6 +359,22 @@ export type SessionEvent =
 export type LlmProtocol = "openai-completions" | "openai-responses" | "anthropic-messages" | "google-generative-ai";
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
+export const THINKING_LEVELS: readonly ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+
+export function parseModelSelector(value: string): { endpoint: string; thinking?: ThinkingLevel } {
+  const trimmed = value.trim();
+  const colon = trimmed.lastIndexOf(":");
+  if (colon > 0) {
+    const level = trimmed.slice(colon + 1) as ThinkingLevel;
+    if (THINKING_LEVELS.includes(level)) return { endpoint: trimmed.slice(0, colon), thinking: level };
+  }
+  return { endpoint: trimmed };
+}
+
+export function formatModelSelector(endpoint: string, thinking?: ThinkingLevel): string {
+  return thinking ? `${endpoint}:${thinking}` : endpoint;
+}
+
 export interface LlmEndpoint {
   id: string;
   provider: string;
@@ -370,11 +386,6 @@ export interface LlmEndpoint {
   maxOutput?: number;
 }
 
-export interface LlmReviewer {
-  id: string;
-  thinking?: ThinkingLevel;
-}
-
 export interface LlmSearch {
   provider: string;
   endpoint: string;
@@ -383,9 +394,7 @@ export interface LlmSearch {
 
 export interface LlmConfig {
   endpoints: LlmEndpoint[];
-  agent?: string;
-  agentThinking?: ThinkingLevel;
-  reviewers: LlmReviewer[];
+  roles: Record<string, string>;
   search?: LlmSearch;
 }
 
@@ -401,17 +410,13 @@ export interface LlmSearchView {
 
 export interface LlmConfigView {
   endpoints: LlmEndpointView[];
-  agent?: string;
-  agentThinking?: ThinkingLevel;
-  reviewers: LlmReviewer[];
+  roles: Record<string, string>;
   search: LlmSearchView | null;
 }
 
 export interface LlmConfigUpdate {
   endpoints: (Omit<LlmEndpoint, "apiKey"> & { apiKey?: string })[];
-  agent?: string;
-  agentThinking?: ThinkingLevel | null;
-  reviewers: LlmReviewer[];
+  roles: Record<string, string>;
   search?: { provider: string; endpoint?: string; apiKey?: string } | null;
 }
 
@@ -528,7 +533,7 @@ export interface SystemStatus {
   webhook: boolean;
   curseforge: boolean;
   glossary: boolean;
-  llm: { agent?: string; reviewers: string[] };
+  llm: { default?: string; roles: string[] };
   prCache: { openCount: number; refreshedAt: string | null };
   modList: { updatedAt: string | null; count: number };
   mappings: { count: number; updatedAt: string | null };

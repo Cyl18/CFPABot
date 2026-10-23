@@ -29,8 +29,12 @@ export function StatusPanel() {
           <Row label="Webhook 密钥" ok={data.webhook} />
           <Row label="CurseForge API" ok={data.curseforge} />
           <Row label="术语工具（GLOSSARY_BIN）" ok={data.glossary} />
-          <Row label="Agent 主模型" ok={data.llm.agent !== undefined} text={data.llm.agent ?? "未配置"} />
-          <Row label="审查模型集" ok={data.llm.reviewers.length >= 2} text={data.llm.reviewers.join("、") || "未配置"} />
+          <Row label="Agent 主模型" ok={data.llm.default !== undefined} text={data.llm.default ?? "未配置"} />
+          <Row
+            label="模型别名"
+            ok={data.llm.roles.length > 0}
+            text={data.llm.roles.map((role) => `@${role}`).join("、") || "未配置"}
+          />
         </CardBody>
       </Card>
 

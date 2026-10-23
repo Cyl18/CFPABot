@@ -33,6 +33,9 @@
       "maxOutput": 8192
     }
   ],
-  "agent": "openai/gpt-4o",
-  "reviewers": ["openai/gpt-4o", "anthropic/claude-sonnet-4-20260514"]
+  "roles": {
+    "default": "openai/gpt-4o:medium",
+    "taska": "anthropic/claude-sonnet-4-20260514:high",
+    "taskb": "local/qwen3-32b"
+  }
 }

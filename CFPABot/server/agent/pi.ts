@@ -1,11 +1,63 @@
 import { existsSync } from "node:fs";
 import {
+  discoverAuthStorage,
+  ModelRegistry,
   SessionManager,
+  Settings,
+  type AuthStorage,
   type SessionEntry,
 } from "@oh-my-pi/pi-coding-agent";
 import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
+import type { LlmEndpoint } from "../../shared/api.ts";
 import { paths } from "../paths.ts";
 import type { SessionRecord } from "./sessions.ts";
+
+export async function openAuthStorage(endpoints: LlmEndpoint[]): Promise<AuthStorage> {
+  const authStorage = await discoverAuthStorage(paths.piAgent);
+  for (const endpoint of endpoints) {
+    if (endpoint.apiKey) authStorage.keys.setRuntime(endpoint.provider, endpoint.apiKey);
+  }
+  return authStorage;
+}
+
+export async function openModelRuntime(
+  authStorage: AuthStorage,
+  endpoints: LlmEndpoint[],
+  roles: Record<string, string>,
+): Promise<{ settings: Settings; registry: ModelRegistry }> {
+  const settings = await Settings.init({ cwd: paths.root, agentDir: paths.piAgent });
+  settings.overrideModelRoles(roles);
+  const registry = new ModelRegistry(authStorage);
+  const byProvider = new Map<string, LlmEndpoint[]>();
+  for (const endpoint of endpoints) {
+    if (!endpoint.apiKey) continue;
+    byProvider.set(endpoint.provider, [...(byProvider.get(endpoint.provider) ?? []), endpoint]);
+  }
+  for (const [provider, list] of byProvider) {
+    const first = list[0];
+    if (!first) continue;
+    registry.registerProvider(
+      provider,
+      {
+        baseUrl: first.baseUrl,
+        apiKey: first.apiKey,
+        api: first.protocol,
+        models: list.map((endpoint) => ({
+          id: endpoint.model,
+          name: endpoint.id,
+          api: endpoint.protocol,
+          reasoning: true,
+          input: ["text"],
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          contextWindow: endpoint.contextWindow ?? 128_000,
+          maxTokens: endpoint.maxOutput ?? 8192,
+        })),
+      },
+      "cfpa",
+    );
+  }
+  return { settings, registry };
+}
 
 export async function openSessionManager(record: SessionRecord): Promise<SessionManager> {
   if (record.sessionFile && existsSync(record.sessionFile)) {

@@ -89,13 +89,15 @@ Agent 会话需要 `config/llm.json`（**不入库**）：
       "thinking": "medium"
     }
   ],
-  "agent": "openai/gpt-4o",
-  "reviewers": ["openai/gpt-4o"]
+  "roles": {
+    "default": "openai/gpt-4o:medium",
+    "taska": "openai/gpt-4o"
+  }
 }
 ```
 
 - `protocol`：`openai-completions` / `openai-responses` / `anthropic-messages` / `google-generative-ai`
-- `agent`：默认模型（endpoint 的 `id`）；`reviewers`：审查用的模型列表
+- `roles`：模型别名，值为 `<endpoint id>[:<thinking>]`，思考强度绑在别名上；`default` 是主模型，其余别名用 `delegate` 工具派子代理，或在 eval 里 `await completion(prompt, model="@taska")` 单次调用
 - 也可以登录面板后在「管理 → LLM」里增删端点，保存时写回这个文件
 - 没有可用模型时仍能创建会话，但错误会显示在会话里，配好模型后直接再发消息即可
 

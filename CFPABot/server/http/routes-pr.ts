@@ -13,6 +13,7 @@ import { prdata } from "../prdata.ts";
 import { getCheckReport, isRefreshing, refreshInfoComment } from "../bot/index.ts";
 import { track } from "../bot/pending.ts";
 import { llm } from "../agent/index.ts";
+import { parseRoleSelector } from "../agent/llm-providers.ts";
 import { loadPack, packSummary } from "../agent/pack.ts";
 import { prDetail } from "../views/pr.ts";
 import { compareWorkspace } from "../views/workspace.ts";
@@ -92,8 +93,8 @@ prRoutes.get("/status", async (c) => {
     curseforge: Boolean(env.CURSEFORGE_API_KEY),
     glossary: Boolean(env.GLOSSARY_BIN),
     llm: {
-      agent: config.endpoints.find((endpoint) => endpoint.id === config.agent)?.id ?? config.endpoints[0]?.id,
-      reviewers: config.reviewers.map((reviewer) => reviewer.id),
+      default: parseRoleSelector(config.roles.default ?? "").endpoint || config.endpoints[0]?.id,
+      roles: Object.keys(config.roles).filter((role) => role !== "default"),
     },
     prCache: prdata.stats(),
     modList: { updatedAt: modList?.updatedAt ?? null, count: modList?.mods.length ?? 0 },

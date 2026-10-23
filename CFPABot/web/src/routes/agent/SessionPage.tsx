@@ -8,6 +8,7 @@ import type {
   ThinkingLevel,
   WriteScope,
 } from "@shared/api.ts";
+import { parseModelSelector } from "@shared/api.ts";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Archive, Ban, Bot, Brain, Cpu, GitPullRequest, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -247,7 +248,8 @@ export function SessionPage({ id }: { id: string }) {
     { value: "", label: "默认模型" },
     ...(llm.data?.endpoints ?? []).map((endpoint) => ({ value: endpoint.id, label: endpoint.id })),
   ];
-  const sessionModelId = meta.model || llm.data?.agent || llm.data?.endpoints[0]?.id || "";
+  const sessionModelId =
+    meta.model || parseModelSelector(llm.data?.roles.default ?? "").endpoint || llm.data?.endpoints[0]?.id || "";
   const sessionEndpoint = llm.data?.endpoints.find((endpoint) => endpoint.id === sessionModelId);
   const thinkingOptions: readonly PickerOption[] = withCurrentThinking(
     thinkingOptionsFor(modelsDevIndex, sessionEndpoint?.model ?? "", sessionEndpoint?.provider),

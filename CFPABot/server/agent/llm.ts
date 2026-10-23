@@ -6,7 +6,6 @@ import type {
   LlmConfigUpdate,
   LlmConfigView,
   LlmEndpoint,
-  LlmReviewer,
   LlmSearch,
   ProbeModelsRequest,
   ThinkingLevel,
@@ -15,17 +14,13 @@ import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
 import { readJson, writeJson } from "../store.ts";
 import { probeModels } from "./llm-probe.ts";
-import { buildModel, defaultBaseUrl, endpointId, effortOf, normalizeBaseUrl } from "./llm-providers.ts";
+import { buildModel, defaultBaseUrl, endpointId, effortOf, formatRoleSelector, normalizeBaseUrl, parseRoleSelector } from "./llm-providers.ts";
 
 const log = logger("llm");
 const CONFIG_PATH = join(paths.config, "llm.json");
 const TEST_TIMEOUT_MS = 30_000;
 const THINKING = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 const thinkingSchema = z.enum(THINKING);
-const reviewerSchema = z.union([
-  z.string().min(1),
-  z.object({ id: z.string().min(1), thinking: thinkingSchema.optional() }),
-]);
 
 const storedSchema = z.object({
   id: z.string().optional(),
@@ -47,9 +42,9 @@ const searchSchema = z.object({
 
 const configSchema = z.object({
   endpoints: z.array(storedSchema).default([]),
+  roles: z.record(z.string(), z.string()).default({}),
   agent: z.string().optional(),
   agentThinking: thinkingSchema.optional(),
-  reviewers: z.array(reviewerSchema).default([]),
   search: searchSchema.optional(),
 });
 
@@ -77,23 +72,28 @@ export async function loadConfig(): Promise<LlmConfig> {
   const parsed = configSchema.safeParse(raw ?? {});
   if (!parsed.success) {
     log.warn("LLM 配置无法解析，按未配置处理", { path: CONFIG_PATH });
-    cache = { endpoints: [], reviewers: [] };
+    cache = { endpoints: [], roles: {} };
     return cache;
   }
-  const agent = parsed.data.agent;
-  const legacyThinking = new Map(
-    parsed.data.endpoints.map((raw) => [endpointId(raw.provider.trim(), raw.model.trim()), raw.thinking] as const),
-  );
-  const agentThinking = parsed.data.agentThinking ?? (agent ? legacyThinking.get(agent) : undefined);
+  const endpoints = parsed.data.endpoints.map(normalizeEndpoint);
+  const ids = new Set(endpoints.map((endpoint) => endpoint.id));
+  const roles: Record<string, string> = {};
+  for (const [name, selector] of Object.entries(parsed.data.roles)) {
+    const role = name.trim();
+    const parsedRole = parseRoleSelector(selector);
+    if (role !== "" && ids.has(parsedRole.endpoint)) roles[role] = formatRoleSelector(parsedRole.endpoint, parsedRole.thinking);
+  }
+  if (roles.default === undefined) {
+    const legacyThinking = new Map(
+      parsed.data.endpoints.map((raw) => [endpointId(raw.provider.trim(), raw.model.trim()), raw.thinking] as const),
+    );
+    const agent = parsed.data.agent?.trim();
+    const thinking = parsed.data.agentThinking ?? (agent ? legacyThinking.get(agent) : undefined);
+    if (agent && ids.has(agent)) roles.default = formatRoleSelector(agent, thinking);
+  }
   cache = {
-    endpoints: parsed.data.endpoints.map(normalizeEndpoint),
-    ...(agent ? { agent } : {}),
-    ...(agentThinking ? { agentThinking } : {}),
-    reviewers: parsed.data.reviewers.map((raw) => {
-      const id = typeof raw === "string" ? raw : raw.id;
-      const thinking = (typeof raw === "string" ? undefined : raw.thinking) ?? legacyThinking.get(id);
-      return { id, ...(thinking ? { thinking } : {}) };
-    }),
+    endpoints,
+    roles,
     ...(parsed.data.search && parsed.data.search.provider
       ? { search: { ...parsed.data.search, provider: parsed.data.search.provider.trim() } }
       : {}),
@@ -109,14 +109,14 @@ export async function resolveModel(
     return { model: override, apiKey: undefined, endpoint: null, thinking: thinkingOverride };
   }
   const config = await loadConfig();
+  const defaultRole = config.roles.default === undefined ? undefined : parseRoleSelector(config.roles.default);
   const endpoint = id
     ? config.endpoints.find((e) => e.id === id)
-    : config.endpoints.find((e) => e.id === config.agent) ?? config.endpoints[0];
+    : config.endpoints.find((e) => e.id === defaultRole?.endpoint) ?? config.endpoints[0];
   if (!endpoint) {
     throw new Error(id ? `未找到 LLM 端点 ${id}` : "尚未配置任何 LLM 端点");
   }
-  const isDefault = config.agent ? endpoint.id === config.agent : endpoint.id === config.endpoints[0]?.id;
-  const thinking = thinkingOverride ?? (isDefault ? config.agentThinking : undefined);
+  const thinking = thinkingOverride ?? (endpoint.id === defaultRole?.endpoint ? defaultRole?.thinking : undefined);
   return { model: buildModel(endpoint, thinking), apiKey: endpoint.apiKey || undefined, endpoint, thinking };
 }
 
@@ -136,9 +136,7 @@ function toView(config: LlmConfig): LlmConfigView {
       maxOutput: endpoint.maxOutput,
       hasKey: endpoint.apiKey.length > 0,
     })),
-    agent: config.agent,
-    ...(config.agentThinking ? { agentThinking: config.agentThinking } : {}),
-    reviewers: config.reviewers.map((reviewer) => ({ ...reviewer })),
+    roles: { ...config.roles },
     search:
       config.search === undefined
         ? null
@@ -214,24 +212,18 @@ export const llm = {
       );
     }
     const ids = new Set(endpoints.map((endpoint) => endpoint.id));
-    const agent = input.agent === undefined ? current.agent : input.agent.trim() || undefined;
-    if (agent && !ids.has(agent)) throw new Error(`agent 模型 ${agent} 不在端点列表中`);
-    const agentThinking = input.agentThinking === undefined ? current.agentThinking : input.agentThinking ?? undefined;
-    const reviewers: LlmReviewer[] = [];
-    const seen = new Set<string>();
-    for (const raw of input.reviewers) {
-      const id = raw.id.trim();
-      if (!ids.has(id)) throw new Error(`reviewer 模型 ${id} 不在端点列表中`);
-      if (seen.has(id)) continue;
-      seen.add(id);
-      reviewers.push({ id, ...(raw.thinking ? { thinking: raw.thinking } : {}) });
+    const roles: Record<string, string> = {};
+    for (const [rawName, rawSelector] of Object.entries(input.roles)) {
+      const name = rawName.trim();
+      if (!/^[A-Za-z0-9_-]+$/.test(name)) throw new Error(`别名 ${rawName} 只能包含字母、数字、下划线和连字符`);
+      const parsedRole = parseRoleSelector(rawSelector);
+      if (!ids.has(parsedRole.endpoint)) throw new Error(`别名 ${name} 指向的端点 ${parsedRole.endpoint} 不在端点列表中`);
+      roles[name] = formatRoleSelector(parsedRole.endpoint, parsedRole.thinking);
     }
     const search = nextSearch(current.search, input.search);
     const next: LlmConfig = {
       endpoints,
-      ...(agent ? { agent } : {}),
-      ...(agentThinking ? { agentThinking } : {}),
-      reviewers,
+      roles,
       ...(search ? { search } : {}),
     };
     await writeJson(CONFIG_PATH, next, 0o600);
@@ -243,8 +235,8 @@ export const llm = {
     const config = await loadConfig();
     const endpoint = config.endpoints.find((e) => e.id === endpointIdToTest);
     if (!endpoint) return { ok: false, error: `未找到端点 ${endpointIdToTest}` };
-    const isDefault = config.agent ? endpoint.id === config.agent : endpoint.id === config.endpoints[0]?.id;
-    const thinking = isDefault ? config.agentThinking : undefined;
+    const defaultRole = config.roles.default === undefined ? undefined : parseRoleSelector(config.roles.default);
+    const thinking = endpoint.id === defaultRole?.endpoint ? defaultRole?.thinking : undefined;
     const model = buildModel(endpoint, thinking);
     try {
       const response = await completeSimple(
