@@ -1,4 +1,5 @@
 import type { DraftComment, ReviewDraft, Severity, Verdict } from "@shared/api.ts";
+import { MQM_BY_ID, mqmLabel } from "@shared/mqm.ts";
 import { ExternalLink, Save, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { SeverityBadge, VerdictBadge, VERDICT_OPTIONS } from "@/components/StatusBadges.tsx";
@@ -78,7 +79,9 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
             <div key={comment.id} className="rounded-md border border-line bg-elevated/40 p-2.5">
               <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                 <SeverityBadge severity={comment.severity} />
-                <Badge tone="info">{comment.mqm}</Badge>
+                <Badge tone="info" title={MQM_BY_ID.get(comment.mqm)?.rule}>
+                  {mqmLabel(comment.mqm)}
+                </Badge>
                 {comment.suspected === true && <Badge tone="warn">疑似</Badge>}
                 <code className="min-w-0 truncate font-mono text-[11px] text-muted" title={`${comment.path}:${comment.line}`}>
                   {comment.path}:{comment.line}
@@ -213,7 +216,9 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
                 <li key={comment.id} className="rounded border border-line p-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <SeverityBadge severity={comment.severity} />
-                    <Badge tone="info">{comment.mqm}</Badge>
+                    <Badge tone="info" title={MQM_BY_ID.get(comment.mqm)?.rule}>
+                      {mqmLabel(comment.mqm)}
+                    </Badge>
                     <code className="font-mono text-xs text-muted">
                       {comment.path}:{comment.line}
                     </code>

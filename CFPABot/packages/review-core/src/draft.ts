@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { DraftComment, ReviewDraft, Severity, Verdict } from "@cfpa/contracts/api";
+import { MQM_BY_ID } from "@cfpa/contracts/mqm";
 import { inHunks, patchHunks } from "./domain/diff.ts";
 
 export const draftInputSchema = z.object({
@@ -66,7 +67,8 @@ export function serializeDraftFile(draft: ReviewDraft): string {
 }
 
 export interface DraftContext {
-  patches: Map<string, string | undefined>;
+  /** 省略时只校验草稿自身；发布路径必须提供，用于核对行号落在 diff hunk 内。 */
+  patches?: Map<string, string | undefined>;
 }
 
 const SEVERITIES: Severity[] = ["critical", "major", "minor", "neutral"];
@@ -80,18 +82,32 @@ export function validateDraft(
   if (!VERDICT_LABEL[draft.verdict]) errors.push(`verdict 非法: ${draft.verdict}`);
   if (!draft.summary.trim()) errors.push("summary 不能为空");
   if (!Number.isInteger(draft.prNumber) || draft.prNumber <= 0) errors.push("prNumber 非法");
+  if (!draft.headSha?.trim()) errors.push("headSha 不能为空");
+  const seen = new Map<string, number>();
   draft.comments.forEach((comment, index) => {
     const where = `${index + 1}. ${comment.path}:${comment.line}`;
     if (!comment.path.trim()) errors.push(`${where}: path 不能为空`);
     if (!Number.isInteger(comment.line) || comment.line <= 0) errors.push(`${where}: line 必须是正整数`);
     if (!SEVERITIES.includes(comment.severity)) errors.push(`${where}: severity 非法: ${comment.severity}`);
     if (!comment.body.trim()) errors.push(`${where}: body 不能为空`);
+    if (typeof comment.mqm !== "string" || !MQM_BY_ID.has(comment.mqm)) {
+      const [dim = "", leaf = ""] = typeof comment.mqm === "string" ? comment.mqm.split("/") : [];
+      const known = [...MQM_BY_ID.keys()].filter((id) => id.startsWith(`${dim}/`) || (leaf !== "" && id.endsWith(`/${leaf}`)));
+      errors.push(
+        `${where}: mqm 不在词表中: ${comment.mqm}${known.length > 0 ? `（可用：${known.join("、")}）` : ""}`,
+      );
+    }
+    const slot = `${comment.path}\u0000${comment.key}`;
+    const first = seen.get(slot);
+    if (first !== undefined) errors.push(`${where}: key 重复（与第 ${first} 条同 path 同 key），其余实例放进 covers`);
+    else seen.set(slot, index + 1);
     if (comment.covers && comment.covers.length > 0 && comment.suggestion) {
       errors.push(`${where}: covers 非空时不能同时给 suggestion`);
     }
     if (comment.suspected && (comment.severity === "critical" || comment.severity === "major")) {
       errors.push(`${where}: 存疑项 severity 不能高于 minor`);
     }
+    if (ctx.patches === undefined) return;
     if (!ctx.patches.has(comment.path)) {
       errors.push(`${where}: 该文件不在本次 PR 变更中`);
       return;
@@ -109,6 +125,23 @@ export function validateDraft(
   return errors;
 }
 
+const SEVERITY_RANK: Record<Severity, number> = { critical: 4, major: 3, minor: 2, neutral: 1 };
+
+/** 档位低于词表默认值的条目，只提示不拦。 */
+export function severityWarnings(draft: Pick<ReviewDraft, "comments">): string[] {
+  const warnings: string[] = [];
+  for (const comment of draft.comments) {
+    const type = MQM_BY_ID.get(comment.mqm);
+    if (type === undefined || comment.suspected === true) continue;
+    if (SEVERITY_RANK[comment.severity] < SEVERITY_RANK[type.severity]) {
+      warnings.push(
+        `${comment.path}:${comment.line} ${comment.key}: ${type.label}默认档位 ${type.severity}，当前 ${comment.severity}；后果确实更轻才保留`,
+      );
+    }
+  }
+  return warnings;
+}
+
 export function foldDisplayBreaks(text: string): string {
   return text
     .replace(/\r\n?/g, "\n")
@@ -122,8 +155,9 @@ export function foldDisplayBreaks(text: string): string {
 
 export function renderInlineBody(comment: DraftComment): string {
   const covers = comment.covers?.length ?? 0;
+  const type = MQM_BY_ID.get(comment.mqm);
   const parts = [
-    `\`${comment.severity}\` · ${comment.mqm}${covers > 0 ? ` · covers ${covers} key` : ""}`,
+    `\`${comment.severity}\` · ${type === undefined ? comment.mqm : `${type.label}（${comment.mqm}）`}${covers > 0 ? ` · covers ${covers} key` : ""}`,
   ];
   if (comment.en !== undefined) parts.push(`原文：\n\`\`\`\n${foldDisplayBreaks(comment.en)}\n\`\`\``);
   if (comment.zh !== undefined) parts.push(`译文：\n\`\`\`\n${foldDisplayBreaks(comment.zh)}\n\`\`\``);

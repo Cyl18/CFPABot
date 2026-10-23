@@ -1,98 +1,49 @@
 ---
 name: review
-description: PR 翻译审查流程、盲审公理、draft 与行内评论形状、MQM 受控词表；审查 PR 时必须先读。
+description: PR 翻译审查：取行、裁定、落草稿。审查 PR 前必须读。
 ---
 
-# 翻译审查流程（review 模式）
+# 审查
 
-## 硬约束
+你审的是一个 Minecraft 模组翻译 PR。产出是草稿，发布由人决定。
 
-1. 只审 diff 里的 changes，不做跨版本全量扫。
-2. `program` 提示是机械预审，只作参考；结论必须能指回 key、原文、译文、行号。
-3. `mqm` 只能取本文档里的受控词表，不许自编。
-4. 行号必须落在 `read pr://<n>/review/rows` 标记为 `inHunk` 的 head 行上。
-5. 非 `suspected` 且 `covers` 为空的意见必须给 `suggestion`。
-6. `suspected` 的 severity 不高于 minor；没有依据不判 major。
-7. 没有发现问题就如实说明，不要编造意见。
-8. 草稿固定写 `local://draft.json`；发布时服务端会重新校验 headSha 和草稿结构。
+## 流程
 
-## 步骤
+1. `read pr://<n>/review/rows?filter=changed` 取逐 key 行。`findings` 是程序预审，已经在查占位符、色码、换行、全半角、术语、键集和 JSON 语法，不用你再算一遍。
+2. 审 `changed` 且 `inHunk` 的行。判不准时用 `?query=` 找同类，确认是模式还是单点。
+3. `write local://draft.json`，再跑 `bash bun "$CFPA_ROOT/skills/review/scripts/check-draft.mjs" local://draft.json`，改到通过。
+4. 发布时服务端重验 `headSha` 和行号，草稿过期会被打回重审。
 
-1. **取上下文**：`read pr://<n>` 看规模与变更文件；`read pr://<n>/comments` 读既有讨论；`read pr://<n>/meta` 看检查结果与工作区。
-2. **加载审查数据**：`read pr://<n>/review/rows` 生成/读取逐 key 审查行。程序提示（program）是机械预审结论，只作参考，不是最终意见。可用 `?filter=changed|flagged|all`、`?workspace=`、`?query=`、`?offset=`、`?limit=` 过滤，`?rebuild=1` 强制重建。
-3. **精审**：逐条审阅 changed 行；`program` 提示是机械预审结论，只作参考，不是最终意见。对可疑项用 `read pr://<n>/review/rows?query=` 搜索同类，确认不是单点误判。
-4. **核对依据**：可疑的译名或句式用 `glossary` 查原版术语与词典；怀疑是批量问题时用 `read pr://<n>/review/rows?query=` 全文搜索同类。
-5. **落草稿**：`write local://<文件名>.json` 保存 verdict、主评论与行内评论。`write` 只是写文件，不做校验；文件名随意，建议 `draft.json`。写完后跑检查器（见下节）。允许写 GitHub 时，把 JSON 内容直接写给 `write pr://<n>/review` 发布；否则由管理员在面板发布。
+草稿：`{prNumber, headSha, verdict, summary, comments[]}`。每条评论 `path/line/key/severity/mqm/body`，`en`/`zh` 填该行原文与译文；`suggestion` 是整行替换后的译文，`covers` 非空时不给；`suspected` 的档位不超过 minor。
 
-   draft JSON 最小形状：`{ "prNumber": <n>, "headSha": "<当前 head>", "verdict": "approve|changes|reject", "summary": "...", "comments": [...] }`；`comments` 每项至少含 `path`、`line`、`key`、`severity`、`mqm`、`body`，`id` 与 `updatedAt` 可由服务端补。`headSha` 从 `read pr://<n>` 取。
+`summary` 只写正文，首行统计和免责脚注由服务端生成。`body` 只写原因，标题里的档位与分类也由服务端拼。
 
-## 检查器
+`verdict`：有必改项用 `changes`，整体方向错才 `reject`，没有必改项才 `approve`。
 
-`bash` 运行 `bun "$CFPA_ROOT/skills/review/scripts/check-draft.mjs" <文件>`。
-只查 draft 结构、severity、suggestion/covers、suspected 与 MQM 词表；行号、headSha 由发布时服务端校验。
+## 裁定
 
-## 盲审公理
+这七条代码判不了，但决定结论。括号里是理由。
 
-1. **只看 changes**：英文原文的改动都在 diff 里，不用跨版本全量扫。
-2. **机械预审是刚需**：占位符、§色码、换行、首尾空格、全半角标点、漏译先靠程序提示全扫一遍。
-3. **批量错模式→全文通查该 pattern**：发现一个术语或体例问题，用 `read pr://<n>/review/rows?query=` 抓全文同类。
-4. **受控词表是 join key**：`mqm` 只能用下面受控词表里的全形 `Dim/type`，不许自编。
-5. **旧译有误才改，改必联动**：修一处就联动修全文件同类。
-6. **Formatter 只单向崩**：实参多于占位安全（忽略），占位多于实参才崩。`zh 所需 > en 所需` 才是 critical；zh 少占位（含复数、换序、跳号）是 neutral。
-7. **severity 四档**：critical=撞车/崩溃/完全反义；major=错义/漏译/关键术语错；minor=体例/标点/风格；neutral=灰区。不确定就标 minor 或 neutral。
-8. **一致性≠正确**：全文件统一只能证明没有分裂，不能证明译对。一致性信息只用来发现分裂，不用来证明正确、更不用来放行。
-9. **无依据不判 major**：跨 key 统一、游戏机制、数值、物品显示名，没有 glossary/原版/可核来源时标 suspected，不判 major。疑似上游英文有错时标 neutral 并注明，不判 `Accuracy/mistranslation`。
-10. **neta/花式标题放行**：绵羊梗、乐队梗、字幕组梗等亚文化项不判——你是 LLM，这是你的系统性盲区，收手。
-11. **同 pattern 只报一条**：批量术语或体例问题压缩为一条评论（首现 key 用 path+line 定位），其余实例进 `covers`（本条 key 不进），body 写 pattern 而不是逐条复读。
+1. **一致性不是正确性。**（全库统一只证明没有分裂）不要拿「都这么译」当放行依据。
+2. **上游英文可能自己就错。**（错在原文，不在译文）用 `source/defect` + neutral，不判 `accuracy/*`。
+3. **亚文化梗放行。**（LLM 的系统性盲区）绵羊梗、乐队梗、字幕组梗，看不懂就不判。
+4. **没依据不判 major。**（机制、数值、显示名需要可核来源）没有 glossary 或原版依据时标 `suspected`。
+5. **同一 pattern 只报一条。**（逐条复读会淹掉结论）首现 key 用 path+line，其余进 `covers`，body 写 pattern。
+6. **占位符只单向致命。**（zh 多占位会有值没处放）zh 需要多于 en 才 critical，zh 少占位是 neutral；`findings` 已经算过。
+7. **档位按后果定，不按词表默认。**（同样错译，物品名和剧情台词后果不同）玩家会做错选择、崩溃、反义 → critical；错义、漏译、关键术语 → major；读得通但别扭 → minor；拿不准 → neutral 或 suspected。
 
-## 主评论形状（`summary`）
+## mqm
 
-```
-major 一览（{M} 条，见 inline）：
-- {key 短名}：{一句话问题}（{建议译法/备注}）
+取 `<dim>/<type>`，只能用这些 id：
 
-[存疑 {k} 条（minor，未计入 major，请先核对游戏）：]
-[- {key}：{分歧描述}——{核对动作}后再定]
-
-{对齐/占位/标点预审结论，一句。}
-```
-
-首行「本批共 N 条 inline（major M / minor m），verdict：**…**。」与脚注由系统按实际条目生成，**不要自己写**。
-存疑项永不进 major 一览，单列「存疑」节。
-
-## 行内评论形状
-
-- `en` / `zh` 填该行原文与译文；`body` 只写散文原因，不要自己拼标题（severity、mqm、原文/译文块由系统生成）。
-- `suggestion` 给替换后的整行译文；`covers` 为空且非 `suspected` 时必须给 suggestion（系统会拒收），`covers` 非空时不要给 suggestion。
-- 同一 pattern 压缩成一条：首现 key 用 `path` + `line` 定位，`covers` 只列其余实例。
-- `suspected: true` 的条目 severity 不高于 minor。
-- 行号必须落在 `read pr://<n>/review/rows` 标记为 `inHunk` 的 head 行上，否则会被拒收。
-
-## 批量检查（`evalScope=run` 时）
-
-- `read pr://<n>/review/rows?filter=changed` 拿逐 key 行；需要整份数据时用 `write local://rows.json` 落盘。
-- 用 `eval`（py/js，持久 kernel）做 JSON 解析、正则、统计；用 `bash` 做 grep/rg/git。
-- 只打印摘要，不要把整份语言文件粘进对话。
-- 批量问题压缩成一条评论，其余实例进 `covers`。
-
-## verdict
-
-- `approve` 可合：没有必须修改的问题。
-- `changes` 需改后合：存在需要修改的问题，但不至于整体退回。
-- `reject` 退回：整体质量不达标或方向错误。
+- `accuracy` 准确：`mistranslation` 错译、`omission` 漏译、`addition` 擅加、`untranslated` 应译未译、`overly-literal` 死译、`wrong-entry` 串条、`reversed` 反义
+- `terminology` 术语：`wrong-term` 错术语、`inconsistent` 术语不一致、`inappropriate` 术语误用、`resource` 违反术语资源
+- `fluency` 流畅：`punctuation` 标点、`spacing` 空格、`grammar` 语法、`word-order` 语序、`typo` 错字、`encoding` 字符编码
+- `style` 风格：`awkward` 生硬、`inconsistent` 体例不一、`house-style` 违反项目体例、`register` 语域漂移
+- `locale` 本地化格式：`placeholder` 占位符、`format-code` 格式码、`units` 单位、`number` 数字日期、`fullwidth` 全半角
+- `design` 呈现：`overflow` 截断溢出、`glyph` 缺字形、`markup` 标记破坏
+- `source` 原文：`defect` 原文有误
 
 ## 子代理
 
-`read pr://<n>/meta` 返回的 `localRoot` 是 PR head 文件的物化目录（只含变更文件）；仓库工作树在 `runtime/work/repo`。
-
-派生子代理时把 `localRoot` 写进 prompt，让子代理直接用 `read`/`grep`/`bash` 走文件系统。子代理没有 `repo://`/`pr://` 资源，不要把资源 URI 交给它。
-
-## MQM 受控词表
-
-`mqm` 必须取以下全形 `Dim/type`，不许自编：
-
-- Terminology 术语：`Terminology/wrong-term`（错术语）[major]、`Terminology/inappropriate-for-context`（术语误用于语境）[major]、`Terminology/inconsistent-use`（术语不一致）[major]、`Terminology/inconsistent-with-resource`（违反术语资源）[minor]
-- Accuracy 准确：`Accuracy/mistranslation`（错译）[major]、`Accuracy/omission`（漏译）[major]、`Accuracy/addition`（擅加）[minor]、`Accuracy/untranslated`（应译未译）[major]、`Accuracy/overly-literal`（死译）[minor]
-- Fluency 流畅：`Fluency/punctuation`（标点）[minor]、`Fluency/grammar`（语法）[minor]、`Fluency/word-order`（语序）[minor]、`Fluency/typo`（错字）[minor]、`Fluency/character-encoding`（字符编码）[minor]
-- Style 风格：`Style/awkward`（生硬）[minor]、`Style/inconsistent-style`（体例不一）[minor]、`Style/company-style`（违反自家体例）[minor]
-- Locale 本地化格式：`Locale/units`（单位）[minor]、`Locale/number-format`（数字日期格式）[minor]、`Locale/format-code`（格式代码）[major]
+`read pr://<n>/meta` 的 `localRoot` 是 head 文件的物化目录，仓库工作树在 `runtime/work/repo`。子代理拿不到 `pr://`/`repo://`，把路径写进 prompt 让它们走文件系统。

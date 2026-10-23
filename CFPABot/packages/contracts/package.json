@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./api": "./src/api.ts",
-    "./diffview": "./src/diffview.ts"
+    "./diffview": "./src/diffview.ts",
+    "./mqm": "./src/mqm.ts"
   }
 }

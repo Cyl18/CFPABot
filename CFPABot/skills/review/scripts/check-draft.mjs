@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { severityWarnings, validateDraft } from "../../../packages/review-core/src/draft.ts";
 
 const file = process.argv[2];
 if (!file) {
@@ -14,61 +15,23 @@ try {
   process.exit(2);
 }
 
-const errors = [];
-const verdicts = new Set(["approve", "changes", "reject"]);
-const severities = new Set(["critical", "major", "minor", "neutral"]);
-
-const section = (await readFile(new URL("../SKILL.md", import.meta.url), "utf8")).split("## MQM 受控词表")[1] ?? "";
-const knownMqm = new Set(
-  [...section.matchAll(/`([A-Za-z]+\/[A-Za-z-]+)`/g)].map((match) => match[1]).filter((id) => id !== "Dim/type"),
-);
-if (knownMqm.size === 0) {
-  console.error("无法从 SKILL.md 解析 MQM 词表");
-  process.exit(2);
+const shape = [];
+if (draft === null || typeof draft !== "object") shape.push("draft 必须是对象");
+if (typeof draft?.summary !== "string") shape.push("summary 必须是字符串");
+if (!Array.isArray(draft?.comments)) shape.push("comments 必须是数组");
+else if (draft.comments.some((comment) => comment === null || typeof comment !== "object")) {
+  shape.push("comments 的每一项必须是对象");
+}
+if (shape.length > 0) {
+  console.error(shape.join("\n"));
+  process.exit(1);
 }
 
-if (!verdicts.has(draft.verdict)) errors.push(`verdict 非法: ${draft.verdict}`);
-if (typeof draft.summary !== "string" || draft.summary.trim() === "") errors.push("summary 不能为空");
-if (!Number.isInteger(draft.prNumber) || draft.prNumber <= 0) errors.push("prNumber 非法");
-if (draft.headSha !== undefined && (typeof draft.headSha !== "string" || draft.headSha.trim() === "")) {
-  errors.push("headSha 非法");
-}
-
-if (!Array.isArray(draft.comments)) {
-  errors.push("comments 必须是数组");
-} else {
-  draft.comments.forEach((comment, index) => {
-    const where = `${index + 1}. ${comment?.path ?? "?"}:${comment?.line ?? "?"}`;
-    if (typeof comment?.path !== "string" || comment.path.trim() === "") errors.push(`${where}: path 不能为空`);
-    if (!Number.isInteger(comment?.line) || comment.line <= 0) errors.push(`${where}: line 必须是正整数`);
-    if (typeof comment?.key !== "string") errors.push(`${where}: key 必须是字符串`);
-    if (!severities.has(comment?.severity)) errors.push(`${where}: severity 非法: ${comment?.severity}`);
-    if (typeof comment?.mqm !== "string" || comment.mqm.trim() === "") errors.push(`${where}: mqm 不能为空`);
-    else if (!knownMqm.has(comment.mqm)) errors.push(`${where}: mqm 不在 SKILL.md 词表中: ${comment.mqm}`);
-    if (typeof comment?.body !== "string" || comment.body.trim() === "") errors.push(`${where}: body 不能为空`);
-    if (comment?.covers !== undefined && !Array.isArray(comment.covers)) errors.push(`${where}: covers 必须是数组`);
-    if (comment?.suggestion !== undefined && typeof comment.suggestion !== "string") {
-      errors.push(`${where}: suggestion 必须是字符串`);
-    }
-    if ((comment?.covers?.length ?? 0) > 0 && comment?.suggestion !== undefined) {
-      errors.push(`${where}: covers 非空时不能同时给 suggestion`);
-    }
-    if (comment?.suspected === true && (comment.severity === "critical" || comment.severity === "major")) {
-      errors.push(`${where}: 存疑项 severity 不能高于 minor`);
-    }
-    if (
-      comment?.suspected !== true &&
-      (comment?.covers?.length ?? 0) === 0 &&
-      (typeof comment?.suggestion !== "string" || comment.suggestion.trim() === "")
-    ) {
-      errors.push(`${where}: 非存疑且没有 covers 的意见必须给 suggestion`);
-    }
-  });
-}
-
+const errors = validateDraft(draft, {});
+const warnings = severityWarnings(draft);
+if (warnings.length > 0) console.error(["提示（不拦截）：", ...warnings].join("\n"));
 if (errors.length > 0) {
   console.error(errors.join("\n"));
   process.exit(1);
 }
-
-console.log(`ok: ${draft.comments.length} 条 inline；行号、headSha 由发布时服务端校验`);
+console.log(`ok: ${draft.comments.length} 条 inline；行号与 headSha 由发布时服务端校验`);

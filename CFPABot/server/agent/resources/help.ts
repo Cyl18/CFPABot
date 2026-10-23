@@ -99,7 +99,7 @@ local:// 写入不经过 writeScope，也不会发到 GitHub；发布时才校�
 
 按技能名读取已加载的技能文件：skill://review。
 行范围：:N 或 :N-M；子路径相对于技能目录，禁止越界。
-审查流程、盲审公理、draft 形状和 MQM 词表都在 skill://review。`,
+审查流程、裁定、draft 形状和 MQM 词表都在 skill://review。`,
 };
 
 export function readHelp(uri: HelpUri): AgentToolResult<Record<string, unknown>> {
