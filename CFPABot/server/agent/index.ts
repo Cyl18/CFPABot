@@ -24,8 +24,8 @@ import { paths } from "../paths.ts";
 import { type ToolContext } from "./context.ts";
 import { DRAFT_FILE, draftInputSchema, parseDraftFile, serializeDraftFile, validateDraft, type DraftContext } from "./draft.ts";
 import { SessionHub } from "./events.ts";
-import { loadConfig, llm, resolveModel, setModelForTest } from "./llm.ts";
-import { reasoningOf } from "./llm-providers.ts";
+import { applySearchEnv, loadConfig, llm, resolveModel, setModelForTest } from "./llm.ts";
+import { effortOf } from "./llm-providers.ts";
 import { isLocalPath, listLocal, localDir, readLocal, writeLocal } from "./local-store.ts";
 import { openSessionManager, sessionMessages } from "./pi.ts";
 import { LiveProjector, projectMessages } from "./projection.ts";
@@ -159,12 +159,12 @@ async function getRuntime(record: SessionRecord): Promise<Runtime> {
   const existing = runtimes.get(id);
   if (existing) return existing;
   const workflow = resolveWorkflow(record.meta.workflow);
+  applySearchEnv((await loadConfig()).search);
   const systemPrompt = await buildSystemPrompt(workflow);
   const skills = await agentSkills(workflow);
-  const { model, apiKey, endpoint } = await resolveModel(record.meta.model);
   const configured = record.meta.thinking;
-  const thinkingLevel: Effort | undefined =
-    configured === "off" ? undefined : ((configured as Effort | undefined) ?? (endpoint ? reasoningOf(endpoint) : undefined));
+  const { model, apiKey, thinking } = await resolveModel(record.meta.model, configured);
+  const thinkingLevel: Effort | undefined = thinking === "off" ? undefined : effortOf(thinking);
   const manager = await openSessionManager(record);
   const sessionFile = manager.getSessionFile() ?? record.sessionFile;
   if (sessionFile) {

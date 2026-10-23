@@ -1,25 +1,9 @@
 import type { LlmProtocol } from "@shared/api.ts";
+import { LLM_PROVIDER_PRESETS } from "@shared/api.ts";
 
-export interface ProviderPreset {
-  slug: string;
-  label: string;
-  baseUrl: string;
-  protocol: LlmProtocol;
-}
+export type ProviderPreset = (typeof LLM_PROVIDER_PRESETS)[number];
 
-export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
-  { slug: "openai", label: "OpenAI", baseUrl: "https://api.openai.com/v1", protocol: "openai-responses" },
-  { slug: "anthropic", label: "Anthropic", baseUrl: "https://api.anthropic.com/v1", protocol: "anthropic-messages" },
-  { slug: "google", label: "Google", baseUrl: "https://generativelanguage.googleapis.com/v1beta", protocol: "google-generative-ai" },
-  { slug: "deepseek", label: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", protocol: "openai-completions" },
-  { slug: "openrouter", label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", protocol: "openai-completions" },
-  { slug: "siliconflow", label: "硅基流动", baseUrl: "https://api.siliconflow.cn/v1", protocol: "openai-completions" },
-  { slug: "together", label: "Together", baseUrl: "https://api.together.xyz/v1", protocol: "openai-completions" },
-  { slug: "groq", label: "Groq", baseUrl: "https://api.groq.com/openai/v1", protocol: "openai-completions" },
-  { slug: "moonshot", label: "Moonshot (Kimi)", baseUrl: "https://api.moonshot.cn/v1", protocol: "openai-completions" },
-  { slug: "zhipu", label: "智谱", baseUrl: "https://open.bigmodel.cn/api/paas/v4", protocol: "openai-completions" },
-  { slug: "opencode-go", label: "OpenCode Go", baseUrl: "https://opencode.ai/zen/go/v1", protocol: "openai-completions" },
-];
+export const PROVIDER_PRESETS = LLM_PROVIDER_PRESETS;
 
 export const PROTOCOLS: readonly { value: LlmProtocol; label: string }[] = [
   { value: "openai-completions", label: "openai-completions" },

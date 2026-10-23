@@ -13,10 +13,12 @@ import { Archive, Ban, Bot, Brain, Cpu, GitPullRequest, WifiOff } from "lucide-r
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { SessionStatusBadge } from "@/components/StatusBadges.tsx";
+import { useModelsDevIndex } from "@/hooks/useModelsDev.ts";
 import { useSessionEvents } from "@/hooks/useSessionEvents.ts";
 import { api, errorMessage } from "@/lib/api.ts";
 import { cn } from "@/lib/cn.ts";
 import { formatRelative } from "@/lib/format.ts";
+import { thinkingOptionsFor, withCurrentThinking } from "@/lib/models-dev.ts";
 import { qk, useLlmConfig, usePrs, useSession } from "@/lib/queries.ts";
 import { ChatStream } from "@/routes/agent/ChatItems.tsx";
 import { Composer } from "@/routes/agent/Composer.tsx";
@@ -69,6 +71,8 @@ export function SessionPage({ id }: { id: string }) {
   const sectionRef = useRef<HTMLElement | null>(null);
   const dragRef = useRef<{ center: number; max: number } | null>(null);
   const llm = useLlmConfig(true);
+  const modelsDev = useModelsDevIndex();
+  const modelsDevIndex = modelsDev.index;
   const prs = usePrs("open");
 
   useEffect(() => {
@@ -243,16 +247,12 @@ export function SessionPage({ id }: { id: string }) {
     { value: "", label: "默认模型" },
     ...(llm.data?.endpoints ?? []).map((endpoint) => ({ value: endpoint.id, label: endpoint.id })),
   ];
-  const thinkingOptions: PickerOption[] = [
-    { value: "", label: "自动" },
-    { value: "off", label: "关闭思考" },
-    { value: "minimal", label: "最低" },
-    { value: "low", label: "低" },
-    { value: "medium", label: "中" },
-    { value: "high", label: "高" },
-    { value: "xhigh", label: "极高" },
-    { value: "max", label: "最高" },
-  ];
+  const sessionModelId = meta.model || llm.data?.agent || llm.data?.endpoints[0]?.id || "";
+  const sessionEndpoint = llm.data?.endpoints.find((endpoint) => endpoint.id === sessionModelId);
+  const thinkingOptions: readonly PickerOption[] = withCurrentThinking(
+    thinkingOptionsFor(modelsDevIndex, sessionEndpoint?.model ?? "", sessionEndpoint?.provider),
+    meta.thinking,
+  );
   const prOptions: PickerOption[] = [
     { value: "", label: "不关联 PR" },
     ...(prs.data ?? []).map((pr) => ({ value: String(pr.number), label: `#${pr.number} ${pr.title}`, hint: pr.author })),
@@ -422,7 +422,7 @@ export function SessionPage({ id }: { id: string }) {
                       options={thinkingOptions}
                       onChange={(value) => config.mutate({ thinking: value === "" ? null : (value as ThinkingLevel) })}
                       icon={<Brain aria-hidden="true" className="size-3 text-muted" />}
-                      disabled={config.isPending}
+                      disabled={config.isPending || modelsDev.status === "loading"}
                     />
                     <OptionPicker
                       label="关联 PR"

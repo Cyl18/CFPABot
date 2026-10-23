@@ -368,30 +368,153 @@ export interface LlmEndpoint {
   model: string;
   contextWindow?: number;
   maxOutput?: number;
+}
+
+export interface LlmReviewer {
+  id: string;
   thinking?: ThinkingLevel;
+}
+
+export interface LlmSearch {
+  provider: string;
+  endpoint: string;
+  apiKey: string;
 }
 
 export interface LlmConfig {
   endpoints: LlmEndpoint[];
   agent?: string;
-  reviewers: string[];
+  agentThinking?: ThinkingLevel;
+  reviewers: LlmReviewer[];
+  search?: LlmSearch;
 }
 
 export interface LlmEndpointView extends Omit<LlmEndpoint, "apiKey"> {
   hasKey: boolean;
 }
 
+export interface LlmSearchView {
+  provider: string;
+  endpoint: string;
+  hasKey: boolean;
+}
+
 export interface LlmConfigView {
   endpoints: LlmEndpointView[];
   agent?: string;
-  reviewers: string[];
+  agentThinking?: ThinkingLevel;
+  reviewers: LlmReviewer[];
+  search: LlmSearchView | null;
 }
 
 export interface LlmConfigUpdate {
   endpoints: (Omit<LlmEndpoint, "apiKey"> & { apiKey?: string })[];
   agent?: string;
-  reviewers: string[];
+  agentThinking?: ThinkingLevel | null;
+  reviewers: LlmReviewer[];
+  search?: { provider: string; endpoint?: string; apiKey?: string } | null;
 }
+
+export interface LlmProviderPreset {
+  slug: string;
+  label: string;
+  baseUrl: string;
+  protocol: LlmProtocol;
+}
+
+/** 与 omp 的 provider id 对齐：填错 id 会丢掉该 provider 的请求头与兼容规则。 */
+export const LLM_PROVIDER_PRESETS: readonly LlmProviderPreset[] = ([
+  { slug: "openai", label: "OpenAI", baseUrl: "https://api.openai.com/v1", protocol: "openai-responses" },
+  { slug: "anthropic", label: "Anthropic", baseUrl: "https://api.anthropic.com", protocol: "anthropic-messages" },
+  { slug: "google", label: "Google", baseUrl: "https://generativelanguage.googleapis.com/v1beta", protocol: "google-generative-ai" },
+  { slug: "deepseek", label: "DeepSeek", baseUrl: "https://api.deepseek.com", protocol: "openai-completions" },
+  { slug: "openrouter", label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", protocol: "openai-completions" },
+  { slug: "xai", label: "xAI", baseUrl: "https://api.x.ai/v1", protocol: "openai-responses" },
+  { slug: "mistral", label: "Mistral", baseUrl: "https://api.mistral.ai/v1", protocol: "openai-completions" },
+  { slug: "cerebras", label: "Cerebras", baseUrl: "https://api.cerebras.ai/v1", protocol: "openai-completions" },
+  { slug: "groq", label: "Groq", baseUrl: "https://api.groq.com/openai/v1", protocol: "openai-completions" },
+  { slug: "moonshot", label: "Moonshot (Kimi)", baseUrl: "https://api.moonshot.ai/v1", protocol: "openai-completions" },
+  { slug: "zai", label: "Z.AI", baseUrl: "https://api.z.ai/api/coding/paas/v4", protocol: "openai-completions" },
+  { slug: "siliconflow-cn", label: "硅基流动（国内）", baseUrl: "https://api.siliconflow.cn/v1", protocol: "openai-completions" },
+  { slug: "siliconflow", label: "硅基流动（国际）", baseUrl: "https://api.siliconflow.com/v1", protocol: "openai-completions" },
+  { slug: "together", label: "Together", baseUrl: "https://api.together.xyz/v1", protocol: "openai-completions" },
+  { slug: "fireworks", label: "Fireworks", baseUrl: "https://api.fireworks.ai/inference/v1", protocol: "openai-completions" },
+  { slug: "firepass", label: "Fireworks Firepass", baseUrl: "https://api.fireworks.ai/inference/v1", protocol: "openai-completions" },
+  { slug: "opencode-zen", label: "OpenCode Zen", baseUrl: "https://opencode.ai/zen/v1", protocol: "openai-completions" },
+  { slug: "opencode-go", label: "OpenCode Go", baseUrl: "https://opencode.ai/inference/go/v1", protocol: "openai-completions" },
+  { slug: "kimi-code", label: "Kimi Code", baseUrl: "https://api.kimi.com/coding/v1", protocol: "openai-completions" },
+  { slug: "zhipu-coding-plan", label: "智谱 Coding Plan", baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4", protocol: "openai-completions" },
+  { slug: "qwen-portal", label: "Qwen Portal", baseUrl: "https://portal.qwen.ai/v1", protocol: "openai-completions" },
+  { slug: "alibaba-coding-plan", label: "Alibaba Coding Plan", baseUrl: "https://coding-intl.dashscope.aliyuncs.com/v1", protocol: "openai-completions" },
+  { slug: "alibaba-token-plan", label: "QwenCloud Token Plan", baseUrl: "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1", protocol: "openai-completions" },
+  { slug: "minimax-code", label: "MiniMax Coding Plan", baseUrl: "https://api.minimax.io/anthropic", protocol: "anthropic-messages" },
+  { slug: "minimax-code-cn", label: "MiniMax Coding Plan（国内）", baseUrl: "https://api.minimaxi.com/anthropic", protocol: "anthropic-messages" },
+  { slug: "abliteration", label: "Abliteration", baseUrl: "https://api.abliteration.ai/v1", protocol: "openai-responses" },
+  { slug: "aiand", label: "ai&", baseUrl: "https://api.aiand.com/v1", protocol: "openai-completions" },
+  { slug: "aimlapi", label: "AIML API", baseUrl: "https://api.aimlapi.com/v1", protocol: "openai-completions" },
+  { slug: "baseten", label: "Baseten", baseUrl: "https://inference.baseten.co/v1", protocol: "openai-completions" },
+  { slug: "cline-pass", label: "ClinePass", baseUrl: "https://api.cline.bot/api/v1", protocol: "openai-completions" },
+  { slug: "coralbricks", label: "CoralBricks", baseUrl: "https://inference.coralbricks.ai/v1", protocol: "openai-completions" },
+  { slug: "coreweave", label: "CoreWeave", baseUrl: "https://api.inference.wandb.ai/v1", protocol: "openai-completions" },
+  { slug: "deepinfra", label: "DeepInfra", baseUrl: "https://api.deepinfra.com/v1/openai", protocol: "openai-completions" },
+  { slug: "gmi-cloud", label: "GMI Cloud", baseUrl: "https://api.gmi-serving.com/v1", protocol: "openai-completions" },
+  { slug: "helmcode", label: "Helmcode", baseUrl: "https://api.helmcode.com/v1", protocol: "openai-completions" },
+  { slug: "huggingface", label: "Hugging Face", baseUrl: "https://router.huggingface.co/v1", protocol: "openai-completions" },
+  { slug: "kilo", label: "Kilo Gateway", baseUrl: "https://api.kilo.ai/api/gateway", protocol: "openai-completions" },
+  { slug: "meta", label: "Meta", baseUrl: "https://api.meta.ai/v1", protocol: "openai-responses" },
+  { slug: "nanogpt", label: "NanoGPT", baseUrl: "https://nano-gpt.com/api/v1", protocol: "openai-completions" },
+  { slug: "novita", label: "Novita", baseUrl: "https://api.novita.ai/openai/v1", protocol: "openai-completions" },
+  { slug: "nvidia", label: "NVIDIA", baseUrl: "https://integrate.api.nvidia.com/v1", protocol: "openai-completions" },
+  { slug: "qianfan", label: "Qianfan", baseUrl: "https://qianfan.baidubce.com/v2", protocol: "openai-completions" },
+  { slug: "sakana", label: "Sakana AI", baseUrl: "https://api.sakana.ai/v1", protocol: "openai-responses" },
+  { slug: "sambanova", label: "SambaNova", baseUrl: "https://api.sambanova.ai/v1", protocol: "openai-completions" },
+  { slug: "stepfun", label: "StepFun", baseUrl: "https://api.stepfun.ai/v1", protocol: "openai-completions" },
+  { slug: "synthetic", label: "Synthetic", baseUrl: "https://api.synthetic.new/openai/v1", protocol: "openai-completions" },
+  { slug: "venice", label: "Venice", baseUrl: "https://api.venice.ai/api/v1", protocol: "openai-completions" },
+  { slug: "vercel-ai-gateway", label: "Vercel AI Gateway", baseUrl: "https://ai-gateway.vercel.sh/v1", protocol: "openai-completions" },
+  { slug: "wafer-serverless", label: "Wafer Serverless", baseUrl: "https://pass.wafer.ai/v1", protocol: "openai-completions" },
+  { slug: "xiaomi", label: "Xiaomi", baseUrl: "https://api.xiaomimimo.com/v1", protocol: "openai-completions" },
+  { slug: "xiaomi-token-plan-cn", label: "Xiaomi Token Plan（国内）", baseUrl: "https://token-plan-cn.xiaomimimo.com/v1", protocol: "openai-completions" },
+  { slug: "xiaomi-token-plan-ams", label: "Xiaomi Token Plan（AMS）", baseUrl: "https://token-plan-ams.xiaomimimo.com/v1", protocol: "openai-completions" },
+  { slug: "xiaomi-token-plan-sgp", label: "Xiaomi Token Plan（SGP）", baseUrl: "https://token-plan-sgp.xiaomimimo.com/v1", protocol: "openai-completions" },
+  { slug: "yolo-auto", label: "Yolo-Auto", baseUrl: "https://yolo-auto.com/v1", protocol: "openai-completions" },
+  { slug: "zenmux", label: "ZenMux", baseUrl: "https://zenmux.ai/api/v1", protocol: "openai-completions" },
+] satisfies LlmProviderPreset[]).sort((a, b) => a.slug.localeCompare(b.slug));
+
+export interface SearchProviderPreset {
+  id: string;
+  label: string;
+  /** 默认端点；空串表示由 SDK 内置，端点可不填 */
+  endpoint: string;
+  selfHosted?: true;
+  /** 不需要任何凭据的抓取类 provider */
+  keyless?: true;
+}
+
+/** omp 内置的 web_search provider；端点与密钥通过环境变量注入。 */
+export const SEARCH_PROVIDER_PRESETS: readonly SearchProviderPreset[] = ([
+  { id: "searxng", label: "SearXNG（自建）", endpoint: "", selfHosted: true },
+  { id: "brave", label: "Brave Search", endpoint: "" },
+  { id: "exa", label: "Exa", endpoint: "" },
+  { id: "tavily", label: "Tavily", endpoint: "" },
+  { id: "jina", label: "Jina", endpoint: "" },
+  { id: "firecrawl", label: "Firecrawl", endpoint: "" },
+  { id: "parallel", label: "Parallel", endpoint: "" },
+  { id: "kagi", label: "Kagi", endpoint: "" },
+  { id: "perplexity", label: "Perplexity", endpoint: "" },
+  { id: "deepseek", label: "DeepSeek", endpoint: "" },
+  { id: "zai", label: "Z.AI", endpoint: "" },
+  { id: "synthetic", label: "Synthetic", endpoint: "" },
+  { id: "tinyfish", label: "TinyFish", endpoint: "" },
+  { id: "kimi", label: "Kimi Search", endpoint: "https://api.kimi.com/coding/v1/search", selfHosted: true },
+  { id: "ollama", label: "Ollama Cloud", endpoint: "" },
+  { id: "duckduckgo", label: "DuckDuckGo", endpoint: "", keyless: true },
+  { id: "google", label: "Google（抓取）", endpoint: "", keyless: true },
+  { id: "ecosia", label: "Ecosia", endpoint: "", keyless: true },
+  { id: "startpage", label: "Startpage", endpoint: "", keyless: true },
+  { id: "mojeek", label: "Mojeek", endpoint: "", keyless: true },
+  { id: "public", label: "Public Web", endpoint: "", keyless: true },
+] satisfies SearchProviderPreset[]).sort((a, b) => a.id.localeCompare(b.id));
 
 export interface ProbeModelsRequest {
   baseUrl: string;

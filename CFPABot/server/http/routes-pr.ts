@@ -91,7 +91,10 @@ prRoutes.get("/status", async (c) => {
     webhook: Boolean(env.GITHUB_WEBHOOK_SECRET),
     curseforge: Boolean(env.CURSEFORGE_API_KEY),
     glossary: Boolean(env.GLOSSARY_BIN),
-    llm: { agent: config.agent, reviewers: config.reviewers },
+    llm: {
+      agent: config.endpoints.find((endpoint) => endpoint.id === config.agent)?.id ?? config.endpoints[0]?.id,
+      reviewers: config.reviewers.map((reviewer) => reviewer.id),
+    },
     prCache: prdata.stats(),
     modList: { updatedAt: modList?.updatedAt ?? null, count: modList?.mods.length ?? 0 },
     mappings: { count: mappings.length, updatedAt: mappingsUpdatedAt() },
