@@ -90,7 +90,3 @@ export function parseUri(raw: string): ResourceUri {
   }
   throw new Error("不支持的 scheme。当前支持 repo://、pr://、gh://、local://、skill:// 与 help://。");
 }
-
-export function uriSegments(uri: ResourceUri): string[] {
-  return uri.path.split("/").filter(Boolean);
-}

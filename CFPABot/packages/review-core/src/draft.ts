@@ -107,6 +107,9 @@ export function validateDraft(
     if (comment.suspected && (comment.severity === "critical" || comment.severity === "major")) {
       errors.push(`${where}: 存疑项 severity 不能高于 minor`);
     }
+    if (!comment.suspected && (comment.covers?.length ?? 0) === 0 && !comment.suggestion?.trim()) {
+      errors.push(`${where}: 非存疑且没有 covers 的意见必须给出 suggestion（该行替换后的完整译文）`);
+    }
     if (ctx.patches === undefined) return;
     if (!ctx.patches.has(comment.path)) {
       errors.push(`${where}: 该文件不在本次 PR 变更中`);
@@ -118,9 +121,6 @@ export function validateDraft(
       return;
     }
     if (!inHunks(comment.line, patchHunks(patch))) errors.push(`${where}: 行号不在 diff hunk 内`);
-    if (!comment.suspected && (comment.covers?.length ?? 0) === 0 && !comment.suggestion?.trim()) {
-      errors.push(`${where}: 非存疑且没有 covers 的意见必须给出 suggestion（该行替换后的完整译文）`);
-    }
   });
   return errors;
 }

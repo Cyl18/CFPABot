@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { chmod, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { paths } from "../paths.ts";
@@ -30,16 +30,6 @@ export async function readLocal(id: string, name: string): Promise<LocalEntry | 
     const path = localPath(id, name);
     const info = await stat(path);
     return { content: await readFile(path, "utf8"), updatedAt: info.mtime.toISOString() };
-  } catch {
-    return null;
-  }
-}
-
-export function readLocalSync(id: string, name: string): LocalEntry | null {
-  try {
-    const path = localPath(id, name);
-    const info = statSync(path);
-    return { content: readFileSync(path, "utf8"), updatedAt: info.mtime.toISOString() };
   } catch {
     return null;
   }

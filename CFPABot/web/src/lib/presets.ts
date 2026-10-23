@@ -1,8 +1,6 @@
 import type { LlmProtocol } from "@shared/api.ts";
 import { LLM_PROVIDER_PRESETS } from "@shared/api.ts";
 
-export type ProviderPreset = (typeof LLM_PROVIDER_PRESETS)[number];
-
 export const PROVIDER_PRESETS = LLM_PROVIDER_PRESETS;
 
 export const PROTOCOLS: readonly { value: LlmProtocol; label: string }[] = [

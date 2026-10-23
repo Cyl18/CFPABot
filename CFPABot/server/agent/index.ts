@@ -25,7 +25,7 @@ import { paths } from "../paths.ts";
 import { type ToolContext } from "./context.ts";
 import { DRAFT_FILE, draftInputSchema, parseDraftFile, serializeDraftFile, validateDraft, type DraftContext } from "./draft.ts";
 import { SessionHub } from "./events.ts";
-import { applySearchEnv, loadConfig, llm, resolveModel, setModelForTest } from "./llm.ts";
+import { applySearchEnv, loadConfig, llm, resolveModel } from "./llm.ts";
 import { effortOf, parseRoleSelector } from "./llm-providers.ts";
 import { isLocalPath, listLocal, localDir, readLocal, writeLocal } from "./local-store.ts";
 import { openAuthStorage, openModelRuntime, openSessionManager, sessionMessages } from "./pi.ts";
@@ -41,7 +41,7 @@ import { generalWorkflow } from "./workflows/general.ts";
 import { resolveWorkflow } from "./workflows/index.ts";
 import type { WorkflowDefinition } from "./workflows/types.ts";
 
-export { llm, setModelForTest };
+export { llm };
 
 const log = logger("agent");
 const store = new SessionStore();

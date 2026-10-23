@@ -11,10 +11,10 @@ description: PR 翻译审查：取行、裁定、落草稿。审查 PR 前必须
 
 1. `read pr://<n>/review/rows?filter=changed` 取逐 key 行。`findings` 是程序预审，已经在查占位符、色码、换行、全半角、术语、键集和 JSON 语法，不用你再算一遍。
 2. 审 `changed` 且 `inHunk` 的行。判不准时用 `?query=` 找同类，确认是模式还是单点。
-3. `write local://draft.json`，再跑 `bash bun "$CFPA_ROOT/skills/review/scripts/check-draft.mjs" local://draft.json`，改到通过。
+3. `write local://draft.json`，再跑 `bash bun "$CFPA_ROOT/skills/review/scripts/check-draft.mjs" ./draft.json`，改到通过。
 4. 发布时服务端重验 `headSha` 和行号，草稿过期会被打回重审。
 
-草稿：`{prNumber, headSha, verdict, summary, comments[]}`。每条评论 `path/line/key/severity/mqm/body`，`en`/`zh` 填该行原文与译文；`suggestion` 是整行替换后的译文，`covers` 非空时不给；`suspected` 的档位不超过 minor。
+草稿：`{prNumber, headSha, verdict, summary, comments[]}`。每条评论 `path/line/key/severity/mqm/body`，`en`/`zh` 填该行原文与译文；`suggestion` 是整行替换后的译文，`covers` 非空时不给，其余条目必须给（服务端会拒收）；`suspected` 的档位不超过 minor。
 
 `summary` 只写正文，首行统计和免责脚注由服务端生成。`body` 只写原因，标题里的档位与分类也由服务端拼。
 
@@ -46,4 +46,4 @@ description: PR 翻译审查：取行、裁定、落草稿。审查 PR 前必须
 
 ## 子代理
 
-`read pr://<n>/meta` 的 `localRoot` 是 head 文件的物化目录，仓库工作树在 `runtime/work/repo`。子代理拿不到 `pr://`/`repo://`，把路径写进 prompt 让它们走文件系统。
+`read pr://<n>/meta` 的 `localRoot` 是 head 文件的物化目录，仓库工作树在 `runtime/work/repo`。子代理同样能用 `read`/`grep` 读 `pr://`、`repo://`；要批量走文件系统时，把 `localRoot` 写进 prompt。

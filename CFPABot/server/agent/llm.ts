@@ -49,7 +49,6 @@ const configSchema = z.object({
 });
 
 let cache: LlmConfig | null = null;
-let override: Model<Api> | null = null;
 
 function normalizeEndpoint(raw: z.infer<typeof storedSchema>): LlmEndpoint {
   const provider = raw.provider.trim();
@@ -105,9 +104,6 @@ export async function resolveModel(
   id?: string,
   thinkingOverride?: ThinkingLevel,
 ): Promise<{ model: Model<Api>; apiKey: string | undefined; endpoint: LlmEndpoint | null; thinking: ThinkingLevel | undefined }> {
-  if (override && (!id || id === endpointId(override.provider, override.id))) {
-    return { model: override, apiKey: undefined, endpoint: null, thinking: thinkingOverride };
-  }
   const config = await loadConfig();
   const defaultRole = config.roles.default === undefined ? undefined : parseRoleSelector(config.roles.default);
   const endpoint = id
@@ -118,10 +114,6 @@ export async function resolveModel(
   }
   const thinking = thinkingOverride ?? (endpoint.id === defaultRole?.endpoint ? defaultRole?.thinking : undefined);
   return { model: buildModel(endpoint, thinking), apiKey: endpoint.apiKey || undefined, endpoint, thinking };
-}
-
-export function setModelForTest(model: Model<Api>): void {
-  override = model;
 }
 
 function toView(config: LlmConfig): LlmConfigView {

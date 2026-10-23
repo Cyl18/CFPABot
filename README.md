@@ -26,7 +26,7 @@ CFPABot/
     domain/            语言文件、术语、检查等纯逻辑
   web/                 前端（Vite）
   packages/contracts/  前后端共享类型
-  packages/review-core/ 审查领域逻辑（可单测）
+  packages/review-core/ 审查领域逻辑
   config/              运行时配置（llm.json 等不入库）
   skills/              Agent 技能
   scripts/             构建辅助
@@ -135,7 +135,6 @@ location / {
 cd CFPABot
 bun run typecheck
 bun test server
-bun test packages/review-core
 ```
 
 ## 不入库的文件

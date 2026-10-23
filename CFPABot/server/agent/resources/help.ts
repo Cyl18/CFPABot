@@ -17,6 +17,7 @@ const TOPICS: Record<string, string> = {
 - help://tools/eval
 - help://tools/glossary
 - help://tools/web_search
+- help://tools/delegate
 - help://resources/repo
 - help://resources/pr
 - help://resources/gh
@@ -75,6 +76,11 @@ kernel 直接读写会话 workspace 与仓库文件；不要用 bash 再套 pyth
   "tools/glossary": `# glossary
 
 查询原版术语表与外部词典：query、limit?（默认 10，最大 50）。`,
+  "tools/delegate": `# delegate
+
+按 LLM 配置里的模型别名（roles）启动只读子代理，返回它的最终文本。
+参数：model（别名，可带 @）、task（交给子代理的任务）。
+子代理只有 read/grep/find/ls/glossary/bash，其中 read、grep、find 同样接受 pr://、repo://；批量处理时把 localRoot 给它走文件系统。`,
   "tools/web_search": `# web_search
 
 联网搜索；由 omp 内置工具提供。返回结果后核对来源。`,

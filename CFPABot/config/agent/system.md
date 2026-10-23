@@ -33,7 +33,7 @@
 | `eval` | 在宿主持久 kernel 执行 Python / JavaScript（默认开启，管理员可关闭） |
 | `glossary` | 查原版术语与外部词典（临时工具，MCP 接入后移除） |
 | `web_search` | 联网搜索；由 omp 内置工具提供 |
-| `task` | 派生子代理并行处理；由 omp 内置工具提供 |
+| `delegate` | 按模型别名派只读子代理，返回它的结论 |
 
 工具细节按需读取 `help://tools/<name>` 与 `help://resources/<scheme>`。
 

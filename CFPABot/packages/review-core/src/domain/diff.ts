@@ -157,17 +157,6 @@ export function patchAddedLines(patch: string): { line: number; text: string }[]
   return added;
 }
 
-export function patchKeptLines(patch: string): string[] {
-  const out: string[] = [];
-  for (const hunk of hunksOf(patch)) {
-    for (const text of hunk.lines) {
-      const head = text[0];
-      if (head === "+" || head === " ") out.push(text.slice(1));
-    }
-  }
-  return out;
-}
-
 export function inHunks(line: number, hunks: Hunk[]): boolean {
   return hunks.some((h) => line >= h.start && line <= h.end);
 }
