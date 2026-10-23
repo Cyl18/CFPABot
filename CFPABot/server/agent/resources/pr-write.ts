@@ -2,7 +2,7 @@ import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { z } from "zod";
 import type { ReviewDraft } from "@cfpa/contracts/api";
 import { env } from "../../env.ts";
-import { gh, serverGraphql } from "../../github/client.ts";
+import { botWritesEnabled, gh, serverGraphql } from "../../github/client.ts";
 import {
   createReviewComment,
   createSubmittedReview,
@@ -171,6 +171,7 @@ export async function writePr(
   toolCallId: string,
 ): Promise<AgentToolResult<Record<string, unknown>>> {
   assertCanWrite(ctx);
+  if (!botWritesEnabled()) throw new Error("当前 GitHub 身份不是机器人，已暂停 PR 评论与审查写入。");
   switch (target.id) {
     case "pr-comment":
       return writeComment(uri, content, ctx, toolCallId);

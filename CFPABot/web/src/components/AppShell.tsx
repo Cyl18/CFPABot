@@ -13,12 +13,13 @@ import {
   Package,
   Settings,
   Sun,
+  TriangleAlert,
   X,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn.ts";
 import { loginUrl } from "@/lib/api.ts";
-import { useMe } from "@/lib/queries.ts";
+import { useMe, usePublicEnv } from "@/lib/queries.ts";
 import { useTheme } from "@/lib/theme.ts";
 
 interface NavItem {
@@ -76,6 +77,9 @@ function Label({ collapsed, children }: { collapsed: boolean; children: ReactNod
 
 export function AppShell() {
   const { data: me } = useMe();
+  const { data: publicEnv } = usePublicEnv();
+  const anonymous = publicEnv?.github === "anonymous";
+  const [noticeOpen, setNoticeOpen] = useState(true);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { theme, toggle } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -123,6 +127,26 @@ export function AppShell() {
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded focus:bg-surface focus:px-3 focus:py-2">
         跳到主要内容
       </a>
+
+      {anonymous && noticeOpen && (
+        <div
+          role="status"
+          className="fixed left-1/2 top-3 z-50 flex w-[min(92vw,44rem)] -translate-x-1/2 items-start gap-2 rounded-lg border border-warn/50 bg-surface px-3 py-2 text-xs text-fg shadow-lg"
+        >
+          <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warn" />
+          <span className="min-w-0 flex-1">
+            匿名模式：未配置 GitHub 凭据（GITHUB_APP_* / GITHUB_PAT / DEV_GITHUB_TOKEN），只按需加载单个 PR，列表搜索与关联 PR 不可用。
+          </span>
+          <button
+            type="button"
+            onClick={() => setNoticeOpen(false)}
+            aria-label="关闭提示"
+            className="grid size-5 shrink-0 place-items-center rounded text-muted hover:bg-elevated hover:text-fg"
+          >
+            <X aria-hidden="true" className="size-3.5" />
+          </button>
+        </div>
+      )}
 
       {mobileOpen && <div aria-hidden="true" className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />}
 

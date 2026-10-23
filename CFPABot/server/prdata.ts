@@ -1,9 +1,8 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import pMap from "p-map";
 import { z } from "zod";
 import { compareMc, parseLangPath } from "@cfpa/review-core/domain/path";
-import { gh, type GhFile, type GhPull } from "./github/client.ts";
+import { gh, isRateLimited, type GhFile, type GhPull } from "./github/client.ts";
 import { logger } from "./log.ts";
 import { paths } from "./paths.ts";
 import { readJson, removeFile, withLock, writeJson } from "./store.ts";
@@ -13,7 +12,7 @@ import type { PrState, PrSummary, RelatedPr } from "@cfpa/contracts/api";
 const log = logger("prdata");
 const INDEX_PATH = join(paths.cache, "prs.json");
 const PR_DIR = join(paths.cache, "pr");
-const CONCURRENCY = 6;
+const DRIP_DELAY_MS = 300;
 const FILE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const FILE_CACHE_MAX = 30;
 const CLOSED_TTL_MS = 5 * 60 * 1000;
@@ -84,6 +83,8 @@ const meta = new Map<number, PrMeta>();
 const relation = new Map<string, Map<number, Set<string>>>();
 const fileCaches = ttlCache<PrFileCache>(FILE_CACHE_TTL_MS, FILE_CACHE_MAX);
 const closedList = ttlCache<PrSummary[]>(CLOSED_TTL_MS, 4);
+let listed = new Map<number, GhPull>();
+let dripping: Promise<void> | null = null;
 let refreshedAt: string | null = null;
 let loaded = false;
 
@@ -186,7 +187,62 @@ async function loadMetaFromDisk(): Promise<void> {
   }
 }
 
+async function refreshList(): Promise<void> {
+  await withLock("prdata", async () => {
+    const pulls = await gh.listPulls("open");
+    listed = new Map(pulls.map((pull) => [pull.number, pull]));
+    for (const pull of pulls) openIndex.set(pull.number, summarize(pull, meta.get(pull.number)?.slugs ?? []));
+    for (const number of [...openIndex.keys()]) {
+      if (!listed.has(number)) openIndex.delete(number);
+    }
+    for (const number of [...meta.keys()]) {
+      if (!listed.has(number)) await drop(number);
+    }
+    rebuildRelation();
+    refreshedAt = new Date().toISOString();
+    await persistIndex();
+    closedList.delete("closed");
+  });
+}
+
+/** 服务起来之后逐个补 PR 文件缓存；匿名模式只走懒加载，撞限流就停，下一轮再接着补。 */
+async function dripOnce(): Promise<void> {
+  if (gh.mode === "anonymous" || listed.size === 0) return;
+  for (const pull of listed.values()) {
+    if (meta.get(pull.number)?.headSha === pull.headSha) {
+      await touchPull(pull).catch((err: unknown) => log.warn("PR 快照更新失败", { pr: pull.number, err }));
+      continue;
+    }
+    try {
+      const files = await gh.listPullFiles(pull.number);
+      await withLock("prdata", () => storePull(pull, files));
+    } catch (err) {
+      if (isRateLimited(err)) {
+        log.warn("GitHub 速率限制，暂停 PR 文件缓存预取", { pr: pull.number });
+        break;
+      }
+      log.warn("获取 PR 文件列表失败", { pr: pull.number, err });
+      continue;
+    }
+    await Bun.sleep(DRIP_DELAY_MS);
+  }
+  await withLock("prdata", async () => {
+    rebuildRelation();
+    await persistIndex();
+  });
+}
+
+function drip(): Promise<void> {
+  dripping ??= dripOnce()
+    .catch((err: unknown) => log.warn("PR 文件缓存预取中断", { err }))
+    .finally(() => {
+      dripping = null;
+    });
+  return dripping;
+}
+
 export const prdata = {
+  /** 冷启动只翻 PR 列表；文件缓存交给 drip()，等服务起来之后再慢慢补。 */
   async init(): Promise<void> {
     if (loaded) return;
     const index = await readJson(INDEX_PATH, indexSchema);
@@ -196,41 +252,14 @@ export const prdata = {
     }
     await loadMetaFromDisk();
     loaded = true;
-    void prdata.refreshAll().catch((err: unknown) => log.warn("PR 缓存刷新失败", { err }));
+    await refreshList().catch((err: unknown) => log.warn("PR 列表刷新失败", { err }));
   },
 
+  drip,
+
   async refreshAll(): Promise<void> {
-    await withLock("prdata", async () => {
-      const pulls = await gh.listPulls("open");
-      await pMap(
-        pulls,
-        async (pull) => {
-          try {
-            if (meta.get(pull.number)?.headSha === pull.headSha) {
-              await touchPull(pull);
-              return;
-            }
-            await storePull(pull, await gh.listPullFiles(pull.number));
-          } catch (err) {
-            log.warn("获取 PR 文件列表失败", { pr: pull.number, err });
-          }
-        },
-        { concurrency: CONCURRENCY },
-      );
-      const next = new Map<number, PrSummary>();
-      for (const pull of pulls) next.set(pull.number, summarize(pull, meta.get(pull.number)?.slugs ?? []));
-      for (const number of [...meta.keys()]) {
-        if (!next.has(number)) await drop(number);
-      }
-      for (const number of [...openIndex.keys()]) {
-        if (!next.has(number)) openIndex.delete(number);
-      }
-      for (const [number, summary] of next) openIndex.set(number, summary);
-      rebuildRelation();
-      refreshedAt = new Date().toISOString();
-      await persistIndex();
-      closedList.delete("closed");
-    });
+    await refreshList();
+    await drip();
   },
 
   async refresh(n: number): Promise<void> {

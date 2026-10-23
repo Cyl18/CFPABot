@@ -528,8 +528,14 @@ export interface ProbeModelsRequest {
   endpointId?: string;
 }
 
+export type GithubMode = "dev" | "app" | "pat" | "anonymous";
+
+export interface PublicEnv {
+  github: GithubMode;
+}
+
 export interface SystemStatus {
-  github: { mode: "app" | "pat" | "anonymous"; rateLimit?: { remaining: number; limit: number; resetAt: string } };
+  github: { mode: GithubMode; rateLimit?: { remaining: number; limit: number; resetAt: string } };
   webhook: boolean;
   curseforge: boolean;
   glossary: boolean;

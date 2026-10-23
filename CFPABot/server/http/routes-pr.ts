@@ -23,7 +23,7 @@ import { textCompare } from "../views/text.ts";
 import { currentUser, requireAdmin } from "./auth.ts";
 import type { AppContext, AppEnv } from "./auth.ts";
 import { HttpError, isUpstreamNotFound, notFound, parseBody, parseQuery } from "./errors.ts";
-import type { SystemStatus, TextCompareRequest } from "@cfpa/contracts/api";
+import type { PublicEnv, SystemStatus, TextCompareRequest } from "@cfpa/contracts/api";
 
 export const prRoutes = new Hono<AppEnv>();
 
@@ -73,6 +73,8 @@ export async function withPull<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 prRoutes.get("/me", (c) => c.json(currentUser(c)));
+
+prRoutes.get("/env", (c) => c.json({ github: gh.mode } satisfies PublicEnv));
 
 async function rateLimitOrNull(): Promise<{ remaining: number; limit: number; resetAt: string } | null> {
   const timeout = Bun.sleep(5000).then(() => null);

@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { CheckReport } from "@cfpa/contracts/api";
 import { env } from "../env.ts";
 import type { GhComment } from "../github/client.ts";
-import { gh } from "../github/client.ts";
+import { botWritesEnabled, gh } from "../github/client.ts";
 import { httpStatus } from "../github/mappers.ts";
 import { logger } from "../log.ts";
 import { checkReportPath, paths } from "../paths.ts";
@@ -153,22 +153,25 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
 
   if (opts.force) await rm(checkReportPath(prNumber, ctx.pull.headSha), { force: true });
 
+  const canWrite = botWritesEnabled();
   const comments = await gh.listComments(prNumber);
   const botComments = comments.filter(isBotComment);
-  if (botComments.length > 1) {
+  if (canWrite && botComments.length > 1) {
     for (const comment of botComments) await gh.updateComment(comment.id, CRITICAL_FAILURE);
     log.warn("发现多个 Bot 评论，已全部标记", { pr: prNumber, count: botComments.length });
     return;
   }
   let commentId = botComments[0]?.id ?? state.commentId;
-  if (commentId === null) {
+  if (canWrite && commentId === null) {
     const created = await gh.createComment(prNumber, `${CYBOT_MARKER}\n正在更新数据...`);
     commentId = created.id;
   }
-  try {
-    await gh.updateComment(commentId, assembleComment(sectionsOf(state), "preview", env.PUBLIC_URL));
-  } catch (err) {
-    log.warn("更新预览失败", { pr: prNumber, commentId, error: err });
+  if (canWrite && commentId !== null) {
+    try {
+      await gh.updateComment(commentId, assembleComment(sectionsOf(state), "preview", env.PUBLIC_URL));
+    } catch (err) {
+      log.warn("更新预览失败", { pr: prNumber, commentId, error: err });
+    }
   }
 
   const data = await loadWorkspaceData(ctx);
@@ -200,7 +203,7 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
       log.error("检查项收集失败", { pr: prNumber, error: err });
       return null;
     });
-    if (items !== null) for (const label of items.extraLabels) await gh.addLabels(prNumber, [label]);
+    if (canWrite && items !== null) for (const label of items.extraLabels) await gh.addLabels(prNumber, [label]);
     const nextReport = items?.report ?? previousReport;
     report = nextReport;
     const comment =
@@ -229,12 +232,14 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
   };
   await writeJson(statePath(prNumber), next);
 
-  const final = assembleComment(sectionsOf(next), "final", env.PUBLIC_URL);
-  try {
-    await gh.updateComment(commentId, final);
-  } catch (err) {
-    if (httpStatus(err) !== 422) throw err;
-    const url = await gh.createGist(`pr-${prNumber}-bot`, `pr-${prNumber}-bot.md`, final.slice(`${CYBOT_MARKER}\n`.length));
-    await gh.updateComment(commentId, `${CYBOT_MARKER}\n${PIC}嘻嘻，内容过长！已经上传到了 <${url}>\n\n${RELOAD_LINE}`);
+  if (canWrite && commentId !== null) {
+    const final = assembleComment(sectionsOf(next), "final", env.PUBLIC_URL);
+    try {
+      await gh.updateComment(commentId, final);
+    } catch (err) {
+      if (httpStatus(err) !== 422) throw err;
+      const url = await gh.createGist(`pr-${prNumber}-bot`, `pr-${prNumber}-bot.md`, final.slice(`${CYBOT_MARKER}\n`.length));
+      await gh.updateComment(commentId, `${CYBOT_MARKER}\n${PIC}嘻嘻，内容过长！已经上传到了 <${url}>\n\n${RELOAD_LINE}`);
+    }
   }
 }

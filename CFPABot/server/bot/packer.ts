@@ -1,7 +1,7 @@
 import type { PrFile } from "@cfpa/contracts/api";
 import { repo } from "../env.ts";
 import type { GhPull } from "../github/client.ts";
-import { gh } from "../github/client.ts";
+import { botWritesEnabled, gh } from "../github/client.ts";
 import { logger } from "../log.ts";
 import { BRANCH_NOT_MAIN, Lines, MAINTAINER_IMAGE, MAINTAINER_WARNING, messageOf } from "./render.ts";
 
@@ -19,6 +19,7 @@ export function touchesSource(files: PrFile[]): boolean {
 }
 
 export async function autoApprovePacker(pull: GhPull, files: PrFile[]): Promise<void> {
+  if (!botWritesEnabled()) return;
   const run = (await gh.listPackerRuns(pull.headSha))[0];
   if (!run || run.conclusion !== "action_required") return;
   if (touchesSource(files)) return;
@@ -53,8 +54,10 @@ export async function collectPacker(pull: GhPull, files: PrFile[]): Promise<stri
         sb.line("ℹ 由于修改了源代码，不能自动批准执行 PR Packer。");
         return sb.text();
       }
-      await gh.approveRun(run.id);
-      sb.line("ℹ 已经自动批准打包器执行，可能需要等待一段时间。");
+      if (botWritesEnabled()) {
+        await gh.approveRun(run.id);
+        sb.line("ℹ 已经自动批准打包器执行，可能需要等待一段时间。");
+      }
       return sb.text();
     }
     if (run.status === "queued" || run.status === "in_progress") {

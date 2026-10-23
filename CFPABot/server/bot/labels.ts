@@ -1,5 +1,5 @@
 import type { PrFile } from "@cfpa/contracts/api";
-import { gh } from "../github/client.ts";
+import { botWritesEnabled, gh } from "../github/client.ts";
 import { logger } from "../log.ts";
 import { prdata } from "../prdata.ts";
 
@@ -40,6 +40,7 @@ export function pathLabels(files: PrFile[]): string[] {
 }
 
 export async function syncLabels(n: number): Promise<void> {
+  if (!botWritesEnabled()) return;
   const { pull, files } = await prdata.files(n);
   const current = pull.labels;
   const managed = [...SIZE_LABELS.map((l) => l.name), ...PATH_LABELS.map((l) => l.name)];
@@ -54,6 +55,7 @@ export async function syncLabels(n: number): Promise<void> {
 }
 
 export async function labelCheck(n: number): Promise<void> {
+  if (!botWritesEnabled()) return;
   const pull = await gh.getPull(n);
   const hit = pull.labels.filter((label) => DENIED_LABELS.includes(label));
   await gh.createCheckRun({

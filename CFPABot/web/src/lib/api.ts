@@ -18,6 +18,7 @@ import type {
   PrState,
   PrSummary,
   ProbeModelsRequest,
+  PublicEnv,
   ReviewComment,
   ReviewHtmlRequest,
   ReviewHtmlResult,
@@ -141,6 +142,7 @@ export function parseWorkspaceKey(key: string): CompareKey | null {
 
 export const api = {
   me: (signal?: AbortSignal) => get<Me | null>("/api/me", signal),
+  env: (signal?: AbortSignal) => get<PublicEnv>("/api/env", signal),
   status: (signal?: AbortSignal) => get<SystemStatus>("/api/status", signal),
 
   prs: (state: PrState | "all", signal?: AbortSignal) => get<PrSummary[]>(`/api/prs${query({ state })}`, signal),

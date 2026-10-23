@@ -20,6 +20,7 @@ import type {
   WriteScope,
 } from "@cfpa/contracts/api";
 import { prdata } from "../prdata.ts";
+import { botWritesEnabled } from "../github/client.ts";
 import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
 import { type ToolContext } from "./context.ts";
@@ -493,6 +494,7 @@ export const agent = {
     const raw = await readLocal(id, DRAFT_FILE);
     const draft = raw === null ? null : parseDraftFile(raw.content);
     if (draft === null) throw httpError("没有可发布的草稿", 400);
+    if (!botWritesEnabled()) throw httpError("当前 GitHub 身份不是机器人，已暂停发布审查。", 403);
     const { url } = await publishDraft(draft);
     const value = { ...draft, publishedAt: now(), publishedUrl: url };
     await writeLocal(id, DRAFT_FILE, serializeDraftFile(value));

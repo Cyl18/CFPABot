@@ -18,6 +18,8 @@ const JAR_MAX_AGE_MS = 14 * DAY;
 interface CronTask {
   name: string;
   intervalMs: number;
+  /** false 表示启动后不立刻跑，等第一个周期（启动阶段已单独处理）。 */
+  immediate?: boolean;
   run: () => Promise<unknown>;
 }
 
@@ -42,7 +44,7 @@ function pruneJars(): number {
 export function startCron(): () => void {
   const tasks: CronTask[] = [
     { name: "glossary-sync", intervalMs: DAY, run: () => syncGlossary() },
-    { name: "pr-cache-refresh", intervalMs: HOUR, run: () => prdata.refreshAll() },
+    { name: "pr-cache-refresh", intervalMs: HOUR, immediate: false, run: () => prdata.refreshAll() },
     { name: "mirror-sync", intervalMs: 6 * HOUR, run: () => mirror.sync() },
     { name: "repo-worktree-refresh", intervalMs: HOUR, run: () => refreshRepo() },
     { name: "jar-cache-prune", intervalMs: DAY, run: () => Promise.resolve(pruneJars()) },
@@ -66,11 +68,14 @@ export function startCron(): () => void {
         running.delete(task.name);
       }
     };
-    const initial = setTimeout(() => {
-      void tick();
-      const handle = setInterval(() => void tick(), task.intervalMs);
-      stops.push(() => clearInterval(handle));
-    }, index * 5000);
+    const initial = setTimeout(
+      () => {
+        void tick();
+        const handle = setInterval(() => void tick(), task.intervalMs);
+        stops.push(() => clearInterval(handle));
+      },
+      task.immediate === false ? task.intervalMs : index * 5000,
+    );
     stops.push(() => clearTimeout(initial));
   });
 

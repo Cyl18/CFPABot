@@ -6,7 +6,7 @@ import { editJsonValues, insertJsonKeyAfter, normalizeLang, parseLang, sortLang 
 import { buildLangPath, langFormatFor, modRefOf } from "@cfpa/review-core/domain/path";
 import { env, repo } from "../env.ts";
 import { withWorkspace, type Workspace } from "../git.ts";
-import { gh } from "../github/client.ts";
+import { botWritesEnabled, gh } from "../github/client.ts";
 import { logger } from "../log.ts";
 import { mods } from "../mods/index.ts";
 import { prdata } from "../prdata.ts";
@@ -74,6 +74,7 @@ function zhFiles(files: PrFile[]): PrFile[] {
 }
 
 async function postReply(prNumber: number, login: string, lines: string[]): Promise<void> {
+  if (!botWritesEnabled()) return;
   let body = lines.join("\n").trim();
   if (body.length === 0) return;
   if (body.length > MAX_REPLY_CHARS) {

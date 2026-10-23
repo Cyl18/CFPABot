@@ -1,13 +1,13 @@
 import type { PrState, PrSummary } from "@cfpa/contracts/api";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { GitPullRequest, RefreshCw, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { GitPullRequest, LoaderCircle, RefreshCw, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/PageHeader.tsx";
 import { PrStateBadge } from "@/components/StatusBadges.tsx";
 import { cn } from "@/lib/cn.ts";
 import { formatRelative } from "@/lib/format.ts";
-import { qk, usePrs } from "@/lib/queries.ts";
+import { qk, usePrs, usePublicEnv } from "@/lib/queries.ts";
 import type { PrListSearch, SearchPatch } from "@/lib/search.ts";
 import { TagList } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
@@ -35,8 +35,16 @@ export function PrListPage({ search, onSearchChange }: { search: PrListSearch; o
   const query = search.q ?? "";
   const selectedLabels = useMemo(() => search.labels?.split(",").filter((item) => item !== "") ?? [], [search.labels]);
   const [allLabels, setAllLabels] = useState(false);
+  const anonymous = usePublicEnv().data?.github === "anonymous";
+  const [searchNotice, setSearchNotice] = useState(false);
   const client = useQueryClient();
   const { data, isPending, error, refetch, isFetching } = usePrs(state);
+
+  useEffect(() => {
+    if (!searchNotice) return;
+    const timer = setTimeout(() => setSearchNotice(false), 4000);
+    return () => clearTimeout(timer);
+  }, [searchNotice]);
 
   const labels = useMemo(() => {
     const counts = new Map<string, number>();
@@ -120,15 +128,39 @@ export function PrListPage({ search, onSearchChange }: { search: PrListSearch; o
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Tabs items={TABS} value={state} onChange={(next) => onSearchChange({ state: next === "open" ? undefined : next })} ariaLabel="PR 状态筛选" />
-        <Input
-          wrapperClassName="w-full sm:ml-auto sm:w-80"
-          icon={<Search />}
-          aria-label="搜索 PR"
-          placeholder="搜索标题 / 编号 / 作者 / 模组 slug"
-          value={query}
-          onChange={(event) => onSearchChange({ q: event.target.value === "" ? undefined : event.target.value })}
-        />
+        {anonymous ? (
+          <div className="w-full sm:ml-auto sm:w-80" onClick={() => setSearchNotice(true)}>
+            <Input
+              wrapperClassName="w-full"
+              icon={<LoaderCircle className="animate-spin" />}
+              aria-label="搜索 PR（匿名模式下不可用）"
+              aria-disabled="true"
+              placeholder="匿名模式下不可用"
+              readOnly
+              value=""
+              className="cursor-not-allowed"
+            />
+          </div>
+        ) : (
+          <Input
+            wrapperClassName="w-full sm:ml-auto sm:w-80"
+            icon={<Search />}
+            aria-label="搜索 PR"
+            placeholder="搜索标题 / 编号 / 作者 / 模组 slug"
+            value={query}
+            onChange={(event) => onSearchChange({ q: event.target.value === "" ? undefined : event.target.value })}
+          />
+        )}
       </div>
+
+      {searchNotice && (
+        <div
+          role="status"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-warn/50 bg-surface px-3 py-2 text-xs text-fg shadow-lg"
+        >
+          搜索需要 GitHub 凭据：配置 GITHUB_PAT 或 DEV_GITHUB_TOKEN 后重启服务。
+        </div>
+      )}
 
       {labels.length > 0 && (
         <div role="group" aria-label="按标签筛选" className="mb-4 flex flex-wrap items-center gap-1.5">

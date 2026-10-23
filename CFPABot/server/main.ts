@@ -16,6 +16,7 @@ await agent.init();
 const stopCron = startCron();
 const server = Bun.serve({ port: env.PORT, idleTimeout: 0, fetch: (request) => app.fetch(request) });
 log.info("服务已启动", { url: server.url.href, mode: env.NODE_ENV, repo: env.GITHUB_REPO });
+void prdata.drip();
 
 let stopping = false;
 

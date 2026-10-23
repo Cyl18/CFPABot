@@ -1,10 +1,11 @@
-import type { CheckReport, CompareResult, CrossVersionKeysResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, PackSummary, PrDetail, PrState, PrSummary, SessionDetail, SessionSummary, SpecialPair, SpecialPairContent, SystemStatus } from "@cfpa/contracts/api";
+import type { CheckReport, CompareResult, CrossVersionKeysResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, PackSummary, PrDetail, PrState, PrSummary, PublicEnv, SessionDetail, SessionSummary, SpecialPair, SpecialPairContent, SystemStatus } from "@cfpa/contracts/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { api, type CompareKey } from "@/lib/api.ts";
 
 export const qk = {
   me: ["me"] as const,
+  env: ["env"] as const,
   status: ["status"] as const,
   prs: (state: PrState | "all") => ["prs", state] as const,
   pr: (n: number) => ["pr", n] as const,
@@ -28,6 +29,10 @@ export const qk = {
 
 export function useMe() {
   return useQuery<Me | null>({ queryKey: qk.me, queryFn: ({ signal }) => api.me(signal), staleTime: 60_000, retry: 0 });
+}
+
+export function usePublicEnv() {
+  return useQuery<PublicEnv>({ queryKey: qk.env, queryFn: ({ signal }) => api.env(signal), staleTime: 5 * 60_000, retry: 0 });
 }
 
 export function useStatus(enabled = true) {

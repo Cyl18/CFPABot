@@ -89,7 +89,7 @@ export interface GhArtifact {
 }
 
 export interface GitHubClient {
-  mode: "app" | "pat" | "anonymous";
+  mode: "dev" | "app" | "pat" | "anonymous";
   getPull(n: number): Promise<GhPull>;
   listPulls(state: "open" | "closed", opts?: { maxPages?: number }): Promise<GhPull[]>;
   findPullByHead(ownerColonBranch: string): Promise<GhPull | null>;

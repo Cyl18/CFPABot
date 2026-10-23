@@ -3,7 +3,7 @@ import { Octokit } from "@octokit/rest";
 import { createAppAuth } from "@octokit/auth-app";
 import { retry } from "@octokit/plugin-retry";
 import { throttling, type ThrottlingOptions } from "@octokit/plugin-throttling";
-import { env, repo } from "../env.ts";
+import { env, isDev, repo } from "../env.ts";
 import { logger } from "../log.ts";
 import { ttlCache } from "../ttl.ts";
 import { asRecord, httpStatus, mapComment, mapFile, mapPull, mapReviewComment, mapRun } from "./mappers.ts";
@@ -34,7 +34,10 @@ const appConfig =
       })()
     : null;
 
-const mode: GitHubClient["mode"] = appConfig ? "app" : env.GITHUB_PAT ? "pat" : "anonymous";
+// 开发环境优先用个人 token 拉 GitHub，避免和线上 bot 共用 installation 配额。
+const devToken = isDev ? (env.DEV_GITHUB_TOKEN ?? null) : null;
+
+const mode: GitHubClient["mode"] = devToken ? "dev" : appConfig ? "app" : env.GITHUB_PAT ? "pat" : "anonymous";
 
 function throttleOptions(): ThrottlingOptions {
   return {
@@ -54,16 +57,18 @@ function throttleOptions(): ThrottlingOptions {
   };
 }
 
-const octokit = appConfig
-  ? new PLUGIN_OCTOKIT({
-      userAgent: USER_AGENT,
-      throttle: throttleOptions(),
-      authStrategy: createAppAuth,
-      auth: appConfig,
-    })
-  : env.GITHUB_PAT
-    ? new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions(), auth: env.GITHUB_PAT })
-    : new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions() });
+const octokit = devToken
+  ? new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions(), auth: devToken })
+  : appConfig
+    ? new PLUGIN_OCTOKIT({
+        userAgent: USER_AGENT,
+        throttle: throttleOptions(),
+        authStrategy: createAppAuth,
+        auth: appConfig,
+      })
+    : env.GITHUB_PAT
+      ? new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions(), auth: env.GITHUB_PAT })
+      : new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions() });
 
 const patOctokit = env.GITHUB_PAT
   ? new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions(), auth: env.GITHUB_PAT })
@@ -77,7 +82,19 @@ export function userGraphql(token: string): GhOctokit {
   return new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions(), auth: token });
 }
 
+export function isRateLimited(err: unknown): boolean {
+  const status = httpStatus(err);
+  if (status === 429) return true;
+  return status === 403 && err instanceof Error && /rate limit/i.test(err.message);
+}
+
+/** 只有 App 身份写出来的评论、标签、check run 才属于机器人自己，其他身份一律暂停。 */
+export function botWritesEnabled(): boolean {
+  return mode === "app";
+}
+
 log.info("GitHub 客户端已初始化", { mode, repo: repo.fullName });
+if (!botWritesEnabled()) log.info("当前不是机器人身份，评论 / 标签 / check run 写入已暂停", { mode });
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const fileCache = ttlCache<string>(6 * 60 * 60 * 1000, 200);
@@ -419,6 +436,7 @@ export const gh: GitHubClient = {
   },
 
   async gitToken() {
+    if (devToken) return devToken;
     if (appConfig) {
       const auth = await createAppAuth(appConfig)({ type: "installation" });
       return auth.token;
