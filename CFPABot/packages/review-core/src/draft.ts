@@ -97,10 +97,12 @@ export function validateDraft(
         `${where}: mqm 不在词表中: ${comment.mqm}${known.length > 0 ? `（可用：${known.join("、")}）` : ""}`,
       );
     }
-    const slot = `${comment.path}\u0000${comment.key}`;
-    const first = seen.get(slot);
-    if (first !== undefined) errors.push(`${where}: key 重复（与第 ${first} 条同 path 同 key），其余实例放进 covers`);
-    else seen.set(slot, index + 1);
+    if (comment.key.trim() !== "") {
+      const slot = `${comment.path}\u0000${comment.key}`;
+      const first = seen.get(slot);
+      if (first !== undefined) errors.push(`${where}: key 重复（与第 ${first} 条同 path 同 key），其余实例放进 covers`);
+      else seen.set(slot, index + 1);
+    }
     if (comment.covers && comment.covers.length > 0 && comment.suggestion) {
       errors.push(`${where}: covers 非空时不能同时给 suggestion`);
     }
