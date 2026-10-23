@@ -84,6 +84,7 @@ const relation = new Map<string, Map<number, Set<string>>>();
 const fileCaches = ttlCache<PrFileCache>(FILE_CACHE_TTL_MS, FILE_CACHE_MAX);
 const closedList = ttlCache<PrSummary[]>(CLOSED_TTL_MS, 4);
 let listed = new Map<number, GhPull>();
+let listedAt = 0;
 let dripping: Promise<void> | null = null;
 let refreshedAt: string | null = null;
 let loaded = false;
@@ -189,8 +190,10 @@ async function loadMetaFromDisk(): Promise<void> {
 
 async function refreshList(): Promise<void> {
   await withLock("prdata", async () => {
+    const startedAt = Date.now();
     const pulls = await gh.listPulls("open");
     listed = new Map(pulls.map((pull) => [pull.number, pull]));
+    listedAt = startedAt;
     for (const pull of pulls) openIndex.set(pull.number, summarize(pull, meta.get(pull.number)?.slugs ?? []));
     for (const number of [...openIndex.keys()]) {
       if (!listed.has(number)) openIndex.delete(number);
@@ -208,20 +211,27 @@ async function refreshList(): Promise<void> {
 /** 服务起来之后逐个补 PR 文件缓存；匿名模式只走懒加载，撞限流就停，下一轮再接着补。 */
 async function dripOnce(): Promise<void> {
   if (gh.mode === "anonymous" || listed.size === 0) return;
+  const snapshotAt = listedAt;
   for (const pull of listed.values()) {
-    if (meta.get(pull.number)?.headSha === pull.headSha) {
-      await touchPull(pull).catch((err: unknown) => log.warn("PR 快照更新失败", { pr: pull.number, err }));
-      continue;
-    }
+    // 列表抓取后又被 webhook 刷新过的 PR，缓存比快照新；拿旧 pull 回写会把 headSha 和文件配错。
+    const cached = fileCaches.get(String(pull.number)) ?? (await readJson(prPath(pull.number), cacheSchema));
+    if (cached !== null && Date.parse(cached.updatedAt) > snapshotAt) continue;
     try {
-      const files = await gh.listPullFiles(pull.number);
-      await withLock("prdata", () => storePull(pull, files));
+      const refetched = await withLock("prdata", async () => {
+        if (meta.get(pull.number)?.headSha === pull.headSha) {
+          await touchPull(pull);
+          return false;
+        }
+        await storePull(pull, await gh.listPullFiles(pull.number));
+        return true;
+      });
+      if (!refetched) continue;
     } catch (err) {
       if (isRateLimited(err)) {
         log.warn("GitHub 速率限制，暂停 PR 文件缓存预取", { pr: pull.number });
         break;
       }
-      log.warn("获取 PR 文件列表失败", { pr: pull.number, err });
+      log.warn("PR 缓存预取失败", { pr: pull.number, err });
       continue;
     }
     await Bun.sleep(DRIP_DELAY_MS);
@@ -252,7 +262,9 @@ export const prdata = {
     }
     await loadMetaFromDisk();
     loaded = true;
-    await refreshList().catch((err: unknown) => log.warn("PR 列表刷新失败", { err }));
+    void refreshList()
+      .then(() => drip())
+      .catch((err: unknown) => log.warn("PR 列表刷新失败", { err }));
   },
 
   drip,
