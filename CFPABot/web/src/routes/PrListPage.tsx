@@ -1,7 +1,7 @@
 import type { PrState, PrSummary } from "@cfpa/contracts/api";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { GitPullRequest, LoaderCircle, RefreshCw, Search } from "lucide-react";
+import { GitPullRequest, RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/PageHeader.tsx";
 import { PrStateBadge } from "@/components/StatusBadges.tsx";
@@ -129,18 +129,14 @@ export function PrListPage({ search, onSearchChange }: { search: PrListSearch; o
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Tabs items={TABS} value={state} onChange={(next) => onSearchChange({ state: next === "open" ? undefined : next })} ariaLabel="PR 状态筛选" />
         {anonymous ? (
-          <div className="w-full sm:ml-auto sm:w-80" onClick={() => setSearchNotice(true)}>
-            <Input
-              wrapperClassName="w-full"
-              icon={<LoaderCircle className="animate-spin" />}
-              aria-label="搜索 PR（匿名模式下不可用）"
-              aria-disabled="true"
-              placeholder="匿名模式下不可用"
-              readOnly
-              value=""
-              className="cursor-not-allowed"
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => setSearchNotice(true)}
+            className="relative flex h-9 w-full items-center rounded-md border border-line bg-surface pr-2.5 pl-8 text-left text-sm text-muted/70 sm:ml-auto sm:w-80"
+          >
+            <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
+            匿名模式：搜索不可用
+          </button>
         ) : (
           <Input
             wrapperClassName="w-full sm:ml-auto sm:w-80"
