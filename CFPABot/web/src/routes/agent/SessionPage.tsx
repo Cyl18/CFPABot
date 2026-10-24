@@ -10,7 +10,7 @@ import type {
 } from "@cfpa/contracts/api";
 import { parseModelSelector } from "@cfpa/contracts/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, Ban, Bot, Brain, Cpu, GitPullRequest, WifiOff } from "lucide-react";
+import { Archive, Ban, Bot, Brain, Cpu, GitPullRequest, PanelLeft, PanelRight, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { SessionStatusBadge } from "@/components/StatusBadges.tsx";
@@ -22,9 +22,11 @@ import { formatRelative } from "@/lib/format.ts";
 import { thinkingOptionsFor, withCurrentThinking } from "@/lib/models-dev.ts";
 import { qk, useLlmConfig, usePrs, useSession } from "@/lib/queries.ts";
 import { ChatStream } from "@/routes/agent/ChatItems.tsx";
+import { useAgentSidebar } from "@/routes/agent/AgentLayout.tsx";
 import { Composer } from "@/routes/agent/Composer.tsx";
 import { DraftPanel } from "@/routes/agent/DraftPanel.tsx";
 import { OptionPicker, type PickerOption } from "@/routes/agent/OptionPicker.tsx";
+import { ReviewSidebar } from "@/routes/agent/ReviewSidebar.tsx";
 import { Badge } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
 import { Dialog } from "@/ui/Dialog.tsx";
@@ -52,9 +54,24 @@ function isReviewDraft(value: unknown): value is ReviewDraft {
   return "verdict" in value && "comments" in value && Array.isArray(value.comments);
 }
 
+function formatTokens(value: number): string {
+  if (value < 1000) return String(Math.round(value));
+  const k = value / 1000;
+  return `${k >= 100 ? Math.round(k) : k.toFixed(1).replace(/\.0$/, "")}k`;
+}
+
+function latestContextTokens(items: readonly ChatItem[]): number | undefined {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (item?.kind === "assistant" && item.usage !== undefined) return item.usage.contextTokens;
+  }
+  return undefined;
+}
+
 export function SessionPage({ id }: { id: string }) {
   const detail = useSession(id);
   const client = useQueryClient();
+  const agentSidebar = useAgentSidebar();
   const listRef = useRef<HTMLDivElement | null>(null);
   const atBottomRef = useRef(true);
   const [items, setItems] = useState<readonly ChatItem[]>([]);
@@ -65,7 +82,10 @@ export function SessionPage({ id }: { id: string }) {
   const [draftError, setDraftError] = useState<string | undefined>(undefined);
   const [text, setText] = useState("");
   const [actionError, setActionError] = useState<string | undefined>(undefined);
-  const [pane, setPane] = useState<"chat" | "draft">("chat");
+  const [pane, setPane] = useState<"chat" | "aside">("chat");
+  const [asideTab, setAsideTab] = useState<"status" | "draft">("status");
+  const [asideOpen, setAsideOpen] = useState(true);
+  const draftSeen = useRef(false);
   const [confirmEval, setConfirmEval] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [chatWidth, setChatWidth] = useState(initialChatWidth);
@@ -78,8 +98,16 @@ export function SessionPage({ id }: { id: string }) {
 
   useEffect(() => {
     setPane("chat");
+    setAsideTab("status");
+    draftSeen.current = false;
     setText("");
   }, [id]);
+
+  useEffect(() => {
+    if (draft === null || draftSeen.current) return;
+    draftSeen.current = true;
+    setAsideTab("draft");
+  }, [draft]);
 
   useEffect(() => {
     const data = detail.data;
@@ -138,7 +166,11 @@ export function SessionPage({ id }: { id: string }) {
 
   useEffect(() => {
     const node = listRef.current;
-    if (node && atBottomRef.current) node.scrollTop = node.scrollHeight;
+    if (!node || !atBottomRef.current) return;
+    const frame = requestAnimationFrame(() => {
+      if (atBottomRef.current) node.scrollTop = node.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
   }, [items]);
 
   const scrollToBottom = () => {
@@ -251,6 +283,9 @@ export function SessionPage({ id }: { id: string }) {
   const sessionModelId =
     meta.model || parseModelSelector(llm.data?.roles.default ?? "").endpoint || llm.data?.endpoints[0]?.id || "";
   const sessionEndpoint = llm.data?.endpoints.find((endpoint) => endpoint.id === sessionModelId);
+  const contextTokens = latestContextTokens(items);
+  const contextWindow = sessionEndpoint?.contextWindow ?? 128_000;
+  const contextRatio = contextTokens === undefined ? 0 : contextTokens / contextWindow;
   const thinkingOptions: readonly PickerOption[] = withCurrentThinking(
     thinkingOptionsFor(modelsDevIndex, sessionEndpoint?.model ?? "", sessionEndpoint?.provider),
     meta.thinking,
@@ -306,6 +341,17 @@ export function SessionPage({ id }: { id: string }) {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <header className="shrink-0 px-4 pb-1 pt-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden md:inline-flex"
+            title={agentSidebar.open ? "隐藏会话列表" : "显示会话列表"}
+            aria-label={agentSidebar.open ? "隐藏会话列表" : "显示会话列表"}
+            aria-pressed={agentSidebar.open}
+            onClick={agentSidebar.toggle}
+          >
+            <PanelLeft aria-hidden="true" className="size-4" />
+          </Button>
           <h1 className="min-w-0 flex-1 truncate text-sm font-semibold" title={meta.title || id}>
             {meta.title || id}
           </h1>
@@ -316,6 +362,20 @@ export function SessionPage({ id }: { id: string }) {
                 中止
               </Button>
             )}
+            <Button
+              variant="ghost"
+              size="icon"
+              title={asideOpen ? "隐藏审查状态" : "显示审查状态"}
+              aria-label={asideOpen ? "隐藏审查状态" : "显示审查状态"}
+              aria-pressed={asideOpen}
+              onClick={() => {
+                const next = !asideOpen;
+                setAsideOpen(next);
+                setPane(next ? "aside" : "chat");
+              }}
+            >
+              <PanelRight aria-hidden="true" className="size-4" />
+            </Button>
             {!archived && (
               <Button
                 variant="ghost"
@@ -334,6 +394,18 @@ export function SessionPage({ id }: { id: string }) {
           <span>{meta.createdBy}</span>
           <span title={meta.createdAt}>{formatRelative(meta.createdAt)}</span>
           {archived && <Badge>已归档</Badge>}
+          {contextTokens !== undefined && (
+            <span
+              title={`上下文占用 ${contextTokens.toLocaleString()} / ${contextWindow.toLocaleString()} tokens`}
+              className={cn(
+                "inline-flex items-center gap-1 tabular-nums",
+                contextRatio >= 0.9 ? "text-danger" : contextRatio >= 0.7 ? "text-warn" : "text-muted",
+              )}
+            >
+              <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
+              上下文 {formatTokens(contextTokens)} / {formatTokens(contextWindow)}（{Math.round(contextRatio * 100)}%）
+            </span>
+          )}
         </div>
       </header>
 
@@ -351,12 +423,12 @@ export function SessionPage({ id }: { id: string }) {
         </div>
       )}
 
-      {draft !== null && (
+      {asideOpen && (
         <div className="shrink-0 border-b border-line px-3 py-2 xl:hidden">
           <Tabs
             items={[
               { id: "chat", label: "对话" },
-              { id: "draft", label: `草稿（${draft.comments.length}）` },
+              { id: "aside", label: asideTab === "draft" && draft !== null ? `草稿（${draft.comments.length}）` : "状态" },
             ]}
             value={pane}
             onChange={setPane}
@@ -368,7 +440,7 @@ export function SessionPage({ id }: { id: string }) {
       <div className="flex min-h-0 flex-1">
         <section
           ref={sectionRef}
-          className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", draft !== null && pane === "draft" && "hidden xl:flex")}
+          className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", asideOpen && pane === "aside" && "hidden xl:flex")}
         >
           <div className="relative mx-auto flex min-h-0 w-full flex-1 flex-col" style={{ maxWidth: chatWidth }}>
             <div ref={listRef} onScroll={() => {
@@ -385,7 +457,7 @@ export function SessionPage({ id }: { id: string }) {
                   description="在下面输入消息，开始与 Agent 对话。"
                 />
               ) : (
-                <ChatStream items={items} />
+                <ChatStream items={items} scrollRef={listRef} prNumber={meta.prNumber} />
               )}
             </div>
 
@@ -463,26 +535,47 @@ export function SessionPage({ id }: { id: string }) {
           </div>
         </section>
 
-        {draft !== null && (
+        {asideOpen && (
           <aside
             className={cn(
               "min-h-0 min-w-0 flex-1 overflow-hidden border-line xl:w-[380px] xl:flex-none xl:border-l",
               pane === "chat" && "hidden xl:block",
             )}
           >
-            <DraftPanel
-              draft={draft}
-              dirty={dirty}
-              saving={saveDraft.isPending}
-              publishing={publish.isPending}
-              error={draftError}
-              onChange={(next) => {
-                setDraft(next);
-                setDirty(true);
-              }}
-              onSave={() => saveDraft.mutate(draft)}
-              onPublish={() => publish.mutate()}
-            />
+            <div className="flex h-full min-h-0 flex-col">
+              {draft !== null && (
+                <div className="shrink-0 border-b border-line px-3 py-2">
+                  <Tabs
+                    items={[
+                      { id: "status", label: "状态" },
+                      { id: "draft", label: `草稿（${draft.comments.length}）` },
+                    ]}
+                    value={asideTab}
+                    onChange={setAsideTab}
+                    ariaLabel="右栏视图"
+                  />
+                </div>
+              )}
+              <div className="min-h-0 flex-1 overflow-hidden">
+                {asideTab === "draft" && draft !== null ? (
+                  <DraftPanel
+                    draft={draft}
+                    dirty={dirty}
+                    saving={saveDraft.isPending}
+                    publishing={publish.isPending}
+                    error={draftError}
+                    onChange={(next) => {
+                      setDraft(next);
+                      setDirty(true);
+                    }}
+                    onSave={() => saveDraft.mutate(draft)}
+                    onPublish={() => publish.mutate()}
+                  />
+                ) : (
+                  <ReviewSidebar items={items} prNumber={meta.prNumber} status={status} />
+                )}
+              </div>
+            </div>
           </aside>
         )}
       </div>
