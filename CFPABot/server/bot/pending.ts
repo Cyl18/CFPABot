@@ -1,10 +1,13 @@
+import { withLock } from "../store.ts";
+
 const inflight = new Set<Promise<unknown>>();
 
-export function track<T>(promise: Promise<T>): Promise<T> {
-  const wrapped = promise.catch(() => undefined);
+export function track<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const run = withLock(key, fn);
+  const wrapped = run.catch(() => undefined);
   inflight.add(wrapped);
   void wrapped.finally(() => inflight.delete(wrapped));
-  return promise;
+  return run;
 }
 
 export async function drainPending(): Promise<void> {

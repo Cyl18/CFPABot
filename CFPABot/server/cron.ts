@@ -1,6 +1,7 @@
 import { readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { syncGlossary } from "./domain/glossary.ts";
+import { pruneDeliveries } from "./deliveries.ts";
 import { env } from "./env.ts";
 import { logger } from "./log.ts";
 import { paths } from "./paths.ts";
@@ -48,6 +49,7 @@ export function startCron(): () => void {
     { name: "mirror-sync", intervalMs: 6 * HOUR, run: () => mirror.sync() },
     { name: "repo-worktree-refresh", intervalMs: HOUR, run: () => refreshRepo() },
     { name: "jar-cache-prune", intervalMs: DAY, run: () => Promise.resolve(pruneJars()) },
+    { name: "webhook-marker-prune", intervalMs: DAY, run: () => pruneDeliveries() },
   ];
   if (env.CURSEFORGE_API_KEY) {
     tasks.push({ name: "mappings-scan", intervalMs: DAY, run: () => mods.mappings.scan() });

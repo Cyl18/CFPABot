@@ -1,4 +1,5 @@
 import { env } from "./env.ts";
+import { acquireInstanceLock, releaseInstanceLock } from "./instance.ts";
 import { logger } from "./log.ts";
 import { ensureDirs } from "./paths.ts";
 import { prdata } from "./prdata.ts";
@@ -10,6 +11,7 @@ import { app } from "./http/app.ts";
 const log = logger("main");
 
 ensureDirs();
+await acquireInstanceLock();
 await prdata.init();
 await agent.init();
 
@@ -27,6 +29,7 @@ async function shutdown(signal: string): Promise<void> {
   stopCron();
   server.stop();
   await Promise.allSettled([drain(), agent.shutdown()]);
+  await releaseInstanceLock();
   process.exit(0);
 }
 

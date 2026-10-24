@@ -75,24 +75,22 @@ async function onPullRequest(payload: unknown): Promise<void> {
   }
   const { action, number } = parsed.data;
   if (action === "opened" || action === "reopened" || action === "synchronize") {
-    track(refreshPull(number, action !== "opened"));
+    track(`pr:${number}`, () => refreshPull(number, action !== "opened"));
     return;
   }
   if (action === "edited") {
-    track(
-      (async () => {
-        await step("labels", () => syncLabels(number));
-        await step("label-check", () => labelCheck(number));
-      })(),
-    );
+    track(`pr:${number}`, async () => {
+      await step("labels", () => syncLabels(number));
+      await step("label-check", () => labelCheck(number));
+    });
     return;
   }
   if (action === "labeled" || action === "unlabeled") {
-    track(step("label-check", () => labelCheck(number)));
+    track(`pr:${number}`, () => step("label-check", () => labelCheck(number)));
     return;
   }
   if (action === "closed") {
-    track(step("prdata.refresh", () => prdata.refresh(number)));
+    track(`pr:${number}`, () => step("prdata.refresh", () => prdata.refresh(number)));
   }
 }
 
@@ -106,7 +104,7 @@ async function onIssueComment(payload: unknown): Promise<void> {
   if (!issue.pull_request && !issue.html_url.includes("pull")) return;
   if (action === "created") {
     if (comment.user.type === "Bot" || comment.user.login === env.BOT_LOGIN) return;
-    track(
+    track(`pr:${issue.number}`, () =>
       runCommands({
         prNumber: issue.number,
         body: comment.body,
@@ -120,7 +118,7 @@ async function onIssueComment(payload: unknown): Promise<void> {
   if (!comment.body.startsWith(CYBOT_MARKER)) return;
   if (comment.user.login !== env.BOT_LOGIN && comment.user.login !== "Cyl18-Bot") return;
   if (!comment.body.includes("- [x] 🔄") && !comment.body.includes("- [x] 🔃")) return;
-  track(refreshInfoComment(issue.number, { force: true, refreshPacker: true }));
+  track(`pr:${issue.number}`, () => refreshInfoComment(issue.number, { force: true, refreshPacker: true }));
 }
 
 async function onWorkflowRun(payload: unknown): Promise<void> {
@@ -131,32 +129,31 @@ async function onWorkflowRun(payload: unknown): Promise<void> {
   }
   const run = parsed.data.workflow_run;
   if (parsed.data.workflow.name !== PACKER_WORKFLOW_NAME || run.event !== "pull_request") return;
-  track(
-    (async () => {
-      try {
-        const first = run.pull_requests?.[0];
-        const owner = run.head_repository?.owner.login;
-        const pull = first
-          ? await gh.getPull(first.number)
-          : owner
-            ? await gh.findPullByHead(`${owner}:${run.head_branch}`)
-            : null;
-        if (!pull) return;
-        const { files } = await prdata.files(pull.number);
-        await autoApprovePacker(pull, files);
-        await refreshInfoComment(pull.number, { refreshPacker: true });
-      } catch (err) {
-        log.error("处理 workflow_run 失败", { error: err });
-      }
-    })(),
-  );
+  const number = run.pull_requests?.[0]?.number;
+  track(number === undefined ? "workflow-run" : `pr:${number}`, async () => {
+    try {
+      const first = run.pull_requests?.[0];
+      const owner = run.head_repository?.owner.login;
+      const pull = first
+        ? await gh.getPull(first.number)
+        : owner
+          ? await gh.findPullByHead(`${owner}:${run.head_branch}`)
+          : null;
+      if (!pull) return;
+      const { files } = await prdata.files(pull.number);
+      await autoApprovePacker(pull, files);
+      await refreshInfoComment(pull.number, { refreshPacker: true });
+    } catch (err) {
+      log.error("处理 workflow_run 失败", { error: err });
+    }
+  });
 }
 
 async function onPush(payload: unknown): Promise<void> {
   const parsed = pushSchema.safeParse(payload);
   if (!parsed.success) return;
   if (parsed.data.ref !== `refs/heads/${repo.defaultBranch}`) return;
-  track(
+  track("push", () =>
     mirror.sync().then(
       () => undefined,
       (err: unknown) => log.error("同步镜像失败", { error: err }),

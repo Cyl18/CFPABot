@@ -4,6 +4,7 @@ import { env } from "../env.ts";
 import { logger } from "../log.ts";
 import { verifySignature } from "../github/webhook.ts";
 import { handleWebhook } from "../bot/index.ts";
+import { claimDelivery, isDeliveryId, releaseDelivery } from "../deliveries.ts";
 import { HttpError } from "../errors.ts";
 import { MAX_BODY_BYTES } from "./errors.ts";
 import type { AppEnv } from "./auth.ts";
@@ -11,15 +12,6 @@ import type { AppEnv } from "./auth.ts";
 export const webhookRoutes = new Hono<AppEnv>();
 
 const log = logger("webhook");
-const DELIVERY_TTL_MS = 10 * 60 * 1000;
-const deliveries = new Map<string, number>();
-
-function pruneDeliveries(now: number): void {
-  if (deliveries.size < 500) return;
-  for (const [id, at] of deliveries) {
-    if (now - at > DELIVERY_TTL_MS) deliveries.delete(id);
-  }
-}
 
 const handleWebhookRequest = async (c: Context<AppEnv>) => {
   const secret = env.GITHUB_WEBHOOK_SECRET;
@@ -36,14 +28,6 @@ const handleWebhookRequest = async (c: Context<AppEnv>) => {
     throw new HttpError(401, "签名校验失败", "invalid_signature");
   }
 
-  const now = Date.now();
-  pruneDeliveries(now);
-  const delivery = c.req.header("x-github-delivery");
-  if (delivery) {
-    if (deliveries.has(delivery)) return c.json({ ok: true }, 200);
-    deliveries.set(delivery, now);
-  }
-
   const event = c.req.header("x-github-event");
   if (!event) throw new HttpError(400, "缺少 x-github-event 请求头", "invalid_event");
 
@@ -54,7 +38,16 @@ const handleWebhookRequest = async (c: Context<AppEnv>) => {
     throw new HttpError(400, "请求体不是有效的 JSON", "invalid_json");
   }
 
-  void handleWebhook(event, payload).catch((err: unknown) => log.error("Webhook 处理失败", { event, err }));
+  const delivery = c.req.header("x-github-delivery");
+  if (delivery !== undefined) {
+    if (!isDeliveryId(delivery)) throw new HttpError(400, "投递 ID 非法", "invalid_delivery");
+    if (!(await claimDelivery(delivery))) return c.json({ ok: true }, 200);
+  }
+
+  void handleWebhook(event, payload).catch((err: unknown) => {
+    log.error("Webhook 处理失败", { event, err });
+    if (delivery !== undefined) void releaseDelivery(delivery);
+  });
   return c.json({ ok: true }, 202);
 };
 

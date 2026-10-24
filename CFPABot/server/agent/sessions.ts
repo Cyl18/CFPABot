@@ -89,6 +89,7 @@ export function summarize(
 
 export class SessionStore {
   private records = new Map<string, SessionRecord>();
+  private pending = new Map<string, Promise<SessionRecord | null>>();
 
   async init(): Promise<void> {
     await mkdir(paths.sessions, { recursive: true });
@@ -113,7 +114,13 @@ export class SessionStore {
   }
 
   async get(id: string): Promise<SessionRecord | null> {
-    return this.records.get(id) ?? (await this.read(id));
+    const cached = this.records.get(id);
+    if (cached) return cached;
+    const inflight = this.pending.get(id);
+    if (inflight) return inflight;
+    const read = this.read(id).finally(() => this.pending.delete(id));
+    this.pending.set(id, read);
+    return read;
   }
 
   async put(record: SessionRecord): Promise<void> {

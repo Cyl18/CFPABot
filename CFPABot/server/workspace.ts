@@ -53,11 +53,11 @@ async function clearStaleIndexLock(): Promise<void> {
 }
 
 export async function repoRoot(): Promise<string> {
-  return withLock("repo-worktree", ensureRepoUnlocked);
+  return withLock("mirror", ensureRepoUnlocked);
 }
 
 export async function refreshRepo(): Promise<void> {
-  await withLock("repo-worktree", async () => {
+  await withLock("mirror", async () => {
     const root = await ensureRepoUnlocked();
     await runGit(paths.mirror, ["fetch", "--depth", "1", "origin", repo.defaultBranch], null);
     await runGit(paths.mirror, ["update-ref", `refs/heads/${repo.defaultBranch}`, "FETCH_HEAD"], null);

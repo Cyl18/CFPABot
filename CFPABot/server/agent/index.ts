@@ -55,13 +55,26 @@ interface Runtime {
   authStorage: AuthStorage;
 }
 
-const runtimes = new Map<string, Runtime>();
-const staleRuntimes = new Set<string>();
-const admissions = new Map<string, Promise<void>>();
-const runs = new Map<string, Promise<void>>();
-const active = new Set<string>();
-const pendingAborts = new Set<string>();
-const abortRequested = new Set<string>();
+/** 一个会话的全部运行时状态。`turn` 是在跑的唯一真相，`abort` 只对当前 turn 有效。 */
+interface Live {
+  runtime?: Runtime;
+  turn?: Promise<void>;
+  /** omp 已受理当前 turn 的 prompt，之后 `isStreaming` 才为真。 */
+  admitted?: Promise<void>;
+  abort?: boolean;
+  /** 当前 turn 结束后丢弃 runtime（配置变更或归档）。 */
+  stale?: boolean;
+}
+
+const live = new Map<string, Live>();
+
+function slotOf(id: string): Live {
+  const existing = live.get(id);
+  if (existing) return existing;
+  const slot: Live = {};
+  live.set(id, slot);
+  return slot;
+}
 
 const SKILLS_DIR = join(paths.root, "skills");
 
@@ -106,8 +119,8 @@ async function detailOf(record: SessionRecord): Promise<SessionDetail> {
   const meta = record.meta;
   const raw = await readLocal(meta.id, DRAFT_FILE);
   const draft = raw === null ? null : parseDraftFile(raw.content);
-  const live = runtimes.get(meta.id)?.session.agent.state.messages;
-  const messages = live ? [...live] : await sessionMessages(record);
+  const cached = live.get(meta.id)?.runtime?.session.agent.state.messages;
+  const messages = cached ? [...cached] : await sessionMessages(record);
   return {
     ...summarize(
       record,
@@ -149,9 +162,12 @@ function toolContext(record: SessionRecord): ToolContext {
 }
 
 async function disposeRuntime(id: string): Promise<void> {
-  const runtime = runtimes.get(id);
+  const slot = live.get(id);
+  if (!slot) return;
+  const runtime = slot.runtime;
+  slot.stale = undefined;
   if (!runtime) return;
-  runtimes.delete(id);
+  slot.runtime = undefined;
   runtime.unsubscribe();
   try {
     await runtime.session.dispose();
@@ -160,11 +176,9 @@ async function disposeRuntime(id: string): Promise<void> {
   }
 }
 
-async function getRuntime(record: SessionRecord): Promise<Runtime> {
+async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   const id = record.meta.id;
-  if (staleRuntimes.delete(id)) await disposeRuntime(id);
-  const existing = runtimes.get(id);
-  if (existing) return existing;
+  if (slot.runtime) return slot.runtime;
   const workflow = resolveWorkflow(record.meta.workflow);
   const config = await loadConfig();
   applySearchEnv(config.search);
@@ -228,13 +242,12 @@ async function getRuntime(record: SessionRecord): Promise<Runtime> {
     throw err;
   }
   const runtime: Runtime = { session, unsubscribe, authStorage };
-  runtimes.set(id, runtime);
+  slot.runtime = runtime;
   return runtime;
 }
 
-async function runTurn(id: string, prompt: string, admit: () => void): Promise<void> {
+async function runTurn(id: string, prompt: string, admit: () => void, slot: Live): Promise<void> {
   let error: string | undefined;
-  let aborted = pendingAborts.delete(id);
   try {
     const record = await store.get(id);
     if (!record) return;
@@ -243,34 +256,25 @@ async function runTurn(id: string, prompt: string, admit: () => void): Promise<v
       await chmod(dirname(localDir(id)), 0o711);
       await chmod(localDir(id), 0o777);
     }
-    const runtime = await getRuntime(record);
-    const abortNow = aborted || pendingAborts.delete(id) || abortRequested.delete(id);
-    if (abortNow) {
-      aborted = true;
-      pendingAborts.delete(id);
-      abortRequested.delete(id);
+    const runtime = await getRuntime(record, slot);
+    // abort 可能在 runtime 建立期间落下；此时 omp 还没有在途 turn，只能在这里截断。
+    if (slot.abort) {
       await runtime.session.abort();
       return;
     }
     await runtime.session.prompt(prompt, { onPromptAdmitted: admit });
-    if (abortRequested.delete(id)) aborted = true;
-    if (!aborted) {
-      const last = runtime.session.agent.state.messages.at(-1);
-      if (last?.role === "assistant" && last.errorMessage) error = last.errorMessage;
-    }
+    if (slot.abort) return;
+    const last = runtime.session.agent.state.messages.at(-1);
+    if (last?.role === "assistant" && last.errorMessage) error = last.errorMessage;
   } catch (err) {
-    if (aborted || abortRequested.delete(id)) {
-      aborted = true;
-      abortRequested.delete(id);
-    } else {
-      error = err instanceof Error ? err.message : String(err);
-      log.error("会话运行失败", { id, err });
-      await disposeRuntime(id).catch(() => {});
-    }
+    if (slot.abort) return;
+    error = err instanceof Error ? err.message : String(err);
+    log.error("会话运行失败", { id, err });
+    await disposeRuntime(id).catch(() => {});
   } finally {
+    slot.abort = undefined;
     admit();
-    admissions.delete(id);
-    active.delete(id);
+    slot.admitted = undefined;
     const fresh = await store.get(id).catch(() => null);
     if (fresh) {
       fresh.meta.status = "idle";
@@ -278,45 +282,58 @@ async function runTurn(id: string, prompt: string, admit: () => void): Promise<v
       if (error) fresh.meta.lastError = error;
       else delete fresh.meta.lastError;
       await store.put(fresh).catch((err: unknown) => log.error("会话状态写入失败", { id, err }));
-      const stale = staleRuntimes.delete(id);
-      if (fresh.meta.archived || stale) {
-        await disposeRuntime(id).catch((err: unknown) => log.error("会话资源释放失败", { id, err }));
-      }
-    } else {
-      staleRuntimes.delete(id);
+    }
+    if (slot.stale || !fresh || fresh.meta.archived) {
       await disposeRuntime(id).catch((err: unknown) => log.error("会话资源释放失败", { id, err }));
     }
     hub.emit(id, { type: "status", status: "idle", ...(error ? { lastError: error } : {}) });
   }
 }
 
-async function launch(id: string, prompt: string): Promise<void> {
-  active.add(id);
-  try {
-    const record = await store.get(id);
-    if (!record) throw httpError("会话不存在", 404);
-    record.meta.status = "running";
-    record.meta.updatedAt = now();
-    delete record.meta.lastError;
-    await store.put(record);
-    hub.emit(id, { type: "status", status: "running" });
-  } catch (err) {
-    active.delete(id);
-    throw err;
-  }
+/** 同步起一个 turn：`slot.turn` 在第一个 await 之前就位，调用方因此不需要另加在跑标记。 */
+function launch(id: string, prompt: string): boolean {
+  const slot = live.get(id);
+  const record = store.peek(id);
+  if (slot?.turn || !record) return false;
+  const target = slot ?? slotOf(id);
+  target.abort = undefined;
   let admit!: () => void;
-  const admitted = new Promise<void>((resolve) => {
+  target.admitted = new Promise<void>((resolve) => {
     admit = resolve;
   });
-  admissions.set(id, admitted);
-  const run = runTurn(id, prompt, admit).catch((err: unknown) => {
+  record.meta.status = "running";
+  record.meta.updatedAt = now();
+  delete record.meta.lastError;
+  void store.put(record).catch((err: unknown) => log.error("会话状态写入失败", { id, err }));
+  hub.emit(id, { type: "status", status: "running" });
+  const turn = runTurn(id, prompt, admit, target).catch((err: unknown) => {
     log.error("会话运行失败", { id, err });
   });
-  runs.set(id, run);
-  void run.finally(() => {
-    if (runs.get(id) === run) runs.delete(id);
+  target.turn = turn;
+  void turn.finally(() => {
+    if (target.turn === turn) target.turn = undefined;
   });
+  return true;
 }
+
+async function publishOnce(id: string, by: string): Promise<{ url: string }> {
+  const record = await store.get(id);
+  if (!record) throw httpError("会话不存在", 404);
+  const raw = await readLocal(id, DRAFT_FILE);
+  const draft = raw === null ? null : parseDraftFile(raw.content);
+  if (draft === null) throw httpError("没有可发布的草稿", 400);
+  if (!botWritesEnabled()) throw httpError("当前 GitHub 身份不是机器人，已暂停发布审查。", 403);
+  const { url } = await publishDraft(draft);
+  const value = { ...draft, publishedAt: now(), publishedUrl: url };
+  await writeLocal(id, DRAFT_FILE, serializeDraftFile(value));
+  record.meta.updatedAt = now();
+  await store.put(record);
+  hub.emit(id, { type: "artifact", artifact: value });
+  log.info("草稿已发布", { sessionId: id, by, url });
+  return { url };
+}
+
+const publishing = new Map<string, Promise<{ url: string }>>();
 
 export const agent = {
   async init(): Promise<void> {
@@ -382,7 +399,7 @@ export const agent = {
     const record: SessionRecord = { meta };
     await store.put(record);
     if (modelError === undefined) {
-      await launch(id, message);
+      launch(id, message);
     } else {
       meta.lastError = modelError;
       try {
@@ -400,57 +417,49 @@ export const agent = {
   },
 
   async send(id: string, text: string): Promise<void> {
-    const record = await store.get(id);
-    if (!record) throw httpError("会话不存在", 404);
-    if (record.meta.archived) throw httpError("会话已归档", 400);
     const message = text.trim();
     if (!message) throw httpError("消息不能为空", 400);
     for (;;) {
       const current = await store.get(id);
       if (!current) throw httpError("会话不存在", 404);
       if (current.meta.archived) throw httpError("会话已归档", 400);
-      if (current.meta.status !== "running" && !active.has(id)) {
-        await launch(id, message);
-        return;
+      const slot = live.get(id);
+      if (!slot?.turn) {
+        if (launch(id, message)) return;
+        continue;
       }
-      const admitted = admissions.get(id);
-      if (admitted) await admitted;
-      const runtime = runtimes.get(id);
+      // 先等 omp 受理：受理之后 isStreaming 才反映这一轮，steer 才插得进去。
+      if (slot.admitted) await slot.admitted;
+      const runtime = slot.runtime;
       if (runtime?.session.isStreaming) {
         await runtime.session.prompt(message, { streamingBehavior: "steer" });
         return;
       }
-      const run = runs.get(id);
-      if (!run) throw Object.assign(new Error("会话正在切换状态，请稍后再发"), { status: 409, code: "SESSION_BUSY" });
-      await run;
+      // runtime 还在建立，或这一轮刚好收尾：等它结束再重新判断。
+      await slot.turn;
     }
   },
 
   async abort(id: string): Promise<void> {
-    const runtime = runtimes.get(id);
-    if (runtime) {
-      if (active.has(id)) {
-        abortRequested.add(id);
-        void runtime.session.abort().catch(() => {});
-      }
-      return;
-    }
-    if (active.has(id)) pendingAborts.add(id);
+    const slot = live.get(id);
+    if (!slot?.turn) return;
+    slot.abort = true;
+    void slot.runtime?.session.abort().catch(() => {});
   },
 
   async archive(id: string): Promise<void> {
     const record = await store.get(id);
     if (!record) throw httpError("会话不存在", 404);
-    const running = record.meta.status === "running";
-    if (running) {
-      abortRequested.add(id);
-      staleRuntimes.add(id);
-      void runtimes.get(id)?.session.abort().catch(() => {});
+    const slot = live.get(id);
+    if (slot?.turn) {
+      slot.abort = true;
+      slot.stale = true;
+      void slot.runtime?.session.abort().catch(() => {});
     }
     record.meta.archived = true;
     record.meta.updatedAt = now();
     await store.put(record);
-    if (!running) await disposeRuntime(id);
+    if (!slot?.turn) await disposeRuntime(id);
   },
 
   subscribe(id: string, listener: (event: SessionEvent) => void): () => void {
@@ -488,20 +497,14 @@ export const agent = {
   },
 
   async publishArtifact(id: string, by: string): Promise<{ url: string }> {
-    const record = await store.get(id);
-    if (!record) throw httpError("会话不存在", 404);
-    const raw = await readLocal(id, DRAFT_FILE);
-    const draft = raw === null ? null : parseDraftFile(raw.content);
-    if (draft === null) throw httpError("没有可发布的草稿", 400);
-    if (!botWritesEnabled()) throw httpError("当前 GitHub 身份不是机器人，已暂停发布审查。", 403);
-    const { url } = await publishDraft(draft);
-    const value = { ...draft, publishedAt: now(), publishedUrl: url };
-    await writeLocal(id, DRAFT_FILE, serializeDraftFile(value));
-    record.meta.updatedAt = now();
-    await store.put(record);
-    hub.emit(id, { type: "artifact", artifact: value });
-    log.info("草稿已发布", { sessionId: id, by, url });
-    return { url };
+    const inflight = publishing.get(id);
+    if (inflight) return inflight;
+    const run = publishOnce(id, by);
+    publishing.set(id, run);
+    void run.finally(() => {
+      if (publishing.get(id) === run) publishing.delete(id);
+    });
+    return run;
   },
 
   async setWriteScope(id: string, writeScope: WriteScope): Promise<void> {
@@ -510,7 +513,8 @@ export const agent = {
     record.meta.writeScope = writeScope;
     record.meta.updatedAt = now();
     await store.put(record);
-    if (active.has(id)) staleRuntimes.add(id);
+    const slot = live.get(id);
+    if (slot?.turn) slot.stale = true;
     else await disposeRuntime(id);
   },
 
@@ -563,14 +567,16 @@ export const agent = {
     meta.updatedAt = now();
     await store.put(record);
     if (runtimeChanged) {
-      if (active.has(id)) staleRuntimes.add(id);
+      const slot = live.get(id);
+      if (slot?.turn) slot.stale = true;
       else await disposeRuntime(id);
     }
   },
 
   async shutdown(): Promise<void> {
-    for (const runtime of runtimes.values()) void runtime.session.abort().catch(() => {});
-    await Promise.allSettled([...runs.values()]);
-    await Promise.allSettled([...runtimes.keys()].map((id) => disposeRuntime(id)));
+    const slots = [...live.values()];
+    for (const slot of slots) void slot.runtime?.session.abort().catch(() => {});
+    await Promise.allSettled(slots.flatMap((slot) => (slot.turn ? [slot.turn] : [])));
+    await Promise.allSettled([...live.keys()].map((id) => disposeRuntime(id)));
   },
 };
