@@ -211,7 +211,7 @@ export const llm = {
     const roles: Record<string, string> = {};
     for (const [rawName, rawSelector] of Object.entries(input.roles)) {
       const name = rawName.trim();
-      if (!/^[A-Za-z0-9_-]+$/.test(name)) throw new Error(`别名 ${rawName} 只能包含字母、数字、下划线和连字符`);
+      if (name === "" || /[\s@]/.test(name)) throw new Error(`别名 ${rawName} 不能为空，也不能含空格或 @`);
       const parsedRole = parseRoleSelector(rawSelector);
       if (!ids.has(parsedRole.endpoint)) throw new Error(`别名 ${name} 指向的端点 ${parsedRole.endpoint} 不在端点列表中`);
       roles[name] = formatRoleSelector(parsedRole.endpoint, parsedRole.thinking);
