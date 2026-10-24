@@ -5,19 +5,18 @@
 核心是边界熵 + 最小互信息（新词发现），不依赖中英对照，不假设键的形态。
 语言是位置参数，支持 en / zh / ja / ko。
 
-    python utility/final.py mod prep <lang 目录> -o <输出前缀>
-    python utility/final.py mod review <lang 目录> -o <输出前缀>
-    python utility/final.py mod mine <lang 目录> <语言> [--ref <语言>] --termhood <策略> -o <输出前缀>
-    python utility/final.py mod assemble <骨架.json> --terms <填好的.tsv> -o <组合文件.json>
+    python <termgen>/final.py mod prep <lang 目录> -o <输出前缀>
+    python <termgen>/final.py mod review <lang 目录> -o <输出前缀>
+    python <termgen>/final.py mod mine <lang 目录> <语言> [--ref <语言>] --termhood <策略> -o <输出前缀>
+    python <termgen>/final.py mod assemble <骨架.json> --terms <填好的.tsv> -o <组合文件.json>
 
 prep（只有 en_us.json，翻译时）出三样：
   1. <前缀>-skeleton.json + <前缀>-terms.tsv   组合骨架 + 待译术语表（给 LLM 填最后一列）
-  2. <前缀>-glossary.txt                       一致性词表（词槽 + 固定词/短语，带语料译法票数）
+  2. <前缀>-glossary.txt                       一致性词表（词槽 + 固定词/短语）
   3. <前缀>-coverage.md                        覆盖报告（人话：条目数/术语数/组合能盖多少/术语表能碰多少）
 
 review（en_us.json + zh_cn.json，校对时）出一份 <前缀>-divergence.md：
   同一英文的多种译法（精确），以及同一名字骨架下变动词的多种译法（候选，需人核对切分）。
-  不需要语料；给了语料就附社区译法分布。
 
 mine（术语挖掘，语言由位置参数给：en / zh / ko / ja）出两样：<前缀>-mine.tsv（术语表）+
 <前缀>-mine.md（人看的表）。文件按语言码找（zh -> zh_cn.json），`--ref` 指同一目录里的另一种语言，
@@ -26,9 +25,7 @@ mine（术语挖掘，语言由位置参数给：en / zh / ko / ja）出两样�
 assemble：读回填好的术语表，把骨架组装成最终组合文件。
 
 术语只从名字型显示名取（判据：不含 . ! ? ; : ,、词数 1~6、过半词首字母大写），键只当对齐提示，
-键的分段不约束译文。词槽 = 名字型显示名里同一位置互相替代的词；语料 mod_corpus_complete.tsv
-用「掩码骨架对齐」挖出 英文词->中文译法 投票表 + 整句译法表，缓存到 <corpus>.dict[.<排除模组>].tsv。
-语料是可选的（约 100MB，从模组包生成）：不给或找不到就跳过中文锚点，只挖术语不查译法。
+键的分段不约束译文。词槽 = 名字型显示名里同一位置互相替代的词。
 
 mine 反过来，对全部显示名（含长段落）切子句取 n-gram（en 1~5 词、zh/ja 1~8 字、ko 1~5 语节），
 凝聚度用最小互信息、边界熵用左右邻接熵，两者的阈值都取候选自身分布的分位数。
@@ -40,7 +37,6 @@ mine 反过来，对全部显示名（含长段落）切子句取 n-gram（en 1~
 """
 
 import argparse
-import bisect
 import collections
 import itertools
 import json
@@ -715,7 +711,7 @@ def write_terms_tsv(path, target, terms, stats, modid):
              % (stats["terms"], stats["hit_en"], stats["en"], stats["coverage"]),
              "# display 是要翻译的重复段（取自英文显示名），tokens 是对齐用键 token。",
              "# 只填最后一列 zh，其余列不要改；填完执行：",
-             "#   python utility/final.py mod assemble <骨架.json> --terms 本文件 -o <组合文件.json>",
+             "#   python <termgen>/final.py mod assemble <骨架.json> --terms 本文件 -o <组合文件.json>",
              "\t".join(TERMS_HEADER)]
     order = sorted(terms.items(), key=lambda kv: (-kv[1]["impact"], kv[0]))
     for disp, t in order:
@@ -853,7 +849,6 @@ NAME_PUNCT = '.!?;:,'        # 名字型显示名里不出现的标点
 NAME_WORDS = (1, 6)          # 名字型显示名的词数范围
 PHRASE_N = (2, 3)            # 固定短语取的 n-gram 长度
 WRAP = 100                   # 槽行折行宽度（显示列）
-DICT_V = 3                   # 词典缓存版本，改挖法就要 +1
 
 # 英语虚词表：句子型标题漏进名字型的 the/a/of/acquire 之类，按语言级声明剔除
 STOPWORDS = {
@@ -934,7 +929,7 @@ def wrap_line(items, prefix='', cont='    ', width=WRAP):
     return lines
 
 
-# ---------------------------------------------------------------- 语料对齐
+# ---------------------------------------------------------------- 骨架对齐
 
 def harvest(group, votes, stats, seen):
     """group: [(token, zh, modid)]；把 token->中文片段 的票投进 votes。
@@ -1001,108 +996,6 @@ def mine_pairs(rows, stats=None):
         if len(g) >= 2:
             harvest(g, votes, st, seen)
     return votes, st
-
-
-def corpus_rows(path, exclude=None):
-    rows = []
-    with open(path, encoding='utf-8') as f:
-        next(f, None)
-        for line in f:
-            p = line.rstrip('\n').split('\t')
-            if len(p) != 6:
-                continue
-            mod, ver, modid, key, en, zh = p
-            if exclude and mod == exclude:
-                continue
-            z = norm_zh(zh)
-            if not z or not CJK.search(z) or LAT.search(z) or z == en:
-                continue
-            rows.append((mod + '\x00' + ver, key.lower(), en, norm_en(en), z))
-    return rows
-
-
-def build_dict(corpus_path, dict_path, exclude=None, verbose=False):
-    """语料 -> (词->译法票, 整句->译法票)。只挖显示名的词，键不参与（键的分段不约束译文）。"""
-    t0 = time.time()
-    rows = corpus_rows(corpus_path, exclude)
-    ken = [(m, w, z) for m, k, e, w, z in rows if name_like(e) and 2 <= len(w) <= 9]
-    votes, st = mine_pairs(ken)
-    if verbose:
-        print('  mine %s tokens=%d %.1fs' % (dict(st), len(votes), time.time() - t0), file=sys.stderr)
-    ph = collections.defaultdict(collections.Counter)
-    seen = set()
-    for m, k, e, w, z in rows:
-        if not w:
-            continue
-        k2 = hash((m, tuple(w), z))
-        if k2 in seen:
-            continue
-        seen.add(k2)
-        ph[' '.join(w)][z] += 1
-    with open(dict_path, 'w', encoding='utf-8') as f:
-        f.write('#corpus\t%d\t%s\t%d\t%d\t%s\n' % (
-            DICT_V, os.path.abspath(corpus_path), os.path.getsize(corpus_path),
-            int(os.path.getmtime(corpus_path)), exclude or ''))
-        for t, c in sorted(votes.items()):
-            for variant, n in c.most_common(8):
-                f.write('W\t%s\t%s\t%d\n' % (t, variant, n))
-        for e, c in sorted(ph.items()):
-            tot = sum(c.values())
-            if tot < 2:
-                continue
-            for variant, n in c.most_common(4):
-                f.write('P\t%s\t%s\t%d\n' % (e, variant, n))
-    if verbose:
-        print('  dict: %d words, %d phrases -> %s (%.1fs)' %
-              (len(votes), sum(1 for c in ph.values() if sum(c.values()) >= 2),
-               dict_path, time.time() - t0), file=sys.stderr)
-    return ({t: c.most_common(8) for t, c in votes.items()},
-            {e: c.most_common(4) for e, c in ph.items() if sum(c.values()) >= 2})
-
-
-def load_dict(corpus_path, dict_path, exclude=None, verbose=False):
-    if not corpus_path:
-        return {}, {}
-    if os.path.exists(dict_path):
-        with open(dict_path, encoding='utf-8') as f:
-            head = f.readline().rstrip('\n').split('\t')
-        if (len(head) == 6 and head[1] == str(DICT_V)
-                and head[2] == os.path.abspath(corpus_path)
-                and head[3] == str(os.path.getsize(corpus_path))
-                and head[4] == str(int(os.path.getmtime(corpus_path)))
-                and head[5] == (exclude or '')):
-            w, p = {}, {}
-            with open(dict_path, encoding='utf-8') as f:
-                next(f, None)
-                for line in f:
-                    q = line.rstrip('\n').split('\t')
-                    if len(q) != 4:
-                        continue
-                    if q[0] == 'W':
-                        w.setdefault(q[1], []).append((q[2], int(q[3])))
-                    else:
-                        p.setdefault(q[1], []).append((q[2], int(q[3])))
-            if verbose:
-                print('  dict loaded: %d words, %d phrases' % (len(w), len(p)), file=sys.stderr)
-            return w, p
-    if verbose:
-        print('  (构建语料词典，首次约 20s)', file=sys.stderr)
-    return build_dict(corpus_path, dict_path, exclude, verbose)
-
-
-def dist_str(pairs, k=3):
-    """[(译法, 票数)] -> '蓝(77%) 蓝色(20%) [共156票]'，只陈述语料里的分布。"""
-    pairs = pairs or []
-    tot = sum(n for _, n in pairs)
-    if not tot:
-        return '[语料无此词]'
-    head = ' '.join('%s(%d%%)' % (v, round(100 * n / tot)) for v, n in pairs[:k])
-    return '%s [共%d票]' % (head, tot)
-
-
-def lookup(d, p, term, k=3):
-    """槽成员/固定词可能是复合词，短语表里有的优先按短语查。"""
-    return ((p.get(term) or d.get(term)) if ' ' in term else d.get(term)) or []
 
 
 # ---------------------------------------------------------------- 模组分析
@@ -1241,8 +1134,8 @@ def fixed_items(seqs, single, cnt, min_impact):
     return items
 
 
-def report_glossary(seqs, cnt, slots, d, p, top, min_impact):
-    """译前词表：词槽（同位置互替，成员 ≥2）+ 槽外固定词/短语，各带语料译法分布。"""
+def report_glossary(seqs, cnt, slots, top, min_impact):
+    """译前词表：词槽（同位置互替，成员 ≥2）+ 槽外固定词/短语。"""
     lines = []
     multi = [(st, cov) for st, cov in slots if len(st) >= 2]
     single = {w for st, _ in slots if len(st) == 1 for w in st}
@@ -1250,8 +1143,7 @@ def report_glossary(seqs, cnt, slots, d, p, top, min_impact):
     lines.append('── 词槽（名字型显示名里同位置互替，成员 ≥2）：%d 组（列出 %d 组）'
                  % (len(multi), min(top, len(multi)) if top else len(multi)))
     for st, cov in (multi[:top] if top else multi):
-        items = ['%s→%s' % (w, dist_str(lookup(d, p, w), 2))
-                 for w in sorted(st, key=lambda w: (-cnt[w], w))]
+        items = sorted(st, key=lambda w: (-cnt[w], w))
         lines += wrap_line(items, '  [%d] %d条 | ' % (len(st), cov), ' ' * 10)
     if top and len(multi) > top:
         lines.append('   … 其余 %d 组略' % (len(multi) - top))
@@ -1261,7 +1153,7 @@ def report_glossary(seqs, cnt, slots, d, p, top, min_impact):
     lines.append('')
     lines.append('── 固定词 / 短语（槽外，按条目数）：%d 条（列出 %d 条）' % (len(items), len(sel)))
     for g, n in sel:
-        lines.append('%5d条 | %s → %s' % (n, wpad(g, 20), dist_str(lookup(d, p, g))))
+        lines.append('%5d条 | %s' % (n, g))
     if len(items) > len(sel):
         lines.append('   … 其余 %d 条（共 %d 条）略' % (len(items) - len(sel),
                                                     sum(n for _, n in items[len(sel):])))
@@ -1275,13 +1167,11 @@ def report_glossary(seqs, cnt, slots, d, p, top, min_impact):
     return lines
 
 
-def report_review(lang_dir, en, zh, zh_src, ns, d, p, top, min_impact):
-    """校对模式：同一英文的多种译法；骨架对齐候选；有语料时附社区译法作对照。"""
+def report_review(lang_dir, en, zh, zh_src, ns, top, min_impact):
+    """校对模式：同一英文的多种译法；骨架对齐候选。"""
     lines = ['# %s' % lang_dir,
-             '# 条目 %d 条 / 中文 %d 条 / 中文来源：%s' % (len(en), len(zh), zh_src)]
-    if not d and not p:
-        lines.append('# 语料未加载：只比本模组内部')
-    lines.append('')
+             '# 条目 %d 条 / 中文 %d 条 / 中文来源：%s' % (len(en), len(zh), zh_src),
+             '']
 
     by_en = collections.defaultdict(collections.Counter)
     ex = collections.defaultdict(list)
@@ -1297,11 +1187,9 @@ def report_review(lang_dir, en, zh, zh_src, ns, d, p, top, min_impact):
     a_div.sort(key=lambda x: -sum(x[1].values()))
     lines.append('── 同一英文，多种译法：%d 组' % len(a_div))
     for e, c in (a_div[:top] if top else a_div):
-        ctx = lookup(d, p, ' '.join(norm_en(e)))
-        lines.append('%5d条 | %s 本模组: %s%s' % (
+        lines.append('%5d条 | %s 本模组: %s' % (
             sum(c.values()), wpad(e, 26),
-            ' / '.join('%s(%d)' % (v, n) for v, n in c.most_common(3)),
-            ('  语料: ' + dist_str(ctx)) if ctx else ''))
+            ' / '.join('%s(%d)' % (v, n) for v, n in c.most_common(3))))
         for v, _ in c.most_common(2):
             lines.append('        └ %s = %s' % (ex[(e, v)][0], v))
     if top and len(a_div) > top:
@@ -1319,11 +1207,9 @@ def report_review(lang_dir, en, zh, zh_src, ns, d, p, top, min_impact):
     lines.append('')
     lines.append('── 同一名字骨架，变动词多种译法（候选，需核对）：%d 个' % len(b_div))
     for t, c in (b_div[:top] if top else b_div):
-        ctx = lookup(d, p, t)
-        lines.append('%5d种 | %s 本模组: %s%s' % (
+        lines.append('%5d种 | %s 本模组: %s' % (
             len(c), wpad(t, 18),
-            ' / '.join('%s(%d)' % (v, n) for v, n in c.most_common(3)),
-            ('  语料: ' + dist_str(ctx)) if ctx else ''))
+            ' / '.join('%s(%d)' % (v, n) for v, n in c.most_common(3))))
         shown = 0
         for v, _ in c.most_common(2):
             for key, e in en.items():
@@ -1375,27 +1261,13 @@ def lang_stats(en, seqs, slots):
     return n_multi, n_single
 
 
-def mod_header(lang_dir, en, seqs, slots, mode, exclude=None):
+def mod_header(lang_dir, en, seqs, slots, mode):
     n_multi, n_single = lang_stats(en, seqs, slots)
     return ["# %s" % lang_dir,
             "# 条目 %d 条 / 名字型显示名 %d 条 (%d%%) / 词槽 %d 组 + 槽外词 %d 个"
             % (len(en), len(seqs), round(100 * len(seqs) / max(1, len(en))),
                n_multi, n_single),
-            "# 模式=%s%s" % (mode, "，语料已排除 %s" % exclude if exclude else "")]
-
-
-def dict_args(args, lang_dir):
-    """(排除的模组名, 词典缓存路径)：默认按路径自动排除本模组。"""
-    exclude = args.exclude
-    if exclude is None:
-        segs = lang_dir.replace("\\", "/").split("/")
-        if len(segs) >= 2 and segs[-1] == "lang":
-            exclude = segs[-2]
-    if args.dict:
-        return exclude, args.dict
-    path = None if not args.corpus else (args.corpus + ".dict"
-                                        + (".%s" % exclude if exclude else "") + ".tsv")
-    return exclude, path
+            "# 模式=%s" % mode]
 
 
 def coverage_lines(ns, lang_dir, en, seqs, slots, items, terms, stats):
@@ -1432,15 +1304,13 @@ def coverage_lines(ns, lang_dir, en, seqs, slots, items, terms, stats):
     return lines
 
 
-def load_glossary_inputs(args, lang_dir, en):
-    """两个入口共用：语料词典 -> (seqs, cnt, slots, items, d, p, exclude)。"""
-    exclude, dict_path = dict_args(args, lang_dir)
-    d, p = load_dict(args.corpus, dict_path, exclude, not args.quiet)
+def glossary_inputs(en, min_impact):
+    """prep 词表输入 -> (seqs, cnt, slots, items)。"""
     seqs = merge_compounds(name_seqs(en))
     cnt, slots = build_slots(seqs)
     single = {w for st, _ in slots if len(st) == 1 for w in st}
-    items = fixed_items(seqs, single, cnt, args.min_impact)
-    return seqs, cnt, slots, items, d, p, exclude
+    items = fixed_items(seqs, single, cnt, min_impact)
+    return seqs, cnt, slots, items
 
 
 # ---------------------------------------------------------------- 全文本 n-gram 挖术语
@@ -1452,10 +1322,9 @@ MINE_EX_LEN = 60             # 例句截断长度
 MINE_EX_SRC = 200            # 例句原句最长保留多少字
 MINE_PCT_COH = 30            # 凝聚度（最小互信息）阈值 = 候选自身分布的第几百分位
 MINE_PCT_ENT = 40            # 边界熵阈值 = 候选自身分布的第几百分位
-MINE_HEAD = ['term', 'n', 'impact', 'long', 'name', 'mi', 'hmin', 'zh', 'zh_votes',
-             'zh_total', 'zh_src', 'example']
+MINE_HEAD = ['term', 'n', 'impact', 'long', 'name', 'mi', 'hmin', 'example']
 MINE_HEAD_CJK = ['term', 'n', 'impact', 'long', 'name', 'mi', 'hmin', 'ref', 'ref_votes',
-                 'ref_total', 'ref_src', 'mods', 'example']
+                 'ref_total', 'ref_src', 'example']
 
 TERMHOODS = ('auto', 'self', 'specificity')   # 术语度策略
 PROSE_MED_LEN = 60        # auto：中位条目长度达到它就按散文语料处理
@@ -1572,7 +1441,7 @@ def shannon(counter):
 
 
 def percentile(vals, pct):
-    """分位数（最近秩，不插值）：阈值从语料自身分布取，不写死。"""
+    """分位数（最近秩，不插值）：阈值从候选自身分布取，不写死。"""
     if not vals:
         return 0.0
     v = sorted(vals)
@@ -1821,90 +1690,10 @@ def mine_terms(parsed, max_n=MINE_N_MAX, min_impact=2, pct_coh=MINE_PCT_COH,
     return kept, stats
 
 
-def mine_anchor(gram, d, p):
-    """语料名字型条目里的双语锚点 -> (译法, 票数, 总票数, 来源, 其它译法, 模组数)。"""
-    key = ' '.join(gram)
-    votes, src = list(p.get(key) or []), '整名'
-    if not votes and len(gram) == 1:
-        votes, src = list(d.get(key) or []), '词'
-    if votes:
-        return votes[0][0], votes[0][1], sum(n for _, n in votes), src, votes[1:3], ''
-    if len(gram) > 1:
-        parts = [d.get(w) or [] for w in gram]
-        if all(parts):
-            return (''.join(pp[0][0] for pp in parts), min(pp[0][1] for pp in parts),
-                    min(sum(n for _, n in pp) for pp in parts), '拼合', [], '')
-    return '', 0, 0, '', [], ''
-
-
 def ref_pairs(primary, ref):
     """同目录两份语言文件 -> [(本条语言的值, 对照语言的值)]，按 key 对齐。"""
     return [(v, ref[k]) for k, v in primary.items()
             if isinstance(v, str) and isinstance(ref.get(k), str)]
-
-
-def zh_mod_index(corpus_path, exclude=None):
-    """语料 zh 列 -> [(整列文本, 每行起始偏移, 英文列)]：先整列找术语，再二分出是哪个英文名。"""
-    if not corpus_path:
-        return []
-    zs, ens = collections.defaultdict(list), collections.defaultdict(list)
-    with open(corpus_path, encoding='utf-8') as f:
-        next(f, None)
-        for line in f:
-            p = line.rstrip('\n').split('\t')
-            if len(p) != 6:
-                continue
-            mod, ver, modid, key, en, zh = p
-            if exclude and mod == exclude:
-                continue
-            if zh:
-                zs[mod].append(zh)
-                ens[mod].append(en)
-    index = []
-    for mod, vals in zs.items():
-        text, offs, pos = [], [], 0
-        for z in vals:
-            offs.append(pos)
-            text.append(z)
-            pos += len(z) + 1
-        index.append(('\n'.join(text), offs, ens[mod]))
-    return index
-
-
-def mod_mask(index):
-    """字 -> 含该字的模组位图（按需算、算过就缓存），用来把整列扫描缩到候选模组。"""
-    cache = {}
-
-    def mask(ch):
-        if ch not in cache:
-            m = 0
-            for i, (text, _, _) in enumerate(index):
-                if ch in text:
-                    m |= 1 << i
-            cache[ch] = m
-        return cache[ch]
-    return mask
-
-
-def zh_index_lookup(index, mask_of, term):
-    """术语 -> (出现的模组数, Counter(每个命中模组里第一条含该术语的行的英文词))。"""
-    bits = 0
-    for ch in set(term):
-        bits = mask_of(ch) if not bits else bits & mask_of(ch)
-        if not bits:
-            return 0, collections.Counter()
-    mods, cnt = 0, collections.Counter()
-    while bits:
-        bit = bits & -bits
-        bits ^= bit
-        text, offs, ens = index[bit.bit_length() - 1]
-        i = text.find(term)
-        if i < 0:
-            continue
-        mods += 1
-        cnt.update(w for w in norm_en(ens[bisect.bisect_right(offs, i) - 1])
-                   if w not in STOPWORDS and not w.isdigit())
-    return mods, cnt
 
 
 def ref_words(pairs, term):
@@ -1917,19 +1706,15 @@ def ref_words(pairs, term):
     return cnt, total
 
 
-def mine_anchor_cjk(gram, pairs, index, mask_of):
-    """中文术语的锚点 -> (英文对应, 票数, 总票数, 来源, 其它, 模组数)；来源「对照」按 key 对齐、「语料」按 zh 列。"""
+def mine_anchor_cjk(gram, pairs):
+    """中文术语的锚点 -> (英文对应, 票数, 总票数, 来源, 其它)；按 key 对齐对照语言。"""
     term = ''.join(gram)
-    mods, cnt = zh_index_lookup(index, mask_of, term) if index else (0, collections.Counter())
     if pairs:
         ref, total = ref_words(pairs, term)
         if ref:
             top = ref.most_common(3)
-            return top[0][0], top[0][1], total, '对照', top[1:], mods
-    if cnt:
-        top = cnt.most_common(3)
-        return top[0][0], top[0][1], mods, '语料', top[1:], mods
-    return '', 0, 0, '', [], mods
+            return top[0][0], top[0][1], total, '对照', top[1:]
+    return '', 0, 0, '', []
 
 
 def memo_anchor(fn):
@@ -1975,18 +1760,16 @@ def fmt_h(v):
     return '%.2f' % v if v != math.inf else '∞'
 
 
-def write_mine_tsv(path, rows, anchor, exclude, ns, lang='en'):
+def write_mine_tsv(path, rows, anchor, ns, lang='en'):
     cjk = MINE_LANG[lang]['cjk']
     head = MINE_HEAD_CJK if cjk else MINE_HEAD
-    lines = ['# 全文本 n-gram 术语表：%s（语言 %s，语料锚点排除 %s）'
-             % (ns, MINE_LANG[lang]['label'], exclude or '无'),
+    lines = ['# 全文本 n-gram 术语表：%s（语言 %s）' % (ns, MINE_LANG[lang]['label']),
              '\t'.join(head)]
     for r in rows:
-        ref, v, tot, src, alt, mods = anchor(r['gram'])
         vals = [r['surface'], r['n'], r['freq'], r['long'], r['name'], fmt_h(r['mi']),
-                fmt_h(r['hmin']), ref, v, tot, src]
+                fmt_h(r['hmin'])]
         if cjk:
-            vals.append(mods)
+            vals += list(anchor(r['gram'])[:4])
         vals.append(' '.join(r['example'].split()))
         lines.append('\t'.join(str(x) for x in vals))
     write_text(path, '\n'.join(lines) + '\n')
@@ -1994,7 +1777,7 @@ def write_mine_tsv(path, rows, anchor, exclude, ns, lang='en'):
 
 
 def mine_report(ns, lang_dir, parsed, rows, stats, cov, anchor, top, sec, chars, lang='en'):
-    """人看的表：术语 / 影响条目数 / 长文本还是名字 / 语料译法+票数 / 例句。"""
+    """人看的表：术语 / 影响条目数 / 长文本还是名字 / 例句；CJK 另附对照语言对应名。"""
     cjk = MINE_LANG[lang]['cjk']
     n_name = sum(1 for _, k, _ in parsed if k)
     long_only = sum(1 for r in rows if r['long'] and not r['name'])
@@ -2019,7 +1802,7 @@ def mine_report(ns, lang_dir, parsed, rows, stats, cov, anchor, top, sec, chars,
              '- 术语表能碰到 %d/%d 条（%.1f%%），其中多术语碰到 %d 条（%.1f%%）'
              % (cov['all'], len(parsed), 100.0 * cov['all'] / max(1, len(parsed)),
                 cov['multi'], 100.0 * cov['multi'] / max(1, len(parsed))),
-             '- 用时：语料 %s / 挖掘 %s' % (sec['dict'], sec['mine'])]
+             '- 用时：%s' % sec]
     if cjk:
         lines.append('- 窗口偏移还原：并掉 %d 个片段、补进 %d 个带前缀的形式（另有 %d 个疑似片段'
                      '自己也独立出现过，没并）；去掉长超串同频的子串后 %d 个术语'
@@ -2029,23 +1812,25 @@ def mine_report(ns, lang_dir, parsed, rows, stats, cov, anchor, top, sec, chars,
                      '互信息与边界熵的统计里参与计算' % (stats['min_n'], stats['thin']))
     elif stats.get('termhood') != 'specificity':
         lines.append('- 去掉长超串同频的子串后 %d 个术语' % len(rows))
-    lines += ['',
-              '| 术语 | 影响条目 | 长文本 | 名字 | 最小互信息 | 最小边界熵 | %s | 来源 | 例句 |'
-              % ('英文对应' if cjk else '语料译法'),
-              '|---|---:|---:|---:|---:|---:|---|---|---|']
+    head = '| 术语 | 影响条目 | 长文本 | 名字 | 最小互信息 | 最小边界熵 |'
+    rule = '|---|---:|---:|---:|---:|---:|'
+    if cjk:
+        head += ' 英文对应 | 来源 |'
+        rule += '---|---|'
+    head += ' 例句 |'
+    rule += '---|'
+    lines += ['', head, rule]
     for r in rows[:top or len(rows)]:
-        ref, v, tot, src, alt, mods = anchor(r['gram'])
+        cells = [r['surface'], r['freq'], r['long'], r['name'],
+                 fmt_h(r['mi']), fmt_h(r['hmin'])]
         if cjk:
+            ref, v, tot, src, alt = anchor(r['gram'])
             hit = ('%s(%d/%d)' % (ref, v, tot)) if ref else '—'
-            if mods:
-                hit += ' 模组%d' % mods
-        else:
-            hit = (('%s(%d/%d)' % (ref, v, tot)) if ref else '—')
-        if alt:
-            hit += ' 其它：' + ' '.join('%s(%d)' % x for x in alt)
-        lines.append('| %s | %d | %d | %d | %s | %s | %s | %s | %s |' % (
-            r['surface'], r['freq'], r['long'], r['name'], fmt_h(r['mi']), fmt_h(r['hmin']),
-            hit, src or '—', r['example'].replace('|', '/') or '—'))
+            if alt:
+                hit += ' 其它：' + ' '.join('%s(%d)' % x for x in alt)
+            cells += [hit, src or '—']
+        cells.append(r['example'].replace('|', '/') or '—')
+        lines.append('| ' + ' | '.join(str(c) for c in cells) + ' |')
     return lines
 
 
@@ -2080,23 +1865,15 @@ def cmd_mine(args):
     min_n = spec['min_n'] if args.min_n is None else args.min_n
     ns = os.path.basename(os.path.dirname(lang_dir))
     prefix = args.out or os.path.join(os.getcwd(), ns)
-    exclude, dict_path = dict_args(args, lang_dir)
-    if spec['cjk']:
-        index = zh_mod_index(args.corpus, exclude)
-        mask_of = mod_mask(index)
-        pairs = []
-        if args.ref:
-            ref_path = find_lang_file(lang_dir, MINE_LANG[args.ref]['file'])
-            if not ref_path:
-                raise SystemExit("缺少 %s.json / %s.lang：%s"
-                                 % (MINE_LANG[args.ref]['file'], MINE_LANG[args.ref]['file'],
-                                    lang_dir))
-            pairs = ref_pairs(data, load_lang_file(ref_path))
-        anchor = memo_anchor(lambda g: mine_anchor_cjk(g, pairs, index, mask_of))
-    else:
-        d, p = load_dict(args.corpus, dict_path, exclude, not args.quiet)
-        anchor = memo_anchor(lambda g: mine_anchor(g, d, p))
-    t1 = time.time()
+    pairs = []
+    if spec['cjk'] and args.ref:
+        ref_path = find_lang_file(lang_dir, MINE_LANG[args.ref]['file'])
+        if not ref_path:
+            raise SystemExit("缺少 %s.json / %s.lang：%s"
+                             % (MINE_LANG[args.ref]['file'], MINE_LANG[args.ref]['file'],
+                                lang_dir))
+        pairs = ref_pairs(data, load_lang_file(ref_path))
+    anchor = memo_anchor(lambda g: mine_anchor_cjk(g, pairs)) if spec['cjk'] else None
     parsed = mine_entries(data, max_n, lang)
     termhood = resolve_termhood(args.termhood, data, lang)
     lexicon = SpecLexicon(parsed) if termhood == 'specificity' else None
@@ -2107,11 +1884,11 @@ def cmd_mine(args):
     t2 = time.time()
     stats.update({'min_impact': args.min_impact, 'pct_coh': args.pct_coh,
                   'pct_ent': args.pct_ent})
-    sec = {'dict': '%.1fs' % (t1 - t0), 'mine': '%.1fs' % (t2 - t1)}
+    sec = '%.1fs' % (t2 - t0)
     chars = sum(len(spec['join'].join(c for c, _ in cl)) for _, k, cl in parsed if not k)
     tsv_path = prefix + "-mine.tsv"
     md_path = prefix + "-mine.md"
-    write_mine_tsv(tsv_path, rows, anchor, exclude, ns, lang)
+    write_mine_tsv(tsv_path, rows, anchor, ns, lang)
     write_text(md_path, '\n'.join(
         mine_report(ns, lang_dir, parsed, rows, stats, cov, anchor, args.top, sec, chars,
                     lang)) + '\n')
@@ -2130,7 +1907,7 @@ def cmd_mine(args):
                'stopped': stats['stopped'], 'thin': stats['thin'],
                'window_merged': len(stats['merged']),
                'window_suspect': len(stats['suspect']),
-               'cov': cov, 'sec_dict': t1 - t0, 'sec_mine': t2 - t1,
+               'cov': cov, 'sec': round(t2 - t0, 3),
                'tsv': tsv_path, 'md': md_path}
     print(json.dumps(summary, ensure_ascii=False))
     return 0
@@ -2159,9 +1936,9 @@ def cmd_prep(args):
     write_terms_tsv(terms_path, target, terms, stats, ns)
 
     # 出口 2：一致性词表
-    seqs, cnt, slots, items, d, p, exclude = load_glossary_inputs(args, lang_dir, en)
-    gl = mod_header(lang_dir, en, seqs, slots, "译前（无 zh_cn.json）", exclude)
-    gl += report_glossary(seqs, cnt, slots, d, p, args.top, args.min_impact)
+    seqs, cnt, slots, items = glossary_inputs(en, args.min_impact)
+    gl = mod_header(lang_dir, en, seqs, slots, "译前（无 zh_cn.json）")
+    gl += report_glossary(seqs, cnt, slots, args.top, args.min_impact)
     glossary_path = prefix + "-glossary.txt"
     write_text(glossary_path, "\n".join(gl) + "\n")
 
@@ -2189,14 +1966,12 @@ def cmd_review(args):
                          "只有 en_us.json 时用 prep" % lang_dir)
     ns = os.path.basename(os.path.dirname(lang_dir))
     prefix = args.out or os.path.join(os.getcwd(), ns)
-    exclude, dict_path = dict_args(args, lang_dir)
-    d, p = load_dict(args.corpus, dict_path, exclude, not args.quiet)
-    lines = report_review(lang_dir, en, zh, zh_src, ns, d, p, args.top, args.min_impact)
+    lines = report_review(lang_dir, en, zh, zh_src, ns, args.top, args.min_impact)
     div_path = prefix + "-divergence.md"
     write_text(div_path, "\n".join(lines) + "\n")
     print(json.dumps({"lang_dir": lang_dir, "divergence": div_path,
-                      "en": len(en), "zh": len(zh), "zh_source": zh_src,
-                      "corpus": bool(d or p)}, ensure_ascii=False))
+                      "en": len(en), "zh": len(zh), "zh_source": zh_src},
+                     ensure_ascii=False))
     return 0
 
 
@@ -2221,17 +1996,9 @@ def cmd_assemble(args):
 # ---------------------------------------------------------------- 命令行
 
 
-def add_corpus_args(ap):
-    ap.add_argument("--corpus", default=os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "mod_corpus_complete.tsv"),
-        help="语料 TSV（默认 mod_corpus_complete.tsv）")
-    ap.add_argument("--dict", default=None,
-                    help="词典缓存路径（默认 <corpus>.dict[.<排除模组>].tsv）")
-    ap.add_argument("--exclude", default=None,
-                    help="从语料里排除的模组名（默认按路径自动）")
+def add_common_args(ap):
     ap.add_argument("--top", type=int, default=25, help="每张表最多几行 (0=不限)")
     ap.add_argument("--min-impact", type=int, default=2)
-    ap.add_argument("--quiet", action="store_true")
 
 
 def build_parser():
@@ -2248,14 +2015,14 @@ def build_parser():
     p.add_argument("--target", help="组合文件的 target 字段")
     p.add_argument("--min-group", type=int, default=2, help="一个条目至少几行")
     p.add_argument("--max-tail", type=int, default=2, help="尾部 token 串最大长度")
-    add_corpus_args(p)
+    add_common_args(p)
     p.set_defaults(func=cmd_prep)
 
     r = sub.add_parser("review", help="en_us.json + zh_cn.json：本模组译法分歧")
     r.add_argument("lang_dir", help="含 en_us.json（可选 zh_cn.json）的 lang 目录")
     r.add_argument("-o", "--out", help="输出前缀（默认 ./<模组名>）")
     r.add_argument("--zh", help="中文语言文件（覆盖目录里的 zh_cn.json）")
-    add_corpus_args(r)
+    add_common_args(r)
     r.set_defaults(func=cmd_review)
 
     a = sub.add_parser("assemble", help="读回填好的术语表，把骨架组装成最终组合文件")
@@ -2286,7 +2053,7 @@ def build_parser():
     m.add_argument("--termhood", choices=TERMHOODS, default="auto",
                    help="术语度策略：auto 按中位条目长度选（默认），self 取候选分布的分位数，"
                         "specificity 用通用英语频率参照（只支持 en，需 wordfreq）")
-    add_corpus_args(m)
+    add_common_args(m)
     m.set_defaults(func=cmd_mine, top=300)
     return ap
 
@@ -2297,10 +2064,6 @@ def main(argv=None):
     if not getattr(args, "cmd", None):
         ap.print_help()
         return 2
-    corpus = getattr(args, "corpus", None)
-    if corpus and not os.path.exists(corpus):
-        print("提示：未找到语料 %s，跳过语料锚定（可用 --corpus 指定）" % corpus, file=sys.stderr)
-        args.corpus = None
     return args.func(args)
 
 

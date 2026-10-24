@@ -9,13 +9,13 @@ PR 校对。产出 `local://draft.json`；术语表、风格指南、格式要�
 
 ## 流程
 
-1. **读译前产物**：`local://terms.tsv`、`local://STYLE.md`、`local://format.md`。没有就跳过。
+1. **读译前产物**：`local://terms.tsv`、`local://STYLE.md`、`local://format.md`。没有就跳过。`terms.tsv` 只取 changed 行里出现的词，不整表读。
 2. **取全量行**：`read pr://<n>/meta` 拿 `headSha`；`read pr://<n>/review/rows?filter=changed` 拿行，用 `offset`、`limit`、`?workspace=` 取到 `total` 条为止。只审 `changed` 且 `inHunk` 的行（`line` 是 head 行号）。
    - `counts.workspaces === 0` 先看 `prep` 的路径闸门。
 3. **全量校对**：每一条都读原文和译文，不抽样；派子代理也按 key 分片全量。
    - **三遍**（一次推理里的顺序，不是三轮对话）：盲读译文（别扭、歧义、语气）→ 对照原文（先写清谁对谁做什么，再查指称、否定、量化、比较、专名）→ 回填（放回相邻 key 拼读，看主语、量词、标点、长度）。
    - **机械项由预审定位，由你确认**：逐条回到原文和译文核对，成立才写评论，档位按后果定（finding 的档位是起点），误报不写。
-   - **术语**：`mcp__glossary_query` 查依据；本模组内部的分歧用下面的 `mod review` 看。没依据不判 major。
+   - **术语**：`mcp__glossary_query` 查依据，多个词用 `mcp__glossary_query_batch`（每批 ≤20）；本模组内部的分歧用下面的 `mod review` 看。没依据不判 major。
 4. **写草稿**：`write local://draft.json`，跑 `bash bun "$CFPA_ROOT/skills/post/scripts/check-draft.mjs" ./draft.json`，改到通过。
 5. **可选覆盖**：本轮确认的术语、风格、格式写回三份文件，直接覆盖。
 
