@@ -1,16 +1,16 @@
 import { type } from "@oh-my-pi/omptype";
-import type { AgentTool } from "@oh-my-pi/pi-agent-core";
 import {
   createAgentSession,
   SessionManager,
+  type CustomTool,
   type ExtensionFactory,
-  type ToolDefinition,
 } from "@oh-my-pi/pi-coding-agent";
 import type { ToolContext } from "../context.ts";
 import { loadConfig, resolveModel } from "../llm.ts";
 import { parseRoleSelector } from "../llm-providers.ts";
 import { paths } from "../../paths.ts";
 import { openAuthStorage, openModelRuntime } from "../pi.ts";
+import { onAbortSignal } from "./signal.ts";
 
 const CHILD_TOOLS: Record<string, true> = { read: true, grep: true, find: true, glob: true, bash: true };
 
@@ -21,15 +21,15 @@ const DELEGATE_PARAMS = type({
 
 export function delegateTool(
   ctx: ToolContext,
-  childTools: (ctx: ToolContext) => ToolDefinition[],
+  childTools: (ctx: ToolContext) => CustomTool[],
   extensions: ExtensionFactory[],
-): AgentTool<typeof DELEGATE_PARAMS> {
+): CustomTool<typeof DELEGATE_PARAMS> {
   return {
     name: "delegate",
     label: "派发子代理",
     description: "按模型别名启动只读子代理，返回它的最终文本。别名来自 LLM 配置的 roles。",
     parameters: DELEGATE_PARAMS,
-    execute: async (_toolCallId, params, signal) => {
+    execute: async (_toolCallId, params, _onUpdate, _ctx, signal) => {
       const name = params.model.trim().replace(/^@/, "");
       const config = await loadConfig();
       const selector = config.roles[name];
@@ -52,8 +52,7 @@ export function delegateTool(
         systemPrompt: "你是子代理。只完成分配的任务，用简洁文本返回结论；不要派发子代理。",
       });
       const session = created.session;
-      const onAbort = () => void session.abort();
-      signal?.addEventListener("abort", onAbort, { once: true });
+      const stopListening = onAbortSignal(signal, () => void session.abort());
       try {
         await session.setActiveToolsByName(
           session.getActiveToolNames().filter((name) => CHILD_TOOLS[name] === true || name.startsWith("mcp__")),
@@ -74,7 +73,7 @@ export function delegateTool(
           details: { model: name, endpoint: endpointId, thinking },
         };
       } finally {
-        signal?.removeEventListener("abort", onAbort);
+        stopListening();
         await session.dispose().catch(() => {});
         authStorage.close();
       }
