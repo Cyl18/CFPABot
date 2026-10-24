@@ -8,6 +8,7 @@ import type { WorkflowDefinition } from "./workflows/types.ts";
 const AGENT_DIR = join(paths.config, "agent");
 const TREE_PLACEHOLDER = "{{RESOURCE_TREE}}";
 const WRITE_PLACEHOLDER = "{{WRITE_TARGETS}}";
+const WORKSPACE_PLACEHOLDER = "{{WORKSPACE_DIR}}";
 
 async function readPrompt(file: string): Promise<string> {
   try {
@@ -17,7 +18,7 @@ async function readPrompt(file: string): Promise<string> {
   }
 }
 
-export async function buildSystemPrompt(workflow: WorkflowDefinition): Promise<string> {
+export async function buildSystemPrompt(workflow: WorkflowDefinition, workspaceDir: string): Promise<string> {
   const writeTable = [
     "```",
     ...WRITE_TARGETS.map((target) => `${target.uri}\t# ${target.summary}`),
@@ -25,7 +26,8 @@ export async function buildSystemPrompt(workflow: WorkflowDefinition): Promise<s
   ].join("\n");
   const system = (await readPrompt("system.md"))
     .replace(TREE_PLACEHOLDER, resourceTree())
-    .replace(WRITE_PLACEHOLDER, writeTable);
+    .replace(WRITE_PLACEHOLDER, writeTable)
+    .replace(WORKSPACE_PLACEHOLDER, workspaceDir);
   const fragments = await Promise.all(workflow.promptFiles.map(readPrompt));
   return [system, ...fragments].filter(Boolean).join("\n\n");
 }

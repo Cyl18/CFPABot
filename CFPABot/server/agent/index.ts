@@ -182,7 +182,7 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   const workflow = resolveWorkflow(record.meta.workflow);
   const config = await loadConfig();
   applySearchEnv(config.search);
-  const basePrompt = await buildSystemPrompt(workflow);
+  const basePrompt = await buildSystemPrompt(workflow, localDir(id));
   const aliases = Object.keys(config.roles).filter((role) => role !== "default");
   const systemPrompt =
     aliases.length === 0
