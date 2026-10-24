@@ -187,7 +187,7 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   const systemPrompt =
     aliases.length === 0
       ? basePrompt
-      : `${basePrompt}\n\n可用模型别名：${aliases.map((role) => `@${role}`).join("、")}。派子代理时用 delegate({ model: "@别名", task: "…" })；单次调用可用 eval 的 await completion(prompt, model="@别名")。`;
+      : `${basePrompt}\n\n可用模型：${aliases.map((role) => `@${role}`).join("、")}。派子代理时用 delegate({ agent: "review", model: "@模型名", task: "…" })；单次调用可用 eval 的 await completion(prompt, model="@模型名")。`;
   const skills = await agentSkills(workflow);
   const configured = record.meta.thinking;
   const { model, thinking } = await resolveModel(record.meta.model, configured);
@@ -230,6 +230,7 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   const projector = new LiveProjector(entries.filter((entry) => entry.type === "message").length);
   const unsubscribe = session.subscribe((event) => {
     for (const item of projector.handle(event)) hub.emit(id, { type: "item", item });
+    if (event.type === "message_end" && event.message.role === "assistant") hub.emit(id, { type: "step", phase: "end" });
   });
   try {
     await session.setActiveToolsByName(

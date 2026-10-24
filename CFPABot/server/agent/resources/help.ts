@@ -38,9 +38,10 @@ evalScope=off 时调用会被拒绝。`,
 内置 grep，按正则搜索文件系统路径，默认在仓库根。pr:// 与 repo:// 不是文件系统：先用 read pr://<n>/meta 取 localRoot，或直接搜 runtime/work/repo；搜会话 workspace 要给绝对路径。`,
   "tools/delegate": `# delegate
 
-按 LLM 配置里的模型别名（roles）启动只读子代理，返回它的最终文本。
-参数：model（别名，可带 @）、task（交给子代理的任务）。
-子代理有 read/grep/find/glob/bash 与 MCP 工具；批量处理时把 pr://<n>/meta 的 localRoot 给它走文件系统。`,
+启动只读子代理，返回结构化 findings JSON（yield 已按 schema 校验）。
+参数：agent（定义名，如 review，对应 .omp/agents/review.md）、model（必填，系统提示末尾的可用模型名）、task（交给子代理的任务）。
+定义携带审法、MQM、工具与输出 schema；工具有 read/grep/find/glob/bash 与 MCP 工具。
+它的 bash cwd 就是主代理 workspace，read/grep 相对仓库根；local:// 在子代理里指向别处，不要用。`,
   "resources/repo": `# repo://
 
 仓库文件树，只读，默认读 origin 默认分支。空路径列出根目录，目录路径列出直接子项。

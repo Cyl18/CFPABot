@@ -25,7 +25,7 @@
 - `grep`、`find`、`glob` 在仓库根跑；`repo://`、`pr://` 不是文件系统，批量处理用 `pr://<n>/meta` 的 `localRoot` 或 `runtime/work/repo`。
 - `bash` 在 `local://` 执行，`eval` 在宿主持久 kernel 跑；两者都受 evalScope 控制。
 - 术语查询用 `mcp__glossary_query`。
-- `delegate` 按模型别名派只读子代理，别名在系统提示末尾列出。
+- `delegate` 按 `.omp/agents/<agent>.md` 派只读子代理（审查用 `review`）：`model` 必填，名字从系统提示末尾的可用模型里选；返回结构化 findings JSON。子代理的 `bash` cwd 就是本会话 workspace，`read`/`grep` 相对仓库根；`local://` 在子代理里指向别处。
 - 其余工具的行为以工具自身描述为准；仓库相关的资源细节读 `help://`。
 
 ## 纪律
