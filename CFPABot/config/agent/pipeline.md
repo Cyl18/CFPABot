@@ -9,3 +9,7 @@ PR 审查：`prep` → `post`。需要补译时在中间插 `translate`。
 规模：<100 变更行走轻量 prep；其余先跑 `mod prep`；changed 行有整句长文本才加 `mod mine`；>1000 先按 key 分片。术语只读命中 changed 行的部分。
 
 每阶段开始时先 `read` 对应 skill：`skill://prep`、`skill://post`、`skill://translate`。
+
+## 进度
+
+PR 文件多于 3 个或预计多轮时，先用 `todo op=init` 建计划：按文件或分片列 items，item 文本带上文件路径（如 `.../lang/en_us.json`）。每审完一项立即用 `todo op=done` 标记；侧栏按完成项统计「已审」，按 read 调用统计「已读」。
