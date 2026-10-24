@@ -398,6 +398,7 @@ export const agent = {
     };
     const record: SessionRecord = { meta };
     await store.put(record);
+    hub.touch(id);
     if (modelError === undefined) {
       launch(id, message);
     } else {
@@ -459,6 +460,7 @@ export const agent = {
     record.meta.archived = true;
     record.meta.updatedAt = now();
     await store.put(record);
+    hub.touch(id);
     if (!slot?.turn) await disposeRuntime(id);
   },
 
@@ -470,6 +472,10 @@ export const agent = {
         .catch(() => {});
     }
     return hub.subscribe(id, listener);
+  },
+
+  subscribeAll(listener: (sessionId: string) => void): () => void {
+    return hub.subscribeAll(listener);
   },
 
   async readArtifact(id: string): Promise<unknown> {
@@ -513,6 +519,7 @@ export const agent = {
     record.meta.writeScope = writeScope;
     record.meta.updatedAt = now();
     await store.put(record);
+    hub.touch(id);
     const slot = live.get(id);
     if (slot?.turn) slot.stale = true;
     else await disposeRuntime(id);
@@ -524,6 +531,7 @@ export const agent = {
     record.meta.evalScope = evalScope;
     record.meta.updatedAt = now();
     await store.put(record);
+    hub.touch(id);
   },
 
   async setConfig(
@@ -566,6 +574,7 @@ export const agent = {
 
     meta.updatedAt = now();
     await store.put(record);
+    hub.touch(id);
     if (runtimeChanged) {
       const slot = live.get(id);
       if (slot?.turn) slot.stale = true;

@@ -356,6 +356,8 @@ export type SessionEvent =
   | { type: "artifact"; artifact: unknown }
   | { type: "ping" };
 
+export type SessionListEvent = { type: "changed" } | { type: "ping" };
+
 export type LlmProtocol = "openai-completions" | "openai-responses" | "anthropic-messages" | "google-generative-ai";
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 

@@ -5,7 +5,7 @@ import { agent } from "../agent/index.ts";
 import { requireAdmin } from "./auth.ts";
 import type { AppEnv } from "./auth.ts";
 import { notFound, parseBody } from "./errors.ts";
-import type { CreateSessionRequest, SessionEvent } from "@cfpa/contracts/api";
+import type { CreateSessionRequest, SessionEvent, SessionListEvent } from "@cfpa/contracts/api";
 
 export const sessionRoutes = new Hono<AppEnv>();
 
@@ -33,6 +33,24 @@ sessionRoutes.use("*", async (c, next) => {
 });
 
 sessionRoutes.get("/", async (c) => c.json(await agent.list()));
+
+sessionRoutes.get("/events", (c) =>
+  streamSSE(c, async (stream) => {
+    const unsubscribe = agent.subscribeAll(() => {
+      const event: SessionListEvent = { type: "changed" };
+      void stream.writeSSE({ data: JSON.stringify(event) }).catch(() => undefined);
+    });
+    const timer = setInterval(() => {
+      const ping: SessionListEvent = { type: "ping" };
+      void stream.writeSSE({ data: JSON.stringify(ping) }).catch(() => undefined);
+    }, 15_000);
+    await new Promise<void>((resolve) => {
+      stream.onAbort(() => resolve());
+    });
+    clearInterval(timer);
+    unsubscribe();
+  }),
+);
 
 sessionRoutes.post("/", async (c) => {
   const user = await requireAdmin(c);
