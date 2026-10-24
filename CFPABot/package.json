@@ -7,8 +7,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -k -n server,web -c blue,green \"bun --watch server/main.ts\" \"bun run --cwd web dev\"",
-    "dev:server": "bun --watch server/main.ts",
+    "dev": "bun scripts/ensure-glossary.ts && concurrently -k -n server,web -c blue,green \"bun --watch server/main.ts\" \"bun run --cwd web dev\"",
+    "dev:server": "bun scripts/ensure-glossary.ts && bun --watch server/main.ts",
     "build": "bun run --cwd web build && bun build server/main.ts --outdir dist --target bun && bun scripts/copy-natives.ts",
     "start": "bun dist/main.js",
     "typecheck": "tsc --noEmit -p . && bun run --cwd web typecheck",

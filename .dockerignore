@@ -5,6 +5,7 @@ docs/
 **/dist/
 CFPABot/public/
 CFPABot/runtime/
+CFPABot/.mcp.json
 CFPABot/logs/
 CFPABot/temp/
 CFPABot/.env

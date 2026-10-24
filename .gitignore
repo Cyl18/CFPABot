@@ -11,5 +11,6 @@ CFPABot/config/vanilla-terms/
 *.tsbuildinfo
 temp/
 CFPABot/native/
+CFPABot/.mcp.json
 desktop.ini
 /docs
