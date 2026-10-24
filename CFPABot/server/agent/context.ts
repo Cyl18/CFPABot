@@ -1,3 +1,4 @@
+import type { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp";
 import type { WriteScope } from "@cfpa/contracts/api";
 
 export interface LocalEntry {
@@ -14,6 +15,8 @@ export interface LocalFileInfo {
 export interface ToolContext {
   sessionId: string;
   writeScope: WriteScope;
+  /** 会话创建后才存在；子代理据此继承父会话的 MCP 连接。 */
+  mcpManager?: () => MCPManager | undefined;
   local(name: string): Promise<LocalEntry | null>;
   saveLocal(name: string, content: string): Promise<LocalEntry>;
   listLocal(): Promise<LocalFileInfo[]>;

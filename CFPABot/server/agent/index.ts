@@ -10,6 +10,7 @@ import {
   type Skill,
 } from "@oh-my-pi/pi-coding-agent";
 import type { Effort } from "@oh-my-pi/pi-catalog/effort";
+import type { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp";
 import type {
   CreateSessionRequest,
   EvalScope,
@@ -26,6 +27,7 @@ import { botWritesEnabled } from "../github/client.ts";
 import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
 import { type ToolContext } from "./context.ts";
+import { agentMcpManager, closeAgentMcp } from "./mcp.ts";
 import { DRAFT_FILE, draftInputSchema, parseDraftFile, serializeDraftFile, validateDraft, type DraftContext } from "./draft.ts";
 import { SessionHub } from "./events.ts";
 import { applySearchEnv, loadConfig, llm, resolveModel } from "./llm.ts";
@@ -142,11 +144,12 @@ async function draftContext(prNumber: number): Promise<DraftContext> {
   return { patches };
 }
 
-function toolContext(record: SessionRecord): ToolContext {
+function toolContext(record: SessionRecord, mcp: { current?: MCPManager }): ToolContext {
   const id = record.meta.id;
   return {
     sessionId: id,
     writeScope: record.meta.writeScope,
+    mcpManager: () => mcp.current,
     local: async (name) => readLocal(id, name),
     saveLocal: async (name, content) => {
       if (!isLocalPath(name)) {
@@ -210,7 +213,10 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
     record.sessionFile = sessionFile;
     await store.put(record);
   }
+  const mcp: { current?: MCPManager } = {};
+  const mcpManager = await agentMcpManager();
   const created = await createAgentSession({
+    // 发现面（.mcp.json、规则）以仓库根为准；运行时 cwd 由 sessionManager 的 workspace 决定。
     cwd: paths.root,
     agentDir: paths.piAgent,
     model,
@@ -218,17 +224,21 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
     modelRegistry: modelRuntime.registry,
     settings: modelRuntime.settings,
     sessionManager: manager,
-    customTools: buildTools(toolContext(record), extensions),
+    customTools: buildTools(toolContext(record, mcp), extensions),
     skills,
     extensions,
     disableExtensionDiscovery: true,
     systemPrompt,
+    ...(mcpManager === undefined ? { enableMCP: false } : { mcpManager }),
     ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
   }).catch((err) => {
     authStorage.close();
     throw err;
   });
   const session: AgentSession = created.session;
+  mcp.current = mcpManager;
+  // MCP 工具由 manager 拥有，非 UI 路径 omp 不会自动激活，必须显式刷新一次。
+  if (mcpManager) await session.refreshMCPTools(mcpManager.getTools());
   const entries: SessionEntry[] = manager.getEntries();
   const projector = new LiveProjector(entries.filter((entry) => entry.type === "message").length);
   const unsubscribe = session.subscribe((event) => {
@@ -606,5 +616,6 @@ export const agent = {
     for (const slot of slots) void slot.runtime?.session.abort().catch(() => {});
     await Promise.allSettled(slots.flatMap((slot) => (slot.turn ? [slot.turn] : [])));
     await Promise.allSettled([...live.keys()].map((id) => disposeRuntime(id)));
+    await closeAgentMcp();
   },
 };

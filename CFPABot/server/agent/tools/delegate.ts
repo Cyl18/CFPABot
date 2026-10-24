@@ -12,6 +12,7 @@ import type { ToolContext } from "../context.ts";
 import { loadConfig, resolveModel } from "../llm.ts";
 import { parseRoleSelector } from "../llm-providers.ts";
 import { paths } from "../../paths.ts";
+import { agentMcpManager } from "../mcp.ts";
 import { openAuthStorage, openModelRuntime } from "../pi.ts";
 import { onAbortSignal } from "./signal.ts";
 
@@ -114,6 +115,7 @@ export function delegateTool(
       const { model } = await resolveModel(endpointId, thinking);
       const authStorage = await openAuthStorage(config.endpoints);
       const runtime = await openModelRuntime(authStorage, config.endpoints, config.roles);
+      const inherited = ctx.mcpManager?.() ?? (await agentMcpManager());
       const created = await createAgentSession({
         cwd: paths.root,
         agentDir: paths.piAgent,
@@ -128,8 +130,11 @@ export function delegateTool(
         systemPrompt: spec.systemPrompt,
         outputSchema: spec.output,
         requireYieldTool: true,
+        ...(inherited === undefined ? { enableMCP: false } : { mcpManager: inherited }),
       });
       const session = created.session;
+      // 共享 manager 不参与本会话发现，刷新只负责把工具注册并激活。
+      if (inherited) await session.refreshMCPTools(inherited.getTools());
       const allowed = new Set(["yield", ...spec.tools]);
       const stopListening = onAbortSignal(signal, () => void session.abort());
       try {
