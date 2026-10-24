@@ -97,6 +97,9 @@ Agent 会话需要 `config/llm.json`（**不入库**）：
 ```
 
 - `protocol`：`openai-completions` / `openai-responses` / `anthropic-messages` / `google-generative-ai`
+- `apiKey`：可直接写明文，也可写 `env:变量名`，运行时从环境变量取；变量未设置时该端点按缺密钥处理（面板显示「缺密钥」，请求会因鉴权失败报错）
+- 同一 `provider` 的端点共用 `baseUrl` 与密钥，但 `protocol` 按模型独立：同为 `openai` 时，`gpt-5` 可用 `openai-responses`、`gpt-4o` 可用 `openai-completions`。需要不同 `baseUrl`（例如官方 + 中转）时请用不同的 `provider` 名
+- 面板里编辑端点时留空密钥表示保留原值；改了 `model` 会按同一 `provider` 复用旧密钥，只有换 `provider` 才需要重新填写
 - `roles`：模型别名，值为 `<endpoint id>[:<thinking>]`，思考强度绑在别名上；`default` 是主模型，其余别名用 `delegate` 工具派子代理，或在 eval 里 `await completion(prompt, model="@taska")` 单次调用
 - 也可以登录面板后在「管理 → LLM」里增删端点，保存时写回这个文件
 - 没有可用模型时仍能创建会话，但错误会显示在会话里，配好模型后直接再发消息即可

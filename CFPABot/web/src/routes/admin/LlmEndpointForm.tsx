@@ -43,7 +43,6 @@ export function LlmEndpointForm({ initial, modelsDevIndex, saving, onCancel, onS
   const [selectedModels, setSelectedModels] = useState<readonly string[]>([]);
   const [contextWindow, setContextWindow] = useState(initial?.contextWindow !== undefined ? String(initial.contextWindow) : "");
   const [maxOutput, setMaxOutput] = useState(initial?.maxOutput !== undefined ? String(initial.maxOutput) : "");
-  const [identityChanged, setIdentityChanged] = useState(false);
   const [modelFilter, setModelFilter] = useState("");
 
   const probe = useMutation({
@@ -63,7 +62,9 @@ export function LlmEndpointForm({ initial, modelsDevIndex, saving, onCancel, onS
   }, [probe.data, modelFilter]);
 
   const canProbe = /^https?:\/\/.+/.test(baseUrl) && (apiKey !== "" || (editing && initial.hasKey));
-  const keyReady = apiKey !== "" || (editing && initial.hasKey && !identityChanged);
+  // 密钥按 provider 复用，改模型不会丢 key。
+  const providerChanged = editing && provider.trim() !== initial.provider;
+  const keyReady = apiKey !== "" || (editing && initial.hasKey && !providerChanged);
   const manualModels = model.trim() === "" ? [] : [model.trim()];
   const modelsToUse = editing ? manualModels : [...new Set([...selectedModels, ...manualModels])];
   const valid = provider.trim() !== "" && /^https?:\/\/.+/.test(baseUrl) && keyReady && modelsToUse.length > 0;
@@ -140,7 +141,6 @@ export function LlmEndpointForm({ initial, modelsDevIndex, saving, onCancel, onS
               setProvider(preset.slug);
               setBaseUrl(preset.baseUrl);
               setProtocol(preset.protocol);
-              setIdentityChanged(true);
             }}
           />
           <Input
@@ -151,7 +151,6 @@ export function LlmEndpointForm({ initial, modelsDevIndex, saving, onCancel, onS
             disabled={saving}
             onChange={(event) => {
               setProvider(event.target.value);
-              setIdentityChanged(true);
             }}
           />
           <Select
@@ -176,7 +175,13 @@ export function LlmEndpointForm({ initial, modelsDevIndex, saving, onCancel, onS
           <Input
             label="API Key"
             type="password"
-            placeholder={identityChanged && editing ? "身份已变更，必须输入新密钥" : editing && initial.hasKey ? "已保存，留空保留原值" : "sk-..."}
+            placeholder={
+              providerChanged
+                ? "已切换 provider，必须输入新密钥"
+                : editing && initial.hasKey
+                  ? "已保存，留空保留原值；也可填 env:变量名"
+                  : "sk-... 或 env:变量名"
+            }
             value={apiKey}
             disabled={saving}
             onChange={(event) => setApiKey(event.target.value)}
@@ -189,7 +194,6 @@ export function LlmEndpointForm({ initial, modelsDevIndex, saving, onCancel, onS
             disabled={saving}
             onChange={(event) => {
               setModel(event.target.value);
-              setIdentityChanged(true);
             }}
             onBlur={() => enrichLimits(model.trim())}
             onKeyDown={(event) => {
@@ -276,7 +280,6 @@ export function LlmEndpointForm({ initial, modelsDevIndex, saving, onCancel, onS
                       )}
                       onClick={() => {
                         setModel(item);
-                        setIdentityChanged(true);
                         enrichLimits(item);
                       }}
                     >

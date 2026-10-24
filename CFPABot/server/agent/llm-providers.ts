@@ -17,6 +17,12 @@ export function normalizeBaseUrl(baseUrl: string, protocol: LlmProtocol): string
   return protocol === "anthropic-messages" ? trimmed.replace(/\/v1$/, "") : trimmed;
 }
 
+/** 存的可能是字面量，也可能是 `env:NAME` 引用；引用未设置按没有密钥处理。 */
+export function resolveApiKey(stored: string): string | undefined {
+  if (!stored.startsWith("env:")) return stored || undefined;
+  return process.env[stored.slice(4).trim()]?.trim() || undefined;
+}
+
 export function defaultBaseUrl(provider: string): string {
   return PRESET_BASE_URLS.get(provider) ?? `https://api.${provider}.com/v1`;
 }

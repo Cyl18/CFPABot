@@ -11,12 +11,14 @@ import {
 import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import type { LlmEndpoint } from "@cfpa/contracts/api";
 import { paths } from "../paths.ts";
+import { resolveApiKey } from "./llm-providers.ts";
 import type { SessionRecord } from "./sessions.ts";
 
 export async function openAuthStorage(endpoints: LlmEndpoint[]): Promise<AuthStorage> {
   const authStorage = await discoverAuthStorage(paths.piAgent);
   for (const endpoint of endpoints) {
-    if (endpoint.apiKey) authStorage.keys.setRuntime(endpoint.provider, endpoint.apiKey);
+    const apiKey = resolveApiKey(endpoint.apiKey);
+    if (apiKey) authStorage.keys.setRuntime(endpoint.provider, apiKey);
   }
   return authStorage;
 }
@@ -31,17 +33,19 @@ export async function openModelRuntime(
   const registry = new ModelRegistry(authStorage);
   const byProvider = new Map<string, LlmEndpoint[]>();
   for (const endpoint of endpoints) {
-    if (!endpoint.apiKey) continue;
+    if (!resolveApiKey(endpoint.apiKey)) continue;
     byProvider.set(endpoint.provider, [...(byProvider.get(endpoint.provider) ?? []), endpoint]);
   }
   for (const [provider, list] of byProvider) {
     const first = list[0];
     if (!first) continue;
+    const apiKey = resolveApiKey(first.apiKey);
+    if (apiKey === undefined) continue;
     registry.registerProvider(
       provider,
       {
         baseUrl: first.baseUrl,
-        apiKey: first.apiKey,
+        apiKey,
         api: first.protocol,
         models: list.map((endpoint) => ({
           id: endpoint.model,

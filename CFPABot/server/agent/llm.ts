@@ -14,7 +14,7 @@ import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
 import { readJson, writeJson } from "../store.ts";
 import { probeModels } from "./llm-probe.ts";
-import { buildModel, defaultBaseUrl, endpointId, effortOf, formatRoleSelector, normalizeBaseUrl, parseRoleSelector } from "./llm-providers.ts";
+import { buildModel, defaultBaseUrl, endpointId, effortOf, formatRoleSelector, normalizeBaseUrl, parseRoleSelector, resolveApiKey } from "./llm-providers.ts";
 
 const log = logger("llm");
 const CONFIG_PATH = join(paths.config, "llm.json");
@@ -113,7 +113,7 @@ export async function resolveModel(
     throw new Error(id ? `未找到 LLM 端点 ${id}` : "尚未配置任何 LLM 端点");
   }
   const thinking = thinkingOverride ?? (endpoint.id === defaultRole?.endpoint ? defaultRole?.thinking : undefined);
-  return { model: buildModel(endpoint, thinking), apiKey: endpoint.apiKey || undefined, endpoint, thinking };
+  return { model: buildModel(endpoint, thinking), apiKey: resolveApiKey(endpoint.apiKey), endpoint, thinking };
 }
 
 function toView(config: LlmConfig): LlmConfigView {
@@ -126,7 +126,7 @@ function toView(config: LlmConfig): LlmConfigView {
       model: endpoint.model,
       contextWindow: endpoint.contextWindow,
       maxOutput: endpoint.maxOutput,
-      hasKey: endpoint.apiKey.length > 0,
+      hasKey: resolveApiKey(endpoint.apiKey) !== undefined,
     })),
     roles: { ...config.roles },
     search:
@@ -190,7 +190,11 @@ export const llm = {
       const model = raw.model.trim();
       if (!provider || !model) throw new Error("LLM 端点必须填写 provider 与 model");
       const id = endpointId(provider, model);
-      const apiKey = raw.apiKey?.trim() ? raw.apiKey.trim() : stored.get(id)?.apiKey ?? "";
+      const apiKey =
+        raw.apiKey?.trim() ||
+        stored.get(id)?.apiKey ||
+        current.endpoints.find((endpoint) => endpoint.provider === provider)?.apiKey ||
+        "";
       endpoints.push(
         normalizeEndpoint({
           provider,
@@ -238,7 +242,7 @@ export const llm = {
           messages: [{ role: "user", content: "你好", timestamp: Date.now() }],
         },
         {
-          apiKey: endpoint.apiKey || undefined,
+          apiKey: resolveApiKey(endpoint.apiKey),
           reasoning: effortOf(thinking),
           signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
         },
@@ -263,6 +267,6 @@ export const llm = {
 
   async probe(request: ProbeModelsRequest): Promise<string[]> {
     const config = await loadConfig();
-    return probeModels(request, (id) => config.endpoints.find((e) => e.id === id)?.apiKey);
+    return probeModels(request, (id) => resolveApiKey(config.endpoints.find((e) => e.id === id)?.apiKey ?? ""));
   },
 };
