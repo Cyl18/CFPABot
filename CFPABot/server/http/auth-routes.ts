@@ -6,7 +6,7 @@ import { logger } from "../log.ts";
 import { authorizeUrl, exchangeCode, fetchUser } from "../github/oauth.ts";
 import { clearSessionCookie, setSessionCookie } from "./auth.ts";
 import type { AppEnv } from "./auth.ts";
-import { HttpError } from "./errors.ts";
+import { HttpError } from "../errors.ts";
 
 export const authRoutes = new Hono<AppEnv>();
 

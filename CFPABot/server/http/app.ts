@@ -12,7 +12,8 @@ import { adminRoutes } from "./routes-admin.ts";
 import { utilsRoutes } from "./routes-utils.ts";
 import { webhookRoutes } from "./webhook.ts";
 import { serveStatic } from "./static.ts";
-import { HttpError, errorResponse, jsonError } from "./errors.ts";
+import { HttpError } from "../errors.ts";
+import { errorResponse, jsonError } from "./errors.ts";
 import type { Context } from "hono";
 
 const log = logger("http");

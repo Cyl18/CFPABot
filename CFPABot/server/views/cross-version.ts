@@ -3,7 +3,7 @@ import { alignKeys } from "@cfpa/review-core/domain/diff";
 import type { CrossVersionInput } from "@cfpa/review-core/domain/diff";
 import { parseLangPath, compareMc } from "@cfpa/review-core/domain/path";
 import type { LangFormat, LangPath } from "@cfpa/review-core/domain/path";
-import { gh } from "../github/client.ts";
+import type { FileSource } from "../domain/pr.ts";
 import type { GhFile, GhPull } from "../github/client.ts";
 import { mirror } from "../mirror.ts";
 import { prdata } from "../prdata.ts";
@@ -76,6 +76,7 @@ async function buildCrossVersion(
   opts: CrossVersionOpts,
   head: string | null,
   prData: { pull: GhPull; files: GhFile[] } | null,
+  source: FileSource,
 ): Promise<CrossVersionBuild> {
   const prNumber = opts.pr;
   const all = await mirror.langFiles();
@@ -119,7 +120,7 @@ async function buildCrossVersion(
     .map((parsed) => parsed.path);
   const [baseTexts, prTexts] = await Promise.all([
     mirror.readMany(head ?? "HEAD", basePaths),
-    prData === null ? null : gh.getFiles(prPaths, prData.pull.headSha),
+    prData === null ? null : source.readMany(prPaths, prData.pull.headSha),
   ]);
 
   const overlay = new Map<string, { en?: OverlayText; zh?: OverlayText }>();
@@ -165,7 +166,7 @@ async function buildCrossVersion(
   };
 }
 
-async function crossVersionBuild(slug: string, opts: CrossVersionOpts): Promise<CrossVersionBuild> {
+async function crossVersionBuild(slug: string, opts: CrossVersionOpts, source: FileSource): Promise<CrossVersionBuild> {
   const [head, prData] = await Promise.all([mirror.headSha(), opts.pr === undefined ? null : prdata.files(opts.pr)]);
   const selection =
     opts.versions === undefined || opts.versions.length === 0 ? null : [...new Set(opts.versions)].sort(compareMc);
@@ -177,11 +178,15 @@ async function crossVersionBuild(slug: string, opts: CrossVersionOpts): Promise<
     opts.namespace ?? null,
     selection,
   ]);
-  return crossCache.wrap(key, () => buildCrossVersion(slug, opts, head, prData));
+  return crossCache.wrap(key, () => buildCrossVersion(slug, opts, head, prData, source));
 }
 
-export async function crossVersionKeys(slug: string, opts: CrossVersionOpts): Promise<CrossVersionKeysResult> {
-  const build = await crossVersionBuild(slug, opts);
+export async function crossVersionKeys(
+  slug: string,
+  opts: CrossVersionOpts,
+  source: FileSource,
+): Promise<CrossVersionKeysResult> {
+  const build = await crossVersionBuild(slug, opts, source);
   return {
     slug: build.slug,
     namespace: build.namespace,

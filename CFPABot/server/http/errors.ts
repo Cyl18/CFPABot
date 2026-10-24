@@ -2,20 +2,9 @@ import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { z } from "zod";
 import type { ApiError } from "@cfpa/contracts/api";
+import { HttpError } from "../errors.ts";
 
 export const MAX_BODY_BYTES = 10 * 1024 * 1024;
-
-export class HttpError extends Error {
-  readonly status: ContentfulStatusCode;
-  readonly code: string | undefined;
-
-  constructor(status: ContentfulStatusCode, message: string, code?: string) {
-    super(message);
-    this.name = "HttpError";
-    this.status = status;
-    this.code = code;
-  }
-}
 
 export function jsonError(c: Context, status: ContentfulStatusCode, message: string, code?: string): Response {
   const body: ApiError = code ? { error: message, code } : { error: message };

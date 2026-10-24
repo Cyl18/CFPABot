@@ -4,7 +4,7 @@ import { gh, serverGraphql } from "../../github/client.ts";
 import { anonymousReviewState } from "../../github/review.ts";
 import { prdata } from "../../prdata.ts";
 import { ensurePrDir } from "../../workspace.ts";
-import { sidePaths } from "../../views/files.ts";
+import { sidePaths } from "../../domain/pr.ts";
 import { prDetail } from "../../views/pr.ts";
 import { specialPairContent, specialPairs } from "../../views/special.ts";
 import { compareWorkspace } from "../../views/workspace.ts";
@@ -98,7 +98,7 @@ export async function readPr(uri: PrParts): Promise<AgentToolResult<Record<strin
     if (!slug || !version || !namespace) {
       throw new Error("pr://<n>/compare 需要 ?slug=&version=&namespace=");
     }
-    const result = await compareWorkspace(n, { slug, version, namespace });
+    const result = await compareWorkspace(n, { slug, version, namespace }, prdata.fileSource());
     const page = pageOf(Number(uri.query.get("offset") ?? 0), Number(uri.query.get("limit") ?? 100), 200, 100);
     return jsonResult({
       ...result,
@@ -113,7 +113,7 @@ export async function readPr(uri: PrParts): Promise<AgentToolResult<Record<strin
     if (seg[1] === "content") {
       const key = uri.query.get("key");
       if (!key) throw new Error("pr://<n>/special-files/content 需要 ?key=");
-      const content = await specialPairContent(n, key);
+      const content = await specialPairContent(n, key, prdata.fileSource());
       if (content === null) throw new Error("特殊文件不存在。");
       return jsonResult(content);
     }

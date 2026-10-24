@@ -9,7 +9,8 @@ import { Input } from "@/ui/Input.tsx";
 import { DataTable, type Column } from "@/ui/Table.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
 import { formatDelta } from "@/lib/format.ts";
-import { parseLangFile, pickCompareFiles, workspaceParam } from "@/lib/paths.ts";
+import { parseLangPath } from "@cfpa/review-core/domain/path";
+import { pickCompareFiles, workspaceParam } from "@/lib/paths.ts";
 import type { PrSearch, SearchPatch } from "@/lib/search.ts";
 
 const STATUS_OPTIONS = [
@@ -50,7 +51,7 @@ export function FilesTab({ pr, search, onSearchChange }: { pr: PrDetail; search:
       id: "path",
       header: "路径",
       cell: (file) => {
-        const parsed = parseLangFile(file.path);
+        const parsed = parseLangPath(file.path);
         if (parsed && compared.has(file.path)) {
           return (
             <Link

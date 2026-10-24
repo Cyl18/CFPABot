@@ -9,7 +9,7 @@ import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
 import { ttlCache } from "../ttl.ts";
 import { gh } from "../github/client.ts";
-import { HttpError } from "./errors.ts";
+import { HttpError } from "../errors.ts";
 import type { Me } from "@cfpa/contracts/api";
 
 export const SESSION_COOKIE = "cfpa_session";

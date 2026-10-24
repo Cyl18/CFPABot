@@ -7,7 +7,7 @@ import type { GhFile, GhPull } from "../github/client.ts";
 import { mirror } from "../mirror.ts";
 import { prdata } from "../prdata.ts";
 import { commentableHunks } from "../review.ts";
-import { memoReader, sidePaths } from "./files.ts";
+import { sidePaths, type FileSource } from "../domain/pr.ts";
 import type { SpecialKeyRow, SpecialPair, SpecialPairContent, SpecialParsed, SpecialText } from "@cfpa/contracts/api";
 
 const SPECIAL_MAX_BYTES = 200 * 1024;
@@ -68,11 +68,11 @@ function specialParsedOf(format: string, en: SpecialText, zh: SpecialText): Spec
   return { format, rows };
 }
 
-export async function specialPairContent(n: number, key: string): Promise<SpecialPairContent | null> {
+export async function specialPairContent(n: number, key: string, source: FileSource): Promise<SpecialPairContent | null> {
   const { pull, files, plans, existing } = await specialPlanFor(n);
   const entry = plans.find((plan) => plan.key === key);
   if (entry === undefined) return null;
-  const read = memoReader();
+  const read = source.read;
   const textOf = async (side: PlannedSide): Promise<SpecialText> => {
     const file = side.file;
     let baseText: string | null;

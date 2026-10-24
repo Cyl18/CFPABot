@@ -17,7 +17,8 @@ import {
 import { httpStatus } from "../github/mappers.ts";
 import { currentUser, requireUserToken } from "./auth.ts";
 import type { AppContext, AppEnv } from "./auth.ts";
-import { HttpError, notFound, parseBody } from "./errors.ts";
+import { HttpError } from "../errors.ts";
+import { notFound, parseBody } from "./errors.ts";
 import { prNumber, withPull } from "./routes-pr.ts";
 import type {
   AddReviewCommentRequest,

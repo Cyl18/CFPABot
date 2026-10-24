@@ -72,11 +72,15 @@ export async function readGh(uri: ResourceParts): Promise<AgentToolResult<Record
     if (pr !== undefined && (!Number.isInteger(pr) || pr <= 0)) throw new Error("pr 参数无效。");
     const versions = uri.query.get("versions")?.split(",").filter(Boolean);
     return jsonResult(
-      await crossVersionKeys(slug, {
-        namespace: uri.query.get("namespace") ?? undefined,
-        ...(pr === undefined ? {} : { pr }),
-        ...(versions === undefined || versions.length === 0 ? {} : { versions }),
-      }),
+      await crossVersionKeys(
+        slug,
+        {
+          namespace: uri.query.get("namespace") ?? undefined,
+          ...(pr === undefined ? {} : { pr }),
+          ...(versions === undefined || versions.length === 0 ? {} : { versions }),
+        },
+        prdata.fileSource(),
+      ),
     );
   }
 

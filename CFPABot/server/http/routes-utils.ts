@@ -11,7 +11,8 @@ import { checkReportPath } from "../paths.ts";
 import { prdata } from "../prdata.ts";
 import type { RelatedPr } from "@cfpa/contracts/api";
 import type { AppContext, AppEnv } from "./auth.ts";
-import { HttpError, parseQuery } from "./errors.ts";
+import { HttpError } from "../errors.ts";
+import { parseQuery } from "./errors.ts";
 
 export const utilsRoutes = new Hono<AppEnv>();
 

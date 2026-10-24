@@ -1,67 +1,25 @@
 import type { Workspace } from "@cfpa/contracts/api";
-
-export interface ParsedLangFile {
-  slug: string;
-  version: string;
-  namespace: string;
-  legacy: boolean;
-}
-
-export function parseLangFile(path: string): ParsedLangFile | null {
-  const parts = path.split("/");
-  if (parts.length !== 7) return null;
-  const p0 = parts[0] as string;
-  const p1 = parts[1] as string;
-  const p2 = parts[2] as string;
-  const p3 = parts[3] as string;
-  const p4 = parts[4] as string;
-  const p5 = parts[5] as string;
-  const p6 = parts[6] as string;
-  if (p0 !== "projects" || p5 !== "lang") return null;
-
-  let slug: string;
-  let version: string;
-  let legacy: boolean;
-  if (p1 === "assets") {
-    legacy = false;
-    slug = p2;
-    version = p3;
-  } else if (p2 === "assets") {
-    legacy = true;
-    version = p1;
-    slug = p3;
-  } else {
-    return null;
-  }
-
-  const dot = p6.lastIndexOf(".");
-  if (dot <= 0) return null;
-  const ext = p6.slice(dot + 1).toLowerCase();
-  if (ext !== "json" && ext !== "lang") return null;
-
-  return { slug, version, namespace: p4, legacy };
-}
+import { parseLangPath, type Locale } from "@cfpa/review-core/domain/path";
 
 export function workspaceParam(slug: string, version: string, namespace: string): string {
   return `${slug}/${version}/${namespace}`;
 }
 
-export type Locale = "en_us" | "zh_cn";
+export type { Locale };
 
-/** 与 server/views/workspace.ts 的 pickLang 同规则：每个 locale 只有一份文件进比较视图，canonical 文件名优先。 */
+/** 每个 locale 只有一份文件进比较视图，canonical 文件名优先；规则来自 review-core，与服务端同源。 */
 export function pickCompareFiles(files: readonly { path: string }[], workspace: Workspace): Partial<Record<Locale, string>> {
   const picked: Partial<Record<Locale, string>> = {};
   const fallback: Partial<Record<Locale, string>> = {};
   for (const file of files) {
-    const parsed = parseLangFile(file.path);
-    if (!parsed || parsed.slug !== workspace.slug || parsed.version !== workspace.version || parsed.namespace !== workspace.namespace) continue;
-    const name = file.path.slice(file.path.lastIndexOf("/") + 1);
-    const base = name.slice(0, name.indexOf(".")).toLowerCase();
-    const locale: Locale = base === "en_us" ? "en_us" : "zh_cn";
-    if (base === "en_us" || base === "zh_cn") {
-      picked[locale] ??= file.path;
+    const parsed = parseLangPath(file.path);
+    if (parsed === null || parsed.locale === null) continue;
+    if (parsed.slug !== workspace.slug || parsed.version !== workspace.version || parsed.namespace !== workspace.namespace) continue;
+    const base = parsed.fileName.slice(0, parsed.fileName.lastIndexOf(".")).toLowerCase();
+    if (base === parsed.locale) {
+      picked[parsed.locale] ??= file.path;
     } else {
-      fallback[locale] ??= file.path;
+      fallback[parsed.locale] ??= file.path;
     }
   }
   return { ...fallback, ...picked };

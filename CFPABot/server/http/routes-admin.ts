@@ -8,7 +8,8 @@ import { llm } from "../agent/index.ts";
 import { syncGlossary } from "../domain/glossary.ts";
 import { requireAdmin } from "./auth.ts";
 import type { AppEnv } from "./auth.ts";
-import { HttpError, parseBody, parseQuery } from "./errors.ts";
+import { HttpError } from "../errors.ts";
+import { parseBody, parseQuery } from "./errors.ts";
 import type { LlmConfigUpdate, ProbeModelsRequest } from "@cfpa/contracts/api";
 
 export const adminRoutes = new Hono<AppEnv>();

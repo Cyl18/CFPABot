@@ -6,7 +6,7 @@ import type { LangFormat, Locale } from "@cfpa/review-core/domain/path";
 import type { GhFile } from "../github/client.ts";
 import { prdata } from "../prdata.ts";
 import { commentableHunks } from "../review.ts";
-import { memoReader, sidePaths } from "./files.ts";
+import { sidePaths, type FileSource } from "../domain/pr.ts";
 import type { CompareResult, CompareReview } from "@cfpa/contracts/api";
 
 export interface WorkspaceKey {
@@ -44,10 +44,10 @@ function pickLang(files: GhFile[], key: WorkspaceKey, locale: Locale): LangSide 
   return { format: parseLangPath(found.path)?.format ?? "json", ...sidePaths(found) };
 }
 
-export async function compareWorkspace(n: number, key: WorkspaceKey): Promise<CompareResult> {
+export async function compareWorkspace(n: number, key: WorkspaceKey, source: FileSource): Promise<CompareResult> {
   const { pull, files } = await prdata.files(n);
   const missing: string[] = [];
-  const readOne = memoReader();
+  const readOne = source.read;
   const readAny = async (paths: string[], ref: string, label: string): Promise<LangRead | null> => {
     for (const path of paths) {
       const text = await readOne(path, ref);

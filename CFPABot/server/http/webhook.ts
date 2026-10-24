@@ -4,7 +4,8 @@ import { env } from "../env.ts";
 import { logger } from "../log.ts";
 import { verifySignature } from "../github/webhook.ts";
 import { handleWebhook } from "../bot/index.ts";
-import { HttpError, MAX_BODY_BYTES } from "./errors.ts";
+import { HttpError } from "../errors.ts";
+import { MAX_BODY_BYTES } from "./errors.ts";
 import type { AppEnv } from "./auth.ts";
 
 export const webhookRoutes = new Hono<AppEnv>();

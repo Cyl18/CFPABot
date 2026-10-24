@@ -22,7 +22,8 @@ import { crossVersionKeys } from "../views/cross-version.ts";
 import { textCompare } from "../views/text.ts";
 import { currentUser, requireAdmin } from "./auth.ts";
 import type { AppContext, AppEnv } from "./auth.ts";
-import { HttpError, isUpstreamNotFound, notFound, parseBody, parseQuery } from "./errors.ts";
+import { HttpError } from "../errors.ts";
+import { isUpstreamNotFound, notFound, parseBody, parseQuery } from "./errors.ts";
 import type { PublicEnv, SystemStatus, TextCompareRequest } from "@cfpa/contracts/api";
 
 export const prRoutes = new Hono<AppEnv>();
@@ -140,21 +141,27 @@ prRoutes.get("/prs/:n/refresh/status", (c) => c.json({ running: isRefreshing(prN
 prRoutes.get("/prs/:n/compare", async (c) => {
   const key = parseQuery(c, workspaceQuery);
   const n = prNumber(c);
-  return c.json(await withPull(() => compareWorkspace(n, key)));
+  return c.json(await withPull(() => compareWorkspace(n, key, prdata.fileSource())));
 });
 
 prRoutes.get("/prs/:n/special", async (c) => c.json(await withPull(() => specialPairs(prNumber(c)))));
 
 prRoutes.get("/prs/:n/special/content", async (c) => {
   const { key } = parseQuery(c, specialQuery);
-  const content = await withPull(() => specialPairContent(prNumber(c), key));
+  const content = await withPull(() => specialPairContent(prNumber(c), key, prdata.fileSource()));
   if (content === null) throw notFound("特殊文件不存在");
   return c.json(content);
 });
 
 prRoutes.get("/versions/:slug/keys", async (c) => {
   const { namespace, pr, versions } = parseQuery(c, versionsQuery);
-  return c.json(await crossVersionKeys(c.req.param("slug"), { namespace, pr, versions: versionSelection(versions) }));
+  return c.json(
+    await crossVersionKeys(
+      c.req.param("slug"),
+      { namespace, pr, versions: versionSelection(versions) },
+      prdata.fileSource(),
+    ),
+  );
 });
 
 prRoutes.post("/compare/text", async (c) => {

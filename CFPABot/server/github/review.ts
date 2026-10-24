@@ -1,6 +1,6 @@
 import { repo } from "../env.ts";
 import { inHunks } from "@cfpa/review-core/domain/diff";
-import { HttpError } from "../http/errors.ts";
+import { HttpError } from "../errors.ts";
 import { prdata } from "../prdata.ts";
 import { commentableHunks } from "../review.ts";
 import { gh } from "./client.ts";

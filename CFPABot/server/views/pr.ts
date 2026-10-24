@@ -1,43 +1,14 @@
-import { parseLangPath, workspacesOf } from "@cfpa/review-core/domain/path";
+import { workspacesOf } from "@cfpa/review-core/domain/path";
+import { langEntriesOf, summarizePr } from "../domain/pr.ts";
 import { isSpecialPath } from "../domain/special.ts";
-import type { GhFile, GhPull } from "../github/client.ts";
 import { prdata } from "../prdata.ts";
-import type { PrDetail, PrState, PrSummary } from "@cfpa/contracts/api";
-
-function prStateOf(pull: GhPull): PrState {
-  if (pull.state === "open") return "open";
-  return pull.merged ? "merged" : "closed";
-}
-
-function slugsOf(files: GhFile[]): string[] {
-  const slugs = new Set<string>();
-  for (const file of files) {
-    if (file.status === "removed") continue;
-    const parsed = parseLangPath(file.path);
-    if (parsed) slugs.add(parsed.slug);
-  }
-  return [...slugs].sort();
-}
-
-function summaryOf(pull: GhPull, files: GhFile[]): PrSummary {
-  return {
-    number: pull.number,
-    title: pull.title,
-    author: pull.author,
-    state: prStateOf(pull),
-    draft: pull.draft,
-    labels: pull.labels,
-    createdAt: pull.createdAt,
-    updatedAt: pull.updatedAt,
-    headSha: pull.headSha,
-    slugs: slugsOf(files),
-  };
-}
+import type { PrDetail } from "@cfpa/contracts/api";
 
 export async function prDetail(n: number): Promise<PrDetail> {
   const { pull, files } = await prdata.files(n);
+  const { slugs } = langEntriesOf(files);
   return {
-    ...summaryOf(pull, files),
+    ...summarizePr(pull, slugs),
     htmlUrl: pull.htmlUrl,
     baseRef: pull.baseRef,
     baseSha: pull.baseSha,

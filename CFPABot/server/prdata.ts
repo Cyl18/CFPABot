@@ -1,7 +1,8 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { compareMc, parseLangPath } from "@cfpa/review-core/domain/path";
+import { compareMc } from "@cfpa/review-core/domain/path";
+import { langEntriesOf, summarizePr, type FileSource } from "./domain/pr.ts";
 import { gh, isRateLimited, type GhFile, type GhPull } from "./github/client.ts";
 import { logger } from "./log.ts";
 import { paths } from "./paths.ts";
@@ -93,50 +94,26 @@ function prPath(n: number): string {
   return join(PR_DIR, `${n}.json`);
 }
 
-function summarize(pull: GhPull, slugs: string[]): PrSummary {
-  return {
-    number: pull.number,
-    title: pull.title,
-    author: pull.author,
-    state: pull.state === "open" ? "open" : pull.merged ? "merged" : "closed",
-    draft: pull.draft,
-    labels: pull.labels,
-    createdAt: pull.createdAt,
-    updatedAt: pull.updatedAt,
-    headSha: pull.headSha,
-    slugs: [...slugs].sort(),
-  };
-}
+
 
 function byUpdatedDesc(list: PrSummary[]): PrSummary[] {
   return [...list].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 async function storePull(pull: GhPull, files: GhFile[]): Promise<PrFileCache> {
-  const slugs = new Set<string>();
-  const entries: { slug: string; version: string }[] = [];
-  const seen = new Set<string>();
-  for (const file of files) {
-    const parsed = parseLangPath(file.path);
-    if (!parsed) continue;
-    slugs.add(parsed.slug);
-    const key = `${parsed.slug}\u0000${parsed.version}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    entries.push({ slug: parsed.slug, version: parsed.version });
-  }
+  const { slugs, entries } = langEntriesOf(files);
   const cache: PrFileCache = {
     headSha: pull.headSha,
     pull,
     files,
-    slugs: [...slugs].sort(),
+    slugs,
     entries,
     updatedAt: new Date().toISOString(),
   };
   if (pull.state === "open") {
     await writeJson(prPath(pull.number), cache);
     meta.set(pull.number, { headSha: cache.headSha, slugs: cache.slugs, entries });
-    openIndex.set(pull.number, summarize(pull, cache.slugs));
+    openIndex.set(pull.number, summarizePr(pull, cache.slugs));
   }
   fileCaches.set(String(pull.number), cache);
   return cache;
@@ -181,7 +158,7 @@ async function loadMetaFromDisk(): Promise<void> {
     const cached = await readJson(join(PR_DIR, name), cacheSchema);
     if (cached?.pull.state === "open") {
       meta.set(cached.pull.number, { headSha: cached.headSha, slugs: cached.slugs, entries: cached.entries });
-      if (!openIndex.has(cached.pull.number)) openIndex.set(cached.pull.number, summarize(cached.pull, cached.slugs));
+      if (!openIndex.has(cached.pull.number)) openIndex.set(cached.pull.number, summarizePr(cached.pull, cached.slugs));
     } else if (cached !== null) {
       await removeFile(join(PR_DIR, name));
     }
@@ -194,7 +171,7 @@ async function refreshList(): Promise<void> {
     const pulls = await gh.listPulls("open");
     listed = new Map(pulls.map((pull) => [pull.number, pull]));
     listedAt = startedAt;
-    for (const pull of pulls) openIndex.set(pull.number, summarize(pull, meta.get(pull.number)?.slugs ?? []));
+    for (const pull of pulls) openIndex.set(pull.number, summarizePr(pull, meta.get(pull.number)?.slugs ?? []));
     for (const number of [...openIndex.keys()]) {
       if (!listed.has(number)) openIndex.delete(number);
     }
@@ -287,7 +264,7 @@ export const prdata = {
       } else {
         await touchPull(pull);
       }
-      openIndex.set(n, summarize(pull, meta.get(n)?.slugs ?? []));
+      openIndex.set(n, summarizePr(pull, meta.get(n)?.slugs ?? []));
       rebuildRelation();
       refreshedAt = new Date().toISOString();
       await persistIndex();
@@ -298,7 +275,7 @@ export const prdata = {
     if (state === "open") return byUpdatedDesc([...openIndex.values()]);
     const closed = await closedList.wrap("closed", async () => {
       const pulls = await gh.listPulls("closed");
-      return pulls.map((pull) => summarize(pull, []));
+      return pulls.map((pull) => summarizePr(pull, []));
     });
     if (state === "closed") return byUpdatedDesc(closed.filter((pull) => pull.state === "closed"));
     if (state === "merged") return byUpdatedDesc(closed.filter((pull) => pull.state === "merged"));
@@ -321,6 +298,24 @@ export const prdata = {
     const stored = await storePull(pull, await gh.listPullFiles(n));
     if (stored.pull.state === "open") await persistIndex();
     return { pull: stored.pull, files: stored.files };
+  },
+
+  /** 同一次请求内重复读同一文件只发一次；gh.getFile 只缓存结果，不合并并发。 */
+  fileSource(): FileSource {
+    const reads = new Map<string, Promise<string | null>>();
+    return {
+      read(path, ref) {
+        if (path === null) return Promise.resolve(null);
+        const key = `${ref}\u0000${path}`;
+        let pending = reads.get(key);
+        if (pending === undefined) {
+          pending = gh.getFile(path, ref);
+          reads.set(key, pending);
+        }
+        return pending;
+      },
+      readMany: (paths, ref) => gh.getFiles(paths, ref),
+    };
   },
 
   related(n: number, slugs?: readonly string[]): RelatedPr[] {
