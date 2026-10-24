@@ -5,13 +5,13 @@ import { logger } from "../log.ts";
 import { mirror } from "../mirror.ts";
 import { prdata } from "../prdata.ts";
 import { runCommands } from "./commands.ts";
-import { getCheckReport, isRefreshing, refreshInfoComment } from "./info-comment.ts";
+import { getCheckReport, getCheckStatus, isRefreshing, refreshInfoComment } from "./info-comment.ts";
 import { labelCheck, syncLabels } from "./labels.ts";
 import { autoApprovePacker, PACKER_WORKFLOW_NAME } from "./packer.ts";
 import { drainPending, track } from "./pending.ts";
 import { CYBOT_MARKER } from "./render.ts";
 
-export { getCheckReport, isRefreshing, refreshInfoComment };
+export { getCheckReport, getCheckStatus, isRefreshing, refreshInfoComment };
 
 const log = logger("bot");
 

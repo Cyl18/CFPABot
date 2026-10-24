@@ -68,6 +68,7 @@ const stateSchema = z.object({
   checks: z.string(),
   diffs: z.string(),
   report: z.unknown().optional(),
+  checksError: z.string().optional(),
 });
 
 type CommentState = z.infer<typeof stateSchema>;
@@ -109,6 +110,13 @@ export async function getCheckReport(prNumber: number): Promise<CheckReport | nu
   const state = await readJson(statePath(prNumber), stateSchema);
   const parsed = checkReportSchema.safeParse(state?.report);
   return parsed.success ? parsed.data : null;
+}
+
+/** 报告 + 最近一次运行的失败原因；两者分开，模型才能区分「没跑」「跑失败」「跑过没问题」。 */
+export async function getCheckStatus(prNumber: number): Promise<{ report: CheckReport | null; error: string | null }> {
+  const state = await readJson(statePath(prNumber), stateSchema);
+  const parsed = checkReportSchema.safeParse(state?.report);
+  return { report: parsed.success ? parsed.data : null, error: state?.checksError ?? null };
 }
 
 export function isRefreshing(prNumber: number): boolean {
@@ -190,6 +198,7 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
   const previousReport = previous.success ? previous.data : null;
   let checks: string;
   let report: CheckReport | null;
+  let checksError: string | undefined;
   const skipChecks =
     !opts.force &&
     state.checks !== "" &&
@@ -201,6 +210,7 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
   } else {
     const items = await collectChecks(prNumber, ctx, data).catch((err: unknown) => {
       log.error("检查项收集失败", { pr: prNumber, error: err });
+      checksError = messageOf(err);
       return null;
     });
     if (canWrite && items !== null) for (const label of items.extraLabels) await gh.addLabels(prNumber, [label]);
@@ -221,6 +231,7 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
     () => `${DIFF_EXCEPTION}\n`,
   );
 
+  const nextError = checksError ?? (skipChecks ? state.checksError : undefined);
   const next: CommentState = {
     prNumber,
     commentId,
@@ -229,6 +240,7 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
     checks,
     diffs,
     report,
+    ...(nextError === undefined ? {} : { checksError: nextError }),
   };
   await writeJson(statePath(prNumber), next);
 
