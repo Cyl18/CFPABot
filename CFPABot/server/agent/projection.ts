@@ -1,6 +1,7 @@
+import { calculateContextTokens } from "@oh-my-pi/pi-agent-core";
 import type { AgentEvent, AgentMessage } from "@oh-my-pi/pi-agent-core";
 import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session-events";
-import type { ChatItem, ToolCallView } from "@cfpa/contracts/api";
+import type { ChatItem, ChatUsage, ToolCallView } from "@cfpa/contracts/api";
 
 const RESULT_LIMIT = 2000;
 const STREAM_THROTTLE_MS = 150;
@@ -35,12 +36,19 @@ function isoAt(timestamp: unknown): string {
   return typeof timestamp === "number" ? new Date(timestamp).toISOString() : new Date().toISOString();
 }
 
+function toolDetailsOf(name: string, details: unknown): unknown {
+  if (details === null || typeof details !== "object") return undefined;
+  if (name === "todo" || name === "delegate") return details;
+  if (name === "bash" && "exitCode" in details) return { exitCode: details.exitCode };
+  return undefined;
+}
+
 function toolItem(
   id: string,
   name: string,
   args: unknown,
   state: ToolCallView["state"],
-  extra?: { progress?: string; result?: string; at?: string },
+  extra?: { progress?: string; result?: string; at?: string; details?: unknown },
 ): ChatItem {
   return {
     id,
@@ -52,6 +60,7 @@ function toolItem(
       state,
       ...(extra?.progress ? { progress: extra.progress } : {}),
       ...(extra?.result ? { result: extra.result } : {}),
+      ...(extra?.details !== undefined ? { details: extra.details } : {}),
     },
   };
 }
@@ -68,11 +77,17 @@ function toolCallsOf(content: unknown): { id: string; name: string; args: unknow
   return calls;
 }
 
+function usageOf(message: Extract<AgentMessage, { role: "assistant" }>): ChatUsage | undefined {
+  const contextTokens = calculateContextTokens(message.usage);
+  return contextTokens > 0 ? { contextTokens } : undefined;
+}
+
 function assistantItem(index: number, message: AgentMessage, streaming: boolean): ChatItem | null {
   if (message.role !== "assistant") return null;
   const text = textOf(message.content);
   const thinking = thinkingOf(message.content);
-  if (!text && !thinking) return null;
+  const usage = usageOf(message);
+  if (!text && !thinking && usage === undefined) return null;
   return {
     id: `m${index}`,
     kind: "assistant",
@@ -80,14 +95,19 @@ function assistantItem(index: number, message: AgentMessage, streaming: boolean)
     ...(thinking ? { thinking } : {}),
     at: isoAt(message.timestamp),
     ...(streaming ? { streaming: true } : {}),
+    ...(usage ? { usage } : {}),
   };
 }
 
 export function projectMessages(messages: AgentMessage[]): ChatItem[] {
-  const results = new Map<string, { text: string; isError: boolean }>();
+  const results = new Map<string, { text: string; isError: boolean; details: unknown }>();
   for (const message of messages) {
     if (message.role !== "toolResult") continue;
-    results.set(message.toolCallId, { text: truncate(textOf(message.content)), isError: message.isError });
+    results.set(message.toolCallId, {
+      text: truncate(textOf(message.content)),
+      isError: message.isError,
+      details: "details" in message ? message.details : undefined,
+    });
   }
   const items: ChatItem[] = [];
   messages.forEach((message, index) => {
@@ -105,6 +125,7 @@ export function projectMessages(messages: AgentMessage[]): ChatItem[] {
         toolItem(call.id, call.name, call.args, result ? (result.isError ? "error" : "done") : "pending", {
           at,
           ...(result ? { result: result.text } : {}),
+          ...(result ? { details: toolDetailsOf(call.name, result.details) } : {}),
         }),
       );
     }
@@ -162,6 +183,7 @@ export class LiveProjector {
         return [
           toolItem(event.toolCallId, event.toolName, this.toolArgs.get(event.toolCallId), event.isError ? "error" : "done", {
             result: resultTextOf(event.result),
+            details: toolDetailsOf(event.toolName, resultDetailsOf(event.result)),
           }),
         ];
       default:
@@ -175,6 +197,11 @@ function progressOf(partialResult: unknown): string | undefined {
   const details = partialResult.details;
   if (!details || typeof details !== "object" || !("progress" in details)) return undefined;
   return typeof details.progress === "string" ? details.progress : undefined;
+}
+
+function resultDetailsOf(result: unknown): unknown {
+  if (!result || typeof result !== "object" || !("details" in result)) return undefined;
+  return result.details;
 }
 
 function resultTextOf(result: unknown): string {

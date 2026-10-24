@@ -285,11 +285,16 @@ export interface ToolCallView {
   state: "pending" | "running" | "done" | "error";
   progress?: string;
   result?: string;
+  details?: unknown;
+}
+
+export interface ChatUsage {
+  contextTokens: number;
 }
 
 export type ChatItem =
   | { id: string; kind: "user"; text: string; at: string }
-  | { id: string; kind: "assistant"; text: string; thinking?: string; at: string; streaming?: boolean }
+  | { id: string; kind: "assistant"; text: string; thinking?: string; at: string; streaming?: boolean; usage?: ChatUsage }
   | { id: string; kind: "tool"; tool: ToolCallView; at: string };
 
 export type Severity = "critical" | "major" | "minor" | "neutral";
