@@ -1,4 +1,6 @@
 import type { CustomTool } from "@oh-my-pi/pi-coding-agent";
+import { cfgBashInterceptorEnabled, cfgBashInterceptorPatterns } from "@oh-my-pi/pi-coding-agent/exec/settings";
+import { checkBashInterception } from "@oh-my-pi/pi-coding-agent/tools/bash-interceptor";
 import { type } from "@oh-my-pi/omptype";
 import type { ToolContext } from "../context.ts";
 import { localDir } from "../local-store.ts";
@@ -45,13 +47,20 @@ function dropPrivileges(command: string): string {
   return `exec setpriv --reuid=65534 --regid=65534 --clear-groups bash -lc ${shellQuote(command)}`;
 }
 
-export function bashTool(ctx: ToolContext): CustomTool<typeof BASH_PARAMS> {
+export function bashTool(ctx: ToolContext, availableTools: string[]): CustomTool<typeof BASH_PARAMS> {
   return {
     name: "bash",
     label: "执行 shell",
     description: "在会话 workspace 执行 bash；evalScope=off 时调用会被拒绝。",
     parameters: BASH_PARAMS,
-    execute: async (_toolCallId, params, _onUpdate, _ctx, signal) => {
+    execute: async (_toolCallId, params, _onUpdate, runtime, signal) => {
+      const settings = runtime.settings;
+      if (settings !== undefined && cfgBashInterceptorEnabled.get(settings)) {
+        // 自定义 bash 没有 name，指向 bash 自身的规则给出的替代方案不存在。
+        const rules = cfgBashInterceptorPatterns.get(settings).filter((rule) => rule.tool !== "bash");
+        const hit = checkBashInterception(params.command, availableTools, rules);
+        if (hit.block) throw new Error(hit.message ?? "这条命令请改用对应的专用工具。");
+      }
       const cwd = localDir(ctx.sessionId);
       const timeoutMs = Math.min(300_000, Math.max(1_000, (params.timeout ?? 60) * 1000));
       const proc = Bun.spawn(["bash", "-lc", dropPrivileges(params.command)], {

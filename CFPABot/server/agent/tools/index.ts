@@ -2,7 +2,7 @@ import type { CustomTool, ExtensionFactory } from "@oh-my-pi/pi-coding-agent";
 import type { ToolContext } from "../context.ts";
 import { logger } from "../../log.ts";
 import { bashTool } from "./bash.ts";
-import { delegateTool } from "./delegate.ts";
+import { CHILD_TOOLS, delegateTool } from "./delegate.ts";
 
 const log = logger("agent-tools");
 
@@ -22,6 +22,15 @@ function logged<T extends CustomTool>(tool: T): T {
   };
 }
 
-export function buildTools(ctx: ToolContext, extensions: ExtensionFactory[] = []): CustomTool[] {
-  return [logged(bashTool(ctx)), logged(delegateTool(ctx, (childCtx) => buildTools(childCtx), extensions))];
+export function buildTools(
+  ctx: ToolContext,
+  availableTools: string[],
+  extensions: ExtensionFactory[] = [],
+): CustomTool[] {
+  return [
+    logged(bashTool(ctx, availableTools)),
+    logged(
+      delegateTool(ctx, (childCtx) => buildTools(childCtx, Object.keys(CHILD_TOOLS), extensions), extensions),
+    ),
+  ];
 }

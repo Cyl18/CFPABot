@@ -16,7 +16,7 @@ import { agentMcpManager } from "../mcp.ts";
 import { openAuthStorage, openModelRuntime } from "../pi.ts";
 import { onAbortSignal } from "./signal.ts";
 
-const CHILD_TOOLS: Record<string, true> = {
+export const CHILD_TOOLS: Record<string, true> = {
   read: true,
   grep: true,
   find: true,

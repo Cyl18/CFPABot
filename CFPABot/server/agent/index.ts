@@ -224,7 +224,7 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
     modelRegistry: modelRuntime.registry,
     settings: modelRuntime.settings,
     sessionManager: manager,
-    customTools: buildTools(toolContext(record, mcp), extensions),
+    customTools: buildTools(toolContext(record, mcp), Object.keys(ALLOWED_TOOLS), extensions),
     skills,
     extensions,
     disableExtensionDiscovery: true,

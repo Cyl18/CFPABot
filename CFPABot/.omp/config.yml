@@ -10,6 +10,28 @@ snapcompact:
   systemPrompt: none
   toolResults: false
 
+todo:
+  reminders: true
+  remindersMax: 1
+
+features:
+  unexpectedStopDetection: none
+
+images:
+  describeForTextModels: false
+
+astGrep:
+  enabled: false
+
+bashInterceptor:
+  enabled: true
+
+github:
+  enabled: false
+
+task:
+  maxRecursionDepth: 1
+
 branchSummary:
   enabled: false
 
