@@ -135,6 +135,10 @@
   margin-top: 0.65em;
 }
 
+.md p:empty {
+  display: none;
+}
+
 .md h1,
 .md h2,
 .md h3,
