@@ -34,7 +34,7 @@ const SUBAGENT_STATE: Record<"pending" | "running" | "done" | "error", { label: 
 
 function SectionCard({ icon, title, meta, children }: { icon: ReactNode; title: string; meta?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-lg border border-line bg-surface">
+    <section className="agent-fade rounded-lg border border-line bg-surface">
       <header className="flex items-center gap-2 border-b border-line px-3 py-2">
         <span className="text-muted">{icon}</span>
         <span className="text-xs font-semibold">{title}</span>
@@ -56,7 +56,7 @@ function Meter({ value, total }: { value: number; total: number }) {
 
 function FileRow({ entry }: { entry: FileEntry }) {
   return (
-    <div className="flex items-center gap-1.5 py-0.5 text-[11px]">
+    <div className="agent-fade flex items-center gap-1.5 py-0.5 text-[11px]">
       {entry.reviewed ? (
         <CheckCircle2 aria-hidden="true" className="size-3 shrink-0 text-ok" />
       ) : entry.reads > 0 ? (
@@ -166,7 +166,7 @@ function SubagentCard({ items }: { items: readonly ToolItem[] }) {
             const model = subagentModel(item.tool);
             const task = stringArg(item.tool, "task");
             return (
-              <div key={item.id} className="rounded border border-line bg-elevated/30 p-2">
+              <div key={item.id} className="agent-fade rounded border border-line bg-elevated/30 p-2">
                 <div className="flex items-center gap-1.5 text-[11px]">
                   {item.tool.state === "running" ? (
                     <LoaderCircle aria-hidden="true" className="size-3 animate-spin text-accent" />

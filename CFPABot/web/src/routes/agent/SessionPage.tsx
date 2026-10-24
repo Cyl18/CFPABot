@@ -631,7 +631,7 @@ export function SessionPage({ id }: { id: string }) {
         {asideOpen && (
           <aside
             className={cn(
-              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden xl:w-[380px] xl:flex-none xl:border-l xl:border-line",
+              "agent-slide-in flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden xl:w-[380px] xl:flex-none xl:border-l xl:border-line",
               pane === "chat" && "hidden xl:flex",
             )}
           >

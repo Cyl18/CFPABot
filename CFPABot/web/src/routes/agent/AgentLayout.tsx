@@ -45,7 +45,7 @@ export function useAgentSidebar(): AgentSidebarValue {
 
 function SessionRow({ session, active, onArchive }: { session: SessionSummary; active: boolean; onArchive: () => void }) {
   return (
-    <div className={cn("group flex w-52 shrink-0 items-center rounded-md pr-1 md:w-auto", active && "bg-accent-soft")}>
+    <div className={cn("agent-fade group flex w-52 shrink-0 items-center rounded-md pr-1 md:w-auto", active && "bg-accent-soft")}>
       <Link
         to="/agent/$id"
         params={{ id: session.id }}
@@ -110,12 +110,17 @@ export function AgentLayout() {
 
   return (
     <AgentSidebarContext.Provider value={{ open, toggle }}>
-      <div className="flex h-[calc(100dvh-6rem)] flex-col gap-3 md:flex-row lg:h-[calc(100dvh-2.5rem)]">
+      <div
+        className={cn(
+          "flex h-[calc(100dvh-6rem)] flex-col gap-3 md:flex-row md:transition-[gap] md:duration-200 motion-reduce:transition-none lg:h-[calc(100dvh-2.5rem)]",
+          !open && "md:gap-0",
+        )}
+      >
         <aside
           aria-label="会话列表"
           className={cn(
-            "flex min-h-0 shrink-0 flex-col gap-2 md:gap-0 md:overflow-hidden md:rounded-lg md:border md:border-line md:bg-surface",
-            open ? "md:w-64" : "md:hidden",
+            "flex min-h-0 shrink-0 flex-col gap-2 md:gap-0 md:overflow-hidden md:rounded-lg md:bg-surface md:transition-[width,border-width,visibility] md:duration-200 motion-reduce:transition-none",
+            open ? "md:w-64 md:border md:border-line" : "md:invisible md:w-0 md:border-0",
           )}
         >
           <div className="flex flex-col gap-2 md:border-b md:border-line md:p-2">

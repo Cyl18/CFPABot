@@ -33,7 +33,7 @@ const ToolRow = memo(function ToolRow({ item, prNumber }: { item: ToolItem; prNu
   const { tool, at } = item;
   const preview = tool.progress ?? toolPreview(tool);
   return (
-    <details className="group border-t border-line first:border-t-0">
+    <details className="agent-fade group border-t border-line first:border-t-0">
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-1.5 hover:bg-elevated/40">
         <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 text-muted transition-transform group-open:rotate-90" />
         <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", TOOL_DOT[tool.state])} />
@@ -49,7 +49,7 @@ const ToolRow = memo(function ToolRow({ item, prNumber }: { item: ToolItem; prNu
         )}
         <span className="shrink-0 text-[11px] tabular-nums text-muted">{clock(at)}</span>
       </summary>
-      <div className="space-y-2 border-t border-line bg-elevated/30 px-3 py-2">
+      <div className="agent-reveal space-y-2 border-t border-line bg-elevated/30 px-3 py-2">
         <ToolBody tool={tool} prNumber={prNumber} />
       </div>
     </details>
@@ -151,7 +151,7 @@ const AssistantRow = memo(function AssistantRow({ item }: { item: AssistantRowIt
         ) : (
           <div className="group/msg relative">
             <Markdown>{item.text}</Markdown>
-            {streaming && <span aria-hidden="true" className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse rounded-[1px] bg-accent align-text-bottom" />}
+            {streaming && <span aria-hidden="true" className="agent-caret ml-0.5 inline-block h-3.5 w-1.5 rounded-[1px] bg-accent align-text-bottom" />}
             {!empty && !streaming && (
               <CopyButton
                 text={item.text}
@@ -170,7 +170,7 @@ function StepBlock({ step, live, prNumber }: { step: Step; live: boolean; prNumb
   const thinking = step.thinking?.trim() ?? "";
   const hasText = step.text.trim() !== "";
   return (
-    <div className="space-y-1.5 px-3 py-2">
+    <div className="agent-fade space-y-1.5 px-3 py-2">
       {/* 连续工具调用之间的纯思考块不单独占位，只在有正文或正在生成时露出。 */}
       {thinking !== "" && (hasText || live) && <Thinking text={step.thinking ?? ""} />}
       {hasText && <Markdown className="text-[13px]">{step.text}</Markdown>}
@@ -215,11 +215,13 @@ const TurnRow = memo(function TurnRow({
   turn,
   position,
   prNumber,
+  tail,
   onJump,
 }: {
   turn: Turn;
   position: number;
   prNumber?: number;
+  tail: boolean;
   onJump: (index: number) => void;
 }) {
   const [manual, setManual] = useState<boolean | null>(null);
@@ -230,7 +232,7 @@ const TurnRow = memo(function TurnRow({
   const toggle = useCallback(() => setManual(!open), [open]);
 
   return (
-    <article className="group/turn space-y-2.5">
+    <article className={cn("group/turn space-y-2.5", tail && "agent-rise")}>
       {turn.user !== undefined && <UserRow text={turn.user.text} at={turn.user.at} />}
 
       {turn.steps.length > 0 && (
@@ -256,7 +258,7 @@ const TurnRow = memo(function TurnRow({
             </span>
           </button>
           {open && (
-            <div className="divide-y divide-line border-t border-line">
+            <div className="agent-fade divide-y divide-line border-t border-line">
               {turn.steps.map((step, position) => (
                 <StepBlock
                   key={step.key}
@@ -372,7 +374,13 @@ export function ChatStream({
             className="absolute left-0 top-0 w-full"
             style={{ transform: `translateY(${entry.start}px)`, paddingBottom: ROW_GAP }}
           >
-            <TurnRow turn={turn} position={entry.index} prNumber={prNumber} onJump={handleJump} />
+            <TurnRow
+              turn={turn}
+              position={entry.index}
+              prNumber={prNumber}
+              tail={entry.index === turns.length - 1}
+              onJump={handleJump}
+            />
           </div>
         );
       })}
@@ -413,8 +421,8 @@ export function TurnRail({
           aria-current={item.index === active ? "true" : undefined}
           onClick={() => onJump(item.index)}
           className={cn(
-            "h-1.5 w-1.5 shrink-0 rounded-full border transition-colors",
-            item.index === active ? "border-accent bg-accent" : "border-line bg-transparent hover:border-accent/70 hover:bg-accent/40",
+            "h-1.5 w-1.5 shrink-0 rounded-full border transition",
+            item.index === active ? "scale-125 border-accent bg-accent" : "border-line bg-transparent hover:border-accent/70 hover:bg-accent/40",
           )}
         />
       ))}
