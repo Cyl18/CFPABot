@@ -1,10 +1,22 @@
+import { join, resolve, sep } from "node:path";
 import type { ExtensionFactory } from "@oh-my-pi/pi-coding-agent";
 import type { WriteScope } from "@cfpa/contracts/api";
+import { paths } from "../paths.ts";
 
 const EXEC_TOOLS: Record<string, true> = { bash: true, eval: true };
 const WRITE_TOOLS: Record<string, true> = { write: true, edit: true, ast_edit: true };
+const READ_TOOLS: Record<string, true> = { read: true, grep: true, find: true, glob: true };
 const LOCAL_URI = /^local:\/\//i;
 const PR_URI = /^pr:\/\//i;
+/** 内部 URL 由路由器解析，不是文件系统路径。 */
+const SCHEME = /^[A-Za-z][\w+.-]*:\/\//;
+/** read 的行号/raw 选择器尾部，`D:` 盘符不受影响。 */
+const READ_SELECTOR = /(?::(?:raw|img|conflicts|\d[\d,+-]*|-\d+))+$/;
+const EXEC_SOURCE: Record<string, string> = { bash: "command", eval: "code" };
+/** `..` 作为独立路径段即拒；`...`、`a..b` 不算。 */
+const PARENT_SEGMENT = /(?:^|[^A-Za-z0-9._-])\.\.(?:$|[^A-Za-z0-9._-])/;
+/** 盘符与 MSYS 挂载点；`$CFPA_ROOT` 不含字面量绝对路径，不受影响。 */
+const ABSOLUTE_PATH = /(?:[A-Za-z]:[\\/]|(?:^|[\s"'`(,=;|&])\/mnt\/)/;
 
 /** 工具始终注册，关闭执行权限时在调用处拒绝，工具块因此恒定。 */
 export function execBlockReason(toolName: string, allowed: boolean): string | undefined {
@@ -24,13 +36,56 @@ export function writeBlockReason(toolName: string, input: unknown, scope: WriteS
   return "只能写 local://（会话 workspace）或 pr://（GitHub）。";
 }
 
-export function scopeGuard(execAllowed: () => Promise<boolean>, writeScopeOf: () => Promise<WriteScope>): ExtensionFactory {
+/** 会话 workspace 是 bash 与 eval 的 cwd，相对路径足够；`..` 与绝对路径直接拒绝。 */
+export function execPathReason(toolName: string, input: unknown): string | undefined {
+  const key = EXEC_SOURCE[toolName];
+  if (key === undefined || input === null || typeof input !== "object") return undefined;
+  const source = (input as Record<string, unknown>)[key];
+  if (typeof source !== "string") return undefined;
+  if (PARENT_SEGMENT.test(source)) return "只允许会话 workspace 内的相对路径，禁止 `..`；仓库文件用 `$CFPA_ROOT/…` 或 repo:// 读。";
+  if (ABSOLUTE_PATH.test(source)) return "执行与写入只用相对路径，绝对路径一律拒绝；仓库用 `$CFPA_ROOT/…` 或 repo://，PR 文件先复制到 local://work/。";
+  return undefined;
+}
+
+/** `path` 可能是字符串、数组，grep 还允许 `;` 分隔。 */
+function pathEntries(input: unknown): string[] {
+  if (input === null || typeof input !== "object") return [];
+  const record = input as Record<string, unknown>;
+  const raw = record.path ?? record.paths;
+  const list = Array.isArray(raw) ? raw : [raw];
+  return list.filter((item): item is string => typeof item === "string").flatMap((item) => item.split(";"));
+}
+
+/** 只读工具只能落在会话 workspace、runtime/work（仓库与 PR 物化）与 skills；内部 URL 放行。 */
+export function readPathReason(toolName: string, input: unknown, workspace: string): string | undefined {
+  if (READ_TOOLS[toolName] !== true) return undefined;
+  const allowed = [workspace, join(paths.root, "runtime", "work"), join(paths.root, "skills")].map((dir) => resolve(dir));
+  for (const entry of pathEntries(input)) {
+    const target = entry.trim();
+    if (target === "" || SCHEME.test(target)) continue;
+    const relative = target.replace(READ_SELECTOR, "");
+    const inside = [workspace, paths.root].some((base) => {
+      const absolute = resolve(base, relative);
+      return allowed.some((root) => absolute === root || absolute.startsWith(root + sep));
+    });
+    if (!inside) return `只读会话 workspace、runtime/work 与 skills；${target} 不在范围内。`;
+  }
+  return undefined;
+}
+
+export function scopeGuard(
+  execAllowed: () => Promise<boolean>,
+  writeScopeOf: () => Promise<WriteScope>,
+  workspace: string,
+): ExtensionFactory {
   return (pi) => {
     pi.on("tool_call", async (event) => {
       const execReason = execBlockReason(event.toolName, await execAllowed());
       const writeReason =
         execReason === undefined ? writeBlockReason(event.toolName, event.input, await writeScopeOf()) : undefined;
-      const reason = execReason ?? writeReason;
+      const pathReason = execReason === undefined ? execPathReason(event.toolName, event.input) : undefined;
+      const readReason = readPathReason(event.toolName, event.input, workspace);
+      const reason = execReason ?? writeReason ?? pathReason ?? readReason;
       return reason === undefined ? undefined : { block: true, reason };
     });
   };

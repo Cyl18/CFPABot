@@ -11,6 +11,7 @@ import {
 import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import type { LlmEndpoint } from "@cfpa/contracts/api";
 import { paths } from "../paths.ts";
+import { localDir } from "./local-store.ts";
 import { resolveApiKey } from "./llm-providers.ts";
 import type { SessionRecord } from "./sessions.ts";
 
@@ -68,8 +69,8 @@ export async function openSessionManager(record: SessionRecord): Promise<Session
   if (record.sessionFile && existsSync(record.sessionFile)) {
     return SessionManager.open(record.sessionFile, paths.sessions);
   }
-  // 会话文件定在 runtime/sessions/<id>.jsonl：omp 的 artifacts 目录随之等于 <id>/，local:// 直接落在 workspace。
-  const manager = SessionManager.create(paths.root, paths.sessions);
+  // 会话文件定在 runtime/sessions/<id>.jsonl：omp 的 artifacts 目录随之等于 <id>/，local:// 与 cwd 都落在 <id>/local。
+  const manager = SessionManager.create(localDir(record.meta.id), paths.sessions);
   const file = join(paths.sessions, `${record.meta.id}.jsonl`);
   await manager.setSessionFile(file);
   record.sessionFile = file;

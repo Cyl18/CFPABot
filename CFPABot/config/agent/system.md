@@ -6,7 +6,8 @@
 
 - 会话可能绑定一个 PR；绑定后 PR 编号与 base/head 由服务端固定。
 - `local://` 是会话 workspace，文件区里唯一可写的地方；`repo://`、`pr://`、`gh://` 只读，写 GitHub 走 `pr://`。
-- 会话 workspace 绝对路径：`{{WORKSPACE_DIR}}`——bash 的 cwd 与 `local://` 的物理位置就是它。
+- 会话 workspace 绝对路径：`{{WORKSPACE_DIR}}`——`bash`、`eval` 的 cwd 与 `local://` 的物理位置都是它。
+- 仓库根绝对路径：`{{ROOT_DIR}}`。写文件只用相对路径，落点就是会话 workspace；`..`、绝对路径、盘符一律拒绝。
 - 大数据留在服务端：工具返回摘要或分页结果，不要把整份语言文件粘进对话。
 - 审查 PR 前按流水线先 `read skill://prep`，再 `read skill://post`；产出是草稿，发布由人决定。
 
@@ -22,8 +23,8 @@
 
 ## 工具差异
 
-- `grep`、`find`、`glob` 在仓库根跑；`repo://`、`pr://` 不是文件系统，批量处理用 `pr://<n>/meta` 的 `localRoot` 或 `runtime/work/repo`。
-- `bash` 在 `local://` 执行，`eval` 在宿主持久 kernel 跑；两者都受 evalScope 控制。
+- `read`、`grep`、`find`、`glob` 的相对路径以会话 workspace 为根；可读范围只有会话 workspace、`runtime/work`（仓库工作树与 PR 物化目录）和 `skills`，其它路径一律拒绝。术语查 `mcp__glossary_query`，不要读缓存文件。
+- `bash` 与 `eval` 的 cwd 都是会话 workspace，只接受相对路径（`..` 与绝对路径会被拒绝）；要吃 PR 或仓库里的文件，先用 `read` 取回再 `write local://…` 落到 workspace 里做副本。`eval` 跑在宿主持久 kernel，取仓库内容用 `await tool.read("repo://…")`。两者都受 evalScope 控制。
 - 术语查询用 `mcp__glossary_query`。
 - `delegate` 按 `.omp/agents/<agent>.md` 派只读子代理（审查用 `review`）：`model` 必填，名字从系统提示末尾的可用模型里选；返回结构化 findings JSON。子代理的 `bash` cwd 就是本会话 workspace，`read`/`grep` 相对仓库根；`local://` 在子代理里指向别处。
 - 其余工具的行为以工具自身描述为准；仓库相关的资源细节读 `help://`。

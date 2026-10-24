@@ -11,14 +11,15 @@ description: 译前草稿：路径闸门、范围、术语表、风格指南、�
 
 ## 步骤
 
-1. **路径闸门**：`read pr://<n>/meta` 取 `headSha`、`localRoot`；`read pr://<n>/review` 看 `counts`。
+1. **路径闸门**：`read pr://<n>/meta` 取 `headSha`；`read pr://<n>/review` 看 `counts`。`localRoot` 只读、只给 `read`/`grep` 用，不要喂给 `bash`/`eval`。
    - 预审解析 `projects/assets/<slug>/<版本>/<namespace>/lang/` 这 7 段布局；迁移前的 6 段（无版本目录）解析不到。
    - `counts.workspaces === 0`：看 `pr://<n>/checks` 的 `bad_path`、`bad_path_domain`。有 `/mv` 目标 → 路径问题写进 summary 并停；没有 → 直接读文件审内容，跳过范围与候选。
 2. **基线**：`review` 给 `counts`、每个 workspace 的 `enPath`、`zhPath`、`histogram`、`files`、`duplicates`；`review/rows` 给 `total` 和带 `findings` 的行。
 3. **范围**：用 key 前缀或正则圈定，规则写进 `prep.json`，保证能重跑。
-   - lang 目录 = `<localRoot>/<enPath 去文件名>`；`localRoot` 只读，输出写 `local://`。
+   - 语言文件先落到 `local://work/`：`read pr://<n>/files/<enPath>?side=head`，再 `write local://work/en_us.json`（zh 同理）；脚本只吃这份副本，不碰 `localRoot`。
+   - lang 目录 = `./work`；输出写 `local://`，相对路径就是它。
    ```bash
-   python3 "$CFPA_ROOT/skills/prep/scripts/scope.py" <lang 目录> ./scope --prefix "item." --pattern '^block\.'
+   python3 "$CFPA_ROOT/skills/prep/scripts/scope.py" ./work ./scope --prefix "item." --pattern '^block\.'
    ```
    `--prefix` 和 `--pattern` 至少给一个，否则工具退出。
 4. **术语依据**：glossary 是权威，候选只做召回。按包的形状判断，不按 changed 行数；`mod prep` 几秒跑完。

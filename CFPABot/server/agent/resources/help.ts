@@ -19,12 +19,13 @@ const TOPICS: Record<string, string> = {
 - help://resources/skill`,
   "tools/bash": `# bash
 
-在会话 workspace（local://）执行 shell。子进程只拿到白名单环境变量，容器内以 nobody 运行。
+在会话 workspace（local://）执行 shell，cwd 就是它。子进程只拿到白名单环境变量，容器内以 nobody 运行。
+只写相对路径：\`..\`、绝对路径、盘符一律拒绝；仓库用 \`$CFPA_ROOT/runtime/work\`，脚本用 \`$CFPA_ROOT/skills\`。cache、pi-agent、别的会话目录禁读。
 repo:// 与 pr:// 不能直接写，需要处理时先复制到 local://。`,
   "tools/eval": `# eval
 
-在宿主持久 kernel 执行 Python / JavaScript，能直接读写仓库与会话 workspace 的文件；不要用 bash 再套 python -c。
-evalScope=off 时调用会被拒绝。`,
+在宿主持久 kernel 执行 Python / JavaScript，cwd 是会话 workspace，相对路径就落在那里；不要用 bash 再套 python -c。
+\`..\` 与绝对路径会被拒绝；仓库内容用 \`await tool.read("repo://…")\` 取。evalScope=off 时调用会被拒绝。`,
   "tools/write": `# write
 
 可写 local://（始终可用）与 pr://（writeScope=on）。写 GitHub 时按 URI 决定语义，目标表见系统提示。
@@ -35,7 +36,7 @@ evalScope=off 时调用会被拒绝。`,
 写权限同样受 writeScope 约束。`,
   "tools/grep": `# grep
 
-内置 grep，按正则搜索文件系统路径，默认在仓库根。pr:// 与 repo:// 不是文件系统：先用 read pr://<n>/meta 取 localRoot，或直接搜 runtime/work/repo；搜会话 workspace 要给绝对路径。`,
+内置 grep，按正则搜索文件系统路径，默认在会话 workspace；可读范围只有会话 workspace、\`runtime/work\`、\`skills\`。repo:// 与 pr:// 不是文件系统：用 read 读，或取 pr://<n>/meta 的 localRoot 后按绝对路径搜（bash 侧用 \`$CFPA_ROOT/…\`，执行工具本身不接受绝对路径）。`,
   "tools/delegate": `# delegate
 
 启动只读子代理，返回结构化 findings JSON（yield 已按 schema 校验）。
@@ -61,7 +62,7 @@ pr://<n>/ 下的资源：files、files/<path>、comments、threads、checks、wo
 仓库级元数据：meta、pulls?state=、issues/<n>、issues/<n>/comments、search?q=&type=、mods?q=、versions/<slug>/keys。`,
   "resources/local": `# local://
 
-会话 workspace，可读写，支持子目录；禁止 .. 与绝对路径。绝对路径见系统提示，bash 的 cwd 就是它。
+会话 workspace，可读写，支持子目录；禁止 .. 与绝对路径。bash 与 eval 的 cwd 就是它。
 local:// 是普通文件区；审查草稿用任意 .json 文件名。
 local:// 写入不经过 writeScope，也不会发到 GitHub；发布时才校验草稿结构。`,
   "resources/skill": `# skill://

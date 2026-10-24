@@ -21,7 +21,10 @@ const SECRET_PATHS = [
   /config[\\/]llm\.json/i,
   /config[\\/]secret\.key/i,
   /config[\\/][^\\/]*\.(?:pem|key)/i,
+  /(?:^|[\\/])\.env/i,
 ];
+
+const PRIVATE_PATHS = [/runtime[\\/]cache[\\/]/i, /runtime[\\/]pi-agent[\\/]/i, /runtime[\\/]sessions[\\/]/i];
 
 const ENV_DUMPS = [
   /\bprocess\.env\b/,
@@ -36,6 +39,7 @@ export function secretViolation(input: unknown): string | undefined {
   const text = JSON.stringify(input);
   if (SECRET_NAMES.some((name) => text.includes(name))) return "禁止读取服务端密钥环境变量";
   if (SECRET_PATHS.some((pattern) => pattern.test(text))) return "禁止读取服务端配置文件";
+  if (PRIVATE_PATHS.some((pattern) => pattern.test(text))) return "禁止读取服务端缓存、凭据或其它会话的数据";
   if (ENV_DUMPS.some((pattern) => pattern.test(text))) return "禁止枚举服务端环境变量";
   return undefined;
 }

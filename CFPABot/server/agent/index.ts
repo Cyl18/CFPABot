@@ -184,7 +184,7 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   const workflow = resolveWorkflow(record.meta.workflow);
   const config = await loadConfig();
   applySearchEnv(config.search);
-  const basePrompt = await buildSystemPrompt(workflow, localDir(id));
+  const basePrompt = await buildSystemPrompt(workflow, localDir(id), paths.root);
   const aliases = Object.keys(config.roles).filter((role) => role !== "default");
   const systemPrompt =
     aliases.length === 0
@@ -201,6 +201,7 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
     scopeGuard(
       async () => (await store.get(id))?.meta.evalScope === "run",
       async () => (await store.get(id))?.meta.writeScope ?? "off",
+      localDir(id),
     ),
   ];
   const manager = await openSessionManager(record);

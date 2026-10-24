@@ -24,7 +24,7 @@ PR 校对。产出 `local://draft.json`；术语表、风格指南、格式要�
 只查「同一英文在本模组里有几种译法」时跑；先圈范围，没有范围不跑。
 
 ```bash
-python3 "$CFPA_ROOT/skills/prep/scripts/scope.py" <lang 目录> ./scope --prefix "item." --pattern '^block\.'
+python3 "$CFPA_ROOT/skills/prep/scripts/scope.py" ./work ./scope --prefix "item." --pattern '^block\.'
 python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o ./review/<slug>
 ```
 
@@ -32,13 +32,15 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 
 ## 草稿
 
-`{prNumber, headSha, verdict, summary, comments[]}`。`headSha` 必填，从 `pr://<n>/meta` 取。
+`{prNumber, headSha, verdict, summary, comments[], event?}`。`headSha` 必填，从 `pr://<n>/meta` 取；`event` 取 `COMMENT`/`APPROVE`/`REQUEST_CHANGES`，默认 `COMMENT`，只在 `write pr://<n>/review` 发布时生效。
 
 每条评论：`path`、`line`（head 行号，必须在 diff hunk 新侧）、`key`、`severity`、`mqm`、`body`，`en`/`zh` 填该行原文与译文。`id` 可省。
 
 - **`suggestion` 是整行替换**：带缩进、引号、逗号和转义，跟文件里那一行完全一致。非 `suspected` 且没有 `covers` 时必须给。
 - **`covers` 与 `suggestion` 互斥**：有 `covers` 就不给 `suggestion`；`covers` 只放同一模式的其余 key，本条不放。
 - **`suspected` 是布尔字段**，显式写 `"suspected": true` 才生效；此时档位最高 minor。
+- **同 `path` + 同 `key` 只能出一条**：该 key 的其它实例进 `covers`，重复会被校验打回。
+- `id` 由服务端按顺序补 `c1…cN`，不用自己写。
 
 `body` 写原因，`suggestion` 给整行。好：body 说「`Hexerei兼容` 拉丁字母与汉字之间缺空格；这里是兼容性，不是兼容模式」，suggestion 是整行。坏：body 只写「不太自然」，或 suggestion 只给改动的词。
 
@@ -76,4 +78,4 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 
 派子代理时把校对方法和 MQM 贴进 task；它只返回稀疏 JSON（只写判错的 key），你合并并确认。
 
-`read pr://<n>/meta` 的 `localRoot` 是 head 文件的物化目录，仓库工作树在 `runtime/work/repo`；`grep`/`find` 需要文件系统路径。
+`read pr://<n>/meta` 的 `localRoot` 是 head 文件的物化目录，只读、只给 `read`/`grep` 用；要跑脚本先复制到 `local://work/`，脚本吃 `./work`。仓库工作树是仓库根下的 `runtime/work/repo`（`grep`/`find` 要绝对路径，`bash` 里用 `$CFPA_ROOT`，执行工具本身不接受绝对路径）。
