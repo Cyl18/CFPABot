@@ -1,5 +1,5 @@
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import { getCheckReport } from "../../bot/index.ts";
+import { getCheckStatus, isRefreshing } from "../../bot/index.ts";
 import { gh, serverGraphql } from "../../github/client.ts";
 import { anonymousReviewState } from "../../github/review.ts";
 import { prdata } from "../../prdata.ts";
@@ -9,8 +9,9 @@ import { prDetail } from "../../views/pr.ts";
 import { specialPairContent, specialPairs } from "../../views/special.ts";
 import { compareWorkspace } from "../../views/workspace.ts";
 import { loadPack, packSummary, peekPack, selectRows, workspaceKey } from "../pack.ts";
-import { jsonResult, pageOf, textResult } from "../result.ts";
+import { jsonResult, pageOf, paginate, textResult } from "../result.ts";
 import { isAgentBody, missingResource, trimBody, visibleIssueComment, visibleReviewComment } from "./format.ts";
+import type { Finding, ModFileCheck } from "@cfpa/contracts/api";
 import type { PrParts } from "./uri.ts";
 
 const PR_CHILDREN = [
@@ -23,6 +24,7 @@ const PR_CHILDREN = [
   "special-files",
   "meta",
   "review",
+  "related",
 ] as const;
 
 export async function readPr(uri: PrParts): Promise<AgentToolResult<Record<string, unknown>>> {
@@ -34,15 +36,24 @@ export async function readPr(uri: PrParts): Promise<AgentToolResult<Record<strin
   if (sub === "files") {
     if (seg.length === 1) {
       const { files } = await prdata.files(n);
-      return jsonResult({
-        prNumber: n,
-        files: files.map((file) => ({
+      const page = paginate(
+        files.map((file) => ({
           path: file.path,
           status: file.status,
           additions: file.additions,
           deletions: file.deletions,
           ...(file.previousPath === undefined ? {} : { previousPath: file.previousPath }),
         })),
+        uri.query,
+      );
+      return jsonResult({
+        prNumber: n,
+        files: page.items,
+        total: page.total,
+        offset: page.offset,
+        limit: page.limit,
+        truncated: page.truncated,
+        nextOffset: page.nextOffset,
       });
     }
     const requested = seg.slice(1).join("/");
@@ -87,9 +98,31 @@ export async function readPr(uri: PrParts): Promise<AgentToolResult<Record<strin
     return jsonResult({ headSha: state.headSha, pendingReviewId: state.pendingReviewId, threads: state.threads });
   }
 
-  if (sub === "checks") return jsonResult(await getCheckReport(n));
+  if (sub === "checks") {
+    const view = await checksOf(n);
+    const page = paginate(view.findings, uri.query, 200, 50);
+    return jsonResult({
+      ...view,
+      findings: page.items,
+      findingsTotal: page.total,
+      truncated: page.truncated,
+      nextOffset: page.nextOffset,
+    });
+  }
 
   if (sub === "workspaces") return jsonResult((await prDetail(n)).workspaces);
+
+  if (sub === "related") {
+    const page = paginate(prdata.related(n), uri.query, 100, 20);
+    return jsonResult({
+      related: page.items,
+      total: page.total,
+      offset: page.offset,
+      limit: page.limit,
+      truncated: page.truncated,
+      nextOffset: page.nextOffset,
+    });
+  }
 
   if (sub === "compare") {
     const slug = uri.query.get("slug");
@@ -112,21 +145,31 @@ export async function readPr(uri: PrParts): Promise<AgentToolResult<Record<strin
   if (sub === "special-files") {
     if (seg[1] === "content") {
       const key = uri.query.get("key");
-      if (!key) throw new Error("pr://<n>/special-files/content 需要 ?key=");
-      const content = await specialPairContent(n, key, prdata.fileSource());
-      if (content === null) throw new Error("特殊文件不存在。");
-      return jsonResult(content);
+      if (!key) {
+        throw new Error(
+          "pr://<n>/special-files/content 需要 ?key=。key 是带斜杠的相对路径（例：projects/assets/<mod>/<ver>/<ns>/lang/zh_cn.json）；斜杠可直接写，也可编码成 %2F。",
+        );
+      }
+      return jsonResult(await specialContentOrThrow(n, key));
     }
-    return jsonResult(await specialPairs(n));
+    if (seg.length > 1) return jsonResult(await specialContentOrThrow(n, seg.slice(1).join("/")));
+    const page = paginate(await specialPairs(n), uri.query, 100, 20);
+    return jsonResult({
+      pairs: page.items,
+      total: page.total,
+      offset: page.offset,
+      limit: page.limit,
+      truncated: page.truncated,
+      nextOffset: page.nextOffset,
+      ...(page.truncated ? { hint: `还有 ${page.total - page.offset - page.items.length} 对；用 ?offset=${page.nextOffset}&limit=${page.limit} 继续。` } : {}),
+    });
   }
 
   if (sub === "meta") {
     const detail = await prDetail(n);
-    const report = await getCheckReport(n);
+    const checks = await checksOf(n);
     const rank = { critical: 0, major: 1, minor: 2, neutral: 3 } as const;
-    const counts = { critical: 0, major: 0, minor: 0, neutral: 0 };
-    for (const finding of report?.findings ?? []) counts[finding.severity] += 1;
-    return jsonResult({
+    const sections: Record<string, unknown> = {
       pr: {
         number: detail.number,
         title: detail.title,
@@ -141,22 +184,30 @@ export async function readPr(uri: PrParts): Promise<AgentToolResult<Record<strin
         htmlUrl: detail.htmlUrl,
       },
       localRoot: await ensurePrDir(n, detail.headSha),
-      workspaces: detail.workspaces,
-      specialFiles: detail.specialFiles,
-      related: detail.related,
-      checks:
-        report === null
-          ? null
-          : {
-              counts,
-              top: [...report.findings].sort((a, b) => rank[a.severity] - rank[b.severity]).slice(0, 10),
-              modFiles: report.modFiles,
-            },
-      warnings:
-        report?.findings
-          .filter((finding) => finding.severity === "critical" || finding.severity === "major")
-          .slice(0, 20) ?? [],
-    });
+      counts: {
+        workspaces: detail.workspaces.length,
+        specialFiles: detail.specialFiles.length,
+        related: detail.related.length,
+      },
+      workspaces: detail.workspaces.slice(0, 5),
+      specialFiles: detail.specialFiles.slice(0, 10),
+      related: detail.related.slice(0, 5),
+      checks: {
+        status: checks.status,
+        checkedSha: checks.checkedSha,
+        builtAt: checks.builtAt,
+        counts: checks.counts,
+        top: [...checks.findings].sort((a, b) => rank[a.severity] - rank[b.severity]).slice(0, 10),
+        modFiles: checks.modFiles,
+        ...(checks.error === undefined ? {} : { error: checks.error }),
+        ...(checks.hint === undefined ? {} : { hint: checks.hint }),
+      },
+      warnings: checks.findings
+        .filter((finding) => finding.severity === "critical" || finding.severity === "major")
+        .slice(0, 20),
+      hint: `列表已裁剪；完整内容用 pr://${n}/workspaces、pr://${n}/special-files、pr://${n}/related（都支持 ?offset=&limit=）。?fields= 只取需要的段。`,
+    };
+    return jsonResult(pickFields(sections, uri.query));
   }
 
   if (sub === "review") {
@@ -173,11 +224,15 @@ export async function readPr(uri: PrParts): Promise<AgentToolResult<Record<strin
         query: uri.query.get("query") ?? undefined,
       });
       const page = pageOf(Number(uri.query.get("offset") ?? 0), Number(uri.query.get("limit") ?? 60), 200, 60);
+      const rows = selected.slice(page.offset, page.offset + page.limit);
+      const nextOffset = page.offset + rows.length < selected.length ? page.offset + rows.length : null;
       return jsonResult({
         total: selected.length,
         offset: page.offset,
         limit: page.limit,
-        rows: selected.slice(page.offset, page.offset + page.limit).map(({ workspace, row }) => ({
+        truncated: nextOffset !== null,
+        nextOffset,
+        rows: rows.map(({ workspace, row }) => ({
           workspace: workspaceKey(workspace),
           key: row.key,
           baseEn: row.baseEn,
@@ -200,4 +255,68 @@ export async function readPr(uri: PrParts): Promise<AgentToolResult<Record<strin
   }
 
   return missingResource(`pr://${n}/${seg.join("/")}`, PR_CHILDREN);
+}
+
+async function specialContentOrThrow(n: number, key: string) {
+  const content = await specialPairContent(n, key, prdata.fileSource());
+  if (content === null) {
+    throw new Error(`特殊文件不存在：${key}。key 必须与 pr://${n}/special-files 返回的 key 完全一致。`);
+  }
+  return content;
+}
+
+function pickFields(sections: Record<string, unknown>, query: URLSearchParams): Record<string, unknown> {
+  const fields = query.get("fields");
+  if (fields === null || fields.trim() === "") return sections;
+  const wanted = new Set(fields.split(",").map((field) => field.trim()).filter(Boolean));
+  return Object.fromEntries(Object.entries(sections).filter(([key]) => wanted.has(key)));
+}
+
+interface ChecksView {
+  status: "not_run" | "running" | "ok" | "stale" | "failed";
+  headSha: string;
+  checkedSha: string | null;
+  builtAt: string | null;
+  units: string[];
+  counts: { critical: number; major: number; minor: number; neutral: number };
+  findings: Finding[];
+  modFiles: ModFileCheck[];
+  error?: string;
+  hint?: string;
+}
+
+/** 空 findings 不等于没跑：把状态、覆盖单元和失败原因一起给出。 */
+async function checksOf(n: number): Promise<ChecksView> {
+  const { pull } = await prdata.files(n);
+  const { report, error } = await getCheckStatus(n);
+  const status: ChecksView["status"] = isRefreshing(n)
+    ? "running"
+    : report === null
+      ? error === null
+        ? "not_run"
+        : "failed"
+      : report.headSha === pull.headSha
+        ? "ok"
+        : "stale";
+  const counts = { critical: 0, major: 0, minor: 0, neutral: 0 };
+  for (const finding of report?.findings ?? []) counts[finding.severity] += 1;
+  const findings = report?.findings ?? [];
+  const units = report?.units ?? [];
+  return {
+    status,
+    headSha: pull.headSha,
+    checkedSha: report?.headSha ?? null,
+    builtAt: report?.generatedAt ?? null,
+    units,
+    counts,
+    findings,
+    modFiles: report?.modFiles ?? [],
+    ...(error === null ? {} : { error }),
+    ...(status === "not_run" ? { hint: "该 PR 还没有检查报告；等 bot 刷新或请管理员重跑。" } : {}),
+    ...(status === "failed" ? { hint: "最近一次检查运行失败；下面的报告可能是旧的或不存在。" } : {}),
+    ...(status === "ok" && findings.length === 0
+      ? { hint: `检查已在 ${report?.headSha.slice(0, 7)} 上运行，未发现问题（覆盖 ${units.length} 个单元）。` }
+      : {}),
+    ...(status === "stale" ? { hint: `报告基于 ${report?.headSha.slice(0, 7)}，当前 head 是 ${pull.headSha.slice(0, 7)}。` } : {}),
+  };
 }

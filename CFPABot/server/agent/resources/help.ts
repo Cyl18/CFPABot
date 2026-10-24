@@ -48,14 +48,19 @@ evalScope=off 时调用会被拒绝。`,
 ?ref=<sha> 从 git 对象读指定版本。`,
   "resources/pr": `# pr://
 
-pr://<n>/ 下的资源：files、files/<path>、comments、threads、checks、workspaces、compare、special-files、meta、review、review/rows。
-files 支持 ?side=head|base；rows 支持 ?workspace=&filter=changed|flagged|all&query=&offset=&limit=&rebuild=1。`,
+pr://<n>/ 下的资源：files、files/<path>、comments、threads、checks、workspaces、related、compare、special-files、meta、review、review/rows。
+
+- files、special-files、related、review/rows 都支持 ?offset=&limit=，返回 total/truncated/nextOffset；截断不代表内容为空。
+- checks 返回 {status, checkedSha, builtAt, units, counts, findings}：status 为 not_run/running/ok/stale/failed；ok 且 findings 为空表示检查跑过且没发现问题。
+- meta 只给裁剪后的列表和计数，完整内容读对应子资源；?fields=pr,localRoot,checks 可只取需要的段。
+- special-files/content?key=<key> 的 key 是带斜杠的相对路径，斜杠可直接写或编码为 %2F；也可直接 read pr://<n>/special-files/<key>。
+- files 支持 ?side=head|base；rows 支持 ?workspace=&filter=changed|flagged|all&query=&offset=&limit=&rebuild=1。`,
   "resources/gh": `# gh://
 
 仓库级元数据：meta、pulls?state=、issues/<n>、issues/<n>/comments、search?q=&type=、mods?q=、versions/<slug>/keys。`,
   "resources/local": `# local://
 
-会话 workspace，可读写，支持子目录；禁止 .. 与绝对路径。
+会话 workspace，可读写，支持子目录；禁止 .. 与绝对路径。绝对路径见系统提示，bash 的 cwd 就是它。
 local:// 是普通文件区；审查草稿用任意 .json 文件名。
 local:// 写入不经过 writeScope，也不会发到 GitHub；发布时才校验草稿结构。`,
   "resources/skill": `# skill://
