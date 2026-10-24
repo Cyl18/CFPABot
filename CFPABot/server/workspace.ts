@@ -76,6 +76,38 @@ async function readMarker(prNumber: number): Promise<string | null> {
     .catch(() => null);
 }
 
+/** PR 改动的文件一次 fetch 拿对象再批量读；mirror 不可用或个别文件缺失时才回退 REST。 */
+async function prTexts(prNumber: number, headSha: string, wanted: readonly string[]): Promise<Map<string, string>> {
+  try {
+    await withLock("mirror", () =>
+      runGit(
+        paths.mirror,
+        [
+          "fetch",
+          "--depth",
+          "1",
+          "--no-tags",
+          "--no-write-fetch-head",
+          // 不带这个会继承 mirror 的 blob:none，一个文件内容都不下来。
+          "--filter=blob:limit=10m",
+          "origin",
+          `refs/pull/${prNumber}/head`,
+        ],
+        null,
+      ),
+    );
+    const texts = await mirror.readMany(headSha, wanted);
+    const missing = wanted.filter((path) => !texts.has(path));
+    if (missing.length > 0) {
+      for (const [path, text] of await gh.getFiles(missing, headSha)) texts.set(path, text);
+    }
+    return texts;
+  } catch (err) {
+    log.warn("从 mirror 取 PR 文件失败，改走 REST", { prNumber, err });
+    return gh.getFiles(wanted, headSha);
+  }
+}
+
 /** 把 PR 的 head 文件物化到共享目录；同一 PR 多次调用只在 head 变化时重建。 */
 export async function ensurePrDir(prNumber: number, headSha: string): Promise<string> {
   if ((await readMarker(prNumber)) === headSha) return prRoot(prNumber);
@@ -84,14 +116,15 @@ export async function ensurePrDir(prNumber: number, headSha: string): Promise<st
     const dir = prRoot(prNumber);
     const tmp = `${dir}.tmp`;
     const { files } = await prdata.files(prNumber);
+    const wanted = files.filter((file) => file.status !== "removed" && isRepoPath(file.path)).map((file) => file.path);
+    const texts = await prTexts(prNumber, headSha, wanted);
     await rm(tmp, { recursive: true, force: true });
     await mkdir(tmp, { recursive: true });
     let written = 0;
-    for (const file of files) {
-      if (file.status === "removed" || !isRepoPath(file.path)) continue;
-      const text = await gh.getFile(file.path, headSha);
-      if (text === null) continue;
-      const target = join(tmp, file.path);
+    for (const path of wanted) {
+      const text = texts.get(path);
+      if (text === undefined) continue;
+      const target = join(tmp, path);
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, text, "utf8");
       written += 1;
