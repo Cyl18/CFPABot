@@ -1,17 +1,20 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Bot, Cpu, GitPullRequest } from "lucide-react";
+import { Bot, Cpu, GitPullRequest, PanelLeft } from "lucide-react";
 import { useState } from "react";
 import { api, errorMessage } from "@/lib/api.ts";
 import { qk, useLlmConfig, usePrs } from "@/lib/queries.ts";
+import { useAgentSidebar } from "@/routes/agent/AgentLayout.tsx";
 import { Composer } from "@/routes/agent/Composer.tsx";
 import { OptionPicker, type PickerOption } from "@/routes/agent/OptionPicker.tsx";
+import { Button } from "@/ui/Button.tsx";
 
 export function NewSessionPage() {
   const llm = useLlmConfig(true);
   const prs = usePrs("open");
   const navigate = useNavigate();
   const client = useQueryClient();
+  const sidebar = useAgentSidebar();
   const [model, setModel] = useState("");
   const [prNumber, setPrNumber] = useState("");
   const [message, setMessage] = useState("");
@@ -41,6 +44,18 @@ export function NewSessionPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="hidden shrink-0 px-4 pt-2 md:block">
+        <Button
+          variant="ghost"
+          size="icon"
+          title={sidebar.open ? "隐藏会话列表" : "显示会话列表"}
+          aria-label={sidebar.open ? "隐藏会话列表" : "显示会话列表"}
+          aria-pressed={sidebar.open}
+          onClick={sidebar.toggle}
+        >
+          <PanelLeft aria-hidden="true" className="size-4" />
+        </Button>
+      </div>
       <div className="scroll-thin flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-8">
         <div className="w-full max-w-3xl">
           <div className="mb-5 text-center">

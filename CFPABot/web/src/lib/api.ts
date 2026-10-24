@@ -199,6 +199,7 @@ export const api = {
   readArtifact: (id: string) => get<unknown>(`/api/sessions/${encodeURIComponent(id)}/artifact`),
   publishArtifact: (id: string) => send<{ url: string }>("POST", `/api/sessions/${encodeURIComponent(id)}/publish`, {}),
   sessionEventsUrl: (id: string) => `/api/sessions/${encodeURIComponent(id)}/events`,
+  sessionsEventsUrl: () => "/api/sessions/events",
 
   llm: (signal?: AbortSignal) => get<LlmConfigView>("/api/admin/llm", signal),
   updateLlm: (body: LlmConfigUpdate) => send<LlmConfigView>("PUT", "/api/admin/llm", body),
