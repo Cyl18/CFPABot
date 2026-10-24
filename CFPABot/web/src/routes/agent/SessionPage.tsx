@@ -10,9 +10,8 @@ import type {
 } from "@cfpa/contracts/api";
 import { parseModelSelector } from "@cfpa/contracts/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, Ban, Bot, Brain, Cpu, GitPullRequest, PanelLeft, PanelRight, WifiOff } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import { Archive, Ban, Bot, Brain, Cpu, CornerDownRight, GitPullRequest, PanelLeft, PanelRight, WifiOff, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SessionStatusBadge } from "@/components/StatusBadges.tsx";
 import { useModelsDevIndex } from "@/hooks/useModelsDev.ts";
 import { useSessionEvents } from "@/hooks/useSessionEvents.ts";
@@ -21,7 +20,8 @@ import { cn } from "@/lib/cn.ts";
 import { formatRelative } from "@/lib/format.ts";
 import { thinkingOptionsFor, withCurrentThinking } from "@/lib/models-dev.ts";
 import { qk, useLlmConfig, usePrs, useSession } from "@/lib/queries.ts";
-import { ChatStream } from "@/routes/agent/ChatItems.tsx";
+import { ChatStream, TurnRail } from "@/routes/agent/ChatItems.tsx";
+import { buildTurns, formatTokens } from "@/routes/agent/turns.ts";
 import { useAgentSidebar } from "@/routes/agent/AgentLayout.tsx";
 import { Composer } from "@/routes/agent/Composer.tsx";
 import { DraftPanel } from "@/routes/agent/DraftPanel.tsx";
@@ -37,27 +37,79 @@ import { Tabs } from "@/ui/Tabs.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
 const BOTTOM_SLACK = 64;
-const CHAT_WIDTH_KEY = "cfpa-agent-chat-width";
-const MIN_CHAT_WIDTH = 520;
-
-function initialChatWidth(): number {
-  try {
-    const stored = Number(localStorage.getItem(CHAT_WIDTH_KEY));
-    return Number.isFinite(stored) && stored >= MIN_CHAT_WIDTH ? stored : 1024;
-  } catch {
-    return 1024;
-  }
-}
 
 function isReviewDraft(value: unknown): value is ReviewDraft {
   if (typeof value !== "object" || value === null) return false;
   return "verdict" in value && "comments" in value && Array.isArray(value.comments);
 }
 
-function formatTokens(value: number): string {
-  if (value < 1000) return String(Math.round(value));
-  const k = value / 1000;
-  return `${k >= 100 ? Math.round(k) : k.toFixed(1).replace(/\.0$/, "")}k`;
+interface PendingSteer {
+  id: string;
+  text: string;
+}
+
+const STEER_KEY = "cfpa-agent-steer";
+
+function readPending(id: string): PendingSteer[] {
+  try {
+    const raw = localStorage.getItem(`${STEER_KEY}:${id}`);
+    if (raw === null) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is PendingSteer =>
+        typeof item === "object" && item !== null && typeof (item as PendingSteer).id === "string" && typeof (item as PendingSteer).text === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writePending(id: string, items: readonly PendingSteer[]): void {
+  try {
+    if (items.length === 0) localStorage.removeItem(`${STEER_KEY}:${id}`);
+    else localStorage.setItem(`${STEER_KEY}:${id}`, JSON.stringify(items));
+  } catch {}
+}
+
+function PendingSteers({
+  items,
+  onChange,
+  onRemove,
+}: {
+  items: readonly PendingSteer[];
+  onChange: (id: string, text: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mb-2 overflow-hidden rounded-lg border border-warn/40 bg-warn/5">
+      <div className="flex items-center gap-1.5 border-b border-warn/30 px-2.5 py-1 text-[11px] text-warn">
+        <CornerDownRight aria-hidden="true" className="size-3" />
+        待插话 · {items.length} · 每步结束后注入一条
+      </div>
+      {items.map((item) => (
+        <div key={item.id} className="flex items-start gap-1 border-t border-warn/15 px-1.5 py-1 first:border-t-0">
+          <textarea
+            value={item.text}
+            rows={2}
+            aria-label="待插话内容"
+            onChange={(event) => onChange(item.id, event.target.value)}
+            className="scroll-thin min-h-10 flex-1 resize-none rounded bg-transparent px-1 py-0.5 text-xs leading-relaxed text-fg focus:outline-none"
+          />
+          <button
+            type="button"
+            aria-label="删除这条插话"
+            title="删除"
+            onClick={() => onRemove(item.id)}
+            className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded text-muted hover:bg-elevated hover:text-danger"
+          >
+            <X aria-hidden="true" className="size-3.5" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function latestContextTokens(items: readonly ChatItem[]): number | undefined {
@@ -88,9 +140,10 @@ export function SessionPage({ id }: { id: string }) {
   const draftSeen = useRef(false);
   const [confirmEval, setConfirmEval] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
-  const [chatWidth, setChatWidth] = useState(initialChatWidth);
-  const sectionRef = useRef<HTMLElement | null>(null);
-  const dragRef = useRef<{ center: number; max: number } | null>(null);
+  const [pending, setPending] = useState<readonly PendingSteer[]>(() => readPending(id));
+  const [activeTurn, setActiveTurn] = useState(0);
+  const jumpRef = useRef<((index: number) => void) | null>(null);
+  const sawRunning = useRef(false);
   const llm = useLlmConfig(true);
   const modelsDev = useModelsDevIndex();
   const modelsDevIndex = modelsDev.index;
@@ -101,6 +154,8 @@ export function SessionPage({ id }: { id: string }) {
     setAsideTab("status");
     draftSeen.current = false;
     setText("");
+    setPending(readPending(id));
+    sawRunning.current = false;
   }, [id]);
 
   useEffect(() => {
@@ -120,6 +175,35 @@ export function SessionPage({ id }: { id: string }) {
     atBottomRef.current = true;
     setAtBottom(true);
   }, [detail.data]);
+
+  const pendingRef = useRef<readonly PendingSteer[]>(pending);
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+
+  const applyPending = useCallback(
+    (next: PendingSteer[]) => {
+      setPending(next);
+      writePending(id, next);
+    },
+    [id],
+  );
+
+  const releasing = useRef(false);
+
+  /** 步边界放行一条待插话：服务端会把它 steer 到下一次模型调用之前。 */
+  const releasePending = useCallback(() => {
+    const next = pendingRef.current[0];
+    if (next === undefined || releasing.current) return;
+    releasing.current = true;
+    api
+      .sendMessage(id, next.text)
+      .then(() => applyPending(pendingRef.current.filter((item) => item.id !== next.id)))
+      .catch((error: unknown) => setActionError(errorMessage(error)))
+      .finally(() => {
+        releasing.current = false;
+      });
+  }, [applyPending, id]);
 
   const handleEvent = useCallback(
     (event: SessionEvent) => {
@@ -151,6 +235,10 @@ export function SessionPage({ id }: { id: string }) {
           setLastError(event.lastError);
           break;
         }
+        case "step": {
+          releasePending();
+          break;
+        }
         case "artifact": {
           if (!dirty && isReviewDraft(event.artifact)) setDraft(event.artifact);
           break;
@@ -159,10 +247,18 @@ export function SessionPage({ id }: { id: string }) {
           break;
       }
     },
-    [dirty],
+    [dirty, releasePending],
   );
 
   const connection = useSessionEvents(id, handleEvent);
+  const turns = useMemo(() => buildTurns(items, status === "running"), [items, status]);
+
+  // 只在本页确实见过运行后，回合结束才补发漏掉的待插话；避免刷新后直接把旧残留发给模型。
+  useEffect(() => {
+    if (status === "running") sawRunning.current = true;
+    if (status !== "idle" || !sawRunning.current || detail.data === undefined || detail.data.archived) return;
+    releasePending();
+  }, [status, detail.data, releasePending]);
 
   useEffect(() => {
     const node = listRef.current;
@@ -194,6 +290,17 @@ export function SessionPage({ id }: { id: string }) {
       void client.invalidateQueries({ queryKey: qk.sessions });
     },
   });
+
+  useEffect(() => {
+    if (status !== "running" || confirmEval) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      abort.mutate();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [abort, confirmEval, status]);
 
   const archive = useMutation({
     mutationFn: () => api.archiveSession(id),
@@ -295,30 +402,14 @@ export function SessionPage({ id }: { id: string }) {
     ...(prs.data ?? []).map((pr) => ({ value: String(pr.number), label: `#${pr.number} ${pr.title}`, hint: pr.author })),
   ];
 
-  const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const rect = sectionRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = { center: rect.left + rect.width / 2, max: Math.max(MIN_CHAT_WIDTH, rect.width - 24) };
-  };
-  const moveResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    const next = Math.round(Math.min(Math.max((event.clientX - drag.center) * 2, MIN_CHAT_WIDTH), drag.max));
-    setChatWidth(next);
-  };
-  const endResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current) return;
-    dragRef.current = null;
-    event.currentTarget.releasePointerCapture(event.pointerId);
-    try {
-      localStorage.setItem(CHAT_WIDTH_KEY, String(chatWidth));
-    } catch {}
-  };
-
   const submit = () => {
     const value = text.trim();
     if (value === "" || archived) return;
+    if (running) {
+      applyPending([...pendingRef.current, { id: `steer-${Date.now()}`, text: value }]);
+      setText("");
+      return;
+    }
     const localId = `local-${Date.now()}`;
     setItems((previous) => [...previous, { id: localId, kind: "user", text: value, at: new Date().toISOString() }]);
     setText("");
@@ -331,16 +422,24 @@ export function SessionPage({ id }: { id: string }) {
     });
   };
 
+  const editPending = (key: string, value: string) => {
+    applyPending(pendingRef.current.map((item) => (item.id === key ? { ...item, text: value } : item)));
+  };
+
+  const removePending = (key: string) => {
+    applyPending(pendingRef.current.filter((item) => item.id !== key));
+  };
+
   const hint = archived
     ? "会话已归档，不能再发送消息"
     : running
-      ? "Agent 运行中，发送会插入当前回合"
+      ? `运行中 · 待插话 ${pending.length} 条 · 每步结束后注入 · Esc 中止`
       : "Enter 发送 · Shift+Enter 换行";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <header className="shrink-0 px-4 pb-1 pt-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-line bg-surface">
+      <header className="shrink-0 border-b border-line px-3 py-2">
+        <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
@@ -356,7 +455,7 @@ export function SessionPage({ id }: { id: string }) {
             {meta.title || id}
           </h1>
           <SessionStatusBadge status={status} />
-          <div className="ml-auto flex w-full shrink-0 flex-wrap items-center justify-end gap-1.5 sm:w-auto">
+          <div className="flex shrink-0 items-center gap-1.5">
             {running && (
               <Button variant="danger" size="sm" loading={abort.isPending} icon={<Ban aria-hidden="true" className="size-3.5" />} onClick={() => abort.mutate()}>
                 中止
@@ -390,7 +489,7 @@ export function SessionPage({ id }: { id: string }) {
             )}
           </div>
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted">
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
           <span>{meta.createdBy}</span>
           <span title={meta.createdAt}>{formatRelative(meta.createdAt)}</span>
           {archived && <Badge>已归档</Badge>}
@@ -438,30 +537,37 @@ export function SessionPage({ id }: { id: string }) {
       )}
 
       <div className="flex min-h-0 flex-1">
-        <section
-          ref={sectionRef}
-          className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", asideOpen && pane === "aside" && "hidden xl:flex")}
-        >
-          <div className="relative mx-auto flex min-h-0 w-full flex-1 flex-col" style={{ maxWidth: chatWidth }}>
-            <div ref={listRef} onScroll={() => {
-              const node = listRef.current;
-              if (!node) return;
-              const near = node.scrollHeight - node.scrollTop - node.clientHeight < BOTTOM_SLACK;
-              atBottomRef.current = near;
-              setAtBottom(near);
-            }} className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-6">
-              {items.length === 0 ? (
+        <section className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", asideOpen && pane === "aside" && "hidden xl:flex")}>
+          <div ref={listRef} onScroll={() => {
+            const node = listRef.current;
+            if (!node) return;
+            const near = node.scrollHeight - node.scrollTop - node.clientHeight < BOTTOM_SLACK;
+            atBottomRef.current = near;
+            setAtBottom(near);
+          }} className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-6">
+            <div className="mx-auto w-full max-w-4xl">
+              {turns.length === 0 ? (
                 <EmptyState
                   icon={<Bot aria-hidden="true" className="size-6" />}
                   title="还没有消息"
                   description="在下面输入消息，开始与 Agent 对话。"
                 />
               ) : (
-                <ChatStream items={items} scrollRef={listRef} prNumber={meta.prNumber} />
+                <ChatStream
+                  turns={turns}
+                  scrollRef={listRef}
+                  prNumber={meta.prNumber}
+                  onActiveTurn={setActiveTurn}
+                  jumpRef={jumpRef}
+                />
               )}
             </div>
+          </div>
 
-            <div className="relative shrink-0 px-3 pb-3 pt-2 lg:px-6">
+          <TurnRail turns={turns} active={activeTurn} onJump={(index) => jumpRef.current?.(index)} />
+
+          <div className="shrink-0 px-3 pb-3 pt-2 lg:px-6">
+            <div className="relative mx-auto w-full max-w-4xl">
               {!atBottom && items.length > 0 && (
                 <button
                   type="button"
@@ -471,11 +577,12 @@ export function SessionPage({ id }: { id: string }) {
                   ↓ 回到最新
                 </button>
               )}
+              <PendingSteers items={pending} onChange={editPending} onRemove={removePending} />
               <Composer
                 value={text}
                 onChange={setText}
                 onSubmit={submit}
-                placeholder={archived ? "会话已归档" : running ? "Agent 正在处理，发送会插入当前回合…" : "输入消息…"}
+                placeholder={archived ? "会话已归档" : running ? "运行中：消息会暂存为待插话，本步结束后注入…" : "输入消息…"}
                 submitLabel={running ? "插话" : "发送"}
                 disabled={archived}
                 hint={hint}
@@ -518,63 +625,49 @@ export function SessionPage({ id }: { id: string }) {
                 }
               />
             </div>
-
-            <div
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="拖动调整对话宽度"
-              title="拖动调整宽度"
-              onPointerDown={startResize}
-              onPointerMove={moveResize}
-              onPointerUp={endResize}
-              onPointerCancel={endResize}
-              className="group absolute inset-y-2 -right-1 hidden w-2 cursor-col-resize touch-none items-center justify-center lg:flex"
-            >
-              <span aria-hidden="true" className="h-full w-px rounded bg-line/60 transition-colors group-hover:bg-accent/70" />
-            </div>
           </div>
         </section>
 
         {asideOpen && (
           <aside
             className={cn(
-              "min-h-0 min-w-0 flex-1 overflow-hidden border-line xl:w-[380px] xl:flex-none xl:border-l",
-              pane === "chat" && "hidden xl:block",
+              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden xl:w-[380px] xl:flex-none xl:border-l xl:border-line",
+              pane === "chat" && "hidden xl:flex",
             )}
           >
-            <div className="flex h-full min-h-0 flex-col">
-              {draft !== null && (
-                <div className="shrink-0 border-b border-line px-3 py-2">
-                  <Tabs
-                    items={[
-                      { id: "status", label: "状态" },
-                      { id: "draft", label: `草稿（${draft.comments.length}）` },
-                    ]}
-                    value={asideTab}
-                    onChange={setAsideTab}
-                    ariaLabel="右栏视图"
-                  />
-                </div>
+            <div className={cn("flex shrink-0 items-center gap-2 border-b border-line px-3 py-2", draft === null && "hidden xl:flex")}>
+              {draft !== null ? (
+                <Tabs
+                  items={[
+                    { id: "status", label: "状态" },
+                    { id: "draft", label: `草稿（${draft.comments.length}）` },
+                  ]}
+                  value={asideTab}
+                  onChange={setAsideTab}
+                  ariaLabel="右栏视图"
+                />
+              ) : (
+                <span className="text-xs font-medium text-muted">审查状态</span>
               )}
-              <div className="min-h-0 flex-1 overflow-hidden">
-                {asideTab === "draft" && draft !== null ? (
-                  <DraftPanel
-                    draft={draft}
-                    dirty={dirty}
-                    saving={saveDraft.isPending}
-                    publishing={publish.isPending}
-                    error={draftError}
-                    onChange={(next) => {
-                      setDraft(next);
-                      setDirty(true);
-                    }}
-                    onSave={() => saveDraft.mutate(draft)}
-                    onPublish={() => publish.mutate()}
-                  />
-                ) : (
-                  <ReviewSidebar items={items} prNumber={meta.prNumber} status={status} />
-                )}
-              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {asideTab === "draft" && draft !== null ? (
+                <DraftPanel
+                  draft={draft}
+                  dirty={dirty}
+                  saving={saveDraft.isPending}
+                  publishing={publish.isPending}
+                  error={draftError}
+                  onChange={(next) => {
+                    setDraft(next);
+                    setDirty(true);
+                  }}
+                  onSave={() => saveDraft.mutate(draft)}
+                  onPublish={() => publish.mutate()}
+                />
+              ) : (
+                <ReviewSidebar items={items} prNumber={meta.prNumber} />
+              )}
             </div>
           </aside>
         )}

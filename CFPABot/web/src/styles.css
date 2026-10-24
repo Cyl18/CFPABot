@@ -205,6 +205,20 @@
   font-size: 0.8125rem;
 }
 
+.md .shiki code {
+  display: block;
+  color: var(--shiki-light);
+}
+
+.md .shiki span {
+  color: var(--shiki-light);
+}
+
+.dark .md .shiki code,
+.dark .md .shiki span {
+  color: var(--shiki-dark);
+}
+
 .md blockquote {
   border-left: 3px solid var(--line);
   padding-left: 0.75rem;

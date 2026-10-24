@@ -1,8 +1,8 @@
 import { isValidElement, memo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { CodeBlock } from "@/components/CodeBlock.tsx";
 import { cn } from "@/lib/cn.ts";
-import { CopyButton } from "@/ui/CopyButton.tsx";
 
 function nodeText(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
@@ -11,20 +11,10 @@ function nodeText(node: ReactNode): string {
   return "";
 }
 
-function CodeBlock({ children }: { children?: ReactNode }) {
-  const text = nodeText(children).replace(/\n$/, "");
-  return (
-    <div className="group/code relative">
-      <pre>{children}</pre>
-      {text !== "" && (
-        <CopyButton
-          text={text}
-          label="复制代码"
-          className="absolute right-1.5 top-1.5 bg-surface/90 opacity-0 shadow-[var(--shadow-panel)] backdrop-blur group-hover/code:opacity-100 focus-visible:opacity-100"
-        />
-      )}
-    </div>
-  );
+function CodeFrame({ children }: { children?: ReactNode }) {
+  const element = isValidElement<{ className?: string; children?: ReactNode }>(children) ? children : null;
+  const lang = /language-([\w+-]+)/.exec(element?.props.className ?? "")?.[1];
+  return <CodeBlock code={nodeText(element?.props.children ?? children).replace(/\n$/, "")} lang={lang} />;
 }
 
 export const Markdown = memo(function Markdown({ children, className }: { children: string; className?: string }) {
@@ -38,7 +28,7 @@ export const Markdown = memo(function Markdown({ children, className }: { childr
               {content}
             </a>
           ),
-          pre: ({ children: content }) => <CodeBlock>{content}</CodeBlock>,
+          pre: ({ children: content }) => <CodeFrame>{content}</CodeFrame>,
         }}
       >
         {children.replaceAll("\u200b", "")}

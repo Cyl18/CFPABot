@@ -285,16 +285,32 @@ export interface ToolCallView {
   state: "pending" | "running" | "done" | "error";
   progress?: string;
   result?: string;
+  truncated?: boolean;
   details?: unknown;
 }
 
 export interface ChatUsage {
   contextTokens: number;
+  input?: number;
+  output?: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+  cost?: number;
 }
 
 export type ChatItem =
   | { id: string; kind: "user"; text: string; at: string }
-  | { id: string; kind: "assistant"; text: string; thinking?: string; at: string; streaming?: boolean; usage?: ChatUsage }
+  | {
+      id: string;
+      kind: "assistant";
+      text: string;
+      thinking?: string;
+      at: string;
+      /** 这条响应完整返回的时刻；流式过程中的 `at` 只是开始时间。 */
+      completedAt?: string;
+      streaming?: boolean;
+      usage?: ChatUsage;
+    }
   | { id: string; kind: "tool"; tool: ToolCallView; at: string };
 
 export type Severity = "critical" | "major" | "minor" | "neutral";
@@ -358,6 +374,8 @@ export type SessionEvent =
   | { type: "snapshot"; session: SessionDetail }
   | { type: "status"; status: SessionStatus; lastError?: string }
   | { type: "item"; item: ChatItem }
+  /** 一次模型往返（step）结束：响应正文与思考都已完整返回。 */
+  | { type: "step"; phase: "end" }
   | { type: "artifact"; artifact: unknown }
   | { type: "ping" };
 

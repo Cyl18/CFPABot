@@ -1,4 +1,4 @@
-import type { ChatItem, SessionStatus } from "@cfpa/contracts/api";
+import type { ChatItem } from "@cfpa/contracts/api";
 import { Bot, CheckCircle2, ChevronRight, Circle, CircleAlert, CircleMinus, Files, ListTodo, LoaderCircle } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn.ts";
@@ -200,36 +200,23 @@ function SubagentCard({ items }: { items: readonly ToolItem[] }) {
   );
 }
 
-export function ReviewSidebar({ items, prNumber, status }: { items: readonly ChatItem[]; prNumber?: number; status: SessionStatus }) {
+export function ReviewSidebar({ items, prNumber }: { items: readonly ChatItem[]; prNumber?: number }) {
   const pr = usePr(prNumber ?? 0);
   const files = pr.data?.files ?? [];
   const progress = fileProgress(items, files, prNumber);
   const plan = parsePlan(items);
   const subagents = delegateItems(items);
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-2.5">
-        <span className="text-sm font-semibold">审查状态</span>
-        {status === "running" ? (
-          <span className="flex items-center gap-1 text-[11px] text-accent">
-            <LoaderCircle aria-hidden="true" className="size-3 animate-spin" />
-            运行中
-          </span>
-        ) : (
-          <span className="text-[11px] text-muted">空闲</span>
-        )}
-      </header>
-      <div className="scroll-thin min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-        <FileProgressCard
-          entries={progress.entries}
-          read={progress.read}
-          reviewed={progress.reviewed}
-          total={progress.total}
-          totalReads={progress.totalReads}
-        />
-        <PlanCard phases={plan} />
-        <SubagentCard items={subagents} />
-      </div>
+    <div className="scroll-thin h-full min-h-0 space-y-3 overflow-y-auto p-3">
+      <FileProgressCard
+        entries={progress.entries}
+        read={progress.read}
+        reviewed={progress.reviewed}
+        total={progress.total}
+        totalReads={progress.totalReads}
+      />
+      <PlanCard phases={plan} />
+      <SubagentCard items={subagents} />
     </div>
   );
 }

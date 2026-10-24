@@ -28,8 +28,15 @@ function thinkingOf(content: unknown): string | undefined {
   return parts.length > 0 ? parts.join("\n") : undefined;
 }
 
-function truncate(text: string): string {
-  return text.length > RESULT_LIMIT ? `${text.slice(0, RESULT_LIMIT)}…[结果已截断]` : text;
+interface Sliced {
+  text: string;
+  truncated: boolean;
+}
+
+function truncate(text: string): Sliced {
+  return text.length > RESULT_LIMIT
+    ? { text: `${text.slice(0, RESULT_LIMIT)}…[结果已截断]`, truncated: true }
+    : { text, truncated: false };
 }
 
 function isoAt(timestamp: unknown): string {
@@ -48,7 +55,7 @@ function toolItem(
   name: string,
   args: unknown,
   state: ToolCallView["state"],
-  extra?: { progress?: string; result?: string; at?: string; details?: unknown },
+  extra?: { progress?: string; result?: string; truncated?: boolean; at?: string; details?: unknown },
 ): ChatItem {
   return {
     id,
@@ -60,6 +67,7 @@ function toolItem(
       state,
       ...(extra?.progress ? { progress: extra.progress } : {}),
       ...(extra?.result ? { result: extra.result } : {}),
+      ...(extra?.truncated ? { truncated: true } : {}),
       ...(extra?.details !== undefined ? { details: extra.details } : {}),
     },
   };
@@ -78,11 +86,20 @@ function toolCallsOf(content: unknown): { id: string; name: string; args: unknow
 }
 
 function usageOf(message: Extract<AgentMessage, { role: "assistant" }>): ChatUsage | undefined {
-  const contextTokens = calculateContextTokens(message.usage);
-  return contextTokens > 0 ? { contextTokens } : undefined;
+  const usage = message.usage;
+  const contextTokens = calculateContextTokens(usage);
+  if (contextTokens === 0 && usage.output === 0) return undefined;
+  return {
+    contextTokens,
+    input: usage.input,
+    output: usage.output,
+    cacheRead: usage.cacheRead,
+    cacheWrite: usage.cacheWrite,
+    ...(usage.cost !== undefined && usage.cost.total > 0 ? { cost: usage.cost.total } : {}),
+  };
 }
 
-function assistantItem(index: number, message: AgentMessage, streaming: boolean): ChatItem | null {
+function assistantItem(index: number, message: AgentMessage, streaming: boolean, completedAt?: string): ChatItem | null {
   if (message.role !== "assistant") return null;
   const text = textOf(message.content);
   const thinking = thinkingOf(message.content);
@@ -94,17 +111,20 @@ function assistantItem(index: number, message: AgentMessage, streaming: boolean)
     text,
     ...(thinking ? { thinking } : {}),
     at: isoAt(message.timestamp),
+    ...(completedAt ? { completedAt } : {}),
     ...(streaming ? { streaming: true } : {}),
     ...(usage ? { usage } : {}),
   };
 }
 
 export function projectMessages(messages: AgentMessage[]): ChatItem[] {
-  const results = new Map<string, { text: string; isError: boolean; details: unknown }>();
+  const results = new Map<string, { text: string; truncated: boolean; isError: boolean; details: unknown }>();
   for (const message of messages) {
     if (message.role !== "toolResult") continue;
+    const sliced = truncate(textOf(message.content));
     results.set(message.toolCallId, {
-      text: truncate(textOf(message.content)),
+      text: sliced.text,
+      truncated: sliced.truncated,
       isError: message.isError,
       details: "details" in message ? message.details : undefined,
     });
@@ -124,7 +144,7 @@ export function projectMessages(messages: AgentMessage[]): ChatItem[] {
       items.push(
         toolItem(call.id, call.name, call.args, result ? (result.isError ? "error" : "done") : "pending", {
           at,
-          ...(result ? { result: result.text } : {}),
+          ...(result ? { result: result.text, truncated: result.truncated } : {}),
           ...(result ? { details: toolDetailsOf(call.name, result.details) } : {}),
         }),
       );
@@ -163,7 +183,7 @@ export class LiveProjector {
         }
         if (event.message.role !== "assistant") return [];
         const out: ChatItem[] = [];
-        const item = assistantItem(index, event.message, false);
+        const item = assistantItem(index, event.message, false, new Date().toISOString());
         if (item) out.push(item);
         for (const call of toolCallsOf(event.message.content)) {
           this.toolArgs.set(call.id, call.args);
@@ -179,13 +199,16 @@ export class LiveProjector {
         const progress = progressOf(event.partialResult);
         return [toolItem(event.toolCallId, event.toolName, event.args, "running", progress ? { progress } : {})];
       }
-      case "tool_execution_end":
+      case "tool_execution_end": {
+        const sliced = resultTextOf(event.result);
         return [
           toolItem(event.toolCallId, event.toolName, this.toolArgs.get(event.toolCallId), event.isError ? "error" : "done", {
-            result: resultTextOf(event.result),
+            result: sliced.text,
+            truncated: sliced.truncated,
             details: toolDetailsOf(event.toolName, resultDetailsOf(event.result)),
           }),
         ];
+      }
       default:
         return [];
     }
@@ -204,7 +227,7 @@ function resultDetailsOf(result: unknown): unknown {
   return result.details;
 }
 
-function resultTextOf(result: unknown): string {
-  if (!result || typeof result !== "object" || !("content" in result)) return "";
+function resultTextOf(result: unknown): Sliced {
+  if (!result || typeof result !== "object" || !("content" in result)) return { text: "", truncated: false };
   return truncate(textOf(result.content));
 }
