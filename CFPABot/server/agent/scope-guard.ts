@@ -15,8 +15,8 @@ const READ_SELECTOR = /(?::(?:raw|img|conflicts|\d[\d,+-]*|-\d+))+$/;
 const EXEC_SOURCE: Record<string, string> = { bash: "command", eval: "code" };
 /** `..` 作为独立路径段即拒；`...`、`a..b` 不算。 */
 const PARENT_SEGMENT = /(?:^|[^A-Za-z0-9._-])\.\.(?:$|[^A-Za-z0-9._-])/;
-/** 盘符与 MSYS 挂载点；`$CFPA_ROOT` 不含字面量绝对路径，不受影响。 */
-const ABSOLUTE_PATH = /(?:[A-Za-z]:[\\/]|(?:^|[\s"'`(,=;|&])\/mnt\/)/;
+/** 盘符与 MSYS 挂载点；必须行首或分隔符后，否则 `repo://`、`https://` 会被当成盘符。 */
+const ABSOLUTE_PATH = /(?:^|[\s"'`(,=;|&])(?:[A-Za-z]:[\\/]|\/mnt\/)/;
 
 /** 工具始终注册，关闭执行权限时在调用处拒绝，工具块因此恒定。 */
 export function execBlockReason(toolName: string, allowed: boolean): string | undefined {
