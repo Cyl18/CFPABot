@@ -7,13 +7,11 @@ const TOPICS: Record<string, string> = {
 
 按需读取：
 - help://tools/bash
+- help://tools/eval
 - help://tools/write
 - help://tools/edit
 - help://tools/grep
-- help://tools/todo
-- help://tools/eval
 - help://tools/delegate
-- help://tools/web_search
 - help://resources/repo
 - help://resources/pr
 - help://resources/gh
@@ -21,11 +19,15 @@ const TOPICS: Record<string, string> = {
 - help://resources/skill`,
   "tools/bash": `# bash
 
-在会话 workspace（local://）执行 shell。默认开启（evalScope=run），管理员可在会话上关闭。
-子进程只拿到白名单环境变量；repo:// 与 pr:// 不能直接写，需要处理时先复制到 local://。`,
+在会话 workspace（local://）执行 shell。子进程只拿到白名单环境变量，容器内以 nobody 运行。
+repo:// 与 pr:// 不能直接写，需要处理时先复制到 local://。`,
+  "tools/eval": `# eval
+
+在宿主持久 kernel 执行 Python / JavaScript，能直接读写仓库与会话 workspace 的文件；不要用 bash 再套 python -c。
+evalScope=off 时调用会被拒绝。`,
   "tools/write": `# write
 
-可写 local://（始终可用）与 pr://（writeScope=on）。写 GitHub 时按 URI 决定语义，见 help://resources/pr。
+可写 local://（始终可用）与 pr://（writeScope=on）。写 GitHub 时按 URI 决定语义，目标表见系统提示。
 同一工具调用重复执行会按隐藏标记去重，返回 deduped: true。`,
   "tools/edit": `# edit
 
@@ -33,28 +35,12 @@ const TOPICS: Record<string, string> = {
 写权限同样受 writeScope 约束。`,
   "tools/grep": `# grep
 
-内置 grep，按正则搜索文件系统路径。path 省略时搜会话 workspace。
-pr:// 与 repo:// 不是文件系统：先用 read pr://<n>/meta 取 localRoot，或直接搜 runtime/work/repo。`,
-  "tools/todo": `# todo
-
-一次写入完整任务清单（快照语义）：tasks 是权威列表，省略的 key 会被删除。
-每项：key（1-40 位小写字母数字）、subject、status（pending/in_progress/completed）。
-同一时刻只允许一个 in_progress；baseVersion 用于防止并发覆盖。
-多步工作开始时先 init 一份计划，完成后把状态改成 completed。`,
-  "tools/eval": `# eval
-
-在宿主持久 kernel 执行 Python / JavaScript。默认开启（evalScope=run），管理员可在会话上关闭。
-一次调用一个 cell，变量在同一语言内保留；reset 重建 kernel。
-参数：language（py|js）、code、timeout?、reset?。
-kernel 直接读写会话 workspace 与仓库文件；不要用 bash 再套 python -c。`,
+内置 grep，按正则搜索文件系统路径，默认在仓库根。pr:// 与 repo:// 不是文件系统：先用 read pr://<n>/meta 取 localRoot，或直接搜 runtime/work/repo；搜会话 workspace 要给绝对路径。`,
   "tools/delegate": `# delegate
 
 按 LLM 配置里的模型别名（roles）启动只读子代理，返回它的最终文本。
 参数：model（别名，可带 @）、task（交给子代理的任务）。
 子代理有 read/grep/find/glob/bash 与 MCP 工具；批量处理时把 pr://<n>/meta 的 localRoot 给它走文件系统。`,
-  "tools/web_search": `# web_search
-
-联网搜索；由 omp 内置工具提供。返回结果后核对来源。`,
   "resources/repo": `# repo://
 
 仓库文件树，只读，默认读 origin 默认分支。空路径列出根目录，目录路径列出直接子项。

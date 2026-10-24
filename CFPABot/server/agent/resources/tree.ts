@@ -31,7 +31,13 @@ const GH = [
   "└─ versions/<slug>/keys?namespace=&pr=&versions=",
 ];
 
-const LOCAL = ["local://", "└─ <path>                     # 会话 workspace，可读写"];
+const LOCAL = [
+  "local://",
+  "└─ <path>                     # 会话 workspace，可读写",
+  "",
+  "skill://<name>                # 已加载技能，用 read 读",
+  "help://<topic>                # 工具与资源细节，主题列表见 help://",
+];
 
 /** 系统提示里的资源树；与 resources/ 下的分发保持一致。 */
 export function resourceTree(): string {
