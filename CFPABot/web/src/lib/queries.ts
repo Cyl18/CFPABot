@@ -1,4 +1,4 @@
-import type { CheckReport, CompareResult, CrossVersionKeysResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, PackSummary, PrDetail, PrState, PrSummary, PublicEnv, SessionDetail, SessionSummary, SpecialPair, SpecialPairContent, SystemStatus } from "@cfpa/contracts/api";
+import type { CheckReport, CompareResult, CrossVersionKeysResult, LlmConfigView, LogEntry, LogLevel, Me, ModList, PackSummary, PrDetail, PrState, PrSummary, PublicEnv, SessionDetail, SessionFile, SessionFileContent, SessionSummary, SpecialPair, SpecialPairContent, SystemStatus } from "@cfpa/contracts/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { api, type CompareKey } from "@/lib/api.ts";
@@ -22,6 +22,8 @@ export const qk = {
   mods: (q: string) => ["mods", q] as const,
   sessions: ["sessions"] as const,
   session: (id: string) => ["session", id] as const,
+  sessionFiles: (id: string) => ["session-files", id] as const,
+  sessionFile: (id: string, path: string) => ["session-file", id, path] as const,
   llm: ["llm"] as const,
   logs: (level: LogLevel | "all") => ["logs", level] as const,
   mappings: ["mappings"] as const,
@@ -112,6 +114,25 @@ export function useSession(id: string | undefined, enabled = true) {
     queryKey: qk.session(id ?? ""),
     queryFn: ({ signal }) => api.session(id as string, signal),
     enabled: enabled && id !== undefined && id.length > 0,
+    retry: 0,
+  });
+}
+
+export function useSessionFiles(id: string | undefined, enabled = true) {
+  return useQuery<SessionFile[]>({
+    queryKey: qk.sessionFiles(id ?? ""),
+    queryFn: ({ signal }) => api.sessionFiles(id as string, signal),
+    enabled: enabled && id !== undefined && id.length > 0,
+    refetchInterval: 3_000,
+    retry: 0,
+  });
+}
+
+export function useSessionFile(id: string | undefined, path: string | null, enabled = true) {
+  return useQuery<SessionFileContent>({
+    queryKey: qk.sessionFile(id ?? "", path ?? ""),
+    queryFn: ({ signal }) => api.sessionFile(id as string, path as string, signal),
+    enabled: enabled && id !== undefined && path !== null,
     retry: 0,
   });
 }

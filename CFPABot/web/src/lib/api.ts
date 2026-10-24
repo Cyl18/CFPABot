@@ -24,6 +24,8 @@ import type {
   ReviewHtmlResult,
   ReviewThread,
   SessionDetail,
+  SessionFile,
+  SessionFileContent,
   SessionSummary,
   SetEvalScopeRequest,
   SetFileViewedRequest,
@@ -197,6 +199,10 @@ export const api = {
   saveArtifact: (id: string, value: unknown) =>
     send<unknown>("PUT", `/api/sessions/${encodeURIComponent(id)}/artifact`, value),
   readArtifact: (id: string) => get<unknown>(`/api/sessions/${encodeURIComponent(id)}/artifact`),
+  sessionFiles: (id: string, signal?: AbortSignal) =>
+    get<SessionFile[]>(`/api/sessions/${encodeURIComponent(id)}/files`, signal),
+  sessionFile: (id: string, path: string, signal?: AbortSignal) =>
+    get<SessionFileContent>(`/api/sessions/${encodeURIComponent(id)}/file${query({ path })}`, signal),
   publishArtifact: (id: string) => send<{ url: string }>("POST", `/api/sessions/${encodeURIComponent(id)}/publish`, {}),
   sessionEventsUrl: (id: string) => `/api/sessions/${encodeURIComponent(id)}/events`,
   sessionsEventsUrl: () => "/api/sessions/events",

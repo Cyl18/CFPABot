@@ -24,6 +24,7 @@ import { ChatStream, TurnRail } from "@/routes/agent/ChatItems.tsx";
 import { buildTurns, formatTokens } from "@/routes/agent/turns.ts";
 import { useAgentSidebar } from "@/routes/agent/AgentLayout.tsx";
 import { Composer } from "@/routes/agent/Composer.tsx";
+import { ArtifactPanel } from "@/routes/agent/ArtifactPanel.tsx";
 import { DraftPanel } from "@/routes/agent/DraftPanel.tsx";
 import { OptionPicker, type PickerOption } from "@/routes/agent/OptionPicker.tsx";
 import { ReviewSidebar } from "@/routes/agent/ReviewSidebar.tsx";
@@ -34,9 +35,12 @@ import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
 import { SkeletonText, Spinner } from "@/ui/Spinner.tsx";
 import { Tabs } from "@/ui/Tabs.tsx";
+import type { TabItem } from "@/ui/Tabs.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
 const BOTTOM_SLACK = 64;
+
+type AsideTab = "files" | "status" | "draft";
 
 function isReviewDraft(value: unknown): value is ReviewDraft {
   if (typeof value !== "object" || value === null) return false;
@@ -135,7 +139,7 @@ export function SessionPage({ id }: { id: string }) {
   const [text, setText] = useState("");
   const [actionError, setActionError] = useState<string | undefined>(undefined);
   const [pane, setPane] = useState<"chat" | "aside">("chat");
-  const [asideTab, setAsideTab] = useState<"status" | "draft">("status");
+  const [asideTab, setAsideTab] = useState<AsideTab>("files");
   const [asideOpen, setAsideOpen] = useState(true);
   const draftSeen = useRef(false);
   const [confirmEval, setConfirmEval] = useState(false);
@@ -151,7 +155,7 @@ export function SessionPage({ id }: { id: string }) {
 
   useEffect(() => {
     setPane("chat");
-    setAsideTab("status");
+    setAsideTab("files");
     draftSeen.current = false;
     setText("");
     setPending(readPending(id));
@@ -252,6 +256,17 @@ export function SessionPage({ id }: { id: string }) {
 
   const connection = useSessionEvents(id, handleEvent);
   const turns = useMemo(() => buildTurns(items, status === "running"), [items, status]);
+  const asideTabs: readonly TabItem<AsideTab>[] =
+    draft === null
+      ? [
+          { id: "files", label: "产物" },
+          { id: "status", label: "状态" },
+        ]
+      : [
+          { id: "files", label: "产物" },
+          { id: "status", label: "状态" },
+          { id: "draft", label: `草稿（${draft.comments.length}）` },
+        ];
 
   // 只在本页确实见过运行后，回合结束才补发漏掉的待插话；避免刷新后直接把旧残留发给模型。
   useEffect(() => {
@@ -525,12 +540,16 @@ export function SessionPage({ id }: { id: string }) {
       {asideOpen && (
         <div className="shrink-0 border-b border-line px-3 py-2 xl:hidden">
           <Tabs
-            items={[
-              { id: "chat", label: "对话" },
-              { id: "aside", label: asideTab === "draft" && draft !== null ? `草稿（${draft.comments.length}）` : "状态" },
-            ]}
-            value={pane}
-            onChange={setPane}
+            items={[{ id: "chat", label: "对话" } as const, ...asideTabs]}
+            value={pane === "chat" ? "chat" : asideTab}
+            onChange={(next) => {
+              if (next === "chat") {
+                setPane("chat");
+                return;
+              }
+              setAsideTab(next);
+              setPane("aside");
+            }}
             ariaLabel="会话视图"
           />
         </div>
@@ -614,7 +633,10 @@ export function SessionPage({ id }: { id: string }) {
                       searchable
                       disabled={config.isPending}
                     />
-                    <span aria-hidden="true" className="mx-1 h-4 w-px bg-line" />
+                  </>
+                }
+                leading={
+                  <>
                     <ToggleChip pressed={evalOn} onClick={() => (evalOn ? setEval.mutate("off") : setConfirmEval(true))} title="允许 Agent 执行 bash 与 eval">
                       执行 {evalOn ? "开" : "关"}
                     </ToggleChip>
@@ -635,20 +657,8 @@ export function SessionPage({ id }: { id: string }) {
               pane === "chat" && "hidden xl:flex",
             )}
           >
-            <div className={cn("flex shrink-0 items-center gap-2 border-b border-line px-3 py-2", draft === null && "hidden xl:flex")}>
-              {draft !== null ? (
-                <Tabs
-                  items={[
-                    { id: "status", label: "状态" },
-                    { id: "draft", label: `草稿（${draft.comments.length}）` },
-                  ]}
-                  value={asideTab}
-                  onChange={setAsideTab}
-                  ariaLabel="右栏视图"
-                />
-              ) : (
-                <span className="text-xs font-medium text-muted">审查状态</span>
-              )}
+            <div className="flex shrink-0 items-center gap-2 border-b border-line px-2 py-1.5">
+              <Tabs items={asideTabs} value={asideTab} onChange={setAsideTab} ariaLabel="右栏视图" className="min-w-0" />
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">
               {asideTab === "draft" && draft !== null ? (
@@ -665,6 +675,8 @@ export function SessionPage({ id }: { id: string }) {
                   onSave={() => saveDraft.mutate(draft)}
                   onPublish={() => publish.mutate()}
                 />
+              ) : asideTab === "files" ? (
+                <ArtifactPanel id={id} />
               ) : (
                 <ReviewSidebar items={items} prNumber={meta.prNumber} />
               )}

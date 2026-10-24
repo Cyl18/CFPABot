@@ -16,7 +16,7 @@ export interface ComposerProps {
   autoFocus?: boolean;
   top?: ReactNode;
   hint?: ReactNode;
-  actions?: ReactNode;
+  leading?: ReactNode;
   error?: string;
   className?: string;
 }
@@ -32,7 +32,7 @@ export function Composer({
   autoFocus = false,
   top,
   hint,
-  actions,
+  leading,
   error,
   className,
 }: ComposerProps) {
@@ -77,20 +77,18 @@ export function Composer({
         className="scroll-thin block max-h-[180px] min-h-[52px] w-full resize-none bg-transparent px-3.5 py-3 text-sm text-fg placeholder:text-muted/70 focus:outline-none disabled:opacity-60"
       />
       <div className="flex items-center gap-2 px-2 pb-2">
-        <span className="min-w-0 truncate pl-1.5 text-[11px] text-muted">{error ?? hint}</span>
-        <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          {actions}
-          <Button
-            variant="primary"
-            size="sm"
-            loading={pending}
-            disabled={disabled || empty}
-            icon={<ArrowUp aria-hidden="true" className="size-3.5" />}
-            onClick={submit}
-          >
-            {submitLabel}
-          </Button>
-        </div>
+        {leading}
+        <span className="ml-auto min-w-0 truncate text-[11px] text-muted">{error ?? hint}</span>
+        <Button
+          variant="primary"
+          size="sm"
+          loading={pending}
+          disabled={disabled || empty}
+          icon={<ArrowUp aria-hidden="true" className="size-3.5" />}
+          onClick={submit}
+        >
+          {submitLabel}
+        </Button>
       </div>
     </div>
   );

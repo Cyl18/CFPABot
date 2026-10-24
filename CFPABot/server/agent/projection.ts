@@ -3,7 +3,8 @@ import type { AgentEvent, AgentMessage } from "@oh-my-pi/pi-agent-core";
 import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session-events";
 import type { ChatItem, ChatUsage, ToolCallView } from "@cfpa/contracts/api";
 
-const RESULT_LIMIT = 2000;
+const RESULT_MAX_LINES = 3000;
+const RESULT_MAX_BYTES = 50 * 1024;
 const STREAM_THROTTLE_MS = 150;
 
 function blocksOf(content: unknown): Record<string, unknown>[] {
@@ -28,15 +29,33 @@ function thinkingOf(content: unknown): string | undefined {
   return parts.length > 0 ? parts.join("\n") : undefined;
 }
 
-interface Sliced {
-  text: string;
-  truncated: boolean;
+function sliceHead(text: string, maxBytes: number): string {
+  const bytes = Buffer.from(text, "utf8");
+  if (bytes.length <= maxBytes) return text;
+  return bytes.subarray(0, maxBytes).toString("utf8").replace(/\uFFFD+$/, "");
 }
 
-function truncate(text: string): Sliced {
-  return text.length > RESULT_LIMIT
-    ? { text: `${text.slice(0, RESULT_LIMIT)}…[结果已截断]`, truncated: true }
-    : { text, truncated: false };
+function sliceTail(text: string, maxBytes: number): string {
+  const bytes = Buffer.from(text, "utf8");
+  if (bytes.length <= maxBytes) return text;
+  return bytes.subarray(bytes.length - maxBytes).toString("utf8").replace(/^\uFFFD+/, "");
+}
+
+/** 面板留首尾、省中间，上限取 omp 的内联预算（3000 行 / 50 KiB）。 */
+function clip(text: string, whole: boolean): string {
+  if (whole) return text;
+  const lines = text.split("\n");
+  if (lines.length <= RESULT_MAX_LINES && Buffer.byteLength(text, "utf8") <= RESULT_MAX_BYTES) return text;
+  const keep = lines.length > RESULT_MAX_LINES ? RESULT_MAX_LINES / 2 : 0;
+  const head = sliceHead(keep > 0 ? lines.slice(0, keep).join("\n") : text, RESULT_MAX_BYTES / 2);
+  const tail = sliceTail(keep > 0 ? lines.slice(-keep).join("\n") : text, RESULT_MAX_BYTES / 2);
+  return `${head}\n\n…\n\n${tail}`;
+}
+
+/** omp 对 skill:// 指令不设结果上限（SchemeSpec.unbounded），面板同样整篇展示。 */
+function readsWholeSkill(name: string, args: unknown): boolean {
+  if (name !== "read" || args === null || typeof args !== "object" || !("path" in args)) return false;
+  return typeof args.path === "string" && args.path.startsWith("skill://");
 }
 
 function isoAt(timestamp: unknown): string {
@@ -55,7 +74,7 @@ function toolItem(
   name: string,
   args: unknown,
   state: ToolCallView["state"],
-  extra?: { progress?: string; result?: string; truncated?: boolean; at?: string; details?: unknown },
+  extra?: { progress?: string; result?: string; at?: string; details?: unknown },
 ): ChatItem {
   return {
     id,
@@ -67,7 +86,6 @@ function toolItem(
       state,
       ...(extra?.progress ? { progress: extra.progress } : {}),
       ...(extra?.result ? { result: extra.result } : {}),
-      ...(extra?.truncated ? { truncated: true } : {}),
       ...(extra?.details !== undefined ? { details: extra.details } : {}),
     },
   };
@@ -118,13 +136,11 @@ function assistantItem(index: number, message: AgentMessage, streaming: boolean,
 }
 
 export function projectMessages(messages: AgentMessage[]): ChatItem[] {
-  const results = new Map<string, { text: string; truncated: boolean; isError: boolean; details: unknown }>();
+  const results = new Map<string, { text: string; isError: boolean; details: unknown }>();
   for (const message of messages) {
     if (message.role !== "toolResult") continue;
-    const sliced = truncate(textOf(message.content));
     results.set(message.toolCallId, {
-      text: sliced.text,
-      truncated: sliced.truncated,
+      text: textOf(message.content),
       isError: message.isError,
       details: "details" in message ? message.details : undefined,
     });
@@ -144,7 +160,7 @@ export function projectMessages(messages: AgentMessage[]): ChatItem[] {
       items.push(
         toolItem(call.id, call.name, call.args, result ? (result.isError ? "error" : "done") : "pending", {
           at,
-          ...(result ? { result: result.text, truncated: result.truncated } : {}),
+          ...(result ? { result: clip(result.text, readsWholeSkill(call.name, call.args)) } : {}),
           ...(result ? { details: toolDetailsOf(call.name, result.details) } : {}),
         }),
       );
@@ -200,11 +216,10 @@ export class LiveProjector {
         return [toolItem(event.toolCallId, event.toolName, event.args, "running", progress ? { progress } : {})];
       }
       case "tool_execution_end": {
-        const sliced = resultTextOf(event.result);
+        const args = this.toolArgs.get(event.toolCallId);
         return [
-          toolItem(event.toolCallId, event.toolName, this.toolArgs.get(event.toolCallId), event.isError ? "error" : "done", {
-            result: sliced.text,
-            truncated: sliced.truncated,
+          toolItem(event.toolCallId, event.toolName, args, event.isError ? "error" : "done", {
+            result: clip(resultTextOf(event.result), readsWholeSkill(event.toolName, args)),
             details: toolDetailsOf(event.toolName, resultDetailsOf(event.result)),
           }),
         ];
@@ -227,7 +242,7 @@ function resultDetailsOf(result: unknown): unknown {
   return result.details;
 }
 
-function resultTextOf(result: unknown): Sliced {
-  if (!result || typeof result !== "object" || !("content" in result)) return { text: "", truncated: false };
-  return truncate(textOf(result.content));
+function resultTextOf(result: unknown): string {
+  if (!result || typeof result !== "object" || !("content" in result)) return "";
+  return textOf(result.content);
 }

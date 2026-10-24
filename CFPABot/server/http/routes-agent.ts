@@ -66,6 +66,10 @@ sessionRoutes.get("/:id", async (c) => {
 
 sessionRoutes.get("/:id/artifact", async (c) => c.json(await agent.readArtifact(c.req.param("id"))));
 
+sessionRoutes.get("/:id/files", async (c) => c.json(await agent.listFiles(c.req.param("id"))));
+
+sessionRoutes.get("/:id/file", async (c) => c.json(await agent.readFile(c.req.param("id"), c.req.query("path") ?? "")));
+
 sessionRoutes.patch("/:id/write-scope", async (c) => {
   const { writeScope } = await parseBody(c, writeScopeSchema);
   await agent.setWriteScope(c.req.param("id"), writeScope);

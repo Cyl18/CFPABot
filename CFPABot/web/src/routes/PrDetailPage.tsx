@@ -9,7 +9,7 @@ import { api, errorMessage } from "@/lib/api.ts";
 import { formatDateTime, formatRelative } from "@/lib/format.ts";
 import { useMe, usePr, useRefreshPr, useRefreshStatus } from "@/lib/queries.ts";
 import type { PrSearch, SearchPatch } from "@/lib/search.ts";
-import { LabelChip } from "@/ui/Badge.tsx";
+import { LabelChip, orderLabels } from "@/ui/Badge.tsx";
 import { Button, buttonClass } from "@/ui/Button.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
 import { SkeletonTable } from "@/ui/Spinner.tsx";
@@ -64,7 +64,7 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
         description={
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-              <PrStateBadge state={pr.state} draft={pr.draft} />
+              <PrStateBadge state={pr.state} draft={pr.draft} labels={pr.labels} />
               <span className="inline-flex items-center gap-1.5">
                 <User aria-hidden="true" className="size-3.5" />
                 <span className="text-fg">{pr.author}</span>
@@ -84,7 +84,7 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
             </div>
             {pr.labels.length > 0 && (
               <ul aria-label="标签" className="flex flex-wrap gap-1">
-                {pr.labels.map((label) => (
+                {orderLabels(pr.labels).map((label) => (
                   <li key={label} className="min-w-0 max-w-full">
                     <LabelChip label={label} />
                   </li>

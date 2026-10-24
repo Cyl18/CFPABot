@@ -4,12 +4,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { GitPullRequest, RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/PageHeader.tsx";
-import { PrStateBadge } from "@/components/StatusBadges.tsx";
+import { hasMergeSoonLabel, MERGE_SOON_LABEL, PrStateBadge } from "@/components/StatusBadges.tsx";
 import { cn } from "@/lib/cn.ts";
 import { formatRelative } from "@/lib/format.ts";
 import { qk, usePrs, usePublicEnv } from "@/lib/queries.ts";
 import type { PrListSearch, SearchPatch } from "@/lib/search.ts";
-import { TagList } from "@/ui/Badge.tsx";
+import { sizeLabelRank, sizeLabelTone, TagList } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
 import { EmptyState } from "@/ui/EmptyState.tsx";
 import { ErrorState } from "@/ui/ErrorState.tsx";
@@ -19,10 +19,11 @@ import { Tabs, type TabItem } from "@/ui/Tabs.tsx";
 import { DataTable, type Column } from "@/ui/Table.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
-type StateTab = PrState | "all";
+type StateTab = PrState | "merge-soon" | "all";
 
 const TABS: readonly TabItem<StateTab>[] = [
   { id: "open", label: "审核中" },
+  { id: "merge-soon", label: MERGE_SOON_LABEL },
   { id: "merged", label: "已合并" },
   { id: "closed", label: "已关闭" },
   { id: "all", label: "全部" },
@@ -32,13 +33,14 @@ const LABEL_FILTER_LIMIT = 10;
 
 export function PrListPage({ search, onSearchChange }: { search: PrListSearch; onSearchChange: (patch: SearchPatch) => void }) {
   const state: StateTab = TABS.some((item) => item.id === search.state) ? (search.state as StateTab) : "open";
+  const sourceState: PrState | "all" = state === "merge-soon" ? "open" : state;
   const query = search.q ?? "";
   const selectedLabels = useMemo(() => search.labels?.split(",").filter((item) => item !== "") ?? [], [search.labels]);
   const [allLabels, setAllLabels] = useState(false);
   const anonymous = usePublicEnv().data?.github === "anonymous";
   const [searchNotice, setSearchNotice] = useState(false);
   const client = useQueryClient();
-  const { data, isPending, error, refetch, isFetching } = usePrs(state);
+  const { data, isPending, error, refetch, isFetching } = usePrs(sourceState);
 
   useEffect(() => {
     if (!searchNotice) return;
@@ -46,13 +48,22 @@ export function PrListPage({ search, onSearchChange }: { search: PrListSearch; o
     return () => clearTimeout(timer);
   }, [searchNotice]);
 
+  const scoped = useMemo(() => {
+    const list = data ?? [];
+    if (state === "merge-soon") return list.filter((pr) => hasMergeSoonLabel(pr.labels));
+    if (state === "open") return list.filter((pr) => !hasMergeSoonLabel(pr.labels));
+    return list;
+  }, [data, state]);
+
   const labels = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const pr of data ?? []) {
+    for (const pr of scoped) {
       for (const label of pr.labels) counts.set(label, (counts.get(label) ?? 0) + 1);
     }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  }, [data]);
+    return [...counts.entries()].sort(
+      (a, b) => sizeLabelRank(a[0]) - sizeLabelRank(b[0]) || b[1] - a[1] || a[0].localeCompare(b[0]),
+    );
+  }, [scoped]);
 
   const visibleLabels = allLabels
     ? labels
@@ -61,7 +72,7 @@ export function PrListPage({ search, onSearchChange }: { search: PrListSearch; o
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return (data ?? []).filter((pr) => {
+    return scoped.filter((pr) => {
       if (selectedLabels.length > 0 && !selectedLabels.every((label) => pr.labels.includes(label))) return false;
       if (needle === "") return true;
       return (
@@ -71,7 +82,7 @@ export function PrListPage({ search, onSearchChange }: { search: PrListSearch; o
         pr.slugs.some((slug) => slug.toLowerCase().includes(needle))
       );
     });
-  }, [data, query, selectedLabels]);
+  }, [scoped, query, selectedLabels]);
 
   const columns: readonly Column<PrSummary>[] = [
     {
@@ -94,7 +105,7 @@ export function PrListPage({ search, onSearchChange }: { search: PrListSearch; o
       ),
     },
     { id: "author", header: "作者", width: 128, hideBelow: "xl", cell: (row) => <span className="block truncate text-muted">{row.author}</span> },
-    { id: "state", header: "状态", width: 116, cell: (row) => <PrStateBadge state={row.state} draft={row.draft} /> },
+    { id: "state", header: "状态", width: 116, cell: (row) => <PrStateBadge state={row.state} draft={row.draft} labels={row.labels} /> },
     { id: "slugs", header: "模组", width: 200, hideBelow: "xl", cell: (row) => <TagList items={row.slugs} label={`#${row.number} 的模组`} /> },
     { id: "labels", header: "标签", width: 200, cell: (row) => <TagList items={row.labels} label={`#${row.number} 的标签`} /> },
     {
@@ -113,12 +124,12 @@ export function PrListPage({ search, onSearchChange }: { search: PrListSearch; o
     <>
       <PageHeader
         title="PR 列表"
-        description={`共 ${data?.length ?? 0} 个 PR${rows.length !== (data?.length ?? 0) ? `，筛选后 ${rows.length} 个` : ""}`}
+        description={`共 ${scoped.length} 个 PR${rows.length !== scoped.length ? `，筛选后 ${rows.length} 个` : ""}`}
         actions={
           <Button
             icon={<RefreshCw aria-hidden="true" className={cn("size-3.5", isFetching && "animate-spin")} />}
             onClick={() => {
-              void client.invalidateQueries({ queryKey: qk.prs(state) });
+              void client.invalidateQueries({ queryKey: qk.prs(sourceState) });
             }}
           >
             刷新
@@ -165,6 +176,7 @@ export function PrListPage({ search, onSearchChange }: { search: PrListSearch; o
             <ToggleChip
               key={label}
               pressed={selectedLabels.includes(label)}
+              tone={sizeLabelTone(label)}
               onClick={() => {
                 const next = selectedLabels.includes(label) ? selectedLabels.filter((item) => item !== label) : [...selectedLabels, label];
                 onSearchChange({ labels: next.length === 0 ? undefined : next.join(",") });
@@ -194,8 +206,8 @@ export function PrListPage({ search, onSearchChange }: { search: PrListSearch; o
       ) : rows.length === 0 ? (
         <EmptyState
           icon={<GitPullRequest aria-hidden="true" className="size-6" />}
-          title={data && data.length > 0 ? "没有匹配的 PR" : "暂无 PR"}
-          description={data && data.length > 0 ? "试试调整搜索条件或标签筛选。" : "当前状态下没有 PR 数据。"}
+          title={scoped.length > 0 ? "没有匹配的 PR" : "暂无 PR"}
+          description={scoped.length > 0 ? "试试调整搜索条件或标签筛选。" : "当前状态下没有 PR 数据。"}
         />
       ) : (
         <DataTable columns={columns} rows={rows} rowKey={(row) => String(row.number)} ariaLabel="PR 列表" valign="middle" rowHeight={45} />

@@ -1,14 +1,22 @@
 import type { PrState, SessionStatus, Severity, Verdict } from "@cfpa/contracts/api";
 import { Badge } from "@/ui/Badge.tsx";
 
+export const MERGE_SOON_LABEL = "即将合并";
+
 const PR_STATE: Record<PrState, { label: string; tone: "ok" | "info" | "neutral" }> = {
   open: { label: "审核中", tone: "ok" },
   merged: { label: "已合并", tone: "info" },
   closed: { label: "已关闭", tone: "neutral" },
 };
 
-export function PrStateBadge({ state, draft }: { state: PrState; draft?: boolean }) {
-  const meta = PR_STATE[state];
+const MERGE_SOON = { label: MERGE_SOON_LABEL, tone: "warn" } as const;
+
+export function hasMergeSoonLabel(labels: readonly string[]): boolean {
+  return labels.includes(MERGE_SOON_LABEL);
+}
+
+export function PrStateBadge({ state, draft, labels }: { state: PrState; draft?: boolean; labels?: readonly string[] }) {
+  const meta = state === "open" && labels !== undefined && hasMergeSoonLabel(labels) ? MERGE_SOON : PR_STATE[state];
   return (
     <span className="inline-flex items-center gap-1">
       <Badge tone={meta.tone}>{meta.label}</Badge>

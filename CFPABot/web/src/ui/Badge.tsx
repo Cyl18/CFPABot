@@ -4,7 +4,7 @@ import { Popover } from "@/ui/Popover.tsx";
 
 export type BadgeTone = "neutral" | "accent" | "ok" | "warn" | "danger" | "info";
 
-const TONES: Record<BadgeTone, string> = {
+export const TONES: Record<BadgeTone, string> = {
   neutral: "border-line bg-elevated text-muted",
   accent: "border-accent/40 bg-accent-soft text-accent",
   ok: "border-ok/40 bg-ok/15 text-ok",
@@ -12,6 +12,31 @@ const TONES: Record<BadgeTone, string> = {
   danger: "border-danger/40 bg-danger/15 text-danger",
   info: "border-info/40 bg-info/15 text-info",
 };
+
+const SIZE_LABELS: readonly (readonly [string, BadgeTone])[] = [
+  ["1+", "ok"],
+  ["10+", "ok"],
+  ["40+", "ok"],
+  ["100+", "ok"],
+  ["500+", "warn"],
+  ["1000+", "warn"],
+  ["2000+", "danger"],
+  ["5000+", "danger"],
+];
+
+export function sizeLabelRank(label: string): number {
+  const index = SIZE_LABELS.findIndex(([name]) => name === label);
+  return index === -1 ? SIZE_LABELS.length : index;
+}
+
+export function sizeLabelTone(label: string): BadgeTone | undefined {
+  return SIZE_LABELS.find(([name]) => name === label)?.[1];
+}
+
+/** 数字行数标签按从小到大排在最前，其余保持原顺序。 */
+export function orderLabels<T extends string>(labels: readonly T[]): T[] {
+  return [...labels].sort((a, b) => sizeLabelRank(a) - sizeLabelRank(b));
+}
 
 const BADGE_BASE = "inline-flex h-5 items-center gap-1 whitespace-nowrap rounded border px-1.5 text-xs font-medium leading-none";
 
@@ -32,7 +57,7 @@ export function Badge({ tone = "neutral", title, className, children }: BadgePro
 
 export function LabelChip({ label }: { label: string }) {
   return (
-    <span title={label} className={cn(BADGE_BASE, "min-w-0 max-w-44 shrink font-mono", TONES.neutral)}>
+    <span title={label} className={cn(BADGE_BASE, "min-w-0 max-w-44 shrink font-mono", TONES[sizeLabelTone(label) ?? "neutral"])}>
       <span className="truncate">{label}</span>
     </span>
   );
@@ -84,15 +109,16 @@ export function TagList({ items, label, className }: TagListProps) {
   }, [items]);
 
   if (items.length === 0) return <span className="text-muted">-</span>;
-  const visible = shown === null ? [] : items.slice(0, shown);
-  const rest = shown === null ? 0 : items.length - visible.length;
+  const ordered = orderLabels(items);
+  const visible = shown === null ? [] : ordered.slice(0, shown);
+  const rest = shown === null ? 0 : ordered.length - visible.length;
 
   return (
     <span ref={hostRef} className={cn("relative flex min-w-0 items-center gap-1", className)}>
       <span aria-hidden="true" className="pointer-events-none invisible absolute inset-0 overflow-hidden">
         {/* 探针要撑到自身内容宽度，否则会被单元格压窄，量出的芯片宽度偏小 */}
         <span ref={probeRef} className="flex w-max items-center gap-1">
-          {items.map((item) => (
+          {ordered.map((item) => (
             <span key={item} data-chip className="inline-flex">
               <LabelChip label={item} />
             </span>
@@ -114,7 +140,7 @@ export function TagList({ items, label, className }: TagListProps) {
             {label} · {items.length}
           </p>
           <ul className="flex flex-wrap gap-1">
-            {items.map((item) => (
+            {ordered.map((item) => (
               <li key={item} className="min-w-0 max-w-full">
                 <LabelChip label={item} />
               </li>

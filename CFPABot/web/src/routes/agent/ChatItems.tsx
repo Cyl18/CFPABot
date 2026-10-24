@@ -4,7 +4,6 @@ import { Bot, ChevronRight } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Markdown } from "@/components/Markdown.tsx";
 import { cn } from "@/lib/cn.ts";
-import { Badge } from "@/ui/Badge.tsx";
 import { CopyButton } from "@/ui/CopyButton.tsx";
 import { cacheRatio, formatDuration, formatTokens, turnElapsed, type Step, type ToolItem, type Turn } from "./turns.ts";
 import { toolComposition, ToolBody, toolPreview } from "./ToolViews.tsx";
@@ -42,11 +41,6 @@ const ToolRow = memo(function ToolRow({ item, prNumber }: { item: ToolItem; prNu
         <span className={cn("min-w-0 flex-1 truncate text-xs", tool.state === "error" ? "text-danger" : "text-muted")}>
           {preview !== "" ? preview : TOOL_LABEL[tool.state]}
         </span>
-        {tool.truncated === true && (
-          <Badge tone="warn" title="服务端只保留前 2000 字符" className="h-4 px-1 text-[10px]">
-            已截断
-          </Badge>
-        )}
         <span className="shrink-0 text-[11px] tabular-nums text-muted">{clock(at)}</span>
       </summary>
       <div className="agent-reveal space-y-2 border-t border-line bg-elevated/30 px-3 py-2">

@@ -285,7 +285,6 @@ export interface ToolCallView {
   state: "pending" | "running" | "done" | "error";
   progress?: string;
   result?: string;
-  truncated?: boolean;
   details?: unknown;
 }
 
@@ -346,6 +345,16 @@ export interface SessionDetail extends SessionSummary {
   items: ChatItem[];
   artifact?: unknown;
   artifactFile?: string;
+}
+
+export interface SessionFile {
+  name: string;
+  size: number;
+  updatedAt: string;
+}
+
+export interface SessionFileContent extends SessionFile {
+  content: string;
 }
 
 export interface CreateSessionRequest {

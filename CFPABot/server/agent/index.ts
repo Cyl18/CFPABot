@@ -15,6 +15,8 @@ import type {
   EvalScope,
   SessionDetail,
   SessionEvent,
+  SessionFile,
+  SessionFileContent,
   SessionSummary,
   ThinkingLevel,
   WriteScope,
@@ -477,6 +479,21 @@ export const agent = {
 
   subscribeAll(listener: (sessionId: string) => void): () => void {
     return hub.subscribeAll(listener);
+  },
+
+  async listFiles(id: string): Promise<SessionFile[]> {
+    const record = await store.get(id);
+    if (!record) throw httpError("会话不存在", 404);
+    return listLocal(id);
+  },
+
+  async readFile(id: string, name: string): Promise<SessionFileContent> {
+    const record = await store.get(id);
+    if (!record) throw httpError("会话不存在", 404);
+    if (!isLocalPath(name)) throw httpError("文件路径不合法", 400);
+    const entry = await readLocal(id, name);
+    if (entry === null) throw httpError("文件不存在", 404);
+    return { name, content: entry.content, size: Buffer.byteLength(entry.content), updatedAt: entry.updatedAt };
   },
 
   async readArtifact(id: string): Promise<unknown> {
