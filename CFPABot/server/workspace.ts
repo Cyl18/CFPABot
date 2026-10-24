@@ -78,6 +78,8 @@ async function readMarker(prNumber: number): Promise<string | null> {
 
 /** PR 改动的文件一次 fetch 拿对象再批量读；mirror 不可用或个别文件缺失时才回退 REST。 */
 async function prTexts(prNumber: number, headSha: string, wanted: readonly string[]): Promise<Map<string, string>> {
+  const token = await gh.gitToken().catch(() => null);
+  const auth = token ? `x-access-token:${token}@` : "";
   try {
     await withLock("mirror", () =>
       runGit(
@@ -90,10 +92,10 @@ async function prTexts(prNumber: number, headSha: string, wanted: readonly strin
           "--no-write-fetch-head",
           // 不带这个会继承 mirror 的 blob:none，一个文件内容都不下来。
           "--filter=blob:limit=10m",
-          "origin",
+          `https://${auth}github.com/${repo.owner}/${repo.name}.git`,
           `refs/pull/${prNumber}/head`,
         ],
-        null,
+        token,
       ),
     );
     const texts = await mirror.readMany(headSha, wanted);
