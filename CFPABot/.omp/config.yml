@@ -1,0 +1,35 @@
+# CFPABot 的 omp 项目配置：只保留长任务必需的行为，存档图片化与偏好层全部关掉。
+compaction:
+  methodOrder: [remote, shake, soft]
+  asyncEnabled: false
+  idleEnabled: false
+  experimentalContextManagement: false
+  handoffSaveToDisk: false
+
+snapcompact:
+  systemPrompt: none
+  toolResults: false
+
+branchSummary:
+  enabled: false
+
+checkpoint:
+  enabled: false
+
+recap:
+  enabled: false
+
+advisor:
+  enabled: false
+
+autolearn:
+  enabled: false
+
+prewalk:
+  enabled: false
+
+memory:
+  backend: "off"
+
+tools:
+  approvalMode: yolo
