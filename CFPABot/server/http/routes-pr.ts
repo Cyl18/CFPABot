@@ -1,4 +1,4 @@
-import { statSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -25,6 +25,10 @@ import type { AppContext, AppEnv } from "./auth.ts";
 import { HttpError } from "../errors.ts";
 import { isUpstreamNotFound, notFound, parseBody, parseQuery } from "./errors.ts";
 import type { PublicEnv, SystemStatus, TextCompareRequest } from "@cfpa/contracts/api";
+
+const glossaryBin = process.platform === "win32" ? "packtrans-glossary.exe" : "packtrans-glossary";
+const glossaryAvailable =
+  existsSync(join(paths.root, "runtime", "bin", glossaryBin)) || Bun.which("packtrans-glossary") !== null;
 
 export const prRoutes = new Hono<AppEnv>();
 
@@ -94,7 +98,7 @@ prRoutes.get("/status", async (c) => {
     github: { mode: gh.mode, ...(rateLimit ? { rateLimit } : {}) },
     webhook: Boolean(env.GITHUB_WEBHOOK_SECRET),
     curseforge: Boolean(env.CURSEFORGE_API_KEY),
-    glossary: Boolean(env.GLOSSARY_BIN),
+    glossary: glossaryAvailable,
     llm: {
       default: parseRoleSelector(config.roles.default ?? "").endpoint || config.endpoints[0]?.id,
       roles: Object.keys(config.roles).filter((role) => role !== "default"),
@@ -132,7 +136,8 @@ prRoutes.get("/prs/:n/pack", async (c) => {
 
 prRoutes.post("/prs/:n/refresh", async (c) => {
   await requireAdmin(c);
-  track(refreshInfoComment(prNumber(c), { force: true, refreshPacker: true }));
+  const n = prNumber(c);
+  track(`pr:${n}`, () => refreshInfoComment(n, { force: true, refreshPacker: true }));
   return c.json({ ok: true }, 202);
 });
 

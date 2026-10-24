@@ -23,7 +23,6 @@ const schema = z.object({
   GITHUB_PAT: optional,
   BOT_LOGIN: z.string().default("cfpa-bot[bot]"),
   CURSEFORGE_API_KEY: optional,
-  GLOSSARY_BIN: optional,
   DEV_LOGIN: optional,
   DEV_GITHUB_TOKEN: optional,
 });

@@ -12,7 +12,7 @@ import { parseRoleSelector } from "../llm-providers.ts";
 import { paths } from "../../paths.ts";
 import { openAuthStorage, openModelRuntime } from "../pi.ts";
 
-const CHILD_TOOLS: Record<string, true> = { read: true, grep: true, find: true, glob: true, glossary: true, bash: true };
+const CHILD_TOOLS: Record<string, true> = { read: true, grep: true, find: true, glob: true, bash: true };
 
 const DELEGATE_PARAMS = type({
   model: type("string").describe("模型别名，例如 @taska"),
@@ -55,7 +55,9 @@ export function delegateTool(
       const onAbort = () => void session.abort();
       signal?.addEventListener("abort", onAbort, { once: true });
       try {
-        await session.setActiveToolsByName(Object.keys(CHILD_TOOLS));
+        await session.setActiveToolsByName(
+          session.getActiveToolNames().filter((name) => CHILD_TOOLS[name] === true || name.startsWith("mcp__")),
+        );
         await session.prompt(params.task);
         const last = session.agent.state.messages.at(-1);
         if (last?.role === "assistant" && last.errorMessage) throw new Error(last.errorMessage);

@@ -12,7 +12,6 @@ const TOPICS: Record<string, string> = {
 - help://tools/grep
 - help://tools/todo
 - help://tools/eval
-- help://tools/glossary
 - help://tools/delegate
 - help://tools/web_search
 - help://resources/repo
@@ -48,14 +47,11 @@ pr:// 与 repo:// 不是文件系统：先用 read pr://<n>/meta 取 localRoot�
 一次调用一个 cell，变量在同一语言内保留；reset 重建 kernel。
 参数：language（py|js）、code、timeout?、reset?。
 kernel 直接读写会话 workspace 与仓库文件；不要用 bash 再套 python -c。`,
-  "tools/glossary": `# glossary
-
-查询原版术语表与外部词典：query、limit?（默认 10，最大 50）。`,
   "tools/delegate": `# delegate
 
 按 LLM 配置里的模型别名（roles）启动只读子代理，返回它的最终文本。
 参数：model（别名，可带 @）、task（交给子代理的任务）。
-子代理有 read/grep/find/glob/glossary/bash；批量处理时把 pr://<n>/meta 的 localRoot 给它走文件系统。`,
+子代理有 read/grep/find/glob/bash 与 MCP 工具；批量处理时把 pr://<n>/meta 的 localRoot 给它走文件系统。`,
   "tools/web_search": `# web_search
 
 联网搜索；由 omp 内置工具提供。返回结果后核对来源。`,

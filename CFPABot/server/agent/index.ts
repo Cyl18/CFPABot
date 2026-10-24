@@ -72,7 +72,6 @@ const ALLOWED_TOOLS: Record<string, true> = {
   grep: true,
   find: true,
   glob: true,
-  glossary: true,
   todo: true,
   delegate: true,
   wait: true,
@@ -220,7 +219,7 @@ async function getRuntime(record: SessionRecord): Promise<Runtime> {
   });
   try {
     await session.setActiveToolsByName(
-      session.getActiveToolNames().filter((name) => ALLOWED_TOOLS[name] === true),
+      session.getActiveToolNames().filter((name) => ALLOWED_TOOLS[name] === true || name.startsWith("mcp__")),
     );
   } catch (err) {
     unsubscribe();

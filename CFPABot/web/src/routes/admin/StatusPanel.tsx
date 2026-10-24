@@ -28,7 +28,7 @@ export function StatusPanel() {
         <CardBody className="grid gap-x-8 gap-y-1 sm:grid-cols-2">
           <Row label="Webhook 密钥" ok={data.webhook} />
           <Row label="CurseForge API" ok={data.curseforge} />
-          <Row label="术语工具（GLOSSARY_BIN）" ok={data.glossary} />
+          <Row label="术语 MCP（packtrans-glossary）" ok={data.glossary} />
           <Row label="Agent 主模型" ok={data.llm.default !== undefined} text={data.llm.default ?? "未配置"} />
           <Row
             label="模型别名"

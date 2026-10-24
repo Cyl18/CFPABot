@@ -31,7 +31,7 @@
 | `bash` | 在 workspace 执行 shell（默认开启，管理员可关闭） |
 | `todo` | 维护多步任务清单（一次写入完整计划）；适合分步流程 |
 | `eval` | 在宿主持久 kernel 执行 Python / JavaScript（默认开启，管理员可关闭） |
-| `glossary` | 查原版术语与外部词典（临时工具，MCP 接入后移除） |
+| `mcp__*` | MCP 服务提供的工具；术语查询用 `mcp__glossary_query` |
 | `web_search` | 联网搜索；由 omp 内置工具提供 |
 | `delegate` | 按模型别名派只读子代理，返回它的结论 |
 
