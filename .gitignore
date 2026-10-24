@@ -14,3 +14,4 @@ CFPABot/native/
 CFPABot/.mcp.json
 desktop.ini
 /docs
+*.pyc

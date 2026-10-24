@@ -60,9 +60,9 @@ local:// 是普通文件区；审查草稿用任意 .json 文件名。
 local:// 写入不经过 writeScope，也不会发到 GitHub；发布时才校验草稿结构。`,
   "resources/skill": `# skill://
 
-按技能名读取已加载的技能文件：skill://review。
+按技能名读取已加载的技能文件：skill://prep、skill://post、skill://translate。
 行范围：:N 或 :N-M；子路径相对于技能目录，禁止越界。
-审查流程、裁定、draft 形状和 MQM 词表都在 skill://review。`,
+术语与风格草稿在 skill://prep；校对流程、裁定、draft 形状和 MQM 词表在 skill://post。`,
 };
 
 export function readHelp(uri: ResourceParts): AgentToolResult<Record<string, unknown>> {

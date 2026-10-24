@@ -14,14 +14,16 @@ describe("冒烟", () => {
     expect(await response.text()).toBe("OK");
   });
 
-  test("工作流挂载 review 技能", async () => {
-    expect(resolveWorkflow(undefined).skills).toContain("review");
+  test("工作流挂载译前译后技能", async () => {
+    expect(resolveWorkflow(undefined).skills).toEqual(expect.arrayContaining(["prep", "post"]));
     const { skills } = await loadSkillsFromDir({ dir: join(paths.root, "skills"), source: "smoke" });
-    expect(skills.some((skill) => skill.name === "review")).toBe(true);
+    for (const name of ["prep", "post", "translate"]) {
+      expect(skills.some((skill) => skill.name === name), `缺少技能 ${name}`).toBe(true);
+    }
   });
 
   test("SKILL.md 列全 MQM 词表", async () => {
-    const skill = await readFile(join(paths.root, "skills/review/SKILL.md"), "utf8");
+    const skill = await readFile(join(paths.root, "skills/post/SKILL.md"), "utf8");
     const rows = new Map(
       skill
         .split("\n")

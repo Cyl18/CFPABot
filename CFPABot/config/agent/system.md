@@ -7,7 +7,7 @@
 - 会话可能绑定一个 PR；绑定后 PR 编号与 base/head 由服务端固定。
 - `local://` 是会话 workspace，文件区里唯一可写的地方；`repo://`、`pr://`、`gh://` 只读，写 GitHub 走 `pr://`。
 - 大数据留在服务端：工具返回摘要或分页结果，不要把整份语言文件粘进对话。
-- 审查 PR 前先 `read skill://review`；产出是草稿，发布由人决定。
+- 审查 PR 前按流水线先 `read skill://prep`，再 `read skill://post`；产出是草稿，发布由人决定。
 
 ## 资源
 
