@@ -116,7 +116,7 @@ function SectionBlock({ section, severities }: { section: Section; severities: r
 export function CheckReportView({ report, className }: { report: CheckReport | null; className?: string }) {
   const [filter, setFilter] = useState<Filter | null>(null);
   if (report === null) {
-    return <EmptyState compact title="暂无检查结果" description="信息评论尚未生成，或该 PR 还没有被检查过。" className={className} />;
+    return <EmptyState compact title="暂无检查结果" description="本实例还没有该 PR 的结构化检查报告；信息评论里可能仍有检查段。" className={className} />;
   }
 
   const counts = FILTERS.map((option) => {

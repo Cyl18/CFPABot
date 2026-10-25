@@ -139,7 +139,7 @@ export interface WorkspaceBrief {
 }
 
 export interface ChecksSummary {
-  status: "not_run" | "running" | "ok" | "stale" | "failed";
+  status: "unknown" | "running" | "ok" | "stale" | "failed";
   headSha: string;
   checkedSha: string | null;
   builtAt: string | null;

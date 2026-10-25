@@ -10,6 +10,7 @@ import { findWriteTarget } from "./harness/write-targets.ts";
 import { prepareDraft } from "./harness/review/draft.ts";
 import { rowsPage } from "./harness/review/rows.ts";
 import { aggregateTerms } from "./harness/review/terms.ts";
+import { commentCheckedSha, unknownHint } from "./harness/review/checks.ts";
 import type { ThreadsView } from "./harness/review/threads.ts";
 
 const EN = "projects/assets/demo/1.20.1/demo/lang/en_us.json";
@@ -245,5 +246,25 @@ describe("draft", () => {
     expect(errors.some((error) => error.includes("mqm"))).toBe(true);
     expect(errors.some((error) => error.includes("suggestion"))).toBe(true);
     expect(errors.some((error) => error.includes("key 重复"))).toBe(true);
+  });
+});
+
+function botComment(body: string, author = "cfpa-bot[bot]") {
+  return { id: 1, author, isBot: true, body: `<!--CYBOT-->\n${body}`, createdAt: "", updatedAt: "", htmlUrl: "" };
+}
+
+describe("checks hint", () => {
+  test("两种报告链接都能取到检查 SHA", () => {
+    const legacy = "报告在 [这里](https://cfpa.cyan.cafe/static/6133-7f2057d.txt) 查看。";
+    const current = "报告在 [这里](http://localhost:5173/api/Utils/Report/6094/878b65a) 查看。";
+    expect(commentCheckedSha(6133, [botComment(legacy)])).toBe("7f2057d");
+    expect(commentCheckedSha(6094, [botComment(current)])).toBe("878b65a");
+    expect(commentCheckedSha(6094, [botComment(current, "someone")])).toBeNull();
+  });
+
+  test("没有本地报告时只陈述证据，不断言 PR 未检查", () => {
+    expect(unknownHint(6133, "7f2057dd1fed", "7f2057d", true)).toContain("已在 7f2057d 检查过");
+    expect(unknownHint(6133, "aaaaaaaa", "7f2057d", true)).toContain("可能已过期");
+    expect(unknownHint(6133, "aaaaaaaa", null, true)).not.toContain("还没有检查报告");
   });
 });

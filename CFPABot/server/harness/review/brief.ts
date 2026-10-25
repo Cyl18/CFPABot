@@ -10,7 +10,7 @@ import type { Pack } from "@cfpa/review-core/pack";
 import { DRAFT_FILE, parseDraftFile } from "@cfpa/review-core/draft";
 import { parseLangPath } from "@cfpa/review-core/domain/path";
 import { readLocal } from "../../agent/local-store.ts";
-import { gh } from "../../github/client.ts";
+import { gh, type GhComment } from "../../github/client.ts";
 import { prdata } from "../../prdata.ts";
 import { ensurePrDir, prRoot } from "../../workspace.ts";
 import { prDetail } from "../../views/pr.ts";
@@ -51,15 +51,20 @@ function briefWorkspaces(detail: PrDetail, pack: Pack | null): WorkspaceBrief[] 
   });
 }
 
-async function discussionsOf(n: number): Promise<{ brief: DiscussionsBrief; threads: ThreadsView }> {
+async function discussionsOf(
+  n: number,
+): Promise<{ brief: DiscussionsBrief; threads: ThreadsView; comments: GhComment[] | null }> {
   const threads = await threadsOf(n);
   let issueComments = 0;
   let recentIssueComments: DiscussionsBrief["recentIssueComments"];
   let commentsError: string | undefined;
+  let comments: GhComment[] | null = null;
   try {
-    const comments = (await gh.listComments(n)).filter(visibleIssueComment);
-    issueComments = comments.length;
-    recentIssueComments = comments.slice(-3).map((comment) => ({
+    const all = await gh.listComments(n);
+    comments = all;
+    const visible = all.filter(visibleIssueComment);
+    issueComments = visible.length;
+    recentIssueComments = visible.slice(-3).map((comment) => ({
       author: comment.author,
       body: trimBody(comment.body, 600),
       at: comment.createdAt,
@@ -80,6 +85,7 @@ async function discussionsOf(n: number): Promise<{ brief: DiscussionsBrief; thre
         : { error: [threads.error, commentsError].filter(Boolean).join("；") }),
     },
     threads,
+    comments,
   };
 }
 
@@ -125,7 +131,6 @@ function warningsOf(findings: readonly Finding[]): Finding[] {
 /** 一次拿全貌：PR、工作区、检查、讨论、特殊文件、草稿、下一步；review=1 再附第一页行。 */
 export async function reviewBrief(n: number, options: BriefOptions): Promise<ReviewBrief> {
   const detail = await prDetail(n);
-  const checks = await checksOf(n);
   const pack = options.review ? await loadPack(n) : peekPack(n, detail.headSha);
   const workspaces = briefWorkspaces(detail, pack);
   const [discussion, draft, localRoot] = await Promise.all([
@@ -133,6 +138,7 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
     draftSummaryOf(n, options.session),
     ensurePrDir(n, detail.headSha).catch(() => prRoot(n)),
   ]);
+  const checks = await checksOf(n, discussion.comments);
   const rows =
     options.review && pack !== null
       ? await rowsForPack(n, pack, discussion.threads, {
