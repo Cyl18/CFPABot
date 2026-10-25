@@ -92,7 +92,7 @@ export function toolComposition(items: readonly { tool: ToolCallView }[]): strin
   const lastRead = [...items].reverse().find((item) => {
     if (item.tool.name !== "read") return false;
     const path = stringArg(item.tool, "path");
-    return path !== undefined && !path.startsWith("skill://") && !path.startsWith("help://") && !path.startsWith("local://");
+    return path !== undefined && !path.startsWith("skill://") && !path.startsWith("local://");
   });
   if (lastRead !== undefined) {
     const path = stringArg(lastRead.tool, "path");

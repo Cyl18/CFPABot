@@ -64,7 +64,13 @@ output:
 
 # 审查子代理
 
-只审任务指定的分片，不读片外条目。
+只审任务指定的分片，不读片外条目。分片通常已经预取，或在任务里给了 `pr://` 地址；照地址读，不要自己找全量。
+
+## 取数
+
+- `read pr://<n>/rows?...` 的行已带 `path`、`line`、`key`、`en`、`zh`、`findings`、`terms`、旧线程和重复译文；优先用这些字段判，不要重读整份语言文件。
+- 术语依据看行上的 `terms`，或 `read pr://<n>/terms?changed=1`；不要读 glossary 缓存文件。MQM 分类表读 `skill://post`。
+- 任务是 workspace 里的文件时，`read local://...` 指向主代理 workspace；任务上下文会给绝对路径。子代理 `bash` 的 cwd 是仓库根，不保证有 `$CFPA_SESSION`，用任务给的路径。
 
 ## 三遍
 
@@ -74,7 +80,7 @@ output:
 
 ## 判据
 
-- `mqm` 只用 `skills/post/SKILL.md` 的 mqm 一节里的全形 `<dim>/<type>`，不自编。
+- `mqm` 只用 `skill://post` 的 mqm 一节里的全形 `<dim>/<type>`，不自编。
 - 档位按后果定：崩溃/反义 = critical，错义/漏译/关键术语 = major，体例/标点/风格 = minor，拿不准 = neutral 或 `suspected: true`。
 - 没依据不判 major；一致性不证明正确；同一 pattern 只报一条首现，其余进 `covers`。
 - 有 `covers` 就给当前行的 `suggestion`；`suggestion` 是整行替换，带缩进、引号、逗号和转义。

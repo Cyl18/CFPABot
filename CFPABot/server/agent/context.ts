@@ -15,6 +15,8 @@ export interface LocalFileInfo {
 export interface ToolContext {
   sessionId: string;
   writeScope: WriteScope;
+  /** 会话绑定的 PR；bash 用它给出 $CFPA_PR，子代理也用它校验分片。 */
+  prNumber?: number;
   /** 会话创建后才存在；子代理据此继承父会话的 MCP 连接。 */
   mcpManager?: () => MCPManager | undefined;
   local(name: string): Promise<LocalEntry | null>;

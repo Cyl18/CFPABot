@@ -1,12 +1,12 @@
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import { env, repo } from "../../env.ts";
-import { gh } from "../../github/client.ts";
-import { mirror } from "../../mirror.ts";
-import { prdata } from "../../prdata.ts";
-import { crossVersionKeys } from "../../views/cross-version.ts";
-import { jsonResult } from "../result.ts";
-import { isAgentBody, missingResource, trimBody, visibleIssueComment } from "./format.ts";
-import { GH_CHILDREN } from "./tree.ts";
+import { repo } from "../env.ts";
+import { gh } from "../github/client.ts";
+import { mirror } from "../mirror.ts";
+import { prdata } from "../prdata.ts";
+import { crossVersionKeys } from "../views/cross-version.ts";
+import { jsonResult } from "./result.ts";
+import { isAgentBody, trimBody, visibleIssueComment } from "./format.ts";
+import { GH_CHILDREN, missingResource } from "./catalog.ts";
 import type { ResourceParts } from "./uri.ts";
 
 export async function readGh(uri: ResourceParts): Promise<AgentToolResult<Record<string, unknown>>> {
@@ -43,7 +43,7 @@ export async function readGh(uri: ResourceParts): Promise<AgentToolResult<Record
           })),
       );
     }
-    return missingResource(`gh://issues/${n}`, ["<issue>", "comments"]);
+    return missingResource(`gh://issues/${n}`, ["issues/<n>", "issues/<n>/comments"]);
   }
 
   if (head === "search") {

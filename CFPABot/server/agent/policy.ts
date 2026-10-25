@@ -1,4 +1,4 @@
-import type { WriteScope } from "@cfpa/contracts/api";
+import type { ReviewDraft, WriteScope } from "@cfpa/contracts/api";
 
 export type { WriteScope } from "@cfpa/contracts/api";
 
@@ -6,6 +6,8 @@ export type { WriteScope } from "@cfpa/contracts/api";
 export interface WriteSession {
   sessionId: string;
   writeScope: WriteScope;
+  /** 草稿保存/发布后刷新面板与会话索引。 */
+  onDraftSaved?(draft: ReviewDraft): void | Promise<void>;
 }
 
 // 默认 off：一次误调用不能把评论发到公开仓库。

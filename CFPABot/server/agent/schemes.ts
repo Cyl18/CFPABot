@@ -6,15 +6,14 @@ import {
   type SchemeSpec,
 } from "@oh-my-pi/pi-coding-agent/internal-urls";
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import type { WriteScope } from "@cfpa/contracts/api";
+import type { ReviewDraft, WriteScope } from "@cfpa/contracts/api";
 import { logger } from "../log.ts";
-import { readGh } from "./resources/gh-read.ts";
-import { readHelp } from "./resources/help.ts";
-import { readPr } from "./resources/pr-read.ts";
-import { writePr } from "./resources/pr-write.ts";
-import { readRepo } from "./resources/repo-files.ts";
-import { partsOf, prPartsOf } from "./resources/uri.ts";
-import { findWriteTarget, unsupportedWrite } from "./resources/write-targets.ts";
+import { readGh } from "../harness/gh-read.ts";
+import { readPr } from "../harness/pr-read.ts";
+import { writePr } from "../harness/pr-write.ts";
+import { readRepo } from "../harness/repo-read.ts";
+import { partsOf, prPartsOf } from "../harness/uri.ts";
+import { findWriteTarget, unsupportedWrite } from "../harness/write-targets.ts";
 
 const log = logger("schemes");
 
@@ -24,8 +23,10 @@ export interface SessionRef {
 }
 
 export interface SchemeDeps {
-  /** 由 omp 会话文件反查本站会话；写 GitHub 时用来带会话标记。 */
-  sessionOf(sessionFile: string | undefined): SessionRef | undefined;
+  /** 由 omp 会话文件或本站会话 ID 反查；读草稿与写 GitHub 都要用。 */
+  sessionOf(ref: string | undefined): SessionRef | undefined;
+  /** 草稿落盘后把面板与列表一起刷新。 */
+  onDraftSaved?(sessionId: string, draft: ReviewDraft): void | Promise<void>;
 }
 
 function textOf(result: AgentToolResult<Record<string, unknown>>): string {
@@ -58,13 +59,6 @@ const PR_SPEC: SchemeSpec = {
   },
 };
 
-const HELP_SPEC: SchemeSpec = {
-  backing: "virtual",
-  selectors: "none",
-  immutable: true,
-  unbounded: true,
-};
-
 export function registerSchemes(deps: SchemeDeps): () => void {
   const router = InternalUrlRouter.instance();
 
@@ -90,38 +84,43 @@ export function registerSchemes(deps: SchemeDeps): () => void {
   const pr: ProtocolHandler = {
     scheme: "pr",
     spec: PR_SPEC,
-    resolve: async (url) => ({
-      url: url.href,
-      content: textOf(await readPr(prPartsOf(url))),
-      contentType: "text/plain",
-    }),
+    resolve: async (url, context) => {
+      const session = deps.sessionOf(context?.sessionFile) ?? deps.sessionOf(context?.sessionId);
+      return {
+        url: url.href,
+        content: textOf(await readPr(prPartsOf(url), session)),
+        contentType: "text/plain",
+      };
+    },
     write: async (url, content, context): Promise<InternalWriteResult> => {
-      const session = deps.sessionOf(context?.session?.getSessionFile?.() ?? undefined);
+      const ref = context?.session?.getSessionFile?.() ?? context?.session?.getSessionId?.() ?? undefined;
+      const session = deps.sessionOf(ref);
       if (session === undefined) throw new Error("无法确定写入会话，请重开会话后重试。");
       const parts = prPartsOf(url);
       const target = findWriteTarget(parts);
       if (target === undefined) throw unsupportedWrite();
-      const result = await writePr(parts, target, content, session, context?.toolCall?.id ?? "manual");
-      return { content: result.content };
+      const result = await writePr(
+        parts,
+        target,
+        content,
+        {
+          ...session,
+          ...(deps.onDraftSaved === undefined
+            ? {}
+            : { onDraftSaved: (draft: ReviewDraft) => deps.onDraftSaved?.(session.sessionId, draft) }),
+        },
+        context?.toolCall?.id ?? "manual",
+      );
+      return { content: result.content, ...(result.isError === true ? { isError: true } : {}) };
     },
-  };
-
-  const help: ProtocolHandler = {
-    scheme: "help",
-    spec: HELP_SPEC,
-    resolve: async (url) => ({
-      url: url.href,
-      content: textOf(await readHelp(partsOf(url))),
-      contentType: "text/markdown",
-    }),
   };
 
   // omp 的 pr:// 是 gh CLI 浏览语义；本站的 pr:// 承载 PR 审查资源与写入，必须接管。
   router.unregister("pr");
-  for (const handler of [repo, gh, pr, help]) router.register(handler);
-  log.info("已注册资源 scheme", { schemes: [repo.scheme, gh.scheme, pr.scheme, help.scheme] });
+  for (const handler of [repo, gh, pr]) router.register(handler);
+  log.info("已注册资源 scheme", { schemes: [repo.scheme, gh.scheme, pr.scheme] });
 
   return () => {
-    for (const handler of [repo, gh, pr, help]) router.unregister(handler.scheme);
+    for (const handler of [repo, gh, pr]) router.unregister(handler.scheme);
   };
 }

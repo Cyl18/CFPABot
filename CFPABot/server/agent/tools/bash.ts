@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { CustomTool } from "@oh-my-pi/pi-coding-agent";
 import { cfgBashInterceptorEnabled, cfgBashInterceptorPatterns } from "@oh-my-pi/pi-coding-agent/exec/settings";
 import { checkBashInterception } from "@oh-my-pi/pi-coding-agent/tools/bash-interceptor";
@@ -5,6 +6,7 @@ import { type } from "@oh-my-pi/omptype";
 import type { ToolContext } from "../context.ts";
 import { localDir } from "../local-store.ts";
 import { paths } from "../../paths.ts";
+import { prRoot } from "../../workspace.ts";
 import { onAbortSignal } from "./signal.ts";
 
 const ENV_ALLOW: Record<string, true> = {
@@ -18,6 +20,12 @@ const ENV_ALLOW: Record<string, true> = {
   TMPDIR: true,
   TEMP: true,
   TMP: true,
+  LOCALAPPDATA: true,
+  APPDATA: true,
+  USERPROFILE: true,
+  SystemRoot: true,
+  ComSpec: true,
+  PATHEXT: true,
 };
 
 const BASH_PARAMS = type({
@@ -26,7 +34,7 @@ const BASH_PARAMS = type({
 });
 
 // 子进程只拿白名单环境变量与 PI_*，避免把 API key 递给模型写的脚本。
-function sandboxEnv(env: NodeJS.ProcessEnv, cwd: string): NodeJS.ProcessEnv {
+function sandboxEnv(env: NodeJS.ProcessEnv, cwd: string, prNumber: number | undefined): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) continue;
@@ -34,6 +42,10 @@ function sandboxEnv(env: NodeJS.ProcessEnv, cwd: string): NodeJS.ProcessEnv {
   }
   out.HOME = cwd;
   out.CFPA_ROOT = paths.root;
+  out.CFPA_WORK = join(paths.root, "runtime", "work");
+  out.CFPA_REPO = paths.repo;
+  out.CFPA_SESSION = cwd;
+  if (prNumber !== undefined) out.CFPA_PR = prRoot(prNumber);
   return out;
 }
 
@@ -51,7 +63,8 @@ export function bashTool(ctx: ToolContext, availableTools: string[]): CustomTool
   return {
     name: "bash",
     label: "执行 shell",
-    description: "在会话 workspace 执行 bash；evalScope=off 时调用会被拒绝。",
+    description:
+      "在会话 workspace 执行 bash；cwd 就是 local://。仓库在 $CFPA_REPO，PR 物化目录在 $CFPA_PR，工作区根是 $CFPA_WORK。evalScope=off 时调用会被拒绝。",
     parameters: BASH_PARAMS,
     execute: async (_toolCallId, params, _onUpdate, runtime, signal) => {
       const settings = runtime.settings;
@@ -65,7 +78,7 @@ export function bashTool(ctx: ToolContext, availableTools: string[]): CustomTool
       const timeoutMs = Math.min(300_000, Math.max(1_000, (params.timeout ?? 60) * 1000));
       const proc = Bun.spawn(["bash", "-lc", dropPrivileges(params.command)], {
         cwd,
-        env: sandboxEnv(process.env, cwd),
+        env: sandboxEnv(process.env, cwd, ctx.prNumber),
         stdin: "ignore",
         stdout: "pipe",
         stderr: "pipe",

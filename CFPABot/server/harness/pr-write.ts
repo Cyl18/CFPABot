@@ -1,8 +1,9 @@
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { z } from "zod";
 import type { ReviewDraft } from "@cfpa/contracts/api";
-import { env } from "../../env.ts";
-import { assertBotWrites, gh, serverGraphql } from "../../github/client.ts";
+import { DRAFT_FILE, parseDraftFile } from "@cfpa/review-core/draft";
+import { env } from "../env.ts";
+import { assertBotWrites, gh, serverGraphql } from "../github/client.ts";
 import {
   createReviewComment,
   createSubmittedReview,
@@ -10,11 +11,13 @@ import {
   reviewMeta,
   setThreadResolved,
   submitPendingReview,
-} from "../../github/review.ts";
-import { draftInputSchema, normalizeDraftJson } from "../draft.ts";
-import { assertCanWrite, type WriteSession } from "../policy.ts";
-import { publishDraft } from "../workflows/review/publish.ts";
-import { jsonResult } from "../result.ts";
+} from "../github/review.ts";
+import { readLocal } from "../agent/local-store.ts";
+import { assertCanWrite, type WriteSession } from "../agent/policy.ts";
+import { publishDraft } from "../agent/workflows/review/publish.ts";
+import { prdata } from "../prdata.ts";
+import { errorResult, jsonResult } from "./result.ts";
+import { prepareDraft, saveDraftOf, markPublishedOf } from "./review/draft.ts";
 import { parseThreadState } from "./thread-state.ts";
 import type { WriteTarget } from "./write-targets.ts";
 import type { PrParts } from "./uri.ts";
@@ -35,24 +38,21 @@ function withMarker(body: string, sessionId: string, toolCallId: string): string
   return body.includes(AGENT_MARKER_PREFIX) ? body : `${body}\n\n${markerOf(sessionId, toolCallId)}`;
 }
 
-async function parseDraft(
-  content: string,
-  n: number,
-): Promise<{ draft: ReviewDraft; event: "COMMENT" | "APPROVE" | "REQUEST_CHANGES" }> {
-  const input = draftInputSchema.parse(normalizeDraftJson(JSON.parse(content) as unknown));
-  if (input.prNumber !== n) throw new Error("草稿的 PR 与目标不一致。");
-  const headSha = input.headSha ?? (await gh.getPull(n)).headSha;
-  return {
-    draft: {
-      prNumber: input.prNumber,
-      headSha,
-      verdict: input.verdict,
-      summary: input.summary,
-      comments: input.comments,
-      updatedAt: new Date().toISOString(),
-    },
-    event: input.event ?? "COMMENT",
-  };
+function eventOf(uri: PrParts, content: string | undefined): "COMMENT" | "APPROVE" | "REQUEST_CHANGES" {
+  const fromQuery = uri.query.get("event");
+  if (fromQuery !== null) {
+    if (fromQuery === "COMMENT" || fromQuery === "APPROVE" || fromQuery === "REQUEST_CHANGES") return fromQuery;
+    throw new Error("event 只能是 COMMENT / APPROVE / REQUEST_CHANGES。");
+  }
+  if (content !== undefined && content.trim() !== "") {
+    try {
+      const parsed = JSON.parse(content) as { event?: unknown };
+      if (parsed.event === "APPROVE" || parsed.event === "REQUEST_CHANGES") return parsed.event;
+    } catch {
+      // JSON 错误由草稿校验给出更完整的信息。
+    }
+  }
+  return "COMMENT";
 }
 
 function parseSubmit(content: string | undefined): { event: "COMMENT" | "APPROVE" | "REQUEST_CHANGES"; body: string } {
@@ -60,7 +60,28 @@ function parseSubmit(content: string | undefined): { event: "COMMENT" | "APPROVE
   return submitSchema.parse(JSON.parse(content) as unknown);
 }
 
+async function writeDraft(uri: PrParts, content: string | undefined, ctx: WriteSession): Promise<AgentToolResult<Record<string, unknown>>> {
+  if (content === undefined || content.trim() === "") throw new Error("write pr://<n>/draft 需要草稿 JSON。");
+  const result = await saveDraftOf(uri.number, ctx.sessionId, content);
+  if (!result.ok || result.draft === undefined) {
+    return errorResult({
+      ok: false,
+      errors: result.errors,
+      next: [`按 errors 修正后重写 pr://${uri.number}/draft`],
+    });
+  }
+  await ctx.onDraftSaved?.(result.draft);
+  return jsonResult({
+    ok: true,
+    saved: `local://${DRAFT_FILE}`,
+    comments: result.draft.comments.length,
+    warnings: result.warnings,
+    next: result.next,
+  });
+}
+
 async function writeComment(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
+  if (content === undefined || content.trim() === "") throw new Error("评论需要正文。");
   const marker = markerOf(ctx.sessionId, toolCallId);
   const existing = (await gh.listComments(uri.number)).find((comment) => comment.body.includes(marker));
   if (existing) return jsonResult({ ok: true, deduped: true, id: existing.id, url: existing.htmlUrl });
@@ -69,6 +90,7 @@ async function writeComment(uri: PrParts, content: string | undefined, ctx: Writ
 }
 
 async function writeInlineComment(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
+  if (content === undefined || content.trim() === "") throw new Error("行内评论需要正文。");
   const seg = uri.path.split("/").filter(Boolean);
   const path = seg.slice(1, -1).join("/");
   if (!path) throw new Error("行内评论需要文件路径。");
@@ -95,6 +117,7 @@ async function writeThreadState(uri: PrParts, content: string | undefined) {
 }
 
 async function writeThreadReply(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
+  if (content === undefined || content.trim() === "") throw new Error("线程回复需要正文。");
   const seg = uri.path.split("/").filter(Boolean);
   const comment = await replyToReviewThread(
     serverGraphql,
@@ -107,15 +130,30 @@ async function writeThreadReply(uri: PrParts, content: string | undefined, ctx: 
 
 async function writeReview(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
   const n = uri.number;
-  if (content === undefined || content.trim().length === 0) {
-    throw new Error("write pr://<n>/review 需要审查 JSON 内容。");
+  let draft: ReviewDraft;
+  if (content !== undefined && content.trim() !== "") {
+    const { pull } = await prdata.files(n);
+    const prepared = prepareDraft(content, n, pull.headSha);
+    if (prepared.draft === undefined) {
+      return errorResult({ ok: false, errors: prepared.errors, next: [`write pr://${n}/draft 修正后再发布`] });
+    }
+    draft = prepared.draft;
+  } else {
+    const raw = await readLocal(ctx.sessionId, DRAFT_FILE);
+    const saved = raw === null ? null : parseDraftFile(raw.content);
+    if (saved === null) throw new Error(`没有已保存的草稿；先 write pr://${n}/draft，或在正文里给草稿 JSON。`);
+    if (saved.prNumber !== n) {
+      throw new Error(`已保存的草稿属于 PR #${saved.prNumber}，不能发布到 PR #${n}；先审目标 PR。`);
+    }
+    draft = saved;
   }
   const marker = markerOf(ctx.sessionId, toolCallId);
   const existing = (await gh.listReviews(n)).find((review) => review.body.includes(marker));
   if (existing) return jsonResult({ ok: true, deduped: true, url: existing.htmlUrl });
-  const parsed = await parseDraft(content, n);
-  const { url } = await publishDraft(parsed.draft, { event: parsed.event, marker });
-  return jsonResult({ ok: true, url });
+  const { url } = await publishDraft(draft, { event: eventOf(uri, content), marker });
+  const saved = await markPublishedOf(n, ctx.sessionId, draft, url);
+  await ctx.onDraftSaved?.(saved);
+  return jsonResult({ ok: true, url, comments: saved.comments.length, next: [`read pr://${n}/draft 复核已发布状态`] });
 }
 
 async function writeReviewSubmit(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
@@ -158,10 +196,12 @@ async function replaceReviewComment(uri: PrParts, content: string | undefined, c
   if (content === undefined) throw new Error("替换行内评论需要提供新的完整正文。");
   const comment = (await gh.listReviewComments(uri.number)).find((entry) => entry.id === id);
   if (comment === undefined) throw new Error("行内评论不存在。");
-  if (comment.author !== env.BOT_LOGIN) throw new Error("只能编辑机器人自己的评论。");
+  if (comment.author !== env.BOT_LOGIN) throw new Error("只能编辑机器人自己的行内评论。");
   await gh.updateReviewComment(id, withMarker(content, ctx.sessionId, toolCallId));
   return jsonResult({ ok: true, url: comment.htmlUrl });
 }
+
+export type WriteResult = AgentToolResult<Record<string, unknown>>;
 
 export async function writePr(
   uri: PrParts,
@@ -169,10 +209,14 @@ export async function writePr(
   content: string | undefined,
   ctx: WriteSession,
   toolCallId: string,
-): Promise<AgentToolResult<Record<string, unknown>>> {
-  assertCanWrite(ctx);
-  assertBotWrites();
+): Promise<WriteResult> {
+  if (target.id !== "pr-draft") {
+    assertCanWrite(ctx);
+    assertBotWrites();
+  }
   switch (target.id) {
+    case "pr-draft":
+      return writeDraft(uri, content, ctx);
     case "pr-comment":
       return writeComment(uri, content, ctx, toolCallId);
     case "pr-inline-comment":

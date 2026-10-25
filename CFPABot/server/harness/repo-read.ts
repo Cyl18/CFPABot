@@ -1,6 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
-import { mirror } from "../../mirror.ts";
-import { repoRoot, resolveInside } from "../../workspace.ts";
+import { mirror } from "../mirror.ts";
+import { repoRoot, resolveInside } from "../workspace.ts";
 import type { ResourceParts } from "./uri.ts";
 
 const MAX_BYTES = 512 * 1024;

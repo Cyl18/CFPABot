@@ -24,21 +24,42 @@ function cap(text: string | null): Capped {
   return { text: bytes.subarray(0, SPECIAL_MAX_BYTES).toString("utf8"), truncated: true };
 }
 
-async function specialPlanFor(n: number): Promise<{ pull: GhPull; files: GhFile[]; plans: SpecialPlan[]; existing: ReadonlySet<string> }> {
+interface SpecialPlanData {
+  pull: GhPull;
+  files: GhFile[];
+  plans: SpecialPlan[];
+  existing: ReadonlySet<string>;
+}
+
+const planCache = new Map<string, Promise<SpecialPlanData>>();
+
+async function specialPlanFor(n: number): Promise<SpecialPlanData> {
   const { pull, files } = await prdata.files(n);
-  const plans = planSpecial(files.filter((file) => isSpecialPath(file.path)));
-  const derived: string[] = [];
-  for (const plan of plans) {
-    if (plan.kind === "single") continue;
-    for (const side of [plan.en, plan.zh]) {
-      if (side.file !== null) continue;
-      derived.push(side.path);
-      if (side.alternate !== undefined) derived.push(side.alternate);
-    }
-  }
   const rev = (await mirror.headSha()) ?? "HEAD";
-  const existing = derived.length === 0 ? new Set<string>() : await mirror.existing(rev, derived);
-  return { pull, files, plans: resolveDerived(plans, existing), existing };
+  const cacheKey = `${n}@${pull.headSha}@${rev}`;
+  const cached = planCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  const pending = (async (): Promise<SpecialPlanData> => {
+    const plans = planSpecial(files.filter((file) => isSpecialPath(file.path)));
+    const derived: string[] = [];
+    for (const plan of plans) {
+      if (plan.kind === "single") continue;
+      for (const side of [plan.en, plan.zh]) {
+        if (side.file !== null) continue;
+        derived.push(side.path);
+        if (side.alternate !== undefined) derived.push(side.alternate);
+      }
+    }
+    const existing = derived.length === 0 ? new Set<string>() : await mirror.existing(rev, derived);
+    return { pull, files, plans: resolveDerived(plans, existing), existing };
+  })();
+  planCache.set(cacheKey, pending);
+  void pending.catch(() => planCache.delete(cacheKey));
+  if (planCache.size > 8) {
+    const oldest = planCache.keys().next().value;
+    if (oldest !== undefined) planCache.delete(oldest);
+  }
+  return pending;
 }
 
 export async function specialPairs(n: number): Promise<SpecialPair[]> {
@@ -68,11 +89,13 @@ function specialParsedOf(format: string, en: SpecialText, zh: SpecialText): Spec
   return { format, rows };
 }
 
-export async function specialPairContent(n: number, key: string, source: FileSource): Promise<SpecialPairContent | null> {
-  const { pull, files, plans, existing } = await specialPlanFor(n);
-  const entry = plans.find((plan) => plan.key === key);
-  if (entry === undefined) return null;
-  const read = source.read;
+async function contentFrom(
+  entry: SpecialPlan,
+  pull: GhPull,
+  files: GhFile[],
+  existing: ReadonlySet<string>,
+  read: FileSource["read"],
+): Promise<SpecialPairContent> {
   const textOf = async (side: PlannedSide): Promise<SpecialText> => {
     const file = side.file;
     let baseText: string | null;
@@ -87,7 +110,7 @@ export async function specialPairContent(n: number, key: string, source: FileSou
     }
     const base = cap(baseText);
     const head = cap(headText);
-    const prFile = files.find((entry) => entry.path === side.path);
+    const prFile = files.find((file) => file.path === side.path);
     return {
       path: side.path,
       status: file === null ? (existing.has(side.path) ? "unchanged" : "missing") : file.status,
@@ -107,3 +130,60 @@ export async function specialPairContent(n: number, key: string, source: FileSou
       : null;
   return { key: entry.key, kind: "pair", en, zh, parsed };
 }
+
+export async function specialPairContent(n: number, key: string, source: FileSource): Promise<SpecialPairContent | null> {
+  const { pull, files, plans, existing } = await specialPlanFor(n);
+  const entry = plans.find((plan) => plan.key === key);
+  if (entry === undefined) return null;
+  return contentFrom(entry, pull, files, existing, source.read);
+}
+
+function sidePathsOf(entry: SpecialPlan, existing: ReadonlySet<string>): { base: string[]; head: string[] } {
+  const base: string[] = [];
+  const head: string[] = [];
+  const sides = entry.kind === "single" ? [entry.file] : [entry.en, entry.zh];
+  for (const side of sides) {
+    if (side.file === null) {
+      if (existing.has(side.path)) {
+        base.push(side.path);
+        head.push(side.path);
+      }
+      continue;
+    }
+    const paths = sidePaths(side.file);
+    if (paths.base !== null) base.push(paths.base);
+    if (paths.head !== null) head.push(paths.head);
+  }
+  return { base, head };
+}
+
+/** 一次读多对特殊文件：先批量取两侧文本，再在内存里组装，避免每对都往返 GitHub。 */
+export async function specialContents(
+  n: number,
+  keys: readonly string[],
+  source: FileSource,
+): Promise<SpecialPairContent[]> {
+  const { pull, files, plans, existing } = await specialPlanFor(n);
+  const wanted = new Set(keys);
+  const entries = plans.filter((plan) => wanted.has(plan.key));
+  if (entries.length === 0) return [];
+  const basePaths = new Set<string>();
+  const headPaths = new Set<string>();
+  for (const entry of entries) {
+    const paths = sidePathsOf(entry, existing);
+    for (const path of paths.base) basePaths.add(path);
+    for (const path of paths.head) headPaths.add(path);
+  }
+  const [baseTexts, headTexts] = await Promise.all([
+    basePaths.size === 0 ? new Map<string, string>() : source.readMany([...basePaths], pull.baseSha),
+    headPaths.size === 0 ? new Map<string, string>() : source.readMany([...headPaths], pull.headSha),
+  ]);
+  const read: FileSource["read"] = (path, ref) => {
+    if (path === null) return Promise.resolve(null);
+    return ref === pull.baseSha
+      ? Promise.resolve(baseTexts.get(path) ?? null)
+      : Promise.resolve(headTexts.get(path) ?? null);
+  };
+  return Promise.all(entries.map((entry) => contentFrom(entry, pull, files, existing, read)));
+}
+

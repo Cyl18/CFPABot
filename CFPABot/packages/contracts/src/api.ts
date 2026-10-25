@@ -127,6 +127,181 @@ export interface PackSummary {
   workspaces: PackWorkspaceSummary[];
 }
 
+export interface WorkspaceBrief {
+  workspace: string;
+  format: "json" | "lang";
+  enPath: string | null;
+  zhPath: string | null;
+  counts?: { total: number; changed: number; flagged: number };
+  histogram?: Record<string, number>;
+  duplicates?: number;
+}
+
+export interface ChecksSummary {
+  status: "not_run" | "running" | "ok" | "stale" | "failed";
+  headSha: string;
+  checkedSha: string | null;
+  builtAt: string | null;
+  unitCount: number;
+  counts: { critical: number; major: number; minor: number; neutral: number };
+  top: Finding[];
+  modFiles: ModFileCheck[];
+  error?: string;
+  hint?: string;
+}
+
+export interface DiscussionsBrief {
+  available: boolean;
+  issueComments: number;
+  reviewThreads: number;
+  openThreads: number;
+  pendingReviewId: string | null;
+  recentIssueComments?: { author: string; body: string; at: string }[];
+  error?: string;
+}
+
+export interface TermHitView {
+  en: string;
+  zh: string[];
+  ok: boolean;
+  reason?: string;
+  domain?: string;
+  id?: string;
+}
+
+export interface ReviewRowView {
+  workspace: string;
+  path: string | null;
+  key: string;
+  en?: string;
+  zh?: string;
+  baseEn?: string;
+  baseZh?: string;
+  line: number | null;
+  inHunk: boolean;
+  changed: boolean;
+  findings: Finding[];
+  terms?: TermHitView[];
+  threads?: ReviewThread[];
+  duplicate?: { zh: string; keys: string[] };
+}
+
+export interface ReviewRowsPage {
+  prNumber: number;
+  headSha: string;
+  total: number;
+  offset: number;
+  limit: number;
+  nextOffset: number | null;
+  counts: { workspaces: number; rows: number; changed: number; flagged: number; reviewable: number };
+  workspaces: WorkspaceBrief[];
+  rows: ReviewRowView[];
+  patches?: Record<string, string>;
+  commentsAvailable: boolean;
+  termsLoaded: boolean;
+  next: string | null;
+  hint: string;
+}
+
+export interface DraftSchemaView {
+  shape: Record<string, unknown>;
+  notes: string[];
+}
+
+export interface ReviewDraftView {
+  prNumber: number;
+  headSha: string;
+  exists: boolean;
+  draft: ReviewDraft | null;
+  schema: DraftSchemaView;
+  validation: { errors: string[]; warnings: string[]; headCurrent: boolean };
+  write: string;
+  publish: string;
+  next: string[];
+}
+
+export interface ReviewBrief {
+  pr: PrSummary & {
+    htmlUrl: string;
+    baseRef: string;
+    baseSha: string;
+    headRef: string;
+    headRepo: string;
+  };
+  localRoot: string;
+  counts: {
+    files: number;
+    additions: number;
+    deletions: number;
+    workspaces: number;
+    specialFiles: number;
+    related: number;
+    changedRows: number | null;
+    flaggedRows: number | null;
+  };
+  files: { total: number; items: PrFile[]; truncated: boolean };
+  workspaces: WorkspaceBrief[];
+  checks: ChecksSummary;
+  warnings: Finding[];
+  specialFiles: { total: number; paths: string[]; truncated: boolean; error?: string };
+  related: RelatedPr[];
+  discussions: DiscussionsBrief;
+  draft: {
+    exists: boolean;
+    updatedAt?: string;
+    publishedAt?: string;
+    publishedUrl?: string;
+    read: string;
+    write: string;
+    publish: string;
+  };
+  capabilities: { writeScope: WriteScope; publish: boolean };
+  rows?: ReviewRowsPage;
+  next: string[];
+  hint: string;
+}
+
+export interface TermVariant {
+  zh: string;
+  keys: string[];
+  count: number;
+}
+
+export interface TermGroup {
+  en: string;
+  inPr: TermVariant[];
+  glossary: { en: string; zh: string[]; reason?: string }[];
+  rows: number;
+  misses: number;
+}
+
+export interface ReviewTermsView {
+  prNumber: number;
+  headSha: string;
+  glossary: { loaded: boolean; size: number };
+  queries: { q: string; hits: { en: string; zh: string[]; reason?: string }[] }[];
+  groups: TermGroup[];
+  counts: { changedRows: number; groups: number; inconsistent: number; misses: number };
+  offset: number;
+  limit: number;
+  nextOffset: number | null;
+  next: string | null;
+  hint: string;
+}
+
+export interface SpecialFilesPage {
+  prNumber: number;
+  total: number;
+  offset: number;
+  limit: number;
+  nextOffset: number | null;
+  withText: boolean;
+  items: (SpecialPair | SpecialPairContent)[];
+  missing?: string[];
+  next: string | null;
+  hint: string;
+}
+
 export type RowStatus = "add" | "remove" | "modify" | "same";
 
 export interface CompareRow {

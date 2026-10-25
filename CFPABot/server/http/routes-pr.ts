@@ -14,10 +14,14 @@ import { getCheckReport, isRefreshing, refreshInfoComment } from "../bot/index.t
 import { track } from "../bot/pending.ts";
 import { llm } from "../agent/index.ts";
 import { parseRoleSelector } from "../agent/llm-providers.ts";
-import { loadPack, packSummary } from "../agent/pack.ts";
+import { loadPack, packSummary } from "../harness/pack.ts";
+import { reviewBrief } from "../harness/review/brief.ts";
+import { rowsOf, type RowsOptions } from "../harness/review/rows.ts";
+import { termsOf } from "../harness/review/terms.ts";
 import { prDetail } from "../views/pr.ts";
 import { compareWorkspace } from "../views/workspace.ts";
 import { specialPairContent, specialPairs } from "../views/special.ts";
+import { specialPageOf } from "../harness/review/special.ts";
 import { crossVersionKeys } from "../views/cross-version.ts";
 import { textCompare } from "../views/text.ts";
 import { currentUser, requireAdmin } from "./auth.ts";
@@ -43,7 +47,32 @@ const versionsQuery = z.object({
   pr: z.coerce.number().int().positive().optional(),
   versions: z.string().optional(),
 });
+const rowsQuery = z.object({
+  filter: z.enum(["reviewable", "changed", "flagged", "all"]).optional(),
+  workspace: z.string().min(1).optional(),
+  prefix: z.string().min(1).optional(),
+  keys: z.string().optional(),
+  query: z.string().optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  include: z.string().optional(),
+  rebuild: z.enum(["1"]).optional(),
+});
+const briefQuery = rowsQuery.extend({ review: z.enum(["1"]).optional() });
+const termsQuery = z.object({
+  changed: z.enum(["1"]).optional(),
+  q: z.string().optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  rebuild: z.enum(["1"]).optional(),
+});
 const specialQuery = z.object({ key: z.string().min(1) });
+const specialFilesQuery = z.object({
+  include: z.enum(["text"]).optional(),
+  keys: z.string().optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
 
 function versionSelection(raw: string | undefined): string[] | undefined {
   if (raw === undefined) return undefined;
@@ -134,6 +163,67 @@ prRoutes.get("/prs/:n/pack", async (c) => {
   return c.json(await withPull(async () => packSummary(await loadPack(n, rebuild === "1"))));
 });
 
+function rowsOptionsOf(data: z.infer<typeof rowsQuery>): RowsOptions {
+  const keys = (data.keys ?? "")
+    .split(",")
+    .map((key) => key.trim())
+    .filter(Boolean);
+  const include = new Set((data.include ?? "terms,threads,duplicates").split(",").map((name) => name.trim()));
+  const all = include.has("all");
+  return {
+    filter: data.filter ?? "reviewable",
+    ...(data.workspace === undefined ? {} : { workspace: data.workspace }),
+    ...(data.prefix === undefined ? {} : { prefix: data.prefix }),
+    ...(keys.length === 0 ? {} : { keys }),
+    ...(data.query === undefined ? {} : { query: data.query }),
+    ...(data.offset === undefined ? {} : { offset: data.offset }),
+    ...(data.limit === undefined ? {} : { limit: data.limit }),
+    rebuild: data.rebuild === "1",
+    include: {
+      terms: all || include.has("terms"),
+      threads: all || include.has("threads"),
+      duplicates: all || include.has("duplicates"),
+      patch: all || include.has("patch"),
+    },
+  };
+}
+
+prRoutes.get("/prs/:n/brief", async (c) => {
+  const data = parseQuery(c, briefQuery);
+  const n = prNumber(c);
+  return c.json(
+    await withPull(() =>
+      reviewBrief(n, {
+        review: data.review === "1",
+        rows: { ...rowsOptionsOf(data), limit: data.limit ?? 120 },
+      }),
+    ),
+  );
+});
+
+prRoutes.get("/prs/:n/rows", async (c) => {
+  const data = parseQuery(c, rowsQuery);
+  const n = prNumber(c);
+  return c.json(await withPull(() => rowsOf(n, rowsOptionsOf(data))));
+});
+
+prRoutes.get("/prs/:n/terms", async (c) => {
+  const data = parseQuery(c, termsQuery);
+  const n = prNumber(c);
+  const queries = [...(c.req.queries("term") ?? []), ...(data.q === undefined ? [] : [data.q])];
+  return c.json(
+    await withPull(() =>
+      termsOf(n, {
+        queries,
+        changed: data.changed === "1" || queries.length === 0,
+        ...(data.offset === undefined ? {} : { offset: data.offset }),
+        ...(data.limit === undefined ? {} : { limit: data.limit }),
+        rebuild: data.rebuild === "1",
+      }),
+    ),
+  );
+});
+
 prRoutes.post("/prs/:n/refresh", async (c) => {
   await requireAdmin(c);
   const n = prNumber(c);
@@ -147,6 +237,28 @@ prRoutes.get("/prs/:n/compare", async (c) => {
   const key = parseQuery(c, workspaceQuery);
   const n = prNumber(c);
   return c.json(await withPull(() => compareWorkspace(n, key, prdata.fileSource())));
+});
+
+prRoutes.get("/prs/:n/special-files", async (c) => {
+  const data = parseQuery(c, specialFilesQuery);
+  const n = prNumber(c);
+  const keys = [
+    ...(data.keys ?? "").split(","),
+    ...(c.req.queries("keys") ?? []).flatMap((raw) => raw.split(",")),
+    ...(c.req.queries("key") ?? []),
+  ]
+    .map((key) => key.trim())
+    .filter(Boolean);
+  return c.json(
+    await withPull(() =>
+      specialPageOf(n, {
+        keys,
+        withText: data.include === "text",
+        ...(data.offset === undefined ? {} : { offset: data.offset }),
+        ...(data.limit === undefined ? {} : { limit: data.limit }),
+      }),
+    ),
+  );
 });
 
 prRoutes.get("/prs/:n/special", async (c) => c.json(await withPull(() => specialPairs(prNumber(c)))));

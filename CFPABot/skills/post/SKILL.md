@@ -10,13 +10,14 @@ PR 校对。产出 `local://draft.json`；术语表、风格指南、格式要�
 ## 流程
 
 1. **读译前产物**：`local://terms.tsv`、`local://STYLE.md`、`local://format.md`。没有就跳过。`terms.tsv` 只取 changed 行里出现的词，不整表读。
-2. **取全量行**：`read pr://<n>/meta` 拿 `headSha`；`read pr://<n>/review/rows?filter=changed` 拿行，用 `offset`、`limit`、`?workspace=` 取到 `total` 条为止。只审 `changed` 且 `inHunk` 的行（`line` 是 head 行号）。
+2. **取全量行**：`read pr://<n>?review=1&limit=120`。一次拿到 `pr.headSha`、`checks`、`workspaces`、讨论和第一页 rows；照返回的 `rows.next` 继续，不要自己拼 offset。
+   - 每行已有 `path`、`line`（head 行号）、`en`、`zh`、`baseEn`、`baseZh`、`inHunk`、`findings`、`terms`、旧 `threads`、`duplicate`。只审 `changed` 且 `inHunk` 的行。
    - `counts.workspaces === 0` 先看 `prep` 的路径闸门。
 3. **全量校对**：每一条都读原文和译文，不抽样；派子代理也按 key 分片全量。
    - **三遍**（一次推理里的顺序，不是三轮对话）：盲读译文（别扭、歧义、语气）→ 对照原文（先写清谁对谁做什么，再查指称、否定、量化、比较、专名）→ 回填（放回相邻 key 拼读，看主语、量词、标点、长度）。
    - **机械项由预审定位，由你确认**：逐条回到原文和译文核对，成立才写评论，档位按后果定（finding 的档位是起点），误报不写。
-   - **术语**：`mcp__glossary_query` 查依据，多个词用 `mcp__glossary_query_batch`（每批 ≤20）；本模组内部的分歧用下面的 `mod review` 看。没依据不判 major。
-4. **写草稿**：`write local://draft.json`，跑 `bash bun "$CFPA_ROOT/skills/post/scripts/check-draft.mjs" ./draft.json`，改到通过。
+   - **术语**：先看 `read pr://<n>/terms?changed=1`（同词多译、术语缺失、glossary 权威译法）；单行证据看 rows 的 `terms`。仍要额外核对时再用 `mcp__glossary_query`，多个词用 `mcp__glossary_query_batch`（每批 ≤20）。本模组内部的分歧用下面的 `mod review` 看。没依据不判 major。
+4. **写草稿**：`read pr://<n>/draft` 拿 schema 与当前状态；`write pr://<n>/draft <JSON>` 保存并校验。`errors` 会直接返回，按字段改到 `ok: true`；不需要再跑 bash 校验脚本。
 5. **可选覆盖**：本轮确认的术语、风格、格式写回三份文件，直接覆盖。
 
 ### 分歧线索（可选）
@@ -32,7 +33,7 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 
 ## 草稿
 
-`{prNumber, headSha, verdict, summary, comments[], event?}`。`headSha` 必填，从 `pr://<n>/meta` 取；`event` 取 `COMMENT`/`APPROVE`/`REQUEST_CHANGES`，默认 `COMMENT`，只在 `write pr://<n>/review` 发布时生效。
+`{prNumber, headSha, verdict, summary, comments[]}`。`headSha` 可省，服务端按当前 head 补；结论默认 `COMMENT`，发布时用 `write pr://<n>/review?event=APPROVE|REQUEST_CHANGES` 覆盖。
 
 每条评论：`path`、`line`（head 行号，必须在 diff hunk 新侧）、`key`、`severity`、`mqm`、`body`，`en`/`zh` 填该行原文与译文。`id` 可省。
 
@@ -46,9 +47,9 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 
 `summary`、`body` 只写正文：统计、档位标题、分类、免责脚注都由服务端拼。
 
-`verdict`：有必改项用 `changes`，整体方向错才 `reject`，没有必改项才 `approve`。发布时服务端重验 `headSha` 和行号，草稿过期会被打回重审。
+`verdict`：有必改项用 `changes`，整体方向错才 `reject`，没有必改项才 `approve`。`write pr://<n>/review` 会先重验 `headSha` 和行号；草稿过期会被打回重审。
 
-`write pr://<n>/review` 会把草稿直接发成 GitHub 审查（需 `writeScope=on`）；只在人明确要求时写。
+`write pr://<n>/review` 会把保存的草稿直接发成 GitHub 审查（需 `writeScope=on`）；只在人明确要求时写。
 
 ## 裁定
 
@@ -78,4 +79,6 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 
 派子代理时把校对方法和 MQM 贴进 task；它只返回稀疏 JSON（只写判错的 key），你合并并确认。
 
-`read pr://<n>/meta` 的 `localRoot` 是 head 文件的物化目录，只读、只给 `read`/`grep` 用；要跑脚本先复制到 `local://work/`，脚本吃 `./work`。仓库工作树是仓库根下的 `runtime/work/repo`（`grep`/`find` 要绝对路径，`bash` 里用 `$CFPA_ROOT`，执行工具本身不接受绝对路径）。
+分片优先把 rows URI 放进 `resources`：`delegate({ agent: "review", model: "@模型名", task, resources: ["pr://<n>/rows?filter=reviewable&workspace=<ws>&prefix=<prefix>&limit=120"] })`。子代理与主代理共用 `pr://` 数据面、`terms` 和 skills，不需要你先把分片写成文件。
+
+`read pr://<n>` 的 `localRoot` 是 head 文件的物化目录，只读；要跑脚本先复制到 `local://work/`，脚本吃 `./work`。仓库工作树用 `$CFPA_REPO`（`grep`/`find` 可给绝对路径，`bash` 里用环境变量）。

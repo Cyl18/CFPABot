@@ -22,12 +22,12 @@ import type {
   ThinkingLevel,
   WriteScope,
 } from "@cfpa/contracts/api";
-import { prdata } from "../prdata.ts";
 import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
 import { type ToolContext } from "./context.ts";
 import { agentMcpManager, closeAgentMcp } from "./mcp.ts";
-import { DRAFT_FILE, draftInputSchema, parseDraftFile, serializeDraftFile, validateDraft, type DraftContext } from "./draft.ts";
+import { DRAFT_FILE, draftInputSchema, parseDraftFile } from "./draft.ts";
+import { markPublishedOf, saveDraftOf } from "../harness/review/draft.ts";
 import { SessionHub } from "./events.ts";
 import { applySearchEnv, loadConfig, llm, resolveModel } from "./llm.ts";
 import { effortOf, parseRoleSelector } from "./llm-providers.ts";
@@ -136,17 +136,12 @@ async function detailOf(record: SessionRecord): Promise<SessionDetail> {
 
 const draftInput = draftInputSchema.omit({ event: true }).extend({ headSha: z.string().min(1) });
 
-async function draftContext(prNumber: number): Promise<DraftContext> {
-  const data = await prdata.files(prNumber).catch(() => null);
-  const patches = new Map<string, string | undefined>((data?.files ?? []).map((file) => [file.path, file.patch]));
-  return { patches };
-}
-
 function toolContext(record: SessionRecord, mcp: { current?: MCPManager }): ToolContext {
   const id = record.meta.id;
   return {
     sessionId: id,
     writeScope: record.meta.writeScope,
+    ...(record.meta.prNumber === undefined ? {} : { prNumber: record.meta.prNumber }),
     mcpManager: () => mcp.current,
     local: async (name) => readLocal(id, name),
     saveLocal: async (name, content) => {
@@ -185,12 +180,12 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   const workflow = resolveWorkflow(record.meta.workflow);
   const config = await loadConfig();
   applySearchEnv(config.search);
-  const basePrompt = await buildSystemPrompt(workflow, localDir(id), paths.root);
+  const basePrompt = await buildSystemPrompt(workflow, localDir(id), paths.root, record.meta.prNumber);
   const aliases = Object.keys(config.roles).filter((role) => role !== "default");
   const systemPrompt =
     aliases.length === 0
       ? basePrompt
-      : `${basePrompt}\n\n可用模型：${aliases.map((role) => `@${role}`).join("、")}。派子代理时用 delegate({ agent: "review", model: "@模型名", task: "…" })；单次调用可用 eval 的 await completion(prompt, model="@模型名")。`;
+      : `${basePrompt}\n\n可用模型：${aliases.map((role) => `@${role}`).join("、")}。派子代理用 delegate({ agent: "review", model: "@模型名", task: "…", resources: ["pr://…"] })；model 可省，省略时用默认模型。`;
   const skills = await agentSkills(workflow);
   const configured = record.meta.thinking;
   const { model, thinking } = await resolveModel(record.meta.model, configured);
@@ -332,9 +327,11 @@ async function publishOnce(id: string, by: string): Promise<{ url: string }> {
   const raw = await readLocal(id, DRAFT_FILE);
   const draft = raw === null ? null : parseDraftFile(raw.content);
   if (draft === null) throw httpError("没有可发布的草稿", 400);
+  if (record.meta.prNumber !== undefined && record.meta.prNumber !== draft.prNumber) {
+    throw httpError(`会话绑定 PR #${record.meta.prNumber}，草稿属于 PR #${draft.prNumber}`, 400);
+  }
   const { url } = await publishDraft(draft);
-  const value = { ...draft, publishedAt: now(), publishedUrl: url };
-  await writeLocal(id, DRAFT_FILE, serializeDraftFile(value));
+  const value = await markPublishedOf(draft.prNumber, id, draft, url);
   record.meta.updatedAt = now();
   await store.put(record);
   hub.emit(id, { type: "artifact", artifact: value });
@@ -348,10 +345,18 @@ export const agent = {
   async init(): Promise<void> {
     await store.init();
     registerSchemes({
-      sessionOf: (sessionFile) => {
-        if (sessionFile === undefined) return undefined;
-        const record = store.all().find((entry) => entry.sessionFile === sessionFile);
+      sessionOf: (ref) => {
+        if (ref === undefined) return undefined;
+        const record = store.all().find((entry) => entry.sessionFile === ref || entry.meta.id === ref);
         return record === undefined ? undefined : { sessionId: record.meta.id, writeScope: record.meta.writeScope };
+      },
+      onDraftSaved: async (id, draft) => {
+        const record = await store.get(id);
+        if (!record) return;
+        record.meta.updatedAt = now();
+        await store.put(record);
+        hub.touch(id);
+        hub.emit(id, { type: "artifact", artifact: draft });
       },
     });
     log.info("会话索引已加载", { sessions: store.all().length });
@@ -516,14 +521,15 @@ export const agent = {
     if (!record) throw httpError("会话不存在", 404);
     const parsed = draftInput.safeParse(input);
     if (!parsed.success) throw httpError(parsed.error.issues.map((issue) => issue.message).join("；"), 400);
-    const errors = await validateDraft(parsed.data, await draftContext(parsed.data.prNumber));
-    if (errors.length > 0) throw httpError(errors.join("；"), 400);
-    const value = { ...parsed.data, updatedAt: now() };
-    await writeLocal(id, DRAFT_FILE, serializeDraftFile(value));
+    if (record.meta.prNumber !== undefined && record.meta.prNumber !== parsed.data.prNumber) {
+      throw httpError(`会话绑定 PR #${record.meta.prNumber}，不能保存 PR #${parsed.data.prNumber} 的草稿`, 400);
+    }
+    const saved = await saveDraftOf(parsed.data.prNumber, id, JSON.stringify(parsed.data));
+    if (!saved.ok || saved.draft === undefined) throw httpError(saved.errors.join("；"), 400);
     record.meta.updatedAt = now();
     await store.put(record);
-    hub.emit(id, { type: "artifact", artifact: value });
-    return value;
+    hub.emit(id, { type: "artifact", artifact: saved.draft });
+    return saved.draft;
   },
 
   async publishArtifact(id: string, by: string): Promise<{ url: string }> {

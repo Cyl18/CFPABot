@@ -92,7 +92,7 @@ export function planStats(phases: readonly TodoPhase[] | undefined): { total: nu
 
 function resolveFilePath(raw: string, prNumber: number | undefined): string | null {
   const clean = (raw.split("?")[0] ?? "").split("#")[0]?.replaceAll("\\", "/") ?? "";
-  if (clean.startsWith("skill://") || clean.startsWith("help://") || clean.startsWith("local://") || clean.startsWith("gh://")) {
+  if (clean.startsWith("skill://") || clean.startsWith("local://") || clean.startsWith("gh://")) {
     return null;
   }
   if (prNumber !== undefined) {
