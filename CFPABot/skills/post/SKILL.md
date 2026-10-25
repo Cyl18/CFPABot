@@ -43,7 +43,16 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 - **同 `path` + 同 `key` 只能出一条**：该 key 的其它实例进 `covers`，重复会被校验打回。
 - `id` 由服务端按顺序补 `c1…cN`，不用自己写。
 
-`body` 写原因，`suggestion` 给整行。好：body 说「`Hexerei兼容` 拉丁字母与汉字之间缺空格；这里是兼容性，不是兼容模式」，suggestion 是整行。坏：body 只写「不太自然」，或 suggestion 只给改动的词。
+`body` 写成有序列表：一个条目一个问题，单条也写 `1.`，多条 `1.` `2.` `3.`，不用「；」把问题串成一句。
+
+`body` 写原因，`suggestion` 给整行。好：
+
+```text
+1. `Hexerei兼容` 拉丁字母与汉字之间缺空格，应为「Hexerei 兼容」。
+2. 原文 compatibility 指兼容性，不是「兼容模式」。
+```
+
+坏：body 只写「不太自然」，或 suggestion 只给改动的词、不给整行。
 
 `summary`、`body` 只写正文：统计、档位标题、分类、免责脚注都由服务端拼。
 
