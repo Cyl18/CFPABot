@@ -90,7 +90,7 @@ function PendingSteers({
     <div className="mb-2 overflow-hidden rounded-lg border border-warn/40 bg-warn/5">
       <div className="flex items-center gap-1.5 border-b border-warn/30 px-2.5 py-1 text-[11px] text-warn">
         <CornerDownRight aria-hidden="true" className="size-3" />
-        待插话 · {items.length} · 每步结束后注入一条
+        待插话 · {items.length} · 每步结束后全部注入
       </div>
       {items.map((item) => (
         <div key={item.id} className="flex items-start gap-1 border-t border-warn/15 px-1.5 py-1 first:border-t-0">
@@ -198,18 +198,25 @@ export function SessionPage({ id }: { id: string }) {
 
   const releasing = useRef(false);
 
-  /** 步边界放行一条待插话：服务端会把它 steer 到下一次模型调用之前。 */
+  /** 步边界放行全部待插话：按队列顺序逐条 steer 到下一次模型调用之前。 */
   const releasePending = useCallback(() => {
-    const next = pendingRef.current[0];
-    if (next === undefined || releasing.current) return;
+    if (releasing.current || pendingRef.current.length === 0) return;
     releasing.current = true;
-    api
-      .sendMessage(id, next.text)
-      .then(() => applyPending(pendingRef.current.filter((item) => item.id !== next.id)))
-      .catch((error: unknown) => setActionError(errorMessage(error)))
-      .finally(() => {
-        releasing.current = false;
-      });
+    const released = new Set<string>();
+    void (async () => {
+      for (const item of [...pendingRef.current]) {
+        try {
+          await api.sendMessage(id, item.text);
+        } catch (error) {
+          setActionError(errorMessage(error));
+          return;
+        }
+        released.add(item.id);
+        applyPending(pendingRef.current.filter((entry) => !released.has(entry.id)));
+      }
+    })().finally(() => {
+      releasing.current = false;
+    });
   }, [applyPending, id]);
 
   const handleEvent = useCallback(
@@ -453,7 +460,7 @@ export function SessionPage({ id }: { id: string }) {
   const hint = archived
     ? "会话已归档，不能再发送消息"
     : running
-      ? `运行中 · 待插话 ${pending.length} 条 · 每步结束后注入 · Esc 中止`
+      ? `运行中 · 待插话 ${pending.length} 条 · 每步结束后全部注入 · Esc 中止`
       : "Enter 发送 · Shift+Enter 换行";
 
   return (
@@ -613,7 +620,7 @@ export function SessionPage({ id }: { id: string }) {
                 value={text}
                 onChange={setText}
                 onSubmit={submit}
-                placeholder={archived ? "会话已归档" : running ? "运行中：消息会暂存为待插话，本步结束后注入…" : "输入消息…"}
+                placeholder={archived ? "会话已归档" : running ? "运行中：消息会暂存为待插话，本步结束后全部注入…" : "输入消息…"}
                 submitLabel={running ? "插话" : "发送"}
                 disabled={archived}
                 hint={hint}
