@@ -9,7 +9,7 @@ import { packSummary, peekPack } from "./pack.ts";
 import { jsonResult, pageOf, paginate, pickFields, textResult } from "./result.ts";
 import { isAgentBody, trimBody, visibleIssueComment, visibleReviewComment } from "./format.ts";
 import { missingResource, PR_CHILDREN } from "./catalog.ts";
-import { flagParam, listParam } from "./uri.ts";
+import { flagParam, listParam, sliceLines, splitLineRange } from "./uri.ts";
 import type { PrParts } from "./uri.ts";
 import type { HarnessSession } from "./types.ts";
 import { checksOf } from "./review/checks.ts";
@@ -89,7 +89,7 @@ async function readFiles(uri: PrParts): Promise<AgentToolResult<Record<string, u
       nextOffset: page.nextOffset,
     });
   }
-  const requested = seg.slice(1).join("/");
+  const { path: requested, range } = splitLineRange(seg.slice(1).join("/"));
   const { pull, files } = await prdata.files(n);
   const file = files.find((entry) => entry.path === requested || entry.previousPath === requested);
   if (file === undefined) throw new Error(`PR #${n} 没有变更文件：${requested}`);
@@ -104,7 +104,7 @@ async function readFiles(uri: PrParts): Promise<AgentToolResult<Record<string, u
   if (sidePath === null) throw new Error(`该文件在 ${side} 侧不存在。`);
   const text = await gh.getFile(sidePath, side === "base" ? pull.baseSha : pull.headSha);
   if (text === null) throw new Error(`文件不存在：${sidePath}`);
-  return textResult(text, { requestedPath: requested, path: sidePath });
+  return textResult(range === null ? text : sliceLines(text, range), { requestedPath: requested, path: sidePath });
 }
 
 async function readSpecial(uri: PrParts): Promise<AgentToolResult<Record<string, unknown>>> {

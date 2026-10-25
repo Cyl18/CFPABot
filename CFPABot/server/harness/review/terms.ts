@@ -18,6 +18,7 @@ export interface TermsOptions {
 interface GroupBuilder {
   en: string;
   translations: Map<string, Set<string>>;
+  missed: Map<string, TermGroup["missed"][number]>;
   rows: number;
   misses: number;
 }
@@ -33,7 +34,7 @@ export function aggregateTerms(pack: Pack, index: TermIndex | null, options: Ter
       changedRows += 1;
       const en = row.headEn?.trim() ?? "";
       if (en === "") continue;
-      const builder = builders.get(en) ?? { en, translations: new Map(), rows: 0, misses: 0 };
+      const builder = builders.get(en) ?? { en, translations: new Map(), missed: new Map(), rows: 0, misses: 0 };
       builder.rows += 1;
       const zh = row.headZh?.trim() ?? "";
       if (zh !== "") {
@@ -42,10 +43,19 @@ export function aggregateTerms(pack: Pack, index: TermIndex | null, options: Ter
         builder.translations.set(zh, keys);
       }
       if (index !== null) {
-        const hit = matchTerms(index, row.key, row.headEn ?? "", row.headZh ?? "", workspace.version);
-        if (hit.some((entry) => !entry.ok)) {
+        const hits = matchTerms(index, row.key, row.headEn ?? "", row.headZh ?? "", workspace.version);
+        const failed = hits.filter((entry) => !entry.ok);
+        if (failed.length > 0) {
           builder.misses += 1;
           missRows += 1;
+          for (const entry of failed) {
+            if (builder.missed.has(entry.en)) continue;
+            builder.missed.set(entry.en, {
+              en: entry.en,
+              zh: entry.zh,
+              ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+            });
+          }
         }
       }
       builders.set(en, builder);
@@ -61,20 +71,14 @@ export function aggregateTerms(pack: Pack, index: TermIndex | null, options: Ter
     groups.push({
       en: builder.en,
       inPr,
-      glossary:
-        index === null
-          ? []
-          : lookupTerm(index, builder.en, 5).map((hit) => ({
-              en: hit.en,
-              zh: hit.zh,
-              ...(hit.reason === undefined ? {} : { reason: hit.reason }),
-            })),
+      missed: [...builder.missed.values()].slice(0, 5),
       rows: builder.rows,
       misses: builder.misses,
     });
   }
   groups.sort(
     (a, b) =>
+      Number(b.inPr.length > 1) - Number(a.inPr.length > 1) ||
       b.misses - a.misses ||
       b.inPr.length - a.inPr.length ||
       b.rows - a.rows ||

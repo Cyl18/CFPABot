@@ -15,6 +15,7 @@ const ENV_ALLOW: Record<string, true> = {
   home: true,
   lang: true,
   lc_all: true,
+  pythonioencoding: true,
   tz: true,
   term: true,
   shell: true,
@@ -69,7 +70,7 @@ function envPrologue(cwd: string, prNumber: number | undefined): string {
 }
 
 // 子进程只拿白名单环境变量与 PI_*，避免把 API key 递给模型写的脚本。CFPA_* 由脚本开头的 export 给出。
-function sandboxEnv(env: NodeJS.ProcessEnv, cwd: string): NodeJS.ProcessEnv {
+export function sandboxEnv(env: NodeJS.ProcessEnv, cwd: string): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) continue;
@@ -79,6 +80,10 @@ function sandboxEnv(env: NodeJS.ProcessEnv, cwd: string): NodeJS.ProcessEnv {
   const pathValue = env.PATH ?? env.Path;
   if (pathValue !== undefined) out.PATH = pathValue;
   out.HOME = cwd;
+  // Windows 上子进程默认 cp936，输出被工具按 UTF-8 解码就碎成 �；python 与原生工具都靠这三个变量。
+  out.LANG ??= "C.UTF-8";
+  out.LC_ALL ??= "C.UTF-8";
+  out.PYTHONIOENCODING ??= "utf-8";
   return out;
 }
 

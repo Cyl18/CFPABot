@@ -2,12 +2,14 @@ import { describe, expect, test } from "bun:test";
 import type { ReviewComment, ReviewThread } from "@cfpa/contracts/api";
 import { validateDraft } from "@cfpa/review-core/draft";
 import { buildTermIndex } from "@cfpa/review-core/domain/terms";
+import { entryFindings } from "@cfpa/review-core/domain/checks";
 import type { Pack, PackRow, PackWorkspace } from "@cfpa/review-core/pack";
 import { missingResource, PR_CHILDREN, resourceTree } from "./harness/catalog.ts";
 import type { InternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls";
-import { prPartsOf } from "./harness/uri.ts";
+import { prPartsOf, sliceLines, splitLineRange } from "./harness/uri.ts";
 import { findWriteTarget } from "./harness/write-targets.ts";
 import { buildTools } from "./agent/tools/index.ts";
+import { sandboxEnv } from "./agent/tools/bash.ts";
 import { prepareDraft } from "./harness/review/draft.ts";
 import { reviewRowsForInput, rowsPage } from "./harness/review/rows.ts";
 import { aggregateTerms } from "./harness/review/terms.ts";
@@ -170,6 +172,34 @@ describe("review rows", () => {
     expect(first.duplicate?.keys).toEqual(["z"]);
   });
 
+  test("同 key 的已 resolved 线程跨 workspace 传播，未解决的不传播", () => {
+    const modernPath = "projects/assets/demo/1.21/demo/lang/zh_cn.json";
+    const modern = {
+      ...workspace([row("a", "A", "甲", 10)]),
+      version: "1.21",
+      enPath: "projects/assets/demo/1.21/demo/lang/en_us.json",
+      zhPath: modernPath,
+    };
+    const shared = { ...thread, id: "t2", path: modernPath, resolved: true };
+    const open = { ...thread, id: "t3", path: modernPath, resolved: false };
+    const both: Pack = {
+      ...pack([row("a", "A", "甲", 10)]),
+      workspaces: [workspace([row("a", "A", "甲", 10)]), modern],
+    };
+    const page = rowsPage(
+      {
+        pack: both,
+        threads: { available: true, headSha: "head", pendingReviewId: null, threads: [thread, shared, open] },
+        terms: null,
+        patches: new Map(),
+      },
+      { filter: "reviewable", limit: 5, include: { terms: false, threads: true, duplicates: false, patch: false } },
+    );
+    const [legacyRow, modernRow] = page.rows;
+    expect(legacyRow?.threads?.map((entry) => entry.id)).toEqual(["t1", "t2"]);
+    expect(modernRow?.threads?.map((entry) => entry.id).sort()).toEqual(["t2", "t3"]);
+  });
+
   test("单页超过体积预算时截断并给下一页", () => {
     const many = Array.from({ length: 100 }, (_, index) =>
       row(`k${index}`, "A".repeat(600), "甲".repeat(200), index + 1),
@@ -307,7 +337,7 @@ describe("review rows plan", () => {
     const threads = { available: false, headSha: null, pendingReviewId: null, threads: [] };
     const { plan } = reviewRowsForInput({ pack: pack(rows), threads, terms: null, patches: new Map() }, options);
     const stale = plan.slices[0]!.id;
-    expect(stale.startsWith("head#")).toBe(true);
+    expect(stale.startsWith("head~")).toBe(true);
     expect(() =>
       reviewRowsForInput({ pack: { ...pack(rows), headSha: "nextsha" }, threads, terms: null, patches: new Map() }, { ...options, slice: stale }),
     ).toThrow(/旧 head/);
@@ -329,13 +359,57 @@ describe("terms evidence", () => {
     expect(view.groups[0]?.en).toBe("Foo Bar");
     expect(view.groups[0]?.inPr.map((item) => item.zh).sort()).toEqual(["乙", "甲"]);
     expect(view.groups[0]?.misses).toBe(1);
-    expect(view.groups[0]?.glossary[0]?.zh).toEqual(["甲"]);
+    expect(view.groups[0]?.missed[0]?.zh).toEqual(["甲"]);
     expect(view.counts.inconsistent).toBe(1);
   });
 
   test("term 查询直接查 glossary", () => {
     const view = aggregateTerms(pack([]), index, { queries: ["Foo Bar"], changed: false });
     expect(view.queries[0]?.hits[0]?.zh).toEqual(["甲"]);
+  });
+});
+
+describe("bash 子进程环境", () => {
+  test("默认按 UTF-8，显式设置时保留", () => {
+    const env = sandboxEnv({ PATH: "x" }, "cwd");
+    expect(env.PYTHONIOENCODING).toBe("utf-8");
+    expect(env.LANG).toBe("C.UTF-8");
+    expect(env.LC_ALL).toBe("C.UTF-8");
+    expect(env.HOME).toBe("cwd");
+    expect(sandboxEnv({ PATH: "x", PYTHONIOENCODING: "gbk" }, "cwd").PYTHONIOENCODING).toBe("gbk");
+    expect(sandboxEnv({ PATH: "x", OPENAI_API_KEY: "secret" }, "cwd").OPENAI_API_KEY).toBeUndefined();
+  });
+});
+
+describe("Patchouli 标记", () => {
+  test("中文收尾 $ 少于英文时报没闭合", () => {
+    expect(entryFindings("k", "$(thing)Ambit$", "$(thing)影响范围").some((finding) => finding.code === "patchouli_mismatch")).toBe(true);
+    expect(entryFindings("k", "$(thing)Ambit$", "$(hex)影响范围/$").some((finding) => finding.code === "patchouli_mismatch")).toBe(false);
+  });
+});
+
+describe("files 行范围", () => {
+  test("路径尾部的行范围被剥出来，不当成文件名", () => {
+    expect(splitLineRange("projects/a/zh_cn.json:160-172")).toEqual({
+      path: "projects/a/zh_cn.json",
+      range: { start: 160, end: 172 },
+    });
+    expect(splitLineRange("projects/a/zh_cn.json:160")).toEqual({
+      path: "projects/a/zh_cn.json",
+      range: { start: 160, end: null },
+    });
+    expect(splitLineRange("projects/a/zh_cn.json:1.20")).toEqual({
+      path: "projects/a/zh_cn.json:1.20",
+      range: null,
+    });
+  });
+
+  test("按行切，end 越界夹到末尾，start 越界报错", () => {
+    const text = "a\nb\nc\nd\n";
+    expect(sliceLines(text, { start: 2, end: 3 })).toBe("b\nc");
+    expect(sliceLines(text, { start: 3, end: null })).toBe("c\nd\n");
+    expect(sliceLines(text, { start: 3, end: 999 })).toBe("c\nd\n");
+    expect(() => sliceLines(text, { start: 9, end: null })).toThrow(/只有 5 行/);
   });
 });
 

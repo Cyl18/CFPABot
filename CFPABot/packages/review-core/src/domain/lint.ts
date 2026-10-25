@@ -33,3 +33,8 @@ export function formatCodes(text: string): string[] {
 export function tags(text: string): string[] {
   return (text.match(TAG_RE) ?? []).map((tag) => tag.replace(/\s+/g, " ")).sort();
 }
+
+/** Patchouli 的收尾 `$` 数量；`$$` 是转义的美元符，先屏蔽再数。 */
+export function patchouliClosers(text: string): number {
+  return text.replace(/\$\$/g, "\u0000").split("$").length - 1;
+}

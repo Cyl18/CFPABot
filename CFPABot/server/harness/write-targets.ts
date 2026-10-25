@@ -15,7 +15,7 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
   {
     id: "pr-draft",
     uri: "pr://<n>/draft",
-    summary: "保存草稿并按当前 head 校验；有错不落盘，直接返回可改的字段",
+    summary: "保存草稿并按当前 head 校验；正文省略则复用 local://draft.json；有错不落盘，直接返回可改的字段",
     match: (parts) => {
       const seg = prSegments(parts);
       return seg.length === 1 && seg[0] === "draft";

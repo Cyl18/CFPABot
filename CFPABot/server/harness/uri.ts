@@ -55,3 +55,27 @@ export function flagParam(query: URLSearchParams, name: string): boolean {
   const value = query.get(name);
   return value !== null && value !== "0" && value !== "false";
 }
+
+export interface LineRange {
+  start: number;
+  end: number | null;
+}
+
+/** `path:160-172` / `path:160`；路径本身含冒号时不剥，只有尾部是数字才算行范围。 */
+export function splitLineRange(path: string): { path: string; range: LineRange | null } {
+  const at = /^(.+):(\d+)(?:-(\d+))?$/.exec(path);
+  if (at === null) return { path, range: null };
+  const start = Number(at[2]);
+  const end = at[3] === undefined ? null : Number(at[3]);
+  return { path: at[1] as string, range: { start: Math.max(1, start), end } };
+}
+
+/** 1-based，越界的 end 夹到文件末尾；start 超过总行数是调用方写错了范围，直接报。 */
+export function sliceLines(text: string, range: LineRange): string {
+  const lines = text.split("\n");
+  if (range.start > lines.length) {
+    throw new Error(`行范围超出文件：文件只有 ${lines.length} 行，请求从第 ${range.start} 行开始。`);
+  }
+  const end = range.end === null ? lines.length : Math.min(range.end, lines.length);
+  return lines.slice(range.start - 1, end).join("\n");
+}

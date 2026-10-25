@@ -80,19 +80,56 @@ function reviewableCount(pack: Pack): number {
   return count;
 }
 
-function threadIndex(threads: readonly ReviewThread[]): Map<string, ReviewThread[]> {
-  const index = new Map<string, ReviewThread[]>();
-  const push = (path: string, line: number, thread: ReviewThread): void => {
-    const key = `${path}\u0000${line}`;
-    const list = index.get(key);
-    if (list === undefined) index.set(key, [thread]);
+function threadIndexes(
+  pack: Pack,
+  threads: readonly ReviewThread[],
+): { byLocation: Map<string, ReviewThread[]>; byKey: Map<string, ReviewThread[]> } {
+  const rowKey = new Map<string, string>();
+  for (const workspace of pack.workspaces) {
+    for (const row of workspace.rows) {
+      if (row.line === null) continue;
+      for (const path of [workspace.zhPath, workspace.enPath]) {
+        if (path !== null) rowKey.set(`${path}\u0000${row.line}`, row.key);
+      }
+    }
+  }
+  const byLocation = new Map<string, ReviewThread[]>();
+  const byKey = new Map<string, ReviewThread[]>();
+  const push = (map: Map<string, ReviewThread[]>, key: string, thread: ReviewThread): void => {
+    const list = map.get(key);
+    if (list === undefined) map.set(key, [thread]);
     else if (!list.includes(thread)) list.push(thread);
   };
   for (const thread of threads) {
-    if (thread.line !== null) push(thread.path, thread.line, thread);
-    if (thread.originalLine !== null && thread.originalLine !== thread.line) push(thread.path, thread.originalLine, thread);
+    const lines = [thread.line, thread.originalLine].filter((line): line is number => line !== null);
+    const keys = new Set<string>();
+    for (const line of lines) {
+      const at = `${thread.path}\u0000${line}`;
+      push(byLocation, at, thread);
+      const key = rowKey.get(at);
+      if (key !== undefined && !keys.has(key)) {
+        keys.add(key);
+        push(byKey, key, thread);
+      }
+    }
   }
-  return index;
+  return { byLocation, byKey };
+}
+
+/** 同 key 的另一版本只传播已 resolved 的裁定：未解决的评论换个文件没有意义。 */
+function mergeThreads(here: readonly ReviewThread[] | undefined, shared: readonly ReviewThread[] | undefined): ReviewThread[] {
+  const out: ReviewThread[] = [];
+  const seen = new Set<string>();
+  for (const thread of here ?? []) {
+    seen.add(thread.id);
+    out.push(thread);
+  }
+  for (const thread of shared ?? []) {
+    if (!thread.resolved || seen.has(thread.id)) continue;
+    seen.add(thread.id);
+    out.push(thread);
+  }
+  return out;
 }
 
 function duplicateOf(workspace: PackWorkspace, key: string, zh: string | undefined): ReviewRowView["duplicate"] {
@@ -159,10 +196,13 @@ function selectForOptions(pack: Pack, options: RowsOptions): SelectedRow[] {
 }
 
 function buildRows(input: RowsInput, options: RowsOptions, selected: readonly SelectedRow[]): ReviewRowView[] {
-  const threads = input.threads.available ? threadIndex(input.threads.threads) : new Map<string, ReviewThread[]>();
+  const indexes = input.threads.available
+    ? threadIndexes(input.pack, input.threads.threads)
+    : { byLocation: new Map<string, ReviewThread[]>(), byKey: new Map<string, ReviewThread[]>() };
   return selected.map(({ workspace, row }: SelectedRow) => {
     const path = workspace.zhPath;
-    const found = path === null ? undefined : threads.get(`${path}\u0000${row.line ?? -1}`);
+    const here = path === null ? undefined : indexes.byLocation.get(`${path}\u0000${row.line ?? -1}`);
+    const found = mergeThreads(here, indexes.byKey.get(row.key));
     const duplicate = options.include.duplicates ? duplicateOf(workspace, row.key, row.headZh) : undefined;
     return {
       workspace: workspaceKey(workspace),
@@ -187,7 +227,7 @@ function buildRows(input: RowsInput, options: RowsOptions, selected: readonly Se
             ).slice(0, 6),
           }
         : {}),
-      ...(options.include.threads && found !== undefined ? { threads: found } : {}),
+      ...(options.include.threads && found.length > 0 ? { threads: found } : {}),
       ...(duplicate === undefined ? {} : { duplicate }),
     };
   });
@@ -316,7 +356,7 @@ function planFor(input: RowsInput, options: RowsOptions, rows: readonly ReviewRo
       group = nextGroup;
       end += 1;
     }
-    const id = `${input.pack.headSha.slice(0, 7)}#${workspace}#${index}`;
+    const id = `${input.pack.headSha.slice(0, 7)}~${workspace}~${index}`;
     const uri = `pr://${input.pack.prNumber}/rows?${sliceParams(options, id).toString()}`;
     slices.push({
       id,

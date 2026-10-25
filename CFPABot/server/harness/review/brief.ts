@@ -133,12 +133,19 @@ function nextOf(
   return [...next];
 }
 
+const SEVERITY_RANK = { critical: 0, major: 1, minor: 2, neutral: 3 } as const;
+
 function warningsOf(findings: readonly Finding[]): Finding[] {
-  const rank = { critical: 0, major: 1, minor: 2, neutral: 3 } as const;
   return findings
     .filter((finding) => finding.severity === "critical" || finding.severity === "major")
-    .sort((a, b) => rank[a.severity] - rank[b.severity])
+    .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])
     .slice(0, 20);
+}
+
+function tallyOf(findings: readonly Finding[]): { critical: number; major: number; minor: number; neutral: number } {
+  const counts = { critical: 0, major: 0, minor: 0, neutral: 0 };
+  for (const finding of findings) counts[finding.severity] += 1;
+  return counts;
 }
 
 /** 一次拿全貌：PR、工作区、检查、讨论、特殊文件、草稿、下一步；review=1 附全集或分片 plan。 */
@@ -164,10 +171,27 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
   const additions = detail.files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = detail.files.reduce((sum, file) => sum + file.deletions, 0);
   const checksView = checksSummary(checks);
-  const localChecks = pack?.workspaces.flatMap((workspace) => workspace.checks) ?? [];
-  const localMajor = localChecks.filter(
+  const localFindings =
+    pack === null
+      ? []
+      : pack.workspaces.flatMap((workspace) => [
+          ...workspace.checks,
+          ...workspace.rows.flatMap((row) => row.findings),
+        ]);
+  const localMajor = localFindings.filter(
     (finding) => finding.severity === "critical" || finding.severity === "major",
   );
+  // 没有 bot 报告时 counts/top 是空的，模型会以为机械项没跑；用本地预审补上。
+  if (checksView.status === "unknown" && localFindings.length > 0) {
+    checksView.unitCount = pack === null ? 0 : pack.workspaces.length;
+    checksView.counts = tallyOf(localFindings);
+    checksView.top = [...localFindings]
+      .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])
+      .slice(0, 10);
+    checksView.hint = [checksView.hint, "counts/top 由本地预审填充（键集/占位符/标签/术语），逐行见 rows[].findings。"]
+      .filter(Boolean)
+      .join(" ");
+  }
   const fallbackHint =
     detail.workspaces.length === 0
       ? "没有可预审的语言包工作区；先看 checks 的路径问题和 special-files。"
@@ -175,7 +199,7 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
         ? `共 ${plan.total} 行 / ${plan.bytes} B，超过单页预算；从 next 开始逐片读，共 ${plan.sliceCount} 片，不要用 offset。`
         : `审查从 rows 开始；一次拿全貌用 read pr://${n}?review=1。`;
   const hint = [
-    localMajor.length === 0 ? undefined : `本地机械检查 ${localMajor.length} 条（含键集），见 warnings。`,
+    localMajor.length === 0 ? undefined : `本地机械检查 ${localMajor.length} 条（含键集/占位符/标签/术语），见 warnings。`,
     checksView.hint ?? fallbackHint,
   ]
     .filter(Boolean)
@@ -220,7 +244,7 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
     },
     workspaces,
     checks: checksView,
-    warnings: warningsOf([...checks.findings, ...localChecks]),
+    warnings: warningsOf([...checks.findings, ...localFindings]),
     specialFiles: {
       total: detail.specialFiles.length,
       paths: detail.specialFiles.slice(0, 30),

@@ -1,7 +1,7 @@
 import type { Finding, PrFile, Severity } from "@cfpa/contracts/api";
 import type { ParsedLang } from "./langfile.ts";
 import { compareMc } from "./path.ts";
-import { CJK_SPACE_RE, formatCodes, placeholders, tags } from "./lint.ts";
+import { CJK_SPACE_RE, formatCodes, patchouliClosers, placeholders, tags } from "./lint.ts";
 
 const LANG_FILE_RE = /^(zh_cn|en_us)\.(json|lang)$/i;
 const ILLEGAL_PATH_RE = /[^0-9A-Za-z_\-./]/;
@@ -305,6 +305,17 @@ export function entryFindings(
         code: "tag_mismatch",
         severity: "major",
         detail: `HTML 标签不一致 en[${aTags.join(",")}] zh[${bTags.join(",")}]`,
+      });
+    }
+    // 译者可以给中文加 `$(hex)…/$` 这类配色，但少一个收尾 `$` 就是没闭合。
+    const enClosers = patchouliClosers(e);
+    const zhClosers = patchouliClosers(z);
+    if (zhClosers < enClosers) {
+      findings.push({
+        ...at,
+        code: "patchouli_mismatch",
+        severity: "major",
+        detail: `Patchouli 收尾 $ 少于英文 en[${enClosers}] zh[${zhClosers}]，可能有标记没闭合`,
       });
     }
     const enLines = e.split("\n").length - 1;

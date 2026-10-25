@@ -19,7 +19,7 @@
 `read pr://<n>` 是审查简报。`read pr://<n>?review=1` 附带 reviewable 行：预算内直接给全集（`complete=true`）；超预算时不给行，返回 `plan`（`sliceCount` 是总片数，`slices[]` 只列开头 8 片，带 `uri`、`rows`、`bytes`、首尾 key）。从 `next` 开始照抄地址逐片读，每片 `complete=true`，`next` 指向下一片；`next` 为 null 才算读完。不要用 `offset`/`limit` 猜页。
 
 - `rows`：默认 `filter=reviewable`（changed 且在 diff hunk 内）；`filter=changed|flagged|all`；`workspace`、`prefix`、`keys`、`query` 都能收窄；`include=terms,threads,duplicates,patch` 控制附加信息。默认查询要么一次给全集，要么只给 `plan`；读整片用 `slice=<id>`。
-- `terms`：`?changed=1` 给本 PR 同词多译、术语缺失和 glossary 权威译法；`?term=xxx&term=yyy` 只查词。术语证据优先用这里，不要读缓存文件。
+- `terms`：`?changed=1` 给本 PR 同词多译、命中 glossary 却没对上的词（`missed`）；`?term=xxx&term=yyy` 只查词。术语证据优先用这里，不要读缓存文件。
 - `draft`：`read pr://<n>/draft` 看 schema、当前草稿和校验；写草稿与发布见「可写目标」，校验不过不落盘，`errors` 会直接返回。
 - 指南/手册类 PR 用 `read pr://<n>/special-files?include=text&limit=6`：一页内联多对 en/zh 内容和 hunk，`next` 继续；不要一对一次地读。
 - 单文件：`read pr://<n>/files/<path>?side=head|base`；只要 diff 用 `?format=patch`；行范围写 `:N-M`。

@@ -30,6 +30,7 @@ description: 译前草稿：路径闸门、范围、术语表、风格指南、�
    | <100 changed 行 | 先看 `pr://<n>/terms?changed=1`，术语表 10–20 行 |
    | changed 行是名字型 | `mod prep` 提候选 |
    | changed 行有整句/长段落 | 加 `mod mine`（纯名字包 `long_only=0`，白跑） |
+   | 新文件、且仓库有同模组其它版本译文 | 跳过 prep，直接 `terms?changed=1` + 按 key 比对既有译文 |
    | >1000 changed 行 | 先按 key 分片，每片各自判断 |
 
    ```bash

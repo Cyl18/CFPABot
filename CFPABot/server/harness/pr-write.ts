@@ -61,8 +61,14 @@ function parseSubmit(content: string | undefined): { event: "COMMENT" | "APPROVE
 }
 
 async function writeDraft(uri: PrParts, content: string | undefined, ctx: WriteSession): Promise<AgentToolResult<Record<string, unknown>>> {
-  if (content === undefined || content.trim() === "") throw new Error("write pr://<n>/draft 需要草稿 JSON。");
-  const result = await saveDraftOf(uri.number, ctx.sessionId, content);
+  // 空正文 = 复用 local://draft.json：可以先 edit 几行，再整份校验落盘。
+  let body = content ?? "";
+  if (body.trim() === "") {
+    const raw = await readLocal(ctx.sessionId, DRAFT_FILE);
+    if (raw === null) throw new Error("没有已保存的草稿；正文里给草稿 JSON，或先写 local://draft.json。");
+    body = raw.content;
+  }
+  const result = await saveDraftOf(uri.number, ctx.sessionId, body);
   if (!result.ok || result.draft === undefined) {
     return errorResult({
       ok: false,
