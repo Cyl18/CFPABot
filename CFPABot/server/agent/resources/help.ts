@@ -1,5 +1,6 @@
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { jsonResult } from "../result.ts";
+import { GH_CHILDREN, PR_CHILDREN } from "./tree.ts";
 import type { ResourceParts } from "./uri.ts";
 
 const TOPICS: Record<string, string> = {
@@ -50,7 +51,7 @@ repo:// 与 pr:// 不能直接写，需要处理时先复制到 local://。`,
 ?ref=<sha> 从 git 对象读指定版本。`,
   "resources/pr": `# pr://
 
-pr://<n>/ 下的资源：files、files/<path>、comments、threads、checks、workspaces、related、compare、special-files、meta、review、review/rows。
+pr://<n>/ 下的资源：${PR_CHILDREN.join("、")}。
 
 - files、special-files、related、review/rows 都支持 ?offset=&limit=，返回 total/truncated/nextOffset；截断不代表内容为空。
 - checks 返回 {status, checkedSha, builtAt, units, counts, findings}：status 为 not_run/running/ok/stale/failed；ok 且 findings 为空表示检查跑过且没发现问题。
@@ -59,7 +60,7 @@ pr://<n>/ 下的资源：files、files/<path>、comments、threads、checks、wo
 - files 支持 ?side=head|base；rows 支持 ?workspace=&filter=changed|flagged|all&query=&offset=&limit=&rebuild=1。`,
   "resources/gh": `# gh://
 
-仓库级元数据：meta、pulls?state=、issues/<n>、issues/<n>/comments、search?q=&type=、mods?q=、versions/<slug>/keys。`,
+仓库级元数据：${GH_CHILDREN.join("、")}。查询参数见系统提示的资源树。`,
   "resources/local": `# local://
 
 会话 workspace，可读写，支持子目录；禁止 .. 与绝对路径。bash 与 eval 的 cwd 就是它。

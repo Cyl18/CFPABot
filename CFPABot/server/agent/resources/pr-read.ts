@@ -11,21 +11,9 @@ import { compareWorkspace } from "../../views/workspace.ts";
 import { loadPack, packSummary, peekPack, selectRows, workspaceKey } from "../pack.ts";
 import { jsonResult, pageOf, paginate, textResult } from "../result.ts";
 import { isAgentBody, missingResource, trimBody, visibleIssueComment, visibleReviewComment } from "./format.ts";
+import { PR_CHILDREN } from "./tree.ts";
 import type { Finding, ModFileCheck } from "@cfpa/contracts/api";
 import type { PrParts } from "./uri.ts";
-
-const PR_CHILDREN = [
-  "files",
-  "comments",
-  "threads",
-  "checks",
-  "workspaces",
-  "compare",
-  "special-files",
-  "meta",
-  "review",
-  "related",
-] as const;
 
 export async function readPr(uri: PrParts): Promise<AgentToolResult<Record<string, unknown>>> {
   const n = uri.number;

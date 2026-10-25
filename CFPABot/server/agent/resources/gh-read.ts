@@ -6,14 +6,13 @@ import { prdata } from "../../prdata.ts";
 import { crossVersionKeys } from "../../views/cross-version.ts";
 import { jsonResult } from "../result.ts";
 import { isAgentBody, missingResource, trimBody, visibleIssueComment } from "./format.ts";
+import { GH_CHILDREN } from "./tree.ts";
 import type { ResourceParts } from "./uri.ts";
-
-const CHILDREN = ["meta", "pulls", "issues", "search", "mods", "versions"] as const;
 
 export async function readGh(uri: ResourceParts): Promise<AgentToolResult<Record<string, unknown>>> {
   const seg = uri.path.split("/").filter(Boolean);
   const head = seg[0];
-  if (head === undefined) return missingResource("gh://", CHILDREN);
+  if (head === undefined) return missingResource("gh://", GH_CHILDREN);
 
   if (head === "meta") {
     return jsonResult({ owner: repo.owner, name: repo.name, fullName: repo.fullName, defaultBranch: repo.defaultBranch });
@@ -84,5 +83,5 @@ export async function readGh(uri: ResourceParts): Promise<AgentToolResult<Record
     );
   }
 
-  return missingResource(`gh://${uri.path}`, CHILDREN);
+  return missingResource(`gh://${uri.path}`, GH_CHILDREN);
 }

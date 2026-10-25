@@ -1,5 +1,5 @@
 import type { ReviewDraft } from "@cfpa/contracts/api";
-import { gh } from "../../../github/client.ts";
+import { assertBotWrites, gh } from "../../../github/client.ts";
 import { logger } from "../../../log.ts";
 import { renderInlineBody, renderReviewBody, validateDraft } from "../../draft.ts";
 
@@ -14,6 +14,7 @@ export async function publishDraft(
   draft: ReviewDraft,
   opts: PublishOptions = {},
 ): Promise<{ url: string; headSha: string }> {
+  assertBotWrites();
   const pull = await gh.getPull(draft.prNumber);
   if (pull.headSha !== draft.headSha) {
     throw new Error(

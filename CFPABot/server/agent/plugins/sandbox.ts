@@ -1,42 +1,83 @@
 import { join, resolve, sep } from "node:path";
 import type { ExtensionFactory } from "@oh-my-pi/pi-coding-agent";
-import type { WriteScope } from "@cfpa/contracts/api";
-import { paths } from "../paths.ts";
+import { logger } from "../../log.ts";
+import { paths } from "../../paths.ts";
+
+const log = logger("sandbox");
 
 const EXEC_TOOLS: Record<string, true> = { bash: true, eval: true };
 const WRITE_TOOLS: Record<string, true> = { write: true, edit: true, ast_edit: true };
 const READ_TOOLS: Record<string, true> = { read: true, grep: true, find: true, glob: true };
 const LOCAL_URI = /^local:\/\//i;
 const PR_URI = /^pr:\/\//i;
-/** 内部 URL 由路由器解析，不是文件系统路径。 */
 const SCHEME = /^[A-Za-z][\w+.-]*:\/\//;
-/** read 的行号/raw 选择器尾部，`D:` 盘符不受影响。 */
 const READ_SELECTOR = /(?::(?:raw|img|conflicts|\d[\d,+-]*|-\d+))+$/;
 const EXEC_SOURCE: Record<string, string> = { bash: "command", eval: "code" };
-/** `..` 作为独立路径段即拒；`...`、`a..b` 不算。 */
 const PARENT_SEGMENT = /(?:^|[^A-Za-z0-9._-])\.\.(?:$|[^A-Za-z0-9._-])/;
-/** 盘符与 MSYS 挂载点；必须行首或分隔符后，否则 `repo://`、`https://` 会被当成盘符。 */
 const ABSOLUTE_PATH = /(?:^|[\s"'`(,=;|&])(?:[A-Za-z]:[\\/]|\/mnt\/)/;
 
-/** 工具始终注册，关闭执行权限时在调用处拒绝，工具块因此恒定。 */
-export function execBlockReason(toolName: string, allowed: boolean): string | undefined {
+const SECRET_NAMES = [
+  "GITHUB_PAT",
+  "GITHUB_APP_PRIVATE_KEY_PATH",
+  "GITHUB_WEBHOOK_SECRET",
+  "GITHUB_OAUTH_CLIENT_SECRET",
+  "CURSEFORGE_API_KEY",
+  "OPENAI_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "GOOGLE_API_KEY",
+  "GEMINI_API_KEY",
+  "OPENROUTER_API_KEY",
+  "PERPLEXITY_API_KEY",
+  "EXA_API_KEY",
+  "AZURE_OPENAI_API_KEY",
+  "MISTRAL_API_KEY",
+];
+
+const SECRET_PATHS = [
+  /config[\\/]llm\.json/i,
+  /config[\\/]secret\.key/i,
+  /config[\\/][^\\/]*\.(?:pem|key)/i,
+  /(?:^|[\\/])\.env/i,
+];
+
+const PRIVATE_PATHS = [/runtime[\\/]cache[\\/]/i, /runtime[\\/]pi-agent[\\/]/i, /runtime[\\/]sessions[\\/]/i];
+
+const ENV_DUMPS = [
+  /\bprocess\.env\b/,
+  /\bBun\.env\b/,
+  /\bos\.environ\b/,
+  /\bprintenv\b/,
+  /\/proc\/self\/environ/,
+  /"command"\s*:\s*"(?:[^"]*[;&|]\s*)?env(?:\s|")/,
+];
+
+export interface SandboxOptions {
+  workspace: string;
+  execAllowed: () => Promise<boolean>;
+}
+
+export function secretReason(input: unknown): string | undefined {
+  const text = JSON.stringify(input);
+  if (SECRET_NAMES.some((name) => text.includes(name))) return "禁止读取服务端密钥环境变量";
+  if (SECRET_PATHS.some((pattern) => pattern.test(text))) return "禁止读取服务端配置文件";
+  if (PRIVATE_PATHS.some((pattern) => pattern.test(text))) return "禁止读取服务端缓存、凭据或其它会话的数据";
+  if (ENV_DUMPS.some((pattern) => pattern.test(text))) return "禁止枚举服务端环境变量";
+  return undefined;
+}
+
+export function execReason(toolName: string, allowed: boolean): string | undefined {
   if (EXEC_TOOLS[toolName] !== true || allowed) return undefined;
   return "执行权限已关闭（evalScope=off），管理员可在会话上开启。";
 }
 
-/** local:// 永远可写；GitHub 写入跟 writeScope 走；其余路径一律拒绝。 */
-export function writeBlockReason(toolName: string, input: unknown, scope: WriteScope): string | undefined {
+export function writeReason(toolName: string, input: unknown): string | undefined {
   if (WRITE_TOOLS[toolName] !== true) return undefined;
   const path = input && typeof input === "object" && "path" in input ? input.path : undefined;
   if (typeof path !== "string" || path.length === 0) return "写入需要明确的 local:// 或 pr:// 目标。";
-  if (LOCAL_URI.test(path)) return undefined;
-  if (PR_URI.test(path)) {
-    return scope === "on" ? undefined : "写权限未开启（writeScope=off），管理员可在会话上开启。";
-  }
+  if (LOCAL_URI.test(path) || PR_URI.test(path)) return undefined;
   return "只能写 local://（会话 workspace）或 pr://（GitHub）。";
 }
 
-/** 会话 workspace 是 bash 与 eval 的 cwd，相对路径足够；`..` 与绝对路径直接拒绝。 */
 export function execPathReason(toolName: string, input: unknown): string | undefined {
   const key = EXEC_SOURCE[toolName];
   if (key === undefined || input === null || typeof input !== "object") return undefined;
@@ -47,7 +88,6 @@ export function execPathReason(toolName: string, input: unknown): string | undef
   return undefined;
 }
 
-/** `path` 可能是字符串、数组，grep 还允许 `;` 分隔。 */
 function pathEntries(input: unknown): string[] {
   if (input === null || typeof input !== "object") return [];
   const record = input as Record<string, unknown>;
@@ -56,7 +96,6 @@ function pathEntries(input: unknown): string[] {
   return list.filter((item): item is string => typeof item === "string").flatMap((item) => item.split(";"));
 }
 
-/** 只读工具只能落在会话 workspace、runtime/work（仓库与 PR 物化）与 skills；内部 URL 放行。 */
 export function readPathReason(toolName: string, input: unknown, workspace: string): string | undefined {
   if (READ_TOOLS[toolName] !== true) return undefined;
   const allowed = [workspace, join(paths.root, "runtime", "work"), join(paths.root, "skills")].map((dir) => resolve(dir));
@@ -73,19 +112,29 @@ export function readPathReason(toolName: string, input: unknown, workspace: stri
   return undefined;
 }
 
-export function scopeGuard(
-  execAllowed: () => Promise<boolean>,
-  writeScopeOf: () => Promise<WriteScope>,
+export function sandboxReason(
+  toolName: string,
+  input: unknown,
   workspace: string,
-): ExtensionFactory {
+  execAllowed: boolean,
+): string | undefined {
+  const secret = secretReason(input);
+  if (secret !== undefined) return secret;
+  const exec = execReason(toolName, execAllowed);
+  if (exec !== undefined) return exec;
+  return writeReason(toolName, input) ?? execPathReason(toolName, input) ?? readPathReason(toolName, input, workspace);
+}
+
+export function sandbox(options: SandboxOptions): ExtensionFactory {
   return (pi) => {
     pi.on("tool_call", async (event) => {
-      const execReason = execBlockReason(event.toolName, await execAllowed());
-      const writeReason =
-        execReason === undefined ? writeBlockReason(event.toolName, event.input, await writeScopeOf()) : undefined;
-      const pathReason = execReason === undefined ? execPathReason(event.toolName, event.input) : undefined;
-      const readReason = readPathReason(event.toolName, event.input, workspace);
-      const reason = execReason ?? writeReason ?? pathReason ?? readReason;
+      let reason: string | undefined;
+      try {
+        reason = sandboxReason(event.toolName, event.input, options.workspace, await options.execAllowed());
+      } catch (err) {
+        log.error("沙箱策略执行失败", { tool: event.toolName, err });
+        reason = "沙箱策略执行失败，工具调用已拒绝。";
+      }
       return reason === undefined ? undefined : { block: true, reason };
     });
   };

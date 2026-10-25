@@ -1,14 +1,12 @@
-import { env } from "../../env.ts";
+import { isMainBot } from "../../bot/render.ts";
+
+export { isMainBot };
 
 const BODY_LIMIT = 2000;
 
 export function trimBody(body: string): string {
   const trimmed = body.trim();
   return trimmed.length > BODY_LIMIT ? `${trimmed.slice(0, BODY_LIMIT)}…[已截断]` : trimmed;
-}
-
-export function isMainBot(author: string, body: string): boolean {
-  return body.startsWith("<!--CYBOT-->") && (author === env.BOT_LOGIN || author === "Cyl18-Bot");
 }
 
 export function isAgentBody(body: string): boolean {

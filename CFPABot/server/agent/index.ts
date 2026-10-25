@@ -23,7 +23,6 @@ import type {
   WriteScope,
 } from "@cfpa/contracts/api";
 import { prdata } from "../prdata.ts";
-import { botWritesEnabled } from "../github/client.ts";
 import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
 import { type ToolContext } from "./context.ts";
@@ -36,8 +35,7 @@ import { isLocalPath, listLocal, localDir, readLocal, writeLocal } from "./local
 import { openAuthStorage, openModelRuntime, openSessionManager, sessionMessages } from "./pi.ts";
 import { LiveProjector, projectMessages } from "./projection.ts";
 import { buildSystemPrompt } from "./prompt.ts";
-import { secretGuard } from "./secret-guard.ts";
-import { scopeGuard } from "./scope-guard.ts";
+import { sandbox } from "./plugins/sandbox.ts";
 import { sessionTitle } from "./title.ts";
 import { SessionStore, summarize, type SessionMeta, type SessionRecord } from "./sessions.ts";
 import { registerSchemes } from "./schemes.ts";
@@ -200,12 +198,10 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   const modelRuntime = await openModelRuntime(authStorage, config.endpoints, config.roles);
   const thinkingLevel: Effort | undefined = thinking === "off" ? undefined : effortOf(thinking);
   const extensions = [
-    secretGuard,
-    scopeGuard(
-      async () => (await store.get(id))?.meta.evalScope === "run",
-      async () => (await store.get(id))?.meta.writeScope ?? "off",
-      localDir(id),
-    ),
+    sandbox({
+      workspace: localDir(id),
+      execAllowed: async () => (await store.get(id))?.meta.evalScope === "run",
+    }),
   ];
   const manager = await openSessionManager(record);
   const sessionFile = manager.getSessionFile() ?? record.sessionFile;
@@ -336,7 +332,6 @@ async function publishOnce(id: string, by: string): Promise<{ url: string }> {
   const raw = await readLocal(id, DRAFT_FILE);
   const draft = raw === null ? null : parseDraftFile(raw.content);
   if (draft === null) throw httpError("没有可发布的草稿", 400);
-  if (!botWritesEnabled()) throw httpError("当前 GitHub 身份不是机器人，已暂停发布审查。", 403);
   const { url } = await publishDraft(draft);
   const value = { ...draft, publishedAt: now(), publishedUrl: url };
   await writeLocal(id, DRAFT_FILE, serializeDraftFile(value));
