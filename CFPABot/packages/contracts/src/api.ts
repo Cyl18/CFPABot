@@ -557,7 +557,7 @@ export interface SetSessionConfigRequest {
 
 export type SessionEvent =
   | { type: "snapshot"; session: SessionDetail }
-  | { type: "status"; status: SessionStatus; lastError?: string }
+  | { type: "status"; status: SessionStatus; lastError?: string; note?: string }
   | { type: "item"; item: ChatItem }
   /** 一次模型往返（step）结束：响应正文与思考都已完整返回。 */
   | { type: "step"; phase: "end" }

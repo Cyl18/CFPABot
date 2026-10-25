@@ -1,7 +1,22 @@
 import type { SessionEvent } from "@cfpa/contracts/api";
+import type { AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session-events";
 import { logger } from "../log.ts";
 
 const log = logger("agent-events");
+
+/** omp 的自动重试是黑盒：不映射成状态事件，前端只能看空白 typing，像卡死。 */
+export function statusEventOf(event: AgentSessionEvent): SessionEvent | undefined {
+  if (event.type === "auto_retry_start") {
+    const seconds = Math.max(1, Math.round(event.delayMs / 1000));
+    return {
+      type: "status",
+      status: "running",
+      note: `上游请求失败，约 ${seconds} 秒后自动重试（第 ${event.attempt}/${event.maxAttempts} 次）`,
+    };
+  }
+  if (event.type === "auto_retry_end" && event.success) return { type: "status", status: "running" };
+  return undefined;
+}
 
 export class SessionHub {
   private listeners = new Map<string, Set<(event: SessionEvent) => void>>();

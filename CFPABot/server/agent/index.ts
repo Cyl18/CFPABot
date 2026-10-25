@@ -28,7 +28,7 @@ import { type ToolContext } from "./context.ts";
 import { agentMcpManager, closeAgentMcp } from "./mcp.ts";
 import { DRAFT_FILE, draftInputSchema, parseDraftFile } from "./draft.ts";
 import { markPublishedOf, saveDraftOf } from "../harness/review/draft.ts";
-import { SessionHub } from "./events.ts";
+import { SessionHub, statusEventOf } from "./events.ts";
 import { applySearchEnv, loadConfig, llm, resolveModel } from "./llm.ts";
 import { effortOf, parseRoleSelector } from "./llm-providers.ts";
 import { isLocalPath, listLocal, localDir, readLocal, writeLocal } from "./local-store.ts";
@@ -234,6 +234,8 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   const projector = new LiveProjector(entries.filter((entry) => entry.type === "message").length);
   const unsubscribe = session.subscribe((event) => {
     for (const item of projector.handle(event)) hub.emit(id, { type: "item", item });
+    const status = statusEventOf(event);
+    if (status !== undefined) hub.emit(id, status);
     if (event.type === "message_end" && event.message.role === "assistant") hub.emit(id, { type: "step", phase: "end" });
   });
   try {

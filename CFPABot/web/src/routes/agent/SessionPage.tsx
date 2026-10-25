@@ -135,6 +135,7 @@ export function SessionPage({ id }: { id: string }) {
   const [draft, setDraft] = useState<ReviewDraft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [lastError, setLastError] = useState<string | undefined>(undefined);
+  const [note, setNote] = useState<string | undefined>(undefined);
   const [draftError, setDraftError] = useState<string | undefined>(undefined);
   const [text, setText] = useState("");
   const [actionError, setActionError] = useState<string | undefined>(undefined);
@@ -160,6 +161,7 @@ export function SessionPage({ id }: { id: string }) {
     setText("");
     setPending(readPending(id));
     sawRunning.current = false;
+    setNote(undefined);
   }, [id]);
 
   useEffect(() => {
@@ -176,6 +178,7 @@ export function SessionPage({ id }: { id: string }) {
     setDraft(isReviewDraft(data.artifact) ? data.artifact : null);
     setDirty(false);
     setLastError(data.lastError);
+    setNote(undefined);
     atBottomRef.current = true;
     setAtBottom(true);
   }, [detail.data]);
@@ -217,6 +220,7 @@ export function SessionPage({ id }: { id: string }) {
           setStatus(event.session.status);
           if (!dirty) setDraft(isReviewDraft(event.session.artifact) ? event.session.artifact : null);
           setLastError(event.session.lastError);
+          setNote(undefined);
           break;
         }
         case "item": {
@@ -237,6 +241,7 @@ export function SessionPage({ id }: { id: string }) {
         case "status": {
           setStatus(event.status);
           setLastError(event.lastError);
+          setNote(event.note);
           break;
         }
         case "step": {
@@ -527,6 +532,13 @@ export function SessionPage({ id }: { id: string }) {
         <div className="flex shrink-0 items-center gap-2 border-b border-warn/40 bg-warn/10 px-4 py-1.5 text-xs text-warn">
           {connection === "disconnected" ? <WifiOff aria-hidden="true" className="size-3.5" /> : <Spinner className="text-warn" />}
           {connection === "disconnected" ? "事件流已断开，正在重连" : "正在连接事件流…"}
+        </div>
+      )}
+
+      {status === "running" && note !== undefined && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-warn/40 bg-warn/10 px-4 py-1.5 text-xs text-warn">
+          <Spinner className="text-warn" />
+          {note}
         </div>
       )}
 
