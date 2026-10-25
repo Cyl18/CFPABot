@@ -11,10 +11,10 @@ description: 译前草稿：路径闸门、范围、术语表、风格指南、�
 
 ## 步骤
 
-1. **路径闸门**：`read pr://<n>?review=1&limit=120`。一次拿到 `pr.headSha`、`workspaces`、`checks`、`rows` 计数和第一页行。
+1. **路径闸门**：`read pr://<n>?review=1`。一次拿到 `pr.headSha`、`workspaces`、`checks`、`rows` 计数；行在预算内给全集，超预算给 `plan`。
    - 预审解析 `projects/assets/<slug>/<版本>/<namespace>/lang/` 这 7 段布局；迁移前的 6 段（无版本目录）解析不到。
    - `counts.workspaces === 0`：看 `read pr://<n>/checks` 的 `bad_path`、`bad_path_domain`。有 `/mv` 目标 → 路径问题写进 summary 并停；没有 → 直接读文件审内容，跳过范围与候选。
-2. **基线**：简报里有 `workspaces`（`enPath`、`zhPath`、counts）、`checks`、`files`、`specialFiles`、`related`、`discussions`；rows 已带每条 changed 行的 `findings`。需要完整预审 pack 摘要再 `read pr://<n>/review`。
+2. **基线**：简报里有 `workspaces`（`enPath`、`zhPath`、counts）、`checks`、`files`、`specialFiles`、`related`、`discussions`；返回 rows 时每条 changed 行已带 `findings`，只有 plan 时从 `next` 开始逐片读。需要完整预审 pack 摘要再 `read pr://<n>/review`。
 3. **范围**：用 key 前缀或正则圈定，规则写进 `prep.json`，保证能重跑。
    - 语言文件先落到 `local://work/`：`read pr://<n>/files/<enPath>?side=head`，再 `write local://work/en_us.json`（zh 同理）；脚本只吃这份副本，不碰 `localRoot`。
    - lang 目录 = `./work`；输出写 `local://`，相对路径就是它。

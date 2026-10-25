@@ -98,7 +98,7 @@ function pathEntries(input: unknown): string[] {
 
 export function readPathReason(toolName: string, input: unknown, workspace: string): string | undefined {
   if (READ_TOOLS[toolName] !== true) return undefined;
-  const allowed = [workspace, join(paths.root, "runtime", "work"), join(paths.root, "skills")].map((dir) => resolve(dir));
+  const allowed = [workspace, paths.work, join(paths.root, "skills")].map((dir) => resolve(dir));
   for (const entry of pathEntries(input)) {
     const target = entry.trim();
     if (target === "" || SCHEME.test(target)) continue;

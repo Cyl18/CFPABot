@@ -19,6 +19,12 @@ export const paths = {
   piAgent: join(root, "runtime", "pi-agent"),
 } as const;
 
+// 子代理的 SDK bash 不经过自定义工具，靠进程环境拿到同一组静态路径。
+const shellPath = (value: string): string => (process.platform === "win32" ? value.replaceAll("\\", "/") : value);
+process.env.CFPA_ROOT ||= shellPath(paths.root);
+process.env.CFPA_REPO ||= shellPath(paths.repo);
+process.env.CFPA_WORK ||= shellPath(paths.work);
+
 if (process.env.PI_CODING_AGENT_DIR === undefined) process.env.PI_CODING_AGENT_DIR = paths.piAgent;
 
 export function ensureDirs(): void {

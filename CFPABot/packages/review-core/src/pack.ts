@@ -1,5 +1,5 @@
 import type { Finding, Workspace } from "@cfpa/contracts/api";
-import { duplicateZh, fileFindings } from "./domain/checks.ts";
+import { duplicateZh, fileFindings, keyParity } from "./domain/checks.ts";
 import { inHunks, patchHunks } from "./domain/diff.ts";
 import { entryFindingsWithTerms } from "./domain/entry-findings.ts";
 import type { ParsedLang } from "./domain/langfile.ts";
@@ -28,6 +28,7 @@ export interface PackWorkspace {
   enPath: string | null;
   zhPath: string | null;
   rows: PackRow[];
+  checks: Finding[];
   fileFindings: { path: string; findings: Finding[] }[];
   duplicates: { zh: string; keys: string[] }[];
   counts: { total: number; changed: number; flagged: number };
@@ -148,6 +149,7 @@ async function buildWorkspace(
       findings: entryFindingsWithTerms(key, values, workspace.version, input.terms),
     });
   }
+  const checks = keyParity(workspaceKey(workspace), headEn, headZh);
   const fileLevel: { path: string; findings: Finding[] }[] = [];
   for (const [path, content] of [
     [enPath, headEnText],
@@ -167,6 +169,7 @@ async function buildWorkspace(
     enPath,
     zhPath,
     rows,
+    checks,
     fileFindings: fileLevel,
     duplicates,
     counts: {

@@ -11,6 +11,7 @@ const WRITE_PLACEHOLDER = "{{WRITE_TARGETS}}";
 const WORKSPACE_PLACEHOLDER = "{{WORKSPACE_DIR}}";
 const ROOT_PLACEHOLDER = "{{ROOT_DIR}}";
 const PR_PLACEHOLDER = "{{PR_BOUND}}";
+const REPO_PLACEHOLDER = "{{REPO_DIR}}";
 
 async function readPrompt(file: string): Promise<string> {
   try {
@@ -33,13 +34,14 @@ export async function buildSystemPrompt(
   ].join("\n");
   const prBound =
     prNumber === undefined
-      ? "本会话未绑定 PR。用户给出编号后，从 `read pr://<n>?review=1&limit=120` 开始。"
-      : `本会话绑定 PR #${prNumber}。审查从 \`read pr://${prNumber}?review=1&limit=120\` 开始，返回的 rows.next 继续读。`;
+      ? "本会话未绑定 PR。用户给出编号后，从 `read pr://<n>?review=1` 开始；返回 `plan` 时从 `next` 开始逐片读。"
+      : `本会话绑定 PR #${prNumber}。审查从 \`read pr://${prNumber}?review=1\` 开始；返回 \`plan\` 时从 \`next\` 开始逐片读，不要用 offset。`;
   const system = (await readPrompt("system.md"))
     .replace(TREE_PLACEHOLDER, resourceTree())
     .replace(WRITE_PLACEHOLDER, writeTable)
     .replace(WORKSPACE_PLACEHOLDER, workspaceDir)
     .replaceAll(ROOT_PLACEHOLDER, repoRoot)
+    .replaceAll(REPO_PLACEHOLDER, paths.repo)
     .replace(PR_PLACEHOLDER, prBound);
   const fragments = await Promise.all(workflow.promptFiles.map(readPrompt));
   return [system, ...fragments].filter(Boolean).join("\n\n");

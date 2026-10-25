@@ -31,8 +31,8 @@ export async function specialPageOf(n: number, options: SpecialOptions): Promise
     const kept: SpecialFilesPage["items"] = [];
     let bytes = 0;
     for (const item of full) {
-      const size = JSON.stringify(item).length;
-      if (kept.length > 0 && bytes + size > 150_000) break;
+      const size = Buffer.byteLength(JSON.stringify(item));
+      if (kept.length > 0 && bytes + size > 40_000) break;
       kept.push(item);
       bytes += size;
     }

@@ -81,7 +81,16 @@ export function aggregateTerms(pack: Pack, index: TermIndex | null, options: Ter
       a.en.localeCompare(b.en),
   );
   const page = pageOf(options.offset, options.limit, 200, 100);
-  const shown = groups.slice(page.offset, page.offset + page.limit);
+  let shown = groups.slice(page.offset, page.offset + page.limit);
+  let bytes = 0;
+  let kept = 0;
+  for (const group of shown) {
+    const size = Buffer.byteLength(JSON.stringify(group));
+    if (kept > 0 && bytes + size > 20_000) break;
+    bytes += size;
+    kept += 1;
+  }
+  shown = shown.slice(0, kept);
   const nextOffset = page.offset + shown.length < groups.length ? page.offset + shown.length : null;
   const params = new URLSearchParams();
   for (const term of options.queries) params.append("term", term);

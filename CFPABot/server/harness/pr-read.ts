@@ -52,6 +52,7 @@ function rowsQuery(uri: PrParts, fallback: RowsFilter): RowsOptions {
     ...(uri.query.get("prefix") === null ? {} : { prefix: uri.query.get("prefix") ?? undefined }),
     ...(keys.length === 0 ? {} : { keys }),
     ...(uri.query.get("query") === null ? {} : { query: uri.query.get("query") ?? undefined }),
+    ...(uri.query.get("slice") === null ? {} : { slice: uri.query.get("slice") ?? undefined }),
     ...(numberParam(uri.query.get("offset")) === undefined ? {} : { offset: numberParam(uri.query.get("offset")) }),
     ...(numberParam(uri.query.get("limit")) === undefined ? {} : { limit: numberParam(uri.query.get("limit")) }),
     rebuild: flagParam(uri.query, "rebuild"),
@@ -60,8 +61,7 @@ function rowsQuery(uri: PrParts, fallback: RowsFilter): RowsOptions {
 }
 
 function briefRowsQuery(uri: PrParts): RowsOptions {
-  const query = rowsQuery(uri, "reviewable");
-  return { ...query, limit: query.limit ?? 60 };
+  return rowsQuery(uri, "reviewable");
 }
 
 async function readFiles(uri: PrParts): Promise<AgentToolResult<Record<string, unknown>>> {
@@ -188,14 +188,14 @@ async function readReviewSummary(uri: PrParts): Promise<AgentToolResult<Record<s
     return jsonResult({
       built: false,
       headSha: pull.headSha,
-      next: [`read pr://${n}/rows?filter=reviewable&limit=120`],
-      hint: "预审 pack 还没构建；read rows 会构建并返回第一页。",
+      next: [`read pr://${n}?review=1`],
+      hint: "预审 pack 还没构建；read pr://<n>?review=1 会构建并给出全集或分片 plan。",
     });
   }
   return jsonResult({
     built: true,
     ...packSummary(pack),
-    next: [`read pr://${n}/rows?filter=reviewable&limit=120`, `read pr://${n}/terms?changed=1`],
+    next: [`read pr://${n}?review=1`, `read pr://${n}/terms?changed=1`],
   });
 }
 

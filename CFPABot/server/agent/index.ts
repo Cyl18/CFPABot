@@ -206,6 +206,7 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   }
   const mcp: { current?: MCPManager } = {};
   const mcpManager = await agentMcpManager();
+  const customTools = buildTools(toolContext(record, mcp), Object.keys(ALLOWED_TOOLS), extensions);
   const created = await createAgentSession({
     // 发现面（.mcp.json、规则）以仓库根为准；运行时 cwd 由 sessionManager 的 workspace 决定。
     cwd: paths.root,
@@ -215,7 +216,10 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
     modelRegistry: modelRuntime.registry,
     settings: modelRuntime.settings,
     sessionManager: manager,
-    customTools: buildTools(toolContext(record, mcp), Object.keys(ALLOWED_TOOLS), extensions),
+    customTools,
+    toolNames: [...new Set([...Object.keys(ALLOWED_TOOLS), ...customTools.map((tool) => tool.name)])],
+    restrictToolNames: true,
+    allowRestrictedCustomTools: true,
     skills,
     extensions,
     disableExtensionDiscovery: true,
@@ -239,9 +243,15 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
     if (event.type === "message_end" && event.message.role === "assistant") hub.emit(id, { type: "step", phase: "end" });
   });
   try {
+    // getActiveToolNames() 不保证包含 SDK customTools；只按它过滤会把 bash/delegate 一起丢掉。
+    const active = new Set([...session.getActiveToolNames(), ...customTools.map((tool) => tool.name)]);
     await session.setActiveToolsByName(
-      session.getActiveToolNames().filter((name) => ALLOWED_TOOLS[name] === true || name.startsWith("mcp__")),
+      [...active].filter((name) => ALLOWED_TOOLS[name] === true || name.startsWith("mcp__")),
     );
+    log.info("会话工具已激活", { sessionId: id, tools: session.getActiveToolNames() });
+    if (session.getToolByName("delegate") === undefined) {
+      log.error("delegate 未注册：prompt 的派单步骤不可执行，按片自己审", { sessionId: id });
+    }
   } catch (err) {
     unsubscribe();
     await session.dispose();

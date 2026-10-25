@@ -129,7 +129,7 @@ export async function readDraftOf(n: number, sessionId?: string): Promise<Review
     publish: `pr://${n}/review`,
     next:
       draft === null
-        ? [`write pr://${n}/draft <JSON>`, `read pr://${n}/rows?filter=reviewable&limit=120`]
+        ? [`write pr://${n}/draft <JSON>`, `read pr://${n}?review=1`]
         : errors.length > 0
           ? [`按 errors 修完后重写 pr://${n}/draft`]
           : [`write pr://${n}/review 发布`, `read pr://${n}/draft 复核`],
@@ -145,7 +145,7 @@ export async function saveDraftOf(n: number, sessionId: string, content: string)
       ok: false,
       errors: [`草稿基于 ${prepared.draft.headSha.slice(0, 7)}，当前 head 是 ${pull.headSha.slice(0, 7)}；重审后再保存。`],
       warnings: [],
-      next: [`read pr://${n}/rows?filter=reviewable&limit=120`],
+      next: [`read pr://${n}?review=1`],
     };
   }
   const errors = validateDraft(prepared.draft, { patches: await patchesOf(n) });

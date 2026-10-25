@@ -187,6 +187,26 @@ export interface ReviewRowView {
   duplicate?: { zh: string; keys: string[] };
 }
 
+export interface ReviewSlice {
+  id: string;
+  workspace: string;
+  rows: number;
+  bytes: number;
+  firstKey: string;
+  lastKey: string;
+  uri: string;
+}
+
+export interface ReviewPlan {
+  total: number;
+  bytes: number;
+  budgetBytes: number;
+  fits: boolean;
+  /** 分片总数；slices 只列开头几片，其余照每片的 next 继续。 */
+  sliceCount: number;
+  slices: ReviewSlice[];
+}
+
 export interface ReviewRowsPage {
   prNumber: number;
   headSha: string;
@@ -194,6 +214,10 @@ export interface ReviewRowsPage {
   offset: number;
   limit: number;
   nextOffset: number | null;
+  /** true = 本次 rows 字段完整（全集或单片）；只返回 plan 时为 false。 */
+  complete: boolean;
+  slice?: string;
+  plan?: ReviewPlan;
   counts: { workspaces: number; rows: number; changed: number; flagged: number; reviewable: number };
   workspaces: WorkspaceBrief[];
   rows: ReviewRowView[];
@@ -230,6 +254,8 @@ export interface ReviewBrief {
     headRepo: string;
   };
   localRoot: string;
+  repoRoot: string;
+  plan?: ReviewPlan;
   counts: {
     files: number;
     additions: number;

@@ -7,8 +7,9 @@ import { missingResource, PR_CHILDREN, resourceTree } from "./harness/catalog.ts
 import type { InternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls";
 import { prPartsOf } from "./harness/uri.ts";
 import { findWriteTarget } from "./harness/write-targets.ts";
+import { buildTools } from "./agent/tools/index.ts";
 import { prepareDraft } from "./harness/review/draft.ts";
-import { rowsPage } from "./harness/review/rows.ts";
+import { reviewRowsForInput, rowsPage } from "./harness/review/rows.ts";
 import { aggregateTerms } from "./harness/review/terms.ts";
 import { commentCheckedSha, unknownHint } from "./harness/review/checks.ts";
 import type { ThreadsView } from "./harness/review/threads.ts";
@@ -39,6 +40,7 @@ function workspace(rows: PackRow[]): PackWorkspace {
     enPath: EN,
     zhPath: ZH,
     rows,
+    checks: [],
     fileFindings: [],
     duplicates: [{ zh: "甲", keys: ["a", "z"] }],
     counts: { total: rows.length, changed: rows.length, flagged: 0 },
@@ -83,7 +85,7 @@ describe("harness catalog", () => {
     for (const name of ["rows", "terms", "draft", "special-files"]) expect(PR_CHILDREN).toContain(name);
     const tree = resourceTree();
     expect(tree).toContain("pr://<n>  #");
-    expect(tree).toContain("rows?filter=reviewable");
+    expect(tree).toContain("rows?slice=");
     expect(tree).toContain("terms?term=");
     expect(tree).toContain("draft");
     expect(tree).not.toContain("help://");
@@ -96,6 +98,11 @@ describe("harness catalog", () => {
 });
 
 describe("write targets", () => {
+  test("custom tools include bash and delegate", () => {
+    const names = buildTools({ sessionId: "test-session", prNumber: 1 } as never, []).map((tool) => tool.name);
+    expect(names.sort()).toEqual(["bash", "delegate"]);
+  });
+
   test("draft, review and inline comment resolve to distinct handlers", () => {
     const target = (uri: string): string | undefined => {
       const url = new URL(uri);
@@ -163,6 +170,30 @@ describe("review rows", () => {
     expect(first.duplicate?.keys).toEqual(["z"]);
   });
 
+  test("单页超过体积预算时截断并给下一页", () => {
+    const many = Array.from({ length: 100 }, (_, index) =>
+      row(`k${index}`, "A".repeat(600), "甲".repeat(200), index + 1),
+    );
+    const page = rowsPage(
+      {
+        pack: pack(many),
+        threads: { available: false, headSha: null, pendingReviewId: null, threads: [] },
+        terms: null,
+        patches: new Map(),
+      },
+      {
+        filter: "reviewable",
+        limit: 120,
+        include: { terms: false, threads: false, duplicates: false, patch: false },
+      },
+    );
+    expect(page.total).toBe(100);
+    expect(page.rows.length).toBeLessThan(100);
+    expect(page.nextOffset).toBe(page.rows.length);
+    expect(page.next).toContain(`offset=${page.rows.length}`);
+    expect(page.hint).toContain("截断");
+  });
+
   test("paginated 不影响过滤后的总数", () => {
     const last = rowsPage(data, {
       filter: "reviewable",
@@ -172,6 +203,114 @@ describe("review rows", () => {
     });
     expect(last.nextOffset).toBeNull();
     expect(last.rows[0]?.key).toBe("b");
+  });
+});
+
+describe("review rows plan", () => {
+  const options = {
+    filter: "reviewable" as const,
+    include: { terms: false, threads: false, duplicates: false, patch: false },
+  };
+
+  test("预算内一次给全集，complete 为真", () => {
+    const input = {
+      pack: pack([row("a", "A", "甲", 10), row("b", "B", "乙", 20)]),
+      threads: { available: false, headSha: null, pendingReviewId: null, threads: [] },
+      terms: null,
+      patches: new Map(),
+    };
+    const result = reviewRowsForInput(input, { ...options, limit: 1 });
+    expect(result.plan.fits).toBe(true);
+    expect(result.plan.slices).toEqual([]);
+    expect(result.page.complete).toBe(true);
+    expect(result.page.rows.map((entry) => entry.key)).toEqual(["a", "b"]);
+    expect(result.page.next).toBeNull();
+  });
+
+  test("超预算只给 plan，切片链覆盖全部行且每片完整", () => {
+    const rows = Array.from({ length: 100 }, (_, index) =>
+      row(`k${index}`, "A".repeat(600), "甲".repeat(200), index + 1),
+    );
+    const input = {
+      pack: pack(rows),
+      threads: { available: false, headSha: null, pendingReviewId: null, threads: [] },
+      terms: null,
+      patches: new Map(),
+    };
+    const result = reviewRowsForInput(input, options);
+    expect(result.plan.fits).toBe(false);
+    expect(result.page.complete).toBe(false);
+    expect(result.page.rows).toEqual([]);
+    expect(result.page.plan).toEqual(result.plan);
+    expect(result.page.next).toBe(result.plan.slices[0]?.uri ?? null);
+    expect(result.plan.sliceCount).toBeGreaterThan(result.plan.slices.length);
+    expect(result.plan.slices.every((slice) => slice.rows <= 300)).toBe(true);
+    expect(result.plan.slices[0]).not.toHaveProperty("start");
+
+    const keys: string[] = [];
+    let uri: string | null = result.page.next;
+    let pages = 0;
+    while (uri !== null) {
+      const id = new URL(uri).searchParams.get("slice") ?? "";
+      const page = reviewRowsForInput(input, { ...options, slice: id }).page;
+      expect(page.complete).toBe(true);
+      expect(page.slice).toBe(id);
+      expect(page.rows).toHaveLength(page.limit);
+      keys.push(...page.rows.map((entry) => entry.key));
+      pages += 1;
+      uri = page.next;
+    }
+    expect(keys).toEqual(rows.map((entry) => entry.key));
+    expect(pages).toBe(result.plan.sliceCount);
+  });
+
+  test("同一 key 组跨预算也不切开", () => {
+    const rows = [
+      ...Array.from({ length: 25 }, (_, index) =>
+        row(`mod.page.alpha.f${index}`, "A".repeat(600), "甲".repeat(200), index + 1),
+      ),
+      ...Array.from({ length: 25 }, (_, index) =>
+        row(`mod.page.beta.f${index}`, "A".repeat(600), "甲".repeat(200), index + 26),
+      ),
+    ];
+    const input = {
+      pack: pack(rows),
+      threads: { available: false, headSha: null, pendingReviewId: null, threads: [] },
+      terms: null,
+      patches: new Map(),
+    };
+    const { plan } = reviewRowsForInput(input, options);
+    expect(plan.slices).toHaveLength(2);
+    expect(plan.slices[0]).toMatchObject({
+      rows: 25,
+      firstKey: "mod.page.alpha.f0",
+      lastKey: "mod.page.alpha.f24",
+    });
+    expect(plan.slices[0]!.bytes).toBeGreaterThan(plan.budgetBytes);
+    expect(plan.slices[1]?.firstKey).toBe("mod.page.beta.f0");
+  });
+
+  test("未知分片报错并指向重新取 plan", () => {
+    const input = {
+      pack: pack([row("a", "A", "甲", 10)]),
+      threads: { available: false, headSha: null, pendingReviewId: null, threads: [] },
+      terms: null,
+      patches: new Map(),
+    };
+    expect(() => reviewRowsForInput(input, { ...options, slice: "nope#0" })).toThrow(/重新 read pr:\/\/7\?review=1/);
+  });
+
+  test("旧 head 的 slice 不会命中新 plan", () => {
+    const rows = Array.from({ length: 100 }, (_, index) =>
+      row(`k${index}`, "A".repeat(600), "甲".repeat(200), index + 1),
+    );
+    const threads = { available: false, headSha: null, pendingReviewId: null, threads: [] };
+    const { plan } = reviewRowsForInput({ pack: pack(rows), threads, terms: null, patches: new Map() }, options);
+    const stale = plan.slices[0]!.id;
+    expect(stale.startsWith("head#")).toBe(true);
+    expect(() =>
+      reviewRowsForInput({ pack: { ...pack(rows), headSha: "nextsha" }, threads, terms: null, patches: new Map() }, { ...options, slice: stale }),
+    ).toThrow(/旧 head/);
   });
 });
 

@@ -39,12 +39,14 @@ async function commentsOf(n: number): Promise<GhComment[] | null> {
 }
 
 export function unknownHint(n: number, headSha: string, checkedSha: string | null, readable: boolean): string {
-  if (!readable) return "本实例没有该 PR 的检查记录，读取信息评论也失败了；需要时自行跑机械扫描。";
-  if (checkedSha === null) return "本实例没有该 PR 的检查记录，信息评论里也没有找到检查段；需要时自行跑机械扫描。";
-  if (headSha.startsWith(checkedSha)) {
-    return `信息评论记录该 PR 已在 ${checkedSha} 检查过；本实例没有结构化报告，findings 见 pr://${n}/comments。`;
+  if (!readable) return "本实例没有该 PR 的检查记录，读取信息评论也失败了；机械项看本地预审（warnings / rows[].findings）。";
+  if (checkedSha === null) {
+    return "本实例没有该 PR 的检查记录，信息评论里也没有找到检查段；机械项看本地预审（warnings / rows[].findings）。";
   }
-  return `信息评论里的检查基于 ${checkedSha}，当前 head 是 ${headSha.slice(0, 7)}，findings 可能已过期，见 pr://${n}/comments。`;
+  if (headSha.startsWith(checkedSha)) {
+    return `信息评论记录该 PR 已在 ${checkedSha} 检查过，但本实例没有结构化报告；评论里的检查段在 pr://${n}/comments 里被过滤，机械项看本地预审（warnings / rows[].findings）。`;
+  }
+  return `信息评论里的检查基于 ${checkedSha}，当前 head 是 ${headSha.slice(0, 7)}，findings 可能已过期；本实例没有结构化报告，机械项看本地预审（warnings / rows[].findings）。`;
 }
 
 /** 空 findings 不等于没跑：把状态、覆盖单元和失败原因一起给出。 */

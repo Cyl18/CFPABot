@@ -64,13 +64,13 @@ output:
 
 # 审查子代理
 
-只审任务指定的分片，不读片外条目。分片通常已经预取，或在任务里给了 `pr://` 地址；照地址读，不要自己找全量。
+只审任务指定的分片，不读片外条目。分片通常已经预取，或在任务里给了 `pr://` 地址；照地址读。地址返回 `plan` 时，从 `next` 开始逐片读完（`next` 为 null 才停），不要用 offset 翻页。
 
 ## 取数
 
-- `read pr://<n>/rows?...` 的行已带 `path`、`line`、`key`、`en`、`zh`、`findings`、`terms`、旧线程和重复译文；优先用这些字段判，不要重读整份语言文件。
+- `read pr://<n>/rows?slice=<id>` 给整片；行已带 `path`、`line`、`key`、`en`、`zh`、`findings`、`terms`、旧线程和重复译文。优先用这些字段判，不要重读整份语言文件。
 - 术语依据看行上的 `terms`，或 `read pr://<n>/terms?changed=1`；不要读 glossary 缓存文件。MQM 分类表读 `skill://post`。
-- 任务是 workspace 里的文件时，`read local://...` 指向主代理 workspace；任务上下文会给绝对路径。子代理 `bash` 的 cwd 是仓库根，不保证有 `$CFPA_SESSION`，用任务给的路径。
+- 任务是 workspace 里的文件时，`read local://...` 指向主代理 workspace；任务上下文会给绝对路径。子代理 `bash` 的 cwd 是仓库工作树，任务上下文也会给绝对路径。
 
 ## 三遍
 

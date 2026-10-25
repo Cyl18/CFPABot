@@ -16,7 +16,7 @@ import { llm } from "../agent/index.ts";
 import { parseRoleSelector } from "../agent/llm-providers.ts";
 import { loadPack, packSummary } from "../harness/pack.ts";
 import { reviewBrief } from "../harness/review/brief.ts";
-import { rowsOf, type RowsOptions } from "../harness/review/rows.ts";
+import { rowsOf, rowsPageOf, type RowsOptions } from "../harness/review/rows.ts";
 import { termsOf } from "../harness/review/terms.ts";
 import { prDetail } from "../views/pr.ts";
 import { compareWorkspace } from "../views/workspace.ts";
@@ -53,6 +53,7 @@ const rowsQuery = z.object({
   prefix: z.string().min(1).optional(),
   keys: z.string().optional(),
   query: z.string().optional(),
+  slice: z.string().min(1).optional(),
   offset: z.coerce.number().int().min(0).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   include: z.string().optional(),
@@ -176,6 +177,7 @@ function rowsOptionsOf(data: z.infer<typeof rowsQuery>): RowsOptions {
     ...(data.prefix === undefined ? {} : { prefix: data.prefix }),
     ...(keys.length === 0 ? {} : { keys }),
     ...(data.query === undefined ? {} : { query: data.query }),
+    ...(data.slice === undefined ? {} : { slice: data.slice }),
     ...(data.offset === undefined ? {} : { offset: data.offset }),
     ...(data.limit === undefined ? {} : { limit: data.limit }),
     rebuild: data.rebuild === "1",
@@ -195,7 +197,7 @@ prRoutes.get("/prs/:n/brief", async (c) => {
     await withPull(() =>
       reviewBrief(n, {
         review: data.review === "1",
-        rows: { ...rowsOptionsOf(data), limit: data.limit ?? 120 },
+        rows: rowsOptionsOf(data),
       }),
     ),
   );
@@ -204,7 +206,8 @@ prRoutes.get("/prs/:n/brief", async (c) => {
 prRoutes.get("/prs/:n/rows", async (c) => {
   const data = parseQuery(c, rowsQuery);
   const n = prNumber(c);
-  return c.json(await withPull(() => rowsOf(n, rowsOptionsOf(data))));
+  const options = rowsOptionsOf(data);
+  return c.json(await withPull(() => (options.slice === undefined ? rowsPageOf(n, options) : rowsOf(n, options))));
 });
 
 prRoutes.get("/prs/:n/terms", async (c) => {

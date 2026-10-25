@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { CustomTool } from "@oh-my-pi/pi-coding-agent";
 import { cfgBashInterceptorEnabled, cfgBashInterceptorPatterns } from "@oh-my-pi/pi-coding-agent/exec/settings";
@@ -10,22 +11,23 @@ import { prRoot } from "../../workspace.ts";
 import { onAbortSignal } from "./signal.ts";
 
 const ENV_ALLOW: Record<string, true> = {
-  PATH: true,
-  HOME: true,
-  LANG: true,
-  LC_ALL: true,
-  TZ: true,
-  TERM: true,
-  SHELL: true,
-  TMPDIR: true,
-  TEMP: true,
-  TMP: true,
-  LOCALAPPDATA: true,
-  APPDATA: true,
-  USERPROFILE: true,
-  SystemRoot: true,
-  ComSpec: true,
-  PATHEXT: true,
+  path: true,
+  home: true,
+  lang: true,
+  lc_all: true,
+  tz: true,
+  term: true,
+  shell: true,
+  tmpdir: true,
+  temp: true,
+  tmp: true,
+  localappdata: true,
+  appdata: true,
+  userprofile: true,
+  systemroot: true,
+  windir: true,
+  comspec: true,
+  pathext: true,
 };
 
 const BASH_PARAMS = type({
@@ -33,19 +35,50 @@ const BASH_PARAMS = type({
   "timeout?": type("number").describe("超时秒数，默认 60，最大 300"),
 });
 
-// 子进程只拿白名单环境变量与 PI_*，避免把 API key 递给模型写的脚本。
-function sandboxEnv(env: NodeJS.ProcessEnv, cwd: string, prNumber: number | undefined): NodeJS.ProcessEnv {
+/** Windows 的 System32 bash 是 WSL：它会丢掉 Windows 环境变量，也看不到 D:/ 路径。优先 Git Bash。 */
+function bashBinary(): string {
+  if (process.platform !== "win32") return "bash";
+  const programFiles = process.env.ProgramFiles;
+  const localAppData = process.env.LOCALAPPDATA;
+  const candidates = [
+    programFiles === undefined ? undefined : join(programFiles, "Git", "bin", "bash.exe"),
+    localAppData === undefined ? undefined : join(localAppData, "Programs", "Git", "bin", "bash.exe"),
+    "C:\\Program Files\\Git\\bin\\bash.exe",
+  ].filter((path): path is string => path !== undefined);
+  return candidates.find((path) => existsSync(path)) ?? "bash";
+}
+
+const BASH_BIN = bashBinary();
+
+function shellPath(path: string): string {
+  return process.platform === "win32" ? path.replaceAll("\\", "/") : path;
+}
+
+/** WSL 会丢 env；Git Bash 也统一用 shell 里的显式 export，工具行为不随 shell 改变。 */
+function envPrologue(cwd: string, prNumber: number | undefined): string {
+  const vars: Record<string, string> = {
+    CFPA_ROOT: shellPath(paths.root),
+    CFPA_WORK: shellPath(paths.work),
+    CFPA_REPO: shellPath(paths.repo),
+    CFPA_SESSION: shellPath(cwd),
+  };
+  if (prNumber !== undefined) vars.CFPA_PR = shellPath(prRoot(prNumber));
+  const lines = Object.entries(vars).map(([key, value]) => `export ${key}=${shellQuote(value)}`);
+  if (prNumber === undefined) lines.push("unset CFPA_PR");
+  return `${lines.join("\n")}\n`;
+}
+
+// 子进程只拿白名单环境变量与 PI_*，避免把 API key 递给模型写的脚本。CFPA_* 由脚本开头的 export 给出。
+function sandboxEnv(env: NodeJS.ProcessEnv, cwd: string): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) continue;
-    if (ENV_ALLOW[key] === true || key.startsWith("PI_")) out[key] = value;
+    if (ENV_ALLOW[key.toLowerCase()] === true || key.startsWith("PI_")) out[key] = value;
   }
+  // Windows 的 PATH 键大小写不固定；Bun.spawn 查找可执行文件只认 PATH。
+  const pathValue = env.PATH ?? env.Path;
+  if (pathValue !== undefined) out.PATH = pathValue;
   out.HOME = cwd;
-  out.CFPA_ROOT = paths.root;
-  out.CFPA_WORK = join(paths.root, "runtime", "work");
-  out.CFPA_REPO = paths.repo;
-  out.CFPA_SESSION = cwd;
-  if (prNumber !== undefined) out.CFPA_PR = prRoot(prNumber);
   return out;
 }
 
@@ -76,9 +109,10 @@ export function bashTool(ctx: ToolContext, availableTools: string[]): CustomTool
       }
       const cwd = localDir(ctx.sessionId);
       const timeoutMs = Math.min(300_000, Math.max(1_000, (params.timeout ?? 60) * 1000));
-      const proc = Bun.spawn(["bash", "-lc", dropPrivileges(params.command)], {
+      const script = `${envPrologue(cwd, ctx.prNumber)}${dropPrivileges(params.command)}`;
+      const proc = Bun.spawn([BASH_BIN, "-lc", script], {
         cwd,
-        env: sandboxEnv(process.env, cwd, ctx.prNumber),
+        env: sandboxEnv(process.env, cwd),
         stdin: "ignore",
         stdout: "pipe",
         stderr: "pipe",

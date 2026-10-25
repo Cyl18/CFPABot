@@ -10,7 +10,7 @@ PR 校对。产出 `local://draft.json`；术语表、风格指南、格式要�
 ## 流程
 
 1. **读译前产物**：`local://terms.tsv`、`local://STYLE.md`、`local://format.md`。没有就跳过。`terms.tsv` 只取 changed 行里出现的词，不整表读。
-2. **取全量行**：`read pr://<n>?review=1&limit=120`。一次拿到 `pr.headSha`、`checks`、`workspaces`、讨论和第一页 rows；照返回的 `rows.next` 继续，不要自己拼 offset。
+2. **取全量行**：`read pr://<n>?review=1`。一次拿到 `pr.headSha`、`checks`、`workspaces`、讨论；行在预算内一次给全（`complete=true`），超预算只给 `plan`，从 `next` 开始逐片读完（`next` 为 null 才停）。不要用 offset 翻页。
    - 每行已有 `path`、`line`（head 行号）、`en`、`zh`、`baseEn`、`baseZh`、`inHunk`、`findings`、`terms`、旧 `threads`、`duplicate`。只审 `changed` 且 `inHunk` 的行。
    - `counts.workspaces === 0` 先看 `prep` 的路径闸门。
 3. **全量校对**：每一条都读原文和译文，不抽样；派子代理也按 key 分片全量。
@@ -79,6 +79,6 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 
 派子代理时把校对方法和 MQM 贴进 task；它只返回稀疏 JSON（只写判错的 key），你合并并确认。
 
-分片优先把 rows URI 放进 `resources`：`delegate({ agent: "review", model: "@模型名", task, resources: ["pr://<n>/rows?filter=reviewable&workspace=<ws>&prefix=<prefix>&limit=120"] })`。子代理与主代理共用 `pr://` 数据面、`terms` 和 skills，不需要你先把分片写成文件。
+分片优先把 rows URI 放进 `resources`：`delegate({ agent: "review", model: "@模型名", task, resources: ["pr://<n>/rows?filter=reviewable&workspace=<ws>&prefix=<prefix>"] })`。预算内子代理直接拿到全集；超预算时任务里说明跟着返回的 `next` 逐片读完（`slices` 只列开头 8 片）。子代理与主代理共用 `pr://` 数据面、`terms` 和 skills，不需要你先把分片写成文件。
 
 `read pr://<n>` 的 `localRoot` 是 head 文件的物化目录，只读；要跑脚本先复制到 `local://work/`，脚本吃 `./work`。仓库工作树用 `$CFPA_REPO`（`grep`/`find` 可给绝对路径，`bash` 里用环境变量）。

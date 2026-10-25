@@ -10,11 +10,7 @@ PR 审查：`prep` → `post`。需要补译时在中间插 `translate`。
 
 ## 取数
 
-- 开审：`read pr://<n>?review=1&limit=120`。一次拿到 headSha、workspaces、checks、讨论、草稿状态和第一页行；行上有 findings、术语命中、旧线程、重复译文。
-- 继续：照返回的 `rows.next` 读，不要自己拼 offset。
-- 术语：`read pr://<n>/terms?changed=1`；要看某个词的权威译法用 `?term=`。
-- 指南/手册：`read pr://<n>/special-files?include=text&limit=6`，照 `next` 继续。
-- 草稿：`read pr://<n>/draft` 看 schema；`write pr://<n>/draft` 保存并校验；`write pr://<n>/review` 发布。
+开审先 `read pr://<n>?review=1`；rows / terms / special-files / draft 的入口与分页规则见 system 的「数据面」。超预算就从 `plan` 的 `next` 开始逐片读，跟着每片的 `next` 读完，不要用 offset。
 
 规模：<100 变更行走轻量 prep；其余先跑 `mod prep`；changed 行有整句长文本才加 `mod mine`；>1000 先按 key 分片。术语只读命中 changed 行的部分。
 
@@ -23,7 +19,7 @@ PR 审查：`prep` → `post`。需要补译时在中间插 `translate`。
 任务量自己判断：一轮读不完、能按 key 前缀或文件切开、切开后各片互不共享裁定时，拆到两片以上就必须按片派 `delegate({ agent: "review", model: "@模型名", task, resources: [...] })`。
 
 - 只有一片就自己审，别为一片派单——派单的成本是两次交接。
-- 分片时把该片的 rows URI 放进 `resources`，例如 `pr://<n>/rows?filter=reviewable&workspace=<ws>&prefix=item.&limit=120`；子代理会直接带着数据开工。
+- 分片时把该片的 rows URI 放进 `resources`，例如 `pr://<n>/rows?filter=reviewable&workspace=<ws>&prefix=<prefix>`；预算内子代理直接拿到全集，超预算让它跟着返回的 `next` 逐片读完（`slices` 只列开头 8 片）。要并行就按 `workspace`/`prefix` 各自收窄后再派。
 - 每片写清：片内文件、key 前缀、要判什么、返回什么。子代理只读，只回 findings。
 - 合并、复核、落盘 `pr://<n>/draft` 都是你的活；子代理没审到的片没人替你兜底。
 

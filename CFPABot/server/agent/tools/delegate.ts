@@ -1,5 +1,6 @@
 import { type } from "@oh-my-pi/omptype";
 import { readFile, readdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   loadSkillsFromDir,
@@ -37,7 +38,7 @@ const AGENT_NAME = /^[A-Za-z0-9_-]+$/;
 const OPERATING_RULES = [
   "你是子代理：只读、一次交卷。",
   "- 数据面与主代理相同：`read pr://<n>/rows?...`、`pr://<n>/terms?changed=1`、`pr://<n>/special-files?include=text` 都能用；`pr://<n>` 是简报。",
-  "- 任务给了 resources 就直接读，别重读全量。子代理 cwd 是仓库根；主代理 workspace 的绝对路径见任务上下文，也可用 `read local://...`。",
+  "- 任务给了 resources 就直接读，别重读全量。子代理 cwd 是仓库工作树；主代理 workspace 的绝对路径见任务上下文，也可用 `read local://...`。",
   "- MQM 分类表读 `skill://post`；术语依据用 `pr://<n>/terms`，不要读缓存文件。",
   "- 不要派发子代理，不要跑验证、测试或发布。",
   "- 只回结论，不回工具过程。",
@@ -146,16 +147,17 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
       const authStorage = await openAuthStorage(config.endpoints);
       const { settings, registry } = await openModelRuntime(authStorage, config.endpoints, config.roles);
       const mcpManager = ctx.mcpManager?.() ?? (await agentMcpManager());
+      const repoRoot = existsSync(paths.repo) ? paths.repo : paths.root;
       try {
         const shared = [
           params.context,
-          `主代理 workspace：${localDir(ctx.sessionId)}\n仓库根：${paths.root}`,
+          `主代理 workspace：${localDir(ctx.sessionId)}\n仓库工作树：${repoRoot}`,
           await prefetch(params.resources ?? [], ctx.sessionId),
         ]
           .filter(Boolean)
           .join("\n\n");
         const result = await runSubprocess({
-          cwd: paths.root,
+          cwd: repoRoot,
           additionalDirectories: [localDir(ctx.sessionId)],
           localProtocolOptions: {
             getArtifactsDir: () => localDir(ctx.sessionId),
