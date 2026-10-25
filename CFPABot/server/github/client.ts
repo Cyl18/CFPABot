@@ -59,18 +59,24 @@ function throttleOptions(): ThrottlingOptions {
   };
 }
 
+const appOctokit = appConfig
+  ? new PLUGIN_OCTOKIT({
+      userAgent: USER_AGENT,
+      throttle: throttleOptions(),
+      authStrategy: createAppAuth,
+      auth: appConfig,
+    })
+  : null;
+
 const octokit = devToken
   ? new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions(), auth: devToken })
-  : appConfig
-    ? new PLUGIN_OCTOKIT({
-        userAgent: USER_AGENT,
-        throttle: throttleOptions(),
-        authStrategy: createAppAuth,
-        auth: appConfig,
-      })
-    : env.GITHUB_PAT
+  : (appOctokit ??
+    (env.GITHUB_PAT
       ? new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions(), auth: env.GITHUB_PAT })
-      : new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions() });
+      : new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions() })));
+
+// 写入必须走 App 身份，读取沿用当前登录身份；没有 App 凭据时写入被 botWritesEnabled 拦下。
+const writeOctokit = appOctokit ?? octokit;
 
 const patOctokit = env.GITHUB_PAT
   ? new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions(), auth: env.GITHUB_PAT })
@@ -78,7 +84,7 @@ const patOctokit = env.GITHUB_PAT
 
 export type GhOctokit = InstanceType<typeof PLUGIN_OCTOKIT>;
 
-export const serverGraphql = octokit;
+export const serverGraphql = writeOctokit;
 
 export function userGraphql(token: string): GhOctokit {
   return new PLUGIN_OCTOKIT({ userAgent: USER_AGENT, throttle: throttleOptions(), auth: token });
@@ -92,7 +98,7 @@ export function isRateLimited(err: unknown): boolean {
 
 /** 只有 App 身份写出来的评论、标签、check run 才属于机器人自己，其他身份一律暂停。 */
 export function botWritesEnabled(): boolean {
-  return mode === "app";
+  return appOctokit !== null;
 }
 
 export function assertBotWrites(): void {
@@ -235,7 +241,7 @@ export const gh: GitHubClient = {
   },
 
   async createComment(n, body) {
-    const r = await octokit.rest.issues.createComment({
+    const r = await writeOctokit.rest.issues.createComment({
       owner: repo.owner,
       repo: repo.name,
       issue_number: n,
@@ -246,7 +252,7 @@ export const gh: GitHubClient = {
   },
 
   async updateComment(id, body) {
-    await octokit.rest.issues.updateComment({
+    await writeOctokit.rest.issues.updateComment({
       owner: repo.owner,
       repo: repo.name,
       comment_id: id,
@@ -305,7 +311,7 @@ export const gh: GitHubClient = {
   },
 
   async updateReviewComment(id, body) {
-    await octokit.rest.pulls.updateReviewComment({
+    await writeOctokit.rest.pulls.updateReviewComment({
       owner: repo.owner,
       repo: repo.name,
       comment_id: id,
@@ -325,7 +331,7 @@ export const gh: GitHubClient = {
   },
 
   async createReview(n, input) {
-    const r = await octokit.rest.pulls.createReview({
+    const r = await writeOctokit.rest.pulls.createReview({
       owner: repo.owner,
       repo: repo.name,
       pull_number: n,
@@ -339,7 +345,7 @@ export const gh: GitHubClient = {
   },
 
   async addLabels(n, labels) {
-    await octokit.rest.issues.addLabels({
+    await writeOctokit.rest.issues.addLabels({
       owner: repo.owner,
       repo: repo.name,
       issue_number: n,
@@ -350,7 +356,7 @@ export const gh: GitHubClient = {
 
   async removeLabel(n, label) {
     try {
-      await octokit.rest.issues.removeLabel({
+      await writeOctokit.rest.issues.removeLabel({
         owner: repo.owner,
         repo: repo.name,
         issue_number: n,
@@ -363,7 +369,7 @@ export const gh: GitHubClient = {
   },
 
   async createCheckRun(input) {
-    await octokit.rest.checks.create({
+    await writeOctokit.rest.checks.create({
       owner: repo.owner,
       repo: repo.name,
       name: input.name,
@@ -406,7 +412,7 @@ export const gh: GitHubClient = {
   },
 
   async approveRun(runId) {
-    await octokit.rest.actions.approveWorkflowRun({
+    await writeOctokit.rest.actions.approveWorkflowRun({
       owner: repo.owner,
       repo: repo.name,
       run_id: runId,

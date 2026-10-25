@@ -557,7 +557,7 @@ export const agent = {
     publishing.set(id, run);
     void run.finally(() => {
       if (publishing.get(id) === run) publishing.delete(id);
-    });
+    }).catch(() => undefined);
     return run;
   },
 
