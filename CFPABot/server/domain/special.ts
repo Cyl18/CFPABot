@@ -209,10 +209,32 @@ export function resolveDerived(plans: readonly SpecialPlan[], existing: Readonly
   return plans.map((plan) => (plan.kind === "single" ? plan : { ...plan, en: pick(plan.en), zh: pick(plan.zh) }));
 }
 
-export function resolveSpecial(plans: readonly SpecialPlan[], existing: ReadonlySet<string>): SpecialPair[] {
+export function specialStatusOf(
+  side: PlannedSide,
+  existing: ReadonlySet<string>,
+  moved: ReadonlySet<string>,
+): SpecialSide["status"] {
+  if (side.file !== null) return side.file.status;
+  if (!existing.has(side.path)) return "missing";
+  return moved.has(side.path) ? "removed" : "unchanged";
+}
+
+export function planAtHead(plan: SpecialPlan, existing: ReadonlySet<string>, moved: ReadonlySet<string>): boolean {
+  const sides = plan.kind === "single" ? [plan.file] : [plan.en, plan.zh];
+  return sides.some((side) => {
+    const status = specialStatusOf(side, existing, moved);
+    return status !== "removed" && status !== "missing";
+  });
+}
+
+export function resolveSpecial(
+  plans: readonly SpecialPlan[],
+  existing: ReadonlySet<string>,
+  moved: ReadonlySet<string> = new Set(),
+): SpecialPair[] {
   const sideOf = (side: PlannedSide): SpecialSide =>
     side.file === null
-      ? { path: side.path, status: existing.has(side.path) ? "unchanged" : "missing" }
+      ? { path: side.path, status: specialStatusOf(side, existing, moved) }
       : {
           path: side.path,
           status: side.file.status,

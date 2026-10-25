@@ -135,7 +135,7 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
         {SUB_TABS.map((item) => {
           const active = item.id === tab;
           const badge =
-            item.id === "files" ? pr.files.length : item.id === "compare" ? pr.workspaces.length : item.id === "special" ? pr.specialFiles.length : undefined;
+            item.id === "files" ? pr.files.length : item.id === "compare" ? pr.workspaces.length : item.id === "special" ? pr.specialGroups : undefined;
           const content = (
             <>
               {item.label}

@@ -66,6 +66,7 @@ export interface PrDetail extends PrSummary {
   files: PrFile[];
   workspaces: Workspace[];
   specialFiles: string[];
+  specialGroups: number;
   related: RelatedPr[];
 }
 

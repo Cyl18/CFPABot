@@ -1,7 +1,7 @@
 import { compareLang } from "@cfpa/review-core/domain/diff";
 import { parseFlatten, specialFormat } from "../domain/flatten.ts";
 import type { FlattenParsed } from "../domain/flatten.ts";
-import { isSpecialPath, planSpecial, resolveDerived, resolveSpecial } from "../domain/special.ts";
+import { isSpecialPath, planAtHead, planSpecial, resolveDerived, resolveSpecial, specialStatusOf } from "../domain/special.ts";
 import type { PlannedSide, SpecialPlan } from "../domain/special.ts";
 import type { GhFile, GhPull } from "../github/client.ts";
 import { mirror } from "../mirror.ts";
@@ -29,6 +29,7 @@ interface SpecialPlanData {
   files: GhFile[];
   plans: SpecialPlan[];
   existing: ReadonlySet<string>;
+  moved: ReadonlySet<string>;
 }
 
 const planCache = new Map<string, Promise<SpecialPlanData>>();
@@ -40,7 +41,11 @@ async function specialPlanFor(n: number): Promise<SpecialPlanData> {
   const cached = planCache.get(cacheKey);
   if (cached !== undefined) return cached;
   const pending = (async (): Promise<SpecialPlanData> => {
-    const plans = planSpecial(files.filter((file) => isSpecialPath(file.path)));
+    const special = files.filter((file) => isSpecialPath(file.path));
+    const plans = planSpecial(special);
+    const moved = new Set(
+      special.flatMap((file) => (file.status === "renamed" && file.previousPath !== undefined ? [file.previousPath] : [])),
+    );
     const derived: string[] = [];
     for (const plan of plans) {
       if (plan.kind === "single") continue;
@@ -50,8 +55,13 @@ async function specialPlanFor(n: number): Promise<SpecialPlanData> {
         if (side.alternate !== undefined) derived.push(side.alternate);
       }
     }
-    const existing = derived.length === 0 ? new Set<string>() : await mirror.existing(rev, derived);
-    return { pull, files, plans: resolveDerived(plans, existing), existing };
+    const existing =
+      derived.length === 0
+        ? new Set<string>()
+        : await mirror.existing(rev, derived).catch(() => new Set<string>());
+    const resolved = resolveDerived(plans, existing);
+    // 两侧都不在 head 的组不产出：删除记录留在文件页。
+    return { pull, files, plans: resolved.filter((plan) => planAtHead(plan, existing, moved)), existing, moved };
   })();
   planCache.set(cacheKey, pending);
   void pending.catch(() => planCache.delete(cacheKey));
@@ -63,8 +73,8 @@ async function specialPlanFor(n: number): Promise<SpecialPlanData> {
 }
 
 export async function specialPairs(n: number): Promise<SpecialPair[]> {
-  const { plans, existing } = await specialPlanFor(n);
-  return resolveSpecial(plans, existing);
+  const { plans, existing, moved } = await specialPlanFor(n);
+  return resolveSpecial(plans, existing, moved);
 }
 
 const emptyParsed = (): FlattenParsed => ({ entries: new Map(), lines: new Map() });
@@ -94,6 +104,7 @@ async function contentFrom(
   pull: GhPull,
   files: GhFile[],
   existing: ReadonlySet<string>,
+  moved: ReadonlySet<string>,
   read: FileSource["read"],
 ): Promise<SpecialPairContent> {
   const textOf = async (side: PlannedSide): Promise<SpecialText> => {
@@ -101,9 +112,12 @@ async function contentFrom(
     let baseText: string | null;
     let headText: string | null;
     if (file === null) {
-      const text = existing.has(side.path) ? await read(side.path, pull.headSha) : null;
-      baseText = text;
-      headText = text;
+      if (existing.has(side.path)) {
+        [baseText, headText] = await Promise.all([read(side.path, pull.baseSha), read(side.path, pull.headSha)]);
+      } else {
+        baseText = null;
+        headText = null;
+      }
     } else {
       const paths = sidePaths(file);
       [baseText, headText] = await Promise.all([read(paths.base, pull.baseSha), read(paths.head, pull.headSha)]);
@@ -113,7 +127,7 @@ async function contentFrom(
     const prFile = files.find((file) => file.path === side.path);
     return {
       path: side.path,
-      status: file === null ? (existing.has(side.path) ? "unchanged" : "missing") : file.status,
+      status: specialStatusOf(side, existing, moved),
       ...(file?.previousPath === undefined ? {} : { previousPath: file.previousPath }),
       base: base.text,
       head: head.text,
@@ -132,10 +146,10 @@ async function contentFrom(
 }
 
 export async function specialPairContent(n: number, key: string, source: FileSource): Promise<SpecialPairContent | null> {
-  const { pull, files, plans, existing } = await specialPlanFor(n);
+  const { pull, files, plans, existing, moved } = await specialPlanFor(n);
   const entry = plans.find((plan) => plan.key === key);
   if (entry === undefined) return null;
-  return contentFrom(entry, pull, files, existing, source.read);
+  return contentFrom(entry, pull, files, existing, moved, source.read);
 }
 
 function sidePathsOf(entry: SpecialPlan, existing: ReadonlySet<string>): { base: string[]; head: string[] } {
@@ -163,7 +177,7 @@ export async function specialContents(
   keys: readonly string[],
   source: FileSource,
 ): Promise<SpecialPairContent[]> {
-  const { pull, files, plans, existing } = await specialPlanFor(n);
+  const { pull, files, plans, existing, moved } = await specialPlanFor(n);
   const wanted = new Set(keys);
   const entries = plans.filter((plan) => wanted.has(plan.key));
   if (entries.length === 0) return [];
@@ -184,6 +198,6 @@ export async function specialContents(
       ? Promise.resolve(baseTexts.get(path) ?? null)
       : Promise.resolve(headTexts.get(path) ?? null);
   };
-  return Promise.all(entries.map((entry) => contentFrom(entry, pull, files, existing, read)));
+  return Promise.all(entries.map((entry) => contentFrom(entry, pull, files, existing, moved, read)));
 }
 

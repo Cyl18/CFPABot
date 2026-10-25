@@ -1,6 +1,7 @@
 import { workspacesOf } from "@cfpa/review-core/domain/path";
 import { langEntriesOf, summarizePr } from "../domain/pr.ts";
 import { isSpecialPath } from "../domain/special.ts";
+import { specialPairs } from "./special.ts";
 import { prdata } from "../prdata.ts";
 import type { PrDetail } from "@cfpa/contracts/api";
 
@@ -23,6 +24,7 @@ export async function prDetail(n: number): Promise<PrDetail> {
     })),
     workspaces: workspacesOf(files),
     specialFiles: files.filter((file) => isSpecialPath(file.path)).map((file) => file.path),
+    specialGroups: (await specialPairs(n)).length,
     related: prdata.related(n),
   };
 }
