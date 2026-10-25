@@ -213,7 +213,13 @@ export class LiveProjector {
       case "tool_execution_update": {
         this.toolArgs.set(event.toolCallId, event.args);
         const progress = progressOf(event.partialResult);
-        return [toolItem(event.toolCallId, event.toolName, event.args, "running", progress ? { progress } : {})];
+        const details = toolDetailsOf(event.toolName, resultDetailsOf(event.partialResult));
+        return [
+          toolItem(event.toolCallId, event.toolName, event.args, "running", {
+            ...(progress ? { progress } : {}),
+            ...(details === undefined ? {} : { details }),
+          }),
+        ];
       }
       case "tool_execution_end": {
         const args = this.toolArgs.get(event.toolCallId);

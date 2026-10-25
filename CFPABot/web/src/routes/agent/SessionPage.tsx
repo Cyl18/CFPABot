@@ -140,7 +140,7 @@ export function SessionPage({ id }: { id: string }) {
   const [text, setText] = useState("");
   const [actionError, setActionError] = useState<string | undefined>(undefined);
   const [pane, setPane] = useState<"chat" | "aside">("chat");
-  const [asideTab, setAsideTab] = useState<AsideTab>("files");
+  const [asideTab, setAsideTab] = useState<AsideTab>("status");
   const [asideOpen, setAsideOpen] = useState(true);
   const draftSeen = useRef(false);
   const seededId = useRef<string | null>(null);
@@ -160,7 +160,7 @@ export function SessionPage({ id }: { id: string }) {
 
   useEffect(() => {
     setPane("chat");
-    setAsideTab("files");
+    setAsideTab("status");
     draftSeen.current = false;
     seededId.current = null;
     idRef.current = id;
@@ -299,20 +299,20 @@ export function SessionPage({ id }: { id: string }) {
   const asideTabs: readonly TabItem<AsideTab>[] =
     draft === null
       ? [
-          { id: "files", label: "产物" },
           { id: "status", label: "状态" },
+          { id: "files", label: "产物" },
         ]
       : [
-          { id: "files", label: "产物" },
           { id: "status", label: "状态" },
+          { id: "files", label: "产物" },
           { id: "draft", label: `草稿（${draft.comments.length}）` },
         ];
 
   useEffect(() => {
-    if (asideTab === "draft" && draft === null) setAsideTab("files");
+    if (asideTab === "draft" && draft === null) setAsideTab("status");
   }, [asideTab, draft]);
 
-  const activeAsideTab: AsideTab = asideTab === "draft" && draft === null ? "files" : asideTab;
+  const activeAsideTab: AsideTab = asideTab === "draft" && draft === null ? "status" : asideTab;
   useEffect(() => {
     if (status === "running") sawRunning.current = true;
     if (status !== "idle" || !sawRunning.current || detail.data === undefined || detail.data.archived) return;
@@ -735,7 +735,7 @@ export function SessionPage({ id }: { id: string }) {
               ) : activeAsideTab === "files" ? (
                 <ArtifactPanel key={id} id={id} live={running} />
               ) : (
-                <ReviewSidebar items={items} prNumber={meta.prNumber} />
+                <ReviewSidebar items={items} prNumber={meta.prNumber} sessionId={id} />
               )}
             </div>
           </aside>

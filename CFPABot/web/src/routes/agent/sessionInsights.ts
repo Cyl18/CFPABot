@@ -1,4 +1,4 @@
-import type { ChatItem, PrFile, ToolCallView } from "@cfpa/contracts/api";
+import type { ChatItem, PrFile, SubagentInfo, ToolCallView } from "@cfpa/contracts/api";
 import { isRecord } from "@/lib/guards.ts";
 
 export type ToolItem = Extract<ChatItem, { kind: "tool" }>;
@@ -177,4 +177,40 @@ export function subagentModel(tool: ToolCallView): string | undefined {
   const details = isRecord(tool.details) ? tool.details : null;
   if (typeof details?.model === "string") return details.model;
   return stringArg(tool, "model")?.replace(/^@/, "");
+}
+
+const SUBAGENT_STATUS: Record<string, SubagentInfo["status"]> = {
+  queued: "queued",
+  running: "running",
+  done: "done",
+  error: "error",
+};
+
+/** delegate 结果里的快照：刷新后只有它还能说明这个子代理跑过什么。 */
+export function subagentInfo(tool: ToolCallView): SubagentInfo | undefined {
+  const details = isRecord(tool.details) ? tool.details : null;
+  const raw = details !== null && isRecord(details.subagent) ? details.subagent : null;
+  if (raw === null || typeof raw.agentId !== "string" || typeof raw.agent !== "string") return undefined;
+  const number = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : 0);
+  const model = typeof raw.model === "string" ? raw.model : undefined;
+  const activity = typeof raw.activity === "string" ? raw.activity : undefined;
+  const currentTool = typeof raw.currentTool === "string" ? raw.currentTool : undefined;
+  const startMs = typeof raw.currentToolStartMs === "number" ? raw.currentToolStartMs : undefined;
+  const contextTokens = typeof raw.contextTokens === "number" ? raw.contextTokens : undefined;
+  const contextWindow = typeof raw.contextWindow === "number" ? raw.contextWindow : undefined;
+  return {
+    agentId: raw.agentId,
+    agent: raw.agent,
+    status: typeof raw.status === "string" ? (SUBAGENT_STATUS[raw.status] ?? "queued") : "queued",
+    ...(model === undefined ? {} : { model }),
+    ...(activity === undefined ? {} : { activity }),
+    toolCount: number(raw.toolCount),
+    tokens: number(raw.tokens),
+    cost: number(raw.cost),
+    durationMs: number(raw.durationMs),
+    ...(currentTool === undefined ? {} : { currentTool }),
+    ...(startMs === undefined ? {} : { currentToolStartMs: startMs }),
+    ...(contextTokens === undefined ? {} : { contextTokens }),
+    ...(contextWindow === undefined ? {} : { contextWindow }),
+  };
 }

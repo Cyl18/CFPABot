@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { agent } from "../agent/index.ts";
+import { stopSubagent } from "../agent/subagents.ts";
 import { requireAdmin } from "./auth.ts";
 import type { AppEnv } from "./auth.ts";
 import { notFound, parseBody } from "./errors.ts";
@@ -98,6 +99,16 @@ sessionRoutes.post("/:id/abort", async (c) => {
   await agent.abort(c.req.param("id"));
   return c.json({ ok: true });
 });
+
+sessionRoutes.get("/:id/subagents/:agentId", async (c) => {
+  const raw = Number(c.req.query("offset") ?? "0");
+  const offset = Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 0;
+  return c.json(await agent.subagent(c.req.param("id"), c.req.param("agentId"), offset));
+});
+
+sessionRoutes.post("/:id/subagents/:agentId/abort", (c) =>
+  c.json({ stopped: stopSubagent(c.req.param("agentId")) }),
+);
 
 sessionRoutes.post("/:id/archive", async (c) => {
   await agent.archive(c.req.param("id"));

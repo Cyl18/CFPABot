@@ -18,6 +18,7 @@ import type {
   SessionFile,
   SessionFileContent,
   SessionSummary,
+  SubagentTranscript,
   ThinkingLevel,
   WriteScope,
 } from "@cfpa/contracts/api";
@@ -31,13 +32,14 @@ import { SessionHub, statusEventOf } from "./events.ts";
 import { applySearchEnv, loadConfig, llm, resolveModel } from "./llm.ts";
 import { effortOf, parseRoleSelector } from "./llm-providers.ts";
 import { isLocalPath, listLocal, localDir, readLocal } from "./local-store.ts";
-import { openAuthStorage, openModelRuntime, openSessionManager, sessionMessages } from "./pi.ts";
+import { openAuthStorage, openModelRuntime, openSessionManager, messagesFromFile } from "./pi.ts";
 import { LiveProjector, projectMessages } from "./projection.ts";
 import { buildSystemPrompt } from "./prompt.ts";
 import { sandbox } from "./plugins/sandbox.ts";
 import { sessionTitle } from "./title.ts";
 import { SessionStore, summarize, type SessionMeta, type SessionRecord } from "./sessions.ts";
 import { registerSchemes } from "./schemes.ts";
+import { subagentTranscript } from "./subagents.ts";
 import { buildTools } from "./tools/index.ts";
 import { publishDraft } from "./workflows/review/publish.ts";
 import { generalWorkflow } from "./workflows/general.ts";
@@ -131,7 +133,7 @@ async function detailOf(record: SessionRecord): Promise<SessionDetail> {
   const raw = await readLocal(meta.id, DRAFT_FILE);
   const draft = raw === null ? null : parseDraftFile(raw.content);
   const cached = live.get(meta.id)?.runtime?.session.agent.state.messages;
-  const messages = cached ? [...cached] : await sessionMessages(record);
+  const messages = cached ? [...cached] : await messagesFromFile(record.sessionFile);
   return {
     ...summarize(
       record,
@@ -478,6 +480,12 @@ export const agent = {
     if (!slot?.turn) return;
     slot.abort = true;
     void slot.runtime?.session.abort().catch(() => {});
+  },
+
+  async subagent(id: string, agentId: string, offset: number): Promise<SubagentTranscript> {
+    const record = await store.get(id);
+    if (!record) throw httpError("会话不存在", 404, "not_found");
+    return subagentTranscript(id, agentId, offset);
   },
 
   async archive(id: string): Promise<void> {

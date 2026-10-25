@@ -78,10 +78,10 @@ export async function openSessionManager(record: SessionRecord): Promise<Session
   return manager;
 }
 
-export async function sessionMessages(record: SessionRecord): Promise<AgentMessage[]> {
-  if (!record.sessionFile || !existsSync(record.sessionFile)) return [];
+export async function messagesFromFile(file: string | undefined): Promise<AgentMessage[]> {
+  if (file === undefined || !existsSync(file)) return [];
   try {
-    const manager = await SessionManager.open(record.sessionFile, paths.sessions);
+    const manager = await SessionManager.open(file, paths.sessions);
     return manager.buildSessionContext({ transcript: true, collapseCompactedHistory: true }).messages;
   } catch {
     return [];

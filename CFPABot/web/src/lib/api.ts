@@ -35,6 +35,7 @@ import type {
   SpecialPair,
   SpecialPairContent,
   SubmitReviewRequest,
+  SubagentTranscript,
   SystemStatus,
   TextCompareRequest,
   TextCompareResult,
@@ -189,6 +190,16 @@ export const api = {
   createSession: (body: CreateSessionRequest) => send<SessionDetail>("POST", "/api/sessions", body),
   sendMessage: (id: string, text: string) => send<{ ok: true }>("POST", `/api/sessions/${encodeURIComponent(id)}/messages`, { text }),
   abortSession: (id: string) => send<{ ok: true }>("POST", `/api/sessions/${encodeURIComponent(id)}/abort`),
+  subagent: (id: string, agentId: string, offset: number, signal?: AbortSignal) =>
+    get<SubagentTranscript>(
+      `/api/sessions/${encodeURIComponent(id)}/subagents/${encodeURIComponent(agentId)}${query({ offset })}`,
+      signal,
+    ),
+  abortSubagent: (id: string, agentId: string) =>
+    send<{ stopped: boolean }>(
+      "POST",
+      `/api/sessions/${encodeURIComponent(id)}/subagents/${encodeURIComponent(agentId)}/abort`,
+    ),
   archiveSession: (id: string) => send<{ ok: true }>("POST", `/api/sessions/${encodeURIComponent(id)}/archive`),
   setSessionWriteScope: (id: string, body: SetWriteScopeRequest) =>
     send<{ ok: true; writeScope: string }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/write-scope`, body),

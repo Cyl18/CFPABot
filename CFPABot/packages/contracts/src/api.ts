@@ -505,6 +505,34 @@ export interface ChatUsage {
   cost?: number;
 }
 
+/** 子代理运行快照：列表行、抽屉头部共用同一份字段。 */
+export interface SubagentInfo {
+  agentId: string;
+  agent: string;
+  status: "queued" | "running" | "done" | "error";
+  model?: string;
+  /** 当前动作：工具名 + 参数/意图，或模型自述的阶段。 */
+  activity?: string;
+  toolCount: number;
+  tokens: number;
+  cost: number;
+  durationMs: number;
+  currentTool?: string;
+  currentToolStartMs?: number;
+  contextTokens?: number;
+  contextWindow?: number;
+}
+
+/** 子代理 transcript 的一页；`total` 是投影后的总条数，前端拿它做下一次的 offset。 */
+export interface SubagentTranscript {
+  items: ChatItem[];
+  total: number;
+  /** true 表示这份 transcript 来自内存中的活动会话，而不是磁盘上的会话文件。 */
+  live: boolean;
+  status?: SubagentInfo["status"];
+  activity?: string;
+}
+
 export type ChatItem =
   | { id: string; kind: "user"; text: string; at: string }
   | {

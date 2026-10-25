@@ -1,5 +1,5 @@
 import { type } from "@oh-my-pi/omptype";
-import { readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -12,7 +12,7 @@ import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls";
 import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task";
 import { parseAgent } from "@oh-my-pi/pi-coding-agent/task/agents";
 import { runSubprocess } from "@oh-my-pi/pi-coding-agent/task/executor";
-import type { ThinkingLevel } from "@cfpa/contracts/api";
+import type { SubagentInfo, ThinkingLevel } from "@cfpa/contracts/api";
 import type { ToolContext } from "../context.ts";
 import { loadConfig, resolveModel } from "../llm.ts";
 import { parseRoleSelector } from "../llm-providers.ts";
@@ -21,6 +21,7 @@ import { lineRangeOf, sliceLines } from "../../harness/uri.ts";
 import { artifactsDir, localDir } from "../local-store.ts";
 import { agentMcpManager } from "../mcp.ts";
 import { openAuthStorage, openModelRuntime } from "../pi.ts";
+import { subagentDir } from "../subagents.ts";
 
 // 子代理只读：agent md 声明的工具先过这张表，再交给 SDK 装配。
 const CHILD_TOOLS: Record<string, true> = {
@@ -124,6 +125,8 @@ async function prefetch(resources: readonly string[], sessionId: string): Promis
 
 let sequence = 0;
 
+const PROGRESS_INTERVAL_MS = 800;
+
 export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): CustomTool<typeof DELEGATE_PARAMS> {
   return {
     name: "delegate",
@@ -131,7 +134,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
     description:
       "按 agent 定义启动只读子代理，返回结构化 findings JSON。model 可省；resources 会把 pr:// 等只读资源预取进子代理上下文。子代理与主代理共用 pr:// 数据面与 glossary。",
     parameters: DELEGATE_PARAMS,
-    execute: async (_toolCallId, params, _onUpdate, _ctx, signal) => {
+    execute: async (_toolCallId, params, onUpdate, _ctx, signal) => {
       const agentName = (params.agent ?? "").trim();
       const roleName = (params.model ?? "").trim().replace(/^@/, "");
       const config = await loadConfig();
@@ -141,6 +144,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
         .join("、");
       const spec = await loadAgent(agentName);
       const resources = (params.resources ?? []).slice(0, MAX_RESOURCES);
+      const agentId = `${agentName}-${Date.now().toString(36)}-${++sequence}`;
       let modelOverride: string[] | undefined;
       let endpoint: string | undefined;
       let thinking: ThinkingLevel | undefined;
@@ -154,6 +158,26 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
         await resolveModel(endpoint, thinking);
         modelOverride = [`@${roleName}`];
       }
+      const base = {
+        agent: agentName,
+        agentId,
+        ...(roleName === "" ? {} : { model: roleName }),
+        ...(endpoint === undefined ? {} : { endpoint }),
+        ...(thinking === undefined ? {} : { thinking }),
+        resources,
+      };
+      let lastInfo: SubagentInfo = {
+        agentId,
+        agent: agentName,
+        status: "running",
+        ...(roleName === "" ? {} : { model: roleName }),
+        toolCount: 0,
+        tokens: 0,
+        cost: 0,
+        durationMs: 0,
+      };
+      let lastSentAt = 0;
+      let lastKey = "";
       const authStorage = await openAuthStorage(config.endpoints);
       try {
         const { settings, registry } = await openModelRuntime(authStorage, config.endpoints, config.roles);
@@ -166,6 +190,9 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
         ]
           .filter(Boolean)
           .join("\n\n");
+        const artifacts = subagentDir(ctx.sessionId);
+        await mkdir(artifacts, { recursive: true });
+        onUpdate?.({ content: [], details: { ...base, subagent: lastInfo } });
         const result = await runSubprocess({
           cwd: repoRoot,
           additionalDirectories: [localDir(ctx.sessionId)],
@@ -176,7 +203,8 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
           agent: spec.agent,
           task: params.task,
           ...(shared === "" ? {} : { context: shared }),
-          id: `${agentName}-${Date.now().toString(36)}-${++sequence}`,
+          id: agentId,
+          artifactsDir: artifacts,
           index: 0,
           ...(modelOverride === undefined ? {} : { modelOverride }),
           structured: true,
@@ -197,9 +225,45 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
           })),
           ...(mcpManager === undefined ? { enableMCP: false } : { mcpManager }),
           signal,
+          onProgress: (progress) => {
+            const now = Date.now();
+            if (now - lastSentAt < PROGRESS_INTERVAL_MS) return;
+            const seen = `${progress.toolCount}|${progress.tokens}|${progress.currentTool ?? ""}|${progress.lastIntent ?? ""}`;
+            if (seen === lastKey) return;
+            lastSentAt = now;
+            lastKey = seen;
+            const activity = progress.currentToolIntent ?? progress.lastIntent ?? progress.currentTool;
+            lastInfo = {
+              agentId,
+              agent: agentName,
+              status: "running",
+              ...(roleName === "" ? {} : { model: roleName }),
+              ...(activity === undefined ? {} : { activity }),
+              toolCount: progress.toolCount,
+              tokens: progress.tokens,
+              cost: progress.cost,
+              durationMs: progress.durationMs,
+              ...(progress.currentTool === undefined ? {} : { currentTool: progress.currentTool }),
+              ...(progress.currentToolStartMs === undefined ? {} : { currentToolStartMs: progress.currentToolStartMs }),
+              ...(progress.contextTokens === undefined ? {} : { contextTokens: progress.contextTokens }),
+              ...(progress.contextWindow === undefined ? {} : { contextWindow: progress.contextWindow }),
+            };
+            onUpdate?.({ content: [], details: { ...base, subagent: lastInfo } });
+          },
         });
         if (result.aborted || result.exitCode !== 0 || result.error !== undefined) {
-          throw new Error(result.error ?? (result.stderr.trim() || "子代理失败"));
+          const text =
+            result.error ??
+            (signal?.aborted === true
+              ? "主代理中止，子代理一起停了"
+              : result.aborted
+                ? "子代理已停止"
+                : result.stderr.trim() || "子代理失败");
+          return {
+            content: [{ type: "text", text }],
+            details: { ...base, subagent: { ...lastInfo, status: "error" } },
+            isError: true,
+          };
         }
         const data = result.structuredOutput?.data;
         return {
@@ -209,13 +273,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
               text: data === undefined ? result.output.trim() || "(子代理没有返回结果)" : JSON.stringify(data),
             },
           ],
-          details: {
-            agent: agentName,
-            ...(roleName === "" ? {} : { model: roleName }),
-            ...(endpoint === undefined ? {} : { endpoint }),
-            ...(thinking === undefined ? {} : { thinking }),
-            resources,
-          },
+          details: { ...base, subagent: { ...lastInfo, status: "done" } },
         };
       } finally {
         authStorage.close();

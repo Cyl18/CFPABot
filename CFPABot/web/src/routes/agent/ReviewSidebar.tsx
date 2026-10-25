@@ -1,21 +1,25 @@
 import type { ChatItem } from "@cfpa/contracts/api";
-import { Bot, CheckCircle2, ChevronRight, Circle, CircleAlert, CircleMinus, Files, ListTodo, LoaderCircle } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { Ban, Bot, CheckCircle2, ChevronRight, Circle, CircleAlert, CircleMinus, Files, ListTodo, LoaderCircle } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { api } from "@/lib/api.ts";
 import { cn } from "@/lib/cn.ts";
 import { usePr } from "@/lib/queries.ts";
-import { CopyButton } from "@/ui/CopyButton.tsx";
 import {
   delegateItems,
   fileProgress,
   parsePlan,
   planStats,
   stringArg,
+  subagentInfo,
   subagentModel,
   type FileEntry,
   type TaskStatus,
   type TodoPhase,
   type ToolItem,
 } from "./sessionInsights.ts";
+import { SubagentDrawer } from "./SubagentDrawer.tsx";
+import { formatDuration, formatTokens } from "./turns.ts";
 
 const TASK_ICON: Record<TaskStatus, ReactNode> = {
   completed: <CheckCircle2 aria-hidden="true" className="size-3.5 shrink-0 text-ok" />,
@@ -30,6 +34,13 @@ const SUBAGENT_STATE: Record<"pending" | "running" | "done" | "error", { label: 
   running: { label: "运行中", className: "text-accent" },
   done: { label: "完成", className: "text-ok" },
   error: { label: "失败", className: "text-danger" },
+};
+
+const SUBAGENT_DOT: Record<ToolItem["tool"]["state"], string> = {
+  pending: "bg-muted/60",
+  running: "animate-pulse bg-warn",
+  done: "bg-ok",
+  error: "bg-danger",
 };
 
 function SectionCard({ icon, title, meta, children }: { icon: ReactNode; title: string; meta?: ReactNode; children: ReactNode }) {
@@ -154,53 +165,89 @@ function PlanCard({ phases }: { phases: readonly TodoPhase[] | undefined }) {
   );
 }
 
-function SubagentCard({ items }: { items: readonly ToolItem[] }) {
+function SubagentList({ items, sessionId, prNumber }: { items: readonly ToolItem[]; sessionId: string; prNumber?: number }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const stop = useMutation({ mutationFn: (agentId: string) => api.abortSubagent(sessionId, agentId) });
+  const rows = items.map((item) => ({ item, info: subagentInfo(item.tool) }));
+  const opened = rows.find((row) => row.info !== undefined && row.info.agentId === openId);
   return (
-    <SectionCard icon={<Bot aria-hidden="true" className="size-3.5" />} title="子代理" meta={items.length > 0 ? String(items.length) : undefined}>
-      {items.length === 0 ? (
+    <SectionCard icon={<Bot aria-hidden="true" className="size-3.5" />} title="子代理" meta={rows.length > 0 ? String(rows.length) : undefined}>
+      {rows.length === 0 ? (
         <p className="text-[11px] text-muted">还没有派发子代理。</p>
       ) : (
-        <div className="space-y-2">
-          {items.map((item) => {
+        <div className="space-y-1">
+          {rows.map(({ item, info }) => {
             const state = SUBAGENT_STATE[item.tool.state];
-            const model = subagentModel(item.tool);
-            const task = stringArg(item.tool, "task");
+            const activity = info?.activity ?? stringArg(item.tool, "task");
+            const meta =
+              info !== undefined && info.tokens > 0
+                ? `${formatTokens(info.tokens)} · ${formatDuration(info.durationMs)}`
+                : undefined;
+            const model = info?.model ?? subagentModel(item.tool);
+            const stopping = stop.isPending && stop.variables === info?.agentId;
             return (
-              <div key={item.id} className="agent-fade rounded border border-line bg-elevated/30 p-2">
-                <div className="flex items-center gap-1.5 text-[11px]">
-                  {item.tool.state === "running" ? (
-                    <LoaderCircle aria-hidden="true" className="size-3 animate-spin text-accent" />
-                  ) : (
-                    <Bot aria-hidden="true" className="size-3 text-muted" />
+              <div
+                key={item.id}
+                className={cn(
+                  "flex items-center gap-1 rounded border border-line pl-2 pr-1 transition-colors",
+                  info === undefined ? "cursor-default" : "hover:border-accent/40 hover:bg-elevated/60",
+                  openId === info?.agentId && "border-accent/60 bg-elevated/60",
+                )}
+              >
+                <button
+                  type="button"
+                  disabled={info === undefined}
+                  onClick={() => setOpenId(info === undefined ? null : info.agentId)}
+                  title={item.tool.result}
+                  className={cn(
+                    "flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left text-[11px]",
+                    info === undefined ? "cursor-default" : "cursor-pointer",
                   )}
-                  <code className="font-mono">{model !== undefined ? `@${model}` : "子代理"}</code>
-                  <span className={cn("ml-auto", state.className)}>{state.label}</span>
-                </div>
-                {task !== undefined && <p className="mt-1 line-clamp-2 break-words text-[11px] text-muted">{task}</p>}
-                {item.tool.result !== undefined && (
-                  <details className="group mt-1">
-                    <summary className="flex cursor-pointer list-none items-center gap-1 text-[11px] text-muted hover:text-fg">
-                      <ChevronRight aria-hidden="true" className="size-3 transition-transform group-open:rotate-90" />
-                      结果
-                    </summary>
-                    <div className="relative mt-1">
-                      <pre className="scroll-thin max-h-40 overflow-auto whitespace-pre-wrap break-words rounded border border-line bg-surface p-2 pr-8 font-mono text-[11px] leading-relaxed">
-                        {item.tool.result}
-                      </pre>
-                      <CopyButton text={item.tool.result} label="复制结果" className="absolute right-1 top-1 bg-surface/90" />
-                    </div>
-                  </details>
+                >
+                  <span className={cn("size-1.5 shrink-0 rounded-full", SUBAGENT_DOT[item.tool.state])} />
+                  <code className="shrink-0 font-mono">
+                    {model !== undefined ? `@${model}` : (info?.agent ?? "子代理")}
+                  </code>
+                  <span className={cn("shrink-0", state.className)}>{state.label}</span>
+                  <span className="min-w-0 flex-1 truncate text-muted">{activity ?? "—"}</span>
+                  {meta !== undefined && <span className="shrink-0 tabular-nums text-muted">{meta}</span>}
+                  {info !== undefined && <ChevronRight aria-hidden="true" className="size-3 shrink-0 text-muted" />}
+                </button>
+                {item.tool.state === "running" && info !== undefined && (
+                  <button
+                    type="button"
+                    title="停止这个子代理"
+                    aria-label="停止这个子代理"
+                    disabled={stopping}
+                    onClick={() => stop.mutate(info.agentId)}
+                    className="flex size-6 shrink-0 items-center justify-center rounded bg-danger text-white transition-colors hover:bg-danger-hover disabled:opacity-60"
+                  >
+                    {stopping ? (
+                      <LoaderCircle aria-hidden="true" className="size-3 animate-spin" />
+                    ) : (
+                      <Ban aria-hidden="true" className="size-3" />
+                    )}
+                  </button>
                 )}
               </div>
             );
           })}
         </div>
       )}
+      {opened?.info !== undefined && (
+        <SubagentDrawer
+          sessionId={sessionId}
+          info={opened.info}
+          live={opened.item.tool.state === "running"}
+          {...(prNumber === undefined ? {} : { prNumber })}
+          onClose={() => setOpenId(null)}
+        />
+      )}
     </SectionCard>
   );
 }
 
-export function ReviewSidebar({ items, prNumber }: { items: readonly ChatItem[]; prNumber?: number }) {
+export function ReviewSidebar({ items, prNumber, sessionId }: { items: readonly ChatItem[]; prNumber?: number; sessionId: string }) {
   const pr = usePr(prNumber ?? 0);
   const files = pr.data?.files ?? [];
   const progress = fileProgress(items, files, prNumber);
@@ -216,7 +263,7 @@ export function ReviewSidebar({ items, prNumber }: { items: readonly ChatItem[];
         totalReads={progress.totalReads}
       />
       <PlanCard phases={plan} />
-      <SubagentCard items={subagents} />
+      <SubagentList items={subagents} sessionId={sessionId} {...(prNumber === undefined ? {} : { prNumber })} />
     </div>
   );
 }
