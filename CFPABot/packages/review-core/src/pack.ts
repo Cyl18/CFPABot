@@ -14,6 +14,8 @@ export interface PackRow {
   headEn?: string;
   baseZh?: string;
   headZh?: string;
+  /** head 该行原文，只给 changed 行，用于整行 suggestion 对齐。 */
+  headRaw?: string;
   line: number | null;
   inHunk: boolean;
   changed: boolean;
@@ -145,6 +147,7 @@ async function buildWorkspace(
   const { format, enPath, zhPath, baseEn, baseZh, headEn, headZh, headEnText, headZhText } = loaded;
   const patch = zhPath ? patches.get(zhPath) : undefined;
   const hunks = patch === undefined || patch === "" ? null : patchHunks(patch);
+  const zhLines = headZhText === null ? null : headZhText.split("\n");
   const rows: PackRow[] = [];
   for (const key of keyOrder(headEn, [baseEn, baseZh, headZh])) {
     const values = {
@@ -154,12 +157,16 @@ async function buildWorkspace(
       headZh: headZh?.entries.get(key),
     };
     const line = headZh?.lines.get(key) ?? null;
+    const changed = values.baseEn !== values.headEn || values.baseZh !== values.headZh;
+    const headRaw =
+      changed && line !== null && zhLines !== null ? (zhLines[line - 1] ?? "").replace(/\r$/, "") : undefined;
     rows.push({
       key,
       ...values,
+      ...(headRaw === undefined ? {} : { headRaw }),
       line,
       inHunk: line !== null && hunks !== null && inHunks(line, hunks),
-      changed: values.baseEn !== values.headEn || values.baseZh !== values.headZh,
+      changed,
       findings: entryFindingsWithTerms(key, values, workspace.version, input.terms),
     });
   }

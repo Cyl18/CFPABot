@@ -9,7 +9,7 @@ import { packSummary, peekPack } from "./pack.ts";
 import { jsonResult, numberParam, pageOf, paginate, pickFields, textResult } from "./result.ts";
 import { isAgentBody, trimBody, visibleIssueComment, visibleReviewComment } from "./format.ts";
 import { missingResource, PR_CHILDREN } from "./catalog.ts";
-import { flagParam, listParam, nextPageUri } from "./uri.ts";
+import { flagParam, listParam, nextPageUri, sliceLines, splitLineSuffix } from "./uri.ts";
 import type { PrParts } from "./uri.ts";
 import type { HarnessSession } from "./types.ts";
 import { checksOf } from "./review/checks.ts";
@@ -94,7 +94,8 @@ async function readFiles(uri: PrParts): Promise<AgentToolResult<Record<string, u
       next: nextPageUri(`pr://${n}/files`, uri.query, page.nextOffset),
     });
   }
-  const requested = seg.slice(1).join("/");
+  // 行范围写在查询之前时（`…zh_cn.json:85-125?side=head`）omp 剥不掉，这里自己剥。
+  const { path: requested, range } = splitLineSuffix(seg.slice(1).join("/"));
   const { pull, files } = await prdata.files(n);
   const file = files.find((entry) => entry.path === requested || entry.previousPath === requested);
   if (file === undefined) throw new Error(`PR #${n} 没有变更文件：${requested}`);
@@ -109,7 +110,17 @@ async function readFiles(uri: PrParts): Promise<AgentToolResult<Record<string, u
   if (sidePath === null) throw new Error(`该文件在 ${side} 侧不存在。`);
   const text = await gh.getFile(sidePath, side === "base" ? pull.baseSha : pull.headSha);
   if (text === null) throw new Error(`文件不存在：${sidePath}`);
-  return textResult(text, { requestedPath: requested, path: sidePath }, {}, { clip: false });
+  const body = range === null ? text : sliceLines(text, range);
+  return textResult(
+    body,
+    {
+      requestedPath: requested,
+      path: sidePath,
+      ...(range === null ? {} : { lines: `${range.start}-${range.end ?? "end"}` }),
+    },
+    {},
+    { clip: false },
+  );
 }
 
 async function readSpecial(uri: PrParts): Promise<AgentToolResult<Record<string, unknown>>> {

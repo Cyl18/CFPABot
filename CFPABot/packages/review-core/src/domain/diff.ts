@@ -157,6 +157,21 @@ export function patchAddedLines(patch: string): { line: number; text: string }[]
   return added;
 }
 
+/** head 侧行号到整行文本，用于核对 suggestion 是不是整行替换。 */
+export function patchHeadLines(patch: string): Map<number, string> {
+  const lines = new Map<number, string>();
+  for (const hunk of hunksOf(patch)) {
+    let line = hunk.newStart;
+    for (const text of hunk.lines) {
+      const head = text[0];
+      if (head !== "+" && head !== " ") continue;
+      lines.set(line, text.slice(1));
+      line++;
+    }
+  }
+  return lines;
+}
+
 export function inHunks(line: number, hunks: Hunk[]): boolean {
   return hunks.some((h) => line >= h.start && line <= h.end);
 }

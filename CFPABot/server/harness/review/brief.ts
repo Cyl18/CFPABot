@@ -137,8 +137,7 @@ function nextOf(
 function warningsOf(findings: readonly Finding[]): Finding[] {
   return findings
     .filter((finding) => finding.severity === "critical" || finding.severity === "major")
-    .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])
-    .slice(0, 20);
+    .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
 }
 
 function tallyOf(findings: readonly Finding[]): { critical: number; major: number; minor: number; neutral: number } {
@@ -217,6 +216,7 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
     checksView.top = [...localFindings]
       .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])
       .slice(0, 10);
+    checksView.topTotal = localFindings.length;
     checksView.hint = [checksView.hint, "counts/top 由本地预审填充（键集/占位符/标签/术语），逐行见 rows[].findings。"]
       .filter(Boolean)
       .join(" ");
@@ -227,15 +227,26 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
       : plan !== undefined && !plan.fits
         ? `共 ${plan.total} 行 / ${plan.bytes} B，超过单页预算；从 next 开始逐片读，共 ${plan.sliceCount} 片，不要用 offset。`
         : `审查从 rows 开始；一次拿全貌用 read pr://${n}?review=1。`;
+  const warnings = warningsOf([...checks.findings, ...localFindings]);
+  const warningsShown = warnings.slice(0, 20);
   const hint = [
     localMajor.length === 0 ? undefined : `本地机械检查 ${localMajor.length} 条（含键集/占位符/标签/术语），见 warnings。`,
+    warnings.length > warningsShown.length
+      ? `warnings 只列前 ${warningsShown.length} 条（共 ${warnings.length}）；全量按 rows?filter=flagged 翻页。`
+      : undefined,
     pack?.workspacesTruncated === true ? `预审只覆盖前 ${pack.workspaces.length} 个工作区。` : undefined,
     checksView.hint ?? fallbackHint,
   ]
     .filter(Boolean)
     .join(" ");
+  const next = nextOf(n, detail, rows?.next ?? null, plan, pack !== null, reviewed !== undefined, detail.specialFiles.length);
+  if (warnings.length > warningsShown.length) {
+    next.unshift(
+      `read ${rowsUri(n, { filter: "flagged", include: { terms: false, threads: false, duplicates: false, patch: false } })}`,
+    );
+  }
   const brief: ReviewBrief = {
-    next: nextOf(n, detail, rows?.next ?? null, plan, pack !== null, reviewed !== undefined, detail.specialFiles.length),
+    next,
     hint,
     pr: {
       number: detail.number,
@@ -274,7 +285,8 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
     },
     workspaces,
     checks: checksView,
-    warnings: warningsOf([...checks.findings, ...localFindings]),
+    warnings: warningsShown,
+    warningsTotal: warnings.length,
     specialFiles: {
       total: detail.specialFiles.length,
       paths: detail.specialFiles.slice(0, 30),

@@ -1,6 +1,6 @@
 ---
 name: post
-description: PR 校对与交付：取行、三遍法、MQM、草稿。审查 PR 前先读。
+description: PR 校对与交付：打包、派单、合并、草稿。审查 PR 前先读。
 ---
 
 # 译后
@@ -10,15 +10,14 @@ PR 校对。产出 `local://draft.json`；术语表、风格指南、格式要�
 ## 流程
 
 1. **读译前产物**：`local://terms.tsv`、`local://STYLE.md`、`local://format.md`。没有就跳过。`terms.tsv` 只取 changed 行里出现的词，不整表读。
-2. **取全量行**：`read pr://<n>?review=1`。一次拿到 `pr.headSha`、`checks`、`workspaces`、讨论；行在预算内一次给全（`complete=true`），超预算只给 `plan`，从 `next` 开始逐片读完（`next` 为 null 才停）。不要用 offset 翻页。
-   - 每行已有 `path`、`line`（head 行号）、`en`、`zh`、`baseEn`、`baseZh`、`inHunk`、`findings`、`terms`、旧 `threads`、`duplicate`。只审 `changed` 且 `inHunk` 的行。
-   - `counts.workspaces === 0` 先看 `prep` 的路径闸门。
-3. **全量校对**：每一条都读原文和译文，不抽样；派子代理也按 key 分片全量。
-   - **三遍**（一次推理里的顺序，不是三轮对话）：盲读译文（别扭、歧义、语气）→ 对照原文（先写清谁对谁做什么，再查指称、否定、量化、比较、专名）→ 回填（放回相邻 key 拼读，看主语、量词、标点、长度）。
-   - **机械项由预审定位，由你确认**：逐条回到原文和译文核对，成立才写评论，档位按后果定（finding 的档位是起点），误报不写。
-   - **术语**：先看 `read pr://<n>/terms?changed=1`（同词多译、术语缺失、glossary 权威译法）；单行证据看 rows 的 `terms`。仍要额外核对时再用 `mcp__glossary_query`，多个词用 `mcp__glossary_query_batch`（每批 ≤20）。本模组内部的分歧用下面的 `mod review` 看。没依据不判 major。
-4. **写草稿**：`read pr://<n>/draft` 拿 schema 与当前状态；`write pr://<n>/draft <JSON>` 保存并校验。`errors` 会直接返回，按字段改到 `ok: true`；不需要再跑 bash 校验脚本。
-5. **可选覆盖**：本轮确认的术语、风格、格式写回三份文件，直接覆盖。
+2. **打包**：`write pr://<n>/pack {}`。返回 manifest：`slices[]`（id、doc、kind、workspace、path、rows、bytes、首尾 key）、`fileFindings`、`duplicates`、`checks`、`excluded`。手册类 PR 的片 `kind=manual`，一对一片。全量行不进你的上下文。
+3. **派单**：每片一个 `review` 子代理，`resources` 只给那片的 `local://` 文档；跨片裁定另写 `local://<manifest.dir>/shared.md`，一起进 `resources`。`task` 只写片 id 与该片要特别留意的东西。
+4. **合并**：按 `(path, key)` 去重取高档；跨片同 pattern 归到首现片，其余 key 进 `covers`；同一 key 两片结论冲突时你裁决，依据写进 `body`。
+5. **裁决 uncertain**：用 `read pr://<n>/terms?changed=1` 与 glossary（`mcp__glossary_query`，一次一个词）核对。能定的补成 comment 或删掉，定不了的写进 `summary` 的存疑段并标 `suspected`。
+6. **写草稿**：`read pr://<n>/draft` 拿 schema 与当前状态；`write pr://<n>/draft <JSON>` 保存并校验。`errors` 会直接返回，按字段改到 `ok: true`；不需要再跑 bash 校验脚本。
+7. **可选覆盖**：本轮确认的术语、风格、格式写回三份文件，直接覆盖。
+
+`summary` 写文件级问题（路径、键集、JSON 语法、重复译文簇）与存疑项，不重复 inline 内容。
 
 ### 分歧线索（可选）
 
@@ -29,7 +28,7 @@ python3 "$CFPA_ROOT/skills/prep/scripts/scope.py" ./work ./scope --prefix "item.
 python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o ./review/<slug>
 ```
 
-`*-divergence.md` 只报事实：同一英文的多种译法（精确），同一骨架下变动词的多种译法（候选，需核对切分）。当 `terminology/*`、`style/inconsistent` 的线索，判不判仍按三遍法。镜像里 `python3`，Windows 上 `python`。
+`*-divergence.md` 只报事实：同一英文的多种译法（精确），同一骨架下变动词的多种译法（候选，需核对切分）。这两类只当线索，进 `shared.md` 让子代理核对，不直接写评论。镜像里 `python3`，Windows 上 `python`。
 
 ## 草稿
 
@@ -37,8 +36,9 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 
 每条评论：`path`、`line`（head 行号，必须在 diff hunk 新侧）、`key`、`severity`、`mqm`、`body`，`en`/`zh` 填该行原文与译文。`id` 可省。
 
-- **`suggestion` 是整行替换**：带缩进、引号、逗号和转义，跟文件里那一行完全一致。非 `suspected` 且没有 `covers` 时必须给。
-- **`covers` 与 `suggestion` 互斥**：有 `covers` 就不给 `suggestion`；`covers` 只放同一模式的其余 key，本条不放。
+- **语言包评论给 `zhNew`**：只写新译文本身，不带引号、缩进、逗号；服务端按 head 原行拼整行并补 `en`/`zh`。**手册类评论给 `suggestion`**：整行替换，缩进与文件一致。
+- `zhNew` 与 `suggestion` 至少有一样（非 `suspected` 时）；`covers` 不替代。
+- **`covers` 不替代 `zhNew`/`suggestion`**：有 `covers` 也给当前行的新译文；`covers` 只放同一模式的其余 key，本条不放。
 - **`suspected` 是布尔字段**，显式写 `"suspected": true` 才生效；此时档位最高 minor。
 - **同 `path` + 同 `key` 只能出一条**：该 key 的其它实例进 `covers`，重复会被校验打回。
 - `id` 由服务端按顺序补 `c1…cN`，不用自己写。
@@ -90,8 +90,12 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 
 ## 子代理
 
-派子代理时把校对方法和 MQM 贴进 task；它只返回稀疏 JSON（只写判错的 key），你合并并确认。
+`review` 是裸 post：没有读取工具，只看 `resources` 递过去的那一片。片文档由 `write pr://<n>/pack` 生成，已含原文、译文、`raw`、机械发现、术语命中、旧线程、重复译文与 MQM 表。
 
-分片优先把 rows URI 放进 `resources`：`delegate({ agent: "review", model: "@模型名", task, resources: ["pr://<n>/rows?filter=reviewable&workspace=<ws>&prefix=<prefix>"] })`。预算内子代理直接拿到全集；超预算时任务里说明跟着返回的 `next` 逐片读完（`slices` 只列开头 8 片）。子代理与主代理共用 `pr://` 数据面、`terms` 和 skills，不需要你先把分片写成文件。
+- 一片一个子代理：`resources: ["local://<manifest.dir>/slices/<id>.md", "local://<manifest.dir>/shared.md"]`。
+- `shared.md` 由你写：锁定术语、`released-keys`、已报 pattern、本轮体例约定。写得越具体，子代理越不用猜。
+- 分片必须整份送达：超过预取上限会直接报错，按 manifest 的 `bytes` 拆小后重派。
+- 子代理只回 key 级 `comments` 与 `uncertain`；`path`/`line`/`en`/`zh` 它照片头与行块回填，你合并时按 `pr://` 核对行号。
+- 你不重判译文；术语分歧由你统一裁决，裁决不了的按 `uncertain` 流程处理。
 
 `read pr://<n>` 的 `localRoot` 是 head 文件的物化目录，只读；要跑脚本先复制到 `local://work/`，脚本吃 `./work`。仓库工作树用 `$CFPA_REPO`（`grep`/`find` 可给绝对路径，`bash` 里用环境变量）。

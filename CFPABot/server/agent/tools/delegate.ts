@@ -2,12 +2,7 @@ import { type } from "@oh-my-pi/omptype";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import {
-  loadSkillsFromDir,
-  type CustomTool,
-  type ExtensionFactory,
-  type Skill,
-} from "@oh-my-pi/pi-coding-agent";
+import type { CustomTool, ExtensionFactory } from "@oh-my-pi/pi-coding-agent";
 import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls";
 import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task";
 import { parseAgent } from "@oh-my-pi/pi-coding-agent/task/agents";
@@ -32,18 +27,18 @@ const CHILD_TOOLS: Record<string, true> = {
 };
 
 const AGENTS_DIR = join(paths.root, ".omp", "agents");
-const SKILLS_DIR = join(paths.root, "skills");
 
 const AGENT_NAME = /^[A-Za-z0-9_-]+$/;
-const PREFETCH_BYTES = 16_000;
+const PREFETCH_BYTES = 96_000;
+const PREFETCH_TOTAL_BYTES = 192_000;
 const MAX_RESOURCES = 12;
 
 const OPERATING_RULES = [
-  "你是子代理：只读、一次交卷。",
-  "- 数据面与主代理相同：`read pr://<n>/rows?...`、`pr://<n>/terms?changed=1`、`pr://<n>/special-files?include=text` 都能用；`pr://<n>` 是简报。",
-  "- 任务给了 resources 就直接读，别重读全量。子代理 cwd 是仓库工作树；主代理 workspace 的绝对路径见任务上下文，也可用 `read local://...`。",
-  "- MQM 分类表读 `skill://post`；术语依据用 `pr://<n>/terms`，不要读缓存文件。",
-  "- 不要派发子代理，不要跑验证、测试或发布。",
+  "你是子代理：只做判断，一次交卷。",
+  "- 上下文里已经放好主代理打包的分片：原文、译文、原始行、机械发现、术语命中、旧线程、重复译文。不要自己去找输入。",
+  "- 除 glossary 查询外不调工具；要核实术语就用 glossary 工具，一次一个词。",
+  "- 不要读 pr://、repo://、gh:// 或任何文件；分片里没有的信息就是没有。",
+  "- 拿不准写进 uncertain，不要硬判；没依据不判 major。",
   "- 只回结论，不回工具过程。",
 ].join("\n");
 
@@ -88,13 +83,6 @@ async function loadAgent(name: string): Promise<AgentSpec> {
   };
 }
 
-let skillsPromise: Promise<Skill[]> | undefined;
-
-function childSkills(): Promise<Skill[]> {
-  skillsPromise ??= loadSkillsFromDir({ dir: SKILLS_DIR, source: "delegate" }).then((loaded) => loaded.skills);
-  return skillsPromise;
-}
-
 /** 父代理已经拿到分片时，直接把内容带进子代理上下文，省掉一次重复取数。 */
 async function prefetch(resources: readonly string[], sessionId: string): Promise<string> {
   if (resources.length === 0) return "";
@@ -103,24 +91,37 @@ async function prefetch(resources: readonly string[], sessionId: string): Promis
     getArtifactsDir: () => artifactsDir(sessionId),
     getSessionId: () => sessionId,
   };
+  const failures: Error[] = [];
   const blocks = await Promise.all(
     resources.map(async (uri) => {
+      const local = /^local:\/\//i.test(uri);
       try {
         const target = router.split(uri);
         const resource = await router.resolve(target.path, { cwd: paths.root, localProtocolOptions });
         const range = target.sel === undefined ? null : lineRangeOf(target.sel);
         const content = range === null ? resource.content : sliceLines(resource.content, range);
-        const clipped =
-          Buffer.byteLength(content) > PREFETCH_BYTES
-            ? `${Buffer.from(content).subarray(0, PREFETCH_BYTES).toString("utf8")}\n…[预取已截断]`
-            : content;
-        return `## 预取资源 ${uri}\n\n${clipped}`;
+        const bytes = Buffer.byteLength(content);
+        if (bytes > PREFETCH_BYTES) {
+          // 子代理没有读取工具，截断等于让它审半份材料；本地分片必须整份送达。
+          if (local) throw new Error(`分片超过预取上限 ${PREFETCH_BYTES} B：${uri}（${bytes} B），重新打包成更小的片`);
+          const clipped = Buffer.from(content).subarray(0, PREFETCH_BYTES).toString("utf8");
+          return `## 预取资源 ${uri}\n\n${clipped}\n…[预取已截断]`;
+        }
+        return `## 预取资源 ${uri}\n\n${content}`;
       } catch (err) {
-        return `## 预取资源 ${uri} 失败\n\n${err instanceof Error ? err.message : String(err)}`;
+        const error = err instanceof Error ? err : new Error(String(err));
+        if (local) failures.push(error);
+        return `## 预取资源 ${uri} 失败\n\n${error.message}`;
       }
     }),
   );
-  return ["# 已预取资源", ...blocks].join("\n\n").slice(0, 96_000);
+  const first = failures[0];
+  if (first !== undefined) throw first;
+  const joined = ["# 已预取资源", ...blocks].join("\n\n");
+  if (Buffer.byteLength(joined) > PREFETCH_TOTAL_BYTES) {
+    throw new Error(`预取总量超过 ${PREFETCH_TOTAL_BYTES} B；减少 resources 或拆片`);
+  }
+  return joined;
 }
 
 let sequence = 0;
@@ -132,7 +133,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
     name: "delegate",
     label: "派发子代理",
     description:
-      "按 agent 定义启动只读子代理，返回结构化 findings JSON。model 可省；resources 会把 pr:// 等只读资源预取进子代理上下文。子代理与主代理共用 pr:// 数据面与 glossary。",
+      "按 agent 定义启动只读子代理，返回结构化 findings JSON。model 可省；resources 的内容由服务端整份塞进子代理上下文，超过上限直接报错、不截断。子代理的工具面由 agent md 决定，review 没有读取工具。",
     parameters: DELEGATE_PARAMS,
     execute: async (_toolCallId, params, onUpdate, _ctx, signal) => {
       const agentName = (params.agent ?? "").trim();
@@ -183,13 +184,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
         const { settings, registry } = await openModelRuntime(authStorage, config.endpoints, config.roles);
         const mcpManager = ctx.mcpManager?.() ?? (await agentMcpManager());
         const repoRoot = existsSync(paths.repo) ? paths.repo : paths.root;
-        const shared = [
-          params.context,
-          `主代理 workspace：${localDir(ctx.sessionId)}\n仓库工作树：${repoRoot}`,
-          await prefetch(resources, ctx.sessionId),
-        ]
-          .filter(Boolean)
-          .join("\n\n");
+        const shared = [params.context, await prefetch(resources, ctx.sessionId)].filter(Boolean).join("\n\n");
         const artifacts = subagentDir(ctx.sessionId);
         await mkdir(artifacts, { recursive: true });
         onUpdate?.({ content: [], details: { ...base, subagent: lastInfo } });
@@ -215,7 +210,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
           enableLsp: false,
           enableIrc: false,
           keepAlive: false,
-          skills: await childSkills(),
+          skills: [],
           preloadedCustomToolPaths: [],
           preloadedPreparedExtensions: extensions.map((factory, index) => ({
             path: `<cfpa-extension:${index}>`,

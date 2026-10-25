@@ -48,3 +48,4 @@ description: 译前草稿：路径闸门、范围、术语表、风格指南、�
 6. **风格指南**：一页。命名策略（材质、物种、物品）、语气与称呼、本模组停用词。
 7. **格式要求**（可选）：只写 findings 不覆盖的引擎规则；占位符、格式码、换行、标签、键集、JSON 语法由预审负责。
 8. **prep.json**：布局、`headSha`、workspace、counts、范围规则、用了哪份术语资源、没解决的问题。
+9. **打包**（进 `post` 前）：`write pr://<n>/pack {}` 生成 `local://pack/<sha7>/`（`slices/*.md` + `manifest.json`）。片边界由服务端按 key 组与字节预算切，不用自己切；`manifest.excluded` 非 0 时回路径闸门查。跨片裁定写 `local://<manifest.dir>/shared.md`，随片一起递给子代理。

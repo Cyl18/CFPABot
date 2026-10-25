@@ -22,6 +22,15 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
     },
   },
   {
+    id: "pr-pack",
+    uri: "pr://<n>/pack",
+    summary: "把审查输入打包成 local://pack/：自包含片文档 + manifest；只写会话 workspace，不发 GitHub，正文忽略",
+    match: (parts) => {
+      const seg = prSegments(parts);
+      return seg.length === 1 && seg[0] === "pack";
+    },
+  },
+  {
     id: "pr-comment",
     uri: "pr://<n>/comments",
     summary: "在 PR 下发一条评论",

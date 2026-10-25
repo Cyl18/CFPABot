@@ -147,6 +147,7 @@ export interface ChecksSummary {
   unitCount: number;
   counts: { critical: number; major: number; minor: number; neutral: number };
   top: Finding[];
+  topTotal: number;
   modFiles: ModFileCheck[];
   error?: string;
   hint?: string;
@@ -179,6 +180,8 @@ export interface ReviewRowView {
   zh?: string;
   baseEn?: string;
   baseZh?: string;
+  /** head 该行的原始文本，供整行 suggestion 对齐缩进与逗号；只有 changed 行才有。 */
+  raw?: string;
   line: number | null;
   inHunk: boolean;
   changed: boolean;
@@ -274,6 +277,7 @@ export interface ReviewBrief {
   workspaces: WorkspaceBrief[];
   checks: ChecksSummary;
   warnings: Finding[];
+  warningsTotal: number;
   specialFiles: { total: number; paths: string[]; truncated: boolean; error?: string };
   related: RelatedPr[];
   discussions: DiscussionsBrief;

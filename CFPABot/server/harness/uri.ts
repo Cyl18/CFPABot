@@ -70,6 +70,14 @@ export function lineRangeOf(selector: string): LineRange | null {
   return { start: Math.max(1, start), end };
 }
 
+/** `x.json:85-125` / `x.json:85` 剥出范围；omp 只在选择器紧贴 URL 结尾时才剥，写在查询前的在这里补。 */
+export function splitLineSuffix(path: string): { path: string; range: LineRange | null } {
+  const colon = path.lastIndexOf(":");
+  if (colon <= 0) return { path, range: null };
+  const range = lineRangeOf(path.slice(colon + 1));
+  return range === null ? { path, range: null } : { path: path.slice(0, colon), range };
+}
+
 /** 1-based，越界的 end 夹到文件末尾；start 超过总行数是调用方写错了范围，直接报。 */
 export function sliceLines(text: string, range: LineRange): string {
   const lines = text.split("\n");

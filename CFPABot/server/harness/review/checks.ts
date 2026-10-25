@@ -100,6 +100,7 @@ export function checksSummary(view: ChecksView): ChecksSummary {
     unitCount: view.units.length,
     counts: view.counts,
     top: [...view.findings].sort((a, b) => RANK[a.severity] - RANK[b.severity]).slice(0, 10),
+    topTotal: view.findings.length,
     modFiles: view.modFiles,
     ...(view.error === undefined ? {} : { error: view.error }),
     ...(view.hint === undefined ? {} : { hint: view.hint }),

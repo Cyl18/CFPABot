@@ -10,18 +10,20 @@ PR 审查：`prep` → `post`。需要补译时在中间插 `translate`。
 
 ## 取数
 
-开审先 `read pr://<n>?review=1`；rows / terms / special-files / draft 的入口与分页规则见 system 的「数据面」。超预算就从 `plan` 的 `next` 开始逐片读，跟着每片的 `next` 读完，不要用 offset。
+开审先 `read pr://<n>?review=1`；术语、线程、checks、特殊文件入口见 system 的「数据面」。
 
 规模：<100 变更行走轻量 prep；其余先跑 `mod prep`；changed 行有整句长文本才加 `mod mine`；>1000 先按 key 分片。术语只读命中 changed 行的部分。
 
-## 派子代理
+## 打包与派单
 
-任务量自己判断：一轮读不完、能按 key 前缀或文件切开、切开后各片互不共享裁定时，拆到两片以上就必须按片派 `delegate({ agent: "review", model: "@模型名", task, resources: [...] })`。
+`write pr://<n>/pack` 一次拿到 manifest（片清单、key 范围、bytes、文件级问题、重复译文簇、excluded）。全量行不进你的上下文。
 
-- 只有一片就自己审，别为一片派单——派单的成本是两次交接。
-- 分片时把该片的 rows URI 放进 `resources`，例如 `pr://<n>/rows?filter=reviewable&workspace=<ws>&prefix=<prefix>`；预算内子代理直接拿到全集，超预算让它跟着返回的 `next` 逐片读完（`slices` 只列开头 8 片）。要并行就按 `workspace`/`prefix` 各自收窄后再派。
-- 每片写清：片内文件、key 前缀、要判什么、返回什么。子代理只读，只回 findings。
-- 合并、复核、落盘 `pr://<n>/draft` 都是你的活；子代理没审到的片没人替你兜底。
+- 每片一个 `delegate({ agent: "review", model: "@模型名", task, resources: ["local://<manifest.dir>/slices/<id>.md", "local://<manifest.dir>/shared.md"] })`。
+- `shared.md` 由你写：锁定术语、放行 key、已报 pattern、本轮体例。子代理没有读取工具，看不到的东西就是没有。
+- 分片必须整份送达，超预取上限会直接报错；按 manifest 的 bytes 拆小重派。
+- 子代理只回 key 级 comments 与 uncertain；path/line/en/zh 它照片头与行块回填。
+- 合并、去重、裁决 uncertain、落盘 `pr://<n>/draft` 都是你的活；子代理没审到的行要么重派，要么写进 summary。
+- 手册类 PR 的片 `kind=manual`，一对一片，同样派。
 
 ## 进度
 

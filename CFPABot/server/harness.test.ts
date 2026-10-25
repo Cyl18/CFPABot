@@ -1,17 +1,20 @@
+import { rm } from "node:fs/promises";
 import { describe, expect, test } from "bun:test";
-import type { ReviewComment, ReviewThread } from "@cfpa/contracts/api";
+import type { ReviewComment, ReviewRowView, ReviewThread, SpecialPairContent } from "@cfpa/contracts/api";
 import { validateDraft } from "@cfpa/review-core/draft";
 import { buildTermIndex } from "@cfpa/review-core/domain/terms";
 import { entryFindings } from "@cfpa/review-core/domain/checks";
 import type { Pack, PackRow, PackWorkspace } from "@cfpa/review-core/pack";
 import { missingResource, PR_CHILDREN, resourceTree } from "./harness/catalog.ts";
 import type { InternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls";
-import { lineRangeOf, prPartsOf, sliceLines } from "./harness/uri.ts";
+import { lineRangeOf, prPartsOf, sliceLines, splitLineSuffix } from "./harness/uri.ts";
 import { findWriteTarget } from "./harness/write-targets.ts";
 import { buildTools } from "./agent/tools/index.ts";
 import { sandboxEnv } from "./agent/tools/bash.ts";
-import { prepareDraft } from "./harness/review/draft.ts";
-import { reviewRowsForInput } from "./harness/review/rows.ts";
+import { localDir, readLocal } from "./agent/local-store.ts";
+import { composeSuggestion, prepareDraft, withServerFilledFields } from "./harness/review/draft.ts";
+import { reviewRowsForInput, reviewRowViews } from "./harness/review/rows.ts";
+import { composeManualSlices, composeWorkPack, persistWorkPack } from "./harness/review/workpack.ts";
 import { aggregateTerms } from "./harness/review/terms.ts";
 import { jsonResult } from "./harness/result.ts";
 import { secretReason } from "./agent/plugins/sandbox.ts";
@@ -28,6 +31,7 @@ function row(key: string, headEn: string, headZh: string, line: number, inHunk =
     headEn,
     baseZh: headZh,
     headZh,
+    headRaw: `    "${key}": "${headZh}",`,
     line,
     inHunk,
     changed: true,
@@ -118,6 +122,7 @@ describe("write targets", () => {
       return findWriteTarget(prPartsOf(internal))?.id;
     };
     expect(target("pr://12/draft")).toBe("pr-draft");
+    expect(target("pr://12/pack")).toBe("pr-pack");
     expect(target("pr://12/review")).toBe("pr-review");
     expect(target("pr://12/review?event=APPROVE")).toBe("pr-review");
     expect(target("pr://12/review/submit")).toBe("pr-review-submit");
@@ -308,6 +313,176 @@ describe("review rows plan", () => {
   });
 });
 
+describe("work pack", () => {
+  const options = {
+    filter: "reviewable" as const,
+    include: { terms: true, threads: true, duplicates: true, patch: false },
+  };
+  const index = buildTermIndex({ "terms-v1.tsv": "en\tzh\nA\t甲\n" });
+  const base = {
+    threads: {
+      available: true,
+      headSha: "head",
+      pendingReviewId: null,
+      threads: [thread],
+    } satisfies ThreadsView,
+    terms: index,
+    patches: new Map<string, string | undefined>(),
+  };
+  const rowsOf = (space: Pack): ReviewRowView[] => reviewRowViews({ ...base, pack: space }, options);
+
+  test("片文档自包含：路径、MQM、raw、证据都在", () => {
+    const space = pack([row("a", "A", "甲", 10), row("b", "B", "乙", 20), row("c", "C", "丙", 30, false)]);
+    const { manifest, files } = composeWorkPack(space, rowsOf(space), new Date("2026-01-01T00:00:00.000Z"));
+    expect(manifest.counts.reviewable).toBe(2);
+    expect(manifest.slices).toHaveLength(1);
+    expect(manifest.slices[0]?.rows).toBe(2);
+    expect(manifest.slices[0]?.kind).toBe("lang");
+    expect(manifest.slices[0]?.doc).toBe("local://pack/head/slices/head-01.md");
+    const doc = files[0]?.content ?? "";
+    expect(doc).toContain(`文件：${ZH}`);
+    expect(doc).toContain("## MQM");
+    expect(doc).toContain("accuracy/mistranslation");
+    expect(doc).toContain("### a");
+    expect(doc).toContain('raw:     "a": "甲",');
+    expect(doc).toContain("thread: t1");
+    expect(doc).toContain("dup: z");
+    expect(doc.match(/^### /gm)).toHaveLength(2);
+  });
+
+  test("落盘：manifest 与片文档都能从 local:// 读回", async () => {
+    const space = pack([row("a", "A", "甲", 10), row("b", "B", "乙", 20)]);
+    const composed = composeWorkPack(space, rowsOf(space));
+    const session = `test-workpack-${Date.now().toString(36)}`;
+    try {
+      await persistWorkPack(session, composed);
+      const manifest = await readLocal(session, "pack/manifest.json");
+      expect(manifest?.content).toContain('"reviewable": 2');
+      const doc = await readLocal(session, composed.files[0]!.name);
+      expect(doc?.content).toContain("### a");
+      expect(doc?.content).toContain("### b");
+    } finally {
+      await rm(localDir(session), { recursive: true, force: true });
+    }
+  });
+
+  test("手册片带两侧行号与变更区间", () => {
+    const pair = {
+      key: "docs/zh_cn/guide.md",
+      kind: "pair" as const,
+      en: {
+        path: "docs/en_us/guide.md",
+        status: "modified" as const,
+        base: "line one",
+        head: "line one\nline two",
+        truncated: false,
+        hunks: [{ start: 1, end: 2 }],
+      },
+      zh: {
+        path: "docs/zh_cn/guide.md",
+        status: "modified" as const,
+        base: "第一行",
+        head: "第一行\n第二行",
+        truncated: false,
+        hunks: [{ start: 2, end: 2 }],
+      },
+      parsed: null,
+    } satisfies SpecialPairContent;
+    const manual = composeManualSlices(7, "abcdef1234", [pair]);
+    expect(manual.slices).toHaveLength(1);
+    expect(manual.slices[0]).toMatchObject({
+      kind: "manual",
+      pair: "docs/zh_cn/guide.md",
+      path: "docs/zh_cn/guide.md",
+      doc: "local://pack/abcdef1/slices/abcdef1-m01.md",
+    });
+    const doc = manual.files[0]?.content ?? "";
+    expect(doc).toContain("--- en ---");
+    expect(doc).toContain("1| line one");
+    expect(doc).toContain("2| 第二行");
+    expect(doc).toContain("变更行（zh）：2-2");
+    expect(doc).toContain("## MQM");
+  });
+
+  test("相邻条目译文进片，回填不用自己找", () => {
+    const space = pack([row("a", "A", "甲", 10), row("b", "B", "乙", 20), row("c", "C", "丙", 30)]);
+    const doc = composeWorkPack(space, rowsOf(space)).files[0]?.content ?? "";
+    expect(doc).toContain("prev: a = 甲");
+    expect(doc).toContain("next: c = 丙");
+  });
+
+  test("服务端按 raw 拼整行，补 en/zh 并去掉 zhNew", async () => {
+    const space = pack([row("a", "A", "甲", 10)]);
+    const payload = JSON.stringify({
+      prNumber: 7,
+      headSha: "head",
+      verdict: "changes",
+      summary: "一处错译",
+      comments: [
+        {
+          path: ZH,
+          line: 10,
+          key: "a",
+          severity: "major",
+          mqm: "accuracy/mistranslation",
+          body: "意思反了",
+          zhNew: "乙",
+        },
+      ],
+    });
+    const filled = JSON.parse(await withServerFilledFields(7, payload, space)) as {
+      comments: Record<string, unknown>[];
+    };
+    expect(filled.comments[0]).toMatchObject({ en: "A", zh: "甲", suggestion: '    "a": "乙",' });
+    expect("zhNew" in (filled.comments[0] ?? {})).toBe(false);
+  });
+
+  test("拼整行保留缩进与行尾逗号；.lang 不引号", () => {
+    expect(composeSuggestion(ZH, "a", '    "a": "甲",', "乙")).toBe('    "a": "乙",');
+    expect(composeSuggestion(ZH, "a", '  "a": "甲"', "乙")).toBe('  "a": "乙"');
+    expect(composeSuggestion("x/lang/zh_cn.lang", "a", "a=甲", "乙")).toBe("a=乙");
+  });
+
+  test("手册评论没有 raw，zhNew 不猜、不拼", async () => {
+    const payload = JSON.stringify({
+      prNumber: 7,
+      headSha: "head",
+      verdict: "changes",
+      summary: "手册",
+      comments: [
+        {
+          path: "docs/zh_cn/guide.md",
+          line: 3,
+          key: "docs/zh_cn/guide.md",
+          severity: "minor",
+          mqm: "fluency/awkward",
+          body: "读起来别扭",
+          suggestion: "改好的整行中文",
+          zhNew: "不该被用",
+        },
+      ],
+    });
+    const filled = JSON.parse(await withServerFilledFields(7, payload, pack([]))) as {
+      comments: Record<string, unknown>[];
+    };
+    expect(filled.comments[0]?.suggestion).toBe("改好的整行中文");
+    expect("zhNew" in (filled.comments[0] ?? {})).toBe(false);
+  });
+
+  test("按预算切片，同 key 组不切开", () => {
+    const space = pack([
+      row("mod.page.a.one", "A", "甲", 1),
+      row("mod.page.a.two", "B", "乙", 2),
+      row("mod.page.b.one", "C", "丙", 3),
+    ]);
+    const { manifest } = composeWorkPack(space, rowsOf(space), new Date("2026-01-01T00:00:00.000Z"), 120);
+    expect(manifest.counts.slices).toBe(2);
+    expect(manifest.slices[0]).toMatchObject({ firstKey: "mod.page.a.one", lastKey: "mod.page.a.two" });
+    expect(manifest.slices[1]?.firstKey).toBe("mod.page.b.one");
+    expect(manifest.slices.every((slice) => slice.bytes > 0)).toBe(true);
+  });
+});
+
 describe("terms evidence", () => {
   const index = buildTermIndex({
     "terms-v1.tsv": "en\tzh\nFoo Bar\t甲\n",
@@ -381,6 +556,16 @@ describe("files 行范围", () => {
     expect(sliceLines(text, { start: 3, end: 999 })).toBe("c\nd\n");
     expect(() => sliceLines(text, { start: 9, end: null })).toThrow(/只有 5 行/);
   });
+
+  test("查询前的行范围也剥掉，普通路径不动", () => {
+    expect(splitLineSuffix("x/zh_cn.json:85-125")).toEqual({
+      path: "x/zh_cn.json",
+      range: { start: 85, end: 125 },
+    });
+    expect(splitLineSuffix("x/zh_cn.json:85")).toEqual({ path: "x/zh_cn.json", range: { start: 85, end: null } });
+    expect(splitLineSuffix("x/zh_cn.json")).toEqual({ path: "x/zh_cn.json", range: null });
+    expect(splitLineSuffix("x/zh_cn.json:raw")).toEqual({ path: "x/zh_cn.json:raw", range: null });
+  });
 });
 
 describe("draft", () => {
@@ -429,6 +614,35 @@ describe("draft", () => {
     expect(errors.some((error) => error.includes("mqm"))).toBe(true);
     expect(errors.some((error) => error.includes("suggestion"))).toBe(true);
     expect(errors.some((error) => error.includes("key 重复"))).toBe(true);
+  });
+  test("covers 可与 suggestion 并存；suggestion 不是整行时报错", () => {
+    const patches = new Map<string, string | undefined>([
+      [ZH, ['@@ -8,2 +8,2 @@', '   "a": "x",', '-  "b": "旧",', '+  "b": "新",'].join("\n")],
+    ]);
+    const draft = (suggestion: string) => ({
+      prNumber: 7,
+      headSha: "head",
+      verdict: "changes" as const,
+      summary: "总结",
+      comments: [
+        {
+          id: "c1",
+          path: ZH,
+          line: 9,
+          key: "b",
+          severity: "minor" as const,
+          mqm: "fluency/spacing",
+          body: "原因",
+          suggestion,
+          covers: ["c"],
+        },
+      ],
+    });
+    expect(validateDraft(draft('  "b": "新。",'), { patches })).toEqual([]);
+    expect(validateDraft(draft('"b": "新。"'), { patches }).some((error) => error.includes("缩进"))).toBe(true);
+    expect(
+      validateDraft(draft('  "b": 新。,'), { patches }).some((error) => error.includes("JSON 条目")),
+    ).toBe(true);
   });
 });
 

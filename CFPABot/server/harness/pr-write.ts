@@ -18,6 +18,7 @@ import { publishDraft } from "../agent/workflows/review/publish.ts";
 import { prdata } from "../prdata.ts";
 import { errorResult, jsonResult } from "./result.ts";
 import { prepareDraft, saveDraftOf, markPublishedOf, storedDraftOf } from "./review/draft.ts";
+import { writeWorkPack } from "./review/workpack.ts";
 import { parseThreadState } from "./thread-state.ts";
 import { invalidateThreads, threadsOf } from "./review/threads.ts";
 import type { WriteTarget } from "./write-targets.ts";
@@ -264,13 +265,15 @@ export async function writePr(
   ctx: WriteSession,
   toolCallId: string,
 ): Promise<WriteResult> {
-  if (target.id !== "pr-draft") {
+  if (target.id !== "pr-draft" && target.id !== "pr-pack") {
     assertCanWrite(ctx);
     assertBotWrites();
   }
   switch (target.id) {
     case "pr-draft":
       return writeDraft(uri, content, ctx);
+    case "pr-pack":
+      return jsonResult(await writeWorkPack(uri.number, ctx.sessionId));
     case "pr-comment":
       return writeComment(uri, content, ctx, toolCallId);
     case "pr-inline-comment":

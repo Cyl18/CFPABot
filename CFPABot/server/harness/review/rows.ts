@@ -147,7 +147,7 @@ function rowBytes(row: ReviewRowView): number {
 }
 
 /** 同组分片：键的前三段（如 slate_work.page.<page>）整组进同片，回填才有相邻条目可拼。 */
-function sliceGroup(key: string): string {
+export function sliceGroup(key: string): string {
   const parts = key.split(".");
   return parts.length > 3 ? parts.slice(0, 3).join(".") : key;
 }
@@ -209,6 +209,7 @@ function buildRows(input: RowsInput, options: RowsOptions, selected: readonly Se
       ...(row.headZh === undefined ? {} : { zh: row.headZh }),
       ...(row.baseEn === undefined ? {} : { baseEn: row.baseEn }),
       ...(row.baseZh === undefined ? {} : { baseZh: row.baseZh }),
+      ...(row.headRaw === undefined ? {} : { raw: row.headRaw }),
       line: row.line,
       inHunk: row.inHunk,
       changed: row.changed,
@@ -471,6 +472,11 @@ function missingSlice(input: RowsInput, id: string): Error {
   return new Error(
     `分片不存在：${id}（plan 可能来自旧 head 或别的过滤条件）。重新 read pr://${input.pack.prNumber}?review=1 获取 plan，从 next 开始逐片读。`,
   );
+}
+
+/** 打包用：一次给出全部选中的行视图，不走分页预算。 */
+export function reviewRowViews(input: RowsInput, options: RowsOptions): ReviewRowView[] {
+  return buildRows(input, options, selectForOptions(input.pack, options));
 }
 
 /** 纯组装：预算内一次返回全量；超预算只返回 plan；带 slice 时返回完整分片。 */

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { DraftComment, ReviewDraft, Severity, Verdict } from "@cfpa/contracts/api";
 import { MQM_BY_ID } from "@cfpa/contracts/mqm";
-import { inHunks, patchHunks } from "./domain/diff.ts";
+import { inHunks, patchHeadLines, patchHunks } from "./domain/diff.ts";
 
 export const draftInputSchema = z.object({
   prNumber: z.number().int().positive(),
@@ -79,6 +79,14 @@ export function validateDraft(
   ctx: DraftContext,
 ): string[] {
   const errors: string[] = [];
+  const headLines = new Map<string, Map<number, string>>();
+  const headLinesOf = (path: string, patch: string): Map<number, string> => {
+    const cached = headLines.get(path);
+    if (cached !== undefined) return cached;
+    const lines = patchHeadLines(patch);
+    headLines.set(path, lines);
+    return lines;
+  };
   if (!VERDICT_LABEL[draft.verdict]) errors.push(`verdict 非法: ${draft.verdict}`);
   if (!draft.summary.trim()) errors.push("summary 不能为空");
   if (!Number.isInteger(draft.prNumber) || draft.prNumber <= 0) errors.push("prNumber 非法");
@@ -103,14 +111,13 @@ export function validateDraft(
       if (first !== undefined) errors.push(`${where}: key 重复（与第 ${first} 条同 path 同 key），其余实例放进 covers`);
       else seen.set(slot, index + 1);
     }
-    if (comment.covers && comment.covers.length > 0 && comment.suggestion) {
-      errors.push(`${where}: covers 非空时不能同时给 suggestion`);
-    }
     if (comment.suspected && (comment.severity === "critical" || comment.severity === "major")) {
       errors.push(`${where}: 存疑项 severity 不能高于 minor`);
     }
-    if (!comment.suspected && (comment.covers?.length ?? 0) === 0 && !comment.suggestion?.trim()) {
-      errors.push(`${where}: 非存疑且没有 covers 的意见必须给出 suggestion（该行替换后的完整译文）`);
+    if (!comment.suspected && !comment.suggestion?.trim()) {
+      errors.push(
+        `${where}: 非存疑的意见必须给出 suggestion（语言包可改给 zhNew，但 path+line 必须能在 pack 里找到该行；covers 不替代）`,
+      );
     }
     if (ctx.patches === undefined) return;
     if (!ctx.patches.has(comment.path)) {
@@ -122,9 +129,34 @@ export function validateDraft(
       errors.push(`${where}: 该文件的 diff 无法取得，不能确定行号，请改用其它定位方式或不写行内评论`);
       return;
     }
-    if (!inHunks(comment.line, patchHunks(patch))) errors.push(`${where}: 行号不在 diff hunk 内`);
+    if (!inHunks(comment.line, patchHunks(patch))) {
+      errors.push(`${where}: 行号不在 diff hunk 内`);
+      return;
+    }
+    if (comment.suggestion === undefined) return;
+    const head = headLinesOf(comment.path, patch).get(comment.line);
+    if (head === undefined) return;
+    const problem = wholeLineProblem(comment.path, head, comment.suggestion);
+    if (problem !== undefined) {
+      errors.push(`${where}: suggestion ${problem}；head 该行是 ${JSON.stringify(head)}`);
+    }
   });
   return errors;
+}
+
+/** suggestion 是整行替换：缩进、行尾逗号跟 head 行一致，json 文件还要能单独解析成一条。 */
+function wholeLineProblem(path: string, head: string, suggestion: string): string | undefined {
+  const [headIndent = ""] = /^\s*/.exec(head) ?? [];
+  const [suggestionIndent = ""] = /^\s*/.exec(suggestion) ?? [];
+  if (headIndent !== suggestionIndent) return "的缩进与 head 行不一致";
+  if (head.trimEnd().endsWith(",") !== suggestion.trimEnd().endsWith(",")) return "的行尾逗号与 head 行不一致";
+  if (!path.endsWith(".json")) return undefined;
+  try {
+    JSON.parse(`{${suggestion.trim().replace(/,$/, "")}}`);
+    return undefined;
+  } catch {
+    return "不是完整的一行 JSON 条目（引号、逗号、转义要与文件一致）";
+  }
 }
 
 const SEVERITY_RANK: Record<Severity, number> = { critical: 4, major: 3, minor: 2, neutral: 1 };

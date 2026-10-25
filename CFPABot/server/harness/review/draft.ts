@@ -8,8 +8,10 @@ import {
   severityWarnings,
   validateDraft,
 } from "@cfpa/review-core/draft";
+import type { Pack } from "@cfpa/review-core/pack";
 import { readLocal, writeLocal } from "../../agent/local-store.ts";
 import { prdata } from "../../prdata.ts";
+import { loadPack } from "../pack.ts";
 
 export interface PrepareResult {
   draft?: ReviewDraft;
@@ -28,6 +30,90 @@ function jsonPayload(content: string): string {
   const trimmed = content.trim();
   const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(trimmed);
   return fenced?.[1] ?? trimmed;
+}
+
+interface RowFact {
+  key: string;
+  en?: string;
+  zh?: string;
+  raw?: string;
+}
+
+function rowFacts(pack: Pack): Map<string, RowFact> {
+  const facts = new Map<string, RowFact>();
+  for (const workspace of pack.workspaces) {
+    if (workspace.zhPath === null) continue;
+    for (const row of workspace.rows) {
+      if (row.line === null) continue;
+      facts.set(`${workspace.zhPath}\u0000${row.line}`, {
+        key: row.key,
+        ...(row.headEn === undefined ? {} : { en: row.headEn }),
+        ...(row.headZh === undefined ? {} : { zh: row.headZh }),
+        ...(row.headRaw === undefined ? {} : { raw: row.headRaw }),
+      });
+    }
+  }
+  return facts;
+}
+
+/** 整行替换由服务端拼：缩进、引号、逗号、转义都跟 head 原行走。 */
+export function composeSuggestion(path: string, key: string, raw: string, value: string): string {
+  const indent = /^\s*/.exec(raw)?.[0] ?? "";
+  if (!path.endsWith(".json")) return `${indent}${key}=${value}`;
+  const comma = raw.trimEnd().endsWith(",") ? "," : "";
+  return `${indent}${JSON.stringify(key)}: ${JSON.stringify(value)}${comma}`;
+}
+
+/** 子代理只给判断与 zhNew；en/zh 和整行 suggestion 从 pack 补。 */
+export async function withServerFilledFields(n: number, content: string, pack?: Pack): Promise<string> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonPayload(content)) as unknown;
+  } catch {
+    return content;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return content;
+  const record = parsed as Record<string, unknown>;
+  if (!Array.isArray(record.comments) || record.comments.length === 0) return content;
+  let facts: Map<string, RowFact>;
+  try {
+    facts = rowFacts(pack ?? (await loadPack(n)));
+  } catch {
+    return content;
+  }
+  let touched = false;
+  const comments = record.comments.map((entry) => {
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return entry;
+    const comment = { ...(entry as Record<string, unknown>) };
+    const path = typeof comment.path === "string" ? comment.path : "";
+    const line = typeof comment.line === "number" ? comment.line : Number.NaN;
+    const fact = facts.get(`${path}\u0000${line}`);
+    const zhNew = typeof comment.zhNew === "string" ? comment.zhNew : "";
+    if (fact !== undefined) {
+      if ((comment.en === undefined || comment.en === "") && fact.en !== undefined) {
+        comment.en = fact.en;
+        touched = true;
+      }
+      if ((comment.zh === undefined || comment.zh === "") && fact.zh !== undefined) {
+        comment.zh = fact.zh;
+        touched = true;
+      }
+      if (
+        (comment.suggestion === undefined || comment.suggestion === "") &&
+        zhNew !== "" &&
+        fact.raw !== undefined
+      ) {
+        comment.suggestion = composeSuggestion(path, fact.key, fact.raw, zhNew);
+        touched = true;
+      }
+    }
+    if ("zhNew" in comment) {
+      delete comment.zhNew;
+      touched = true;
+    }
+    return comment;
+  });
+  return touched ? JSON.stringify({ ...record, comments }) : content;
 }
 
 /** 填掉服务端已知字段再校验：模型不必重复抄 headSha 和 prNumber。 */
@@ -88,16 +174,19 @@ export function draftSchema(n: number, headSha: string): DraftSchemaView {
           severity: "critical | major | minor | neutral",
           mqm: "accuracy/mistranslation",
           body: "为什么错、后果是什么；不要重复原文/译文",
-          en: "原文",
-          zh: "当前译文",
-          suggestion: "整行替换后的译文，缩进/引号/转义与文件一致",
+          en: "可省：原文，服务端按 path+line 补",
+          zh: "可省：当前译文，服务端按 path+line 补",
+          zhNew: "语言包用：只给新译文本身，不带引号、缩进、逗号；整行由服务端拼",
+          suggestion: "整行替换后的译文；手册类评论用，缩进/引号/转义与文件一致",
+          covers: ["同一 pattern 的其余 key"],
+          suspected: false,
         },
       ],
     },
     notes: [
       "评论的 path 是 zh_cn 文件路径，line 是 head 行号且必须在 diff hunk 新侧；rows 已给 path/line/inHunk。",
-      "同一 path+key 只能出一条；同一模式的其余 key 放进 covers，covers 非空时不再给 suggestion。",
-      "非 suspected 且没有 covers 的评论必须给 suggestion；suspected 时 severity 不得高于 minor。",
+      "同一 path+key 只能出一条；同一模式的其余 key 放进 covers，两者可以同时给（suggestion 只替换当前行，缩进与行尾逗号要跟 head 该行一致）。",
+      "非 suspected 的评论必须能拼出 suggestion：语言包给 zhNew，手册类给 suggestion（covers 不替代）；suspected 时 severity 不得高于 minor。",
       "id 可省，服务端按顺序补 c1…cN；headSha 可省，服务端按当前 head 补。",
       "write pr://<n>/draft 保存并校验，errors 会直接返回，不通过不落盘。",
       "发布用 write pr://<n>/review；event 可写进草稿，发布时 ?event=APPROVE|REQUEST_CHANGES 优先。",
@@ -145,7 +234,7 @@ export async function readDraftOf(n: number, sessionId?: string): Promise<Review
 
 export async function saveDraftOf(n: number, sessionId: string, content: string): Promise<SaveResult> {
   const { pull } = await prdata.files(n);
-  const prepared = prepareDraft(content, n, pull.headSha);
+  const prepared = prepareDraft(await withServerFilledFields(n, content), n, pull.headSha);
   if (prepared.draft === undefined) return { ok: false, errors: prepared.errors, warnings: [], next: [] };
   if (prepared.draft.headSha !== pull.headSha) {
     return {
