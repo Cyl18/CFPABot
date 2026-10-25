@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { Octokit } from "@octokit/rest";
+import pMap from "p-map";
 import { createAppAuth } from "@octokit/auth-app";
 import { retry } from "@octokit/plugin-retry";
 import { throttling, type ThrottlingOptions } from "@octokit/plugin-throttling";
@@ -193,22 +194,33 @@ export const gh: GitHubClient = {
 
   async getFiles(paths, ref) {
     const texts = new Map<string, string>();
-    const load = async (path: string) => {
-      try {
-        const encoded = path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
-        const res = await fetch(`https://raw.githubusercontent.com/${repo.owner}/${repo.name}/${ref}/${encoded}`, {
-          headers: { "user-agent": USER_AGENT },
-        });
-        if (res.status === 404) return;
-        if (!res.ok) throw new Error(`raw.githubusercontent ${res.status}`);
-        const text = await res.text();
-        texts.set(path, text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
-      } catch {
-        const text = await gh.getFile(path, ref);
-        if (text !== null) texts.set(path, text);
-      }
-    };
-    await Promise.all(paths.map(load));
+    await pMap(
+      paths,
+      async (path: string) => {
+        const key = `${ref}\u0000${path}`;
+        const cached = fileCache.get(key);
+        if (cached !== undefined) {
+          texts.set(path, cached);
+          return;
+        }
+        try {
+          const encoded = path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
+          const res = await fetch(`https://raw.githubusercontent.com/${repo.owner}/${repo.name}/${ref}/${encoded}`, {
+            headers: { "user-agent": USER_AGENT },
+          });
+          if (res.status === 404) return;
+          if (!res.ok) throw new Error(`raw.githubusercontent ${res.status}`);
+          const raw = await res.text();
+          const text = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+          texts.set(path, text);
+          if (SHA_PATTERN.test(ref)) fileCache.set(key, text);
+        } catch {
+          const text = await gh.getFile(path, ref);
+          if (text !== null) texts.set(path, text);
+        }
+      },
+      { concurrency: 6 },
+    );
     return texts;
   },
 

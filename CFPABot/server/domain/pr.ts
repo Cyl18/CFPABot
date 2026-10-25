@@ -55,7 +55,12 @@ export function sidePaths(file: Pick<PrFile, "status" | "path" | "previousPath">
   head: string | null;
 } {
   return {
-    base: file.status === "added" ? null : file.status === "renamed" ? file.previousPath ?? file.path : file.path,
+    base:
+      file.status === "added"
+        ? null
+        : file.status === "renamed" || file.status === "copied"
+          ? file.previousPath ?? file.path
+          : file.path,
     head: file.status === "removed" ? null : file.path,
   };
 }

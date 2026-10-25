@@ -10,11 +10,12 @@ const WRITE_TOOLS: Record<string, true> = { write: true, edit: true, ast_edit: t
 const READ_TOOLS: Record<string, true> = { read: true, grep: true, find: true, glob: true };
 const LOCAL_URI = /^local:\/\//i;
 const PR_URI = /^pr:\/\//i;
-const SCHEME = /^[A-Za-z][\w+.-]*:\/\//;
 const READ_SELECTOR = /(?::(?:raw|img|conflicts|\d[\d,+-]*|-\d+))+$/;
 const EXEC_SOURCE: Record<string, string> = { bash: "command", eval: "code" };
 const PARENT_SEGMENT = /(?:^|[^A-Za-z0-9._-])\.\.(?:$|[^A-Za-z0-9._-])/;
-const ABSOLUTE_PATH = /(?:^|[\s"'`(,=;|&])(?:[A-Za-z]:[\\/]|\/mnt\/)/;
+const ABSOLUTE_PATH = /(?:^|[\s"'`(,=;|&])(?:[A-Za-z]:[\\/]|\/(?!dev\/null\b)(?![/*]))/;
+const SECRET_FIELDS = ["path", "paths", "command", "code", "resources", "url"];
+const ALLOWED_READ_SCHEMES: Record<string, true> = { repo: true, pr: true, gh: true, skill: true, local: true };
 
 const SECRET_NAMES = [
   "GITHUB_PAT",
@@ -57,7 +58,15 @@ export interface SandboxOptions {
 }
 
 export function secretReason(input: unknown): string | undefined {
-  const text = JSON.stringify(input);
+  if (input === null || typeof input !== "object") return undefined;
+  const record = input as Record<string, unknown>;
+  const text = SECRET_FIELDS.flatMap((field) => {
+    const value = record[field];
+    return Array.isArray(value) ? value : [value];
+  })
+    .filter((value): value is string => typeof value === "string")
+    .join("\n");
+  if (text === "") return undefined;
   if (SECRET_NAMES.some((name) => text.includes(name))) return "禁止读取服务端密钥环境变量";
   if (SECRET_PATHS.some((pattern) => pattern.test(text))) return "禁止读取服务端配置文件";
   if (PRIVATE_PATHS.some((pattern) => pattern.test(text))) return "禁止读取服务端缓存、凭据或其它会话的数据";
@@ -101,7 +110,12 @@ export function readPathReason(toolName: string, input: unknown, workspace: stri
   const allowed = [workspace, paths.work, join(paths.root, "skills")].map((dir) => resolve(dir));
   for (const entry of pathEntries(input)) {
     const target = entry.trim();
-    if (target === "" || SCHEME.test(target)) continue;
+    if (target === "") continue;
+    const scheme = /^([A-Za-z][\w+.-]*):\/\//.exec(target)?.[1]?.toLowerCase();
+    if (scheme !== undefined) {
+      if (ALLOWED_READ_SCHEMES[scheme] === true) continue;
+      return `只允许读 repo://、pr://、gh://、skill:// 与 local://；${target} 不在范围内。`;
+    }
     const relative = target.replace(READ_SELECTOR, "");
     const inside = [workspace, paths.root].some((base) => {
       const absolute = resolve(base, relative);

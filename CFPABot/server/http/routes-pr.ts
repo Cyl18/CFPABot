@@ -16,7 +16,7 @@ import { llm } from "../agent/index.ts";
 import { parseRoleSelector } from "../agent/llm-providers.ts";
 import { loadPack, packSummary } from "../harness/pack.ts";
 import { reviewBrief } from "../harness/review/brief.ts";
-import { rowsOf, rowsPageOf, type RowsOptions } from "../harness/review/rows.ts";
+import { rowsOf, type RowsOptions } from "../harness/review/rows.ts";
 import { termsOf } from "../harness/review/terms.ts";
 import { prDetail } from "../views/pr.ts";
 import { compareWorkspace } from "../views/workspace.ts";
@@ -54,8 +54,6 @@ const rowsQuery = z.object({
   keys: z.string().optional(),
   query: z.string().optional(),
   slice: z.string().min(1).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
-  limit: z.coerce.number().int().min(1).max(200).optional(),
   include: z.string().optional(),
   rebuild: z.enum(["1"]).optional(),
 });
@@ -178,8 +176,6 @@ function rowsOptionsOf(data: z.infer<typeof rowsQuery>): RowsOptions {
     ...(keys.length === 0 ? {} : { keys }),
     ...(data.query === undefined ? {} : { query: data.query }),
     ...(data.slice === undefined ? {} : { slice: data.slice }),
-    ...(data.offset === undefined ? {} : { offset: data.offset }),
-    ...(data.limit === undefined ? {} : { limit: data.limit }),
     rebuild: data.rebuild === "1",
     include: {
       terms: all || include.has("terms"),
@@ -207,7 +203,7 @@ prRoutes.get("/prs/:n/rows", async (c) => {
   const data = parseQuery(c, rowsQuery);
   const n = prNumber(c);
   const options = rowsOptionsOf(data);
-  return c.json(await withPull(() => (options.slice === undefined ? rowsPageOf(n, options) : rowsOf(n, options))));
+  return c.json(await withPull(() => rowsOf(n, options)));
 });
 
 prRoutes.get("/prs/:n/terms", async (c) => {

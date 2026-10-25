@@ -14,7 +14,7 @@ import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
 import { readJson, writeJson } from "../store.ts";
 import { probeModels } from "./llm-probe.ts";
-import { buildModel, defaultBaseUrl, endpointId, effortOf, formatRoleSelector, normalizeBaseUrl, parseRoleSelector, resolveApiKey } from "./llm-providers.ts";
+import { assertEndpointRouting, buildModel, defaultBaseUrl, endpointId, effortOf, formatRoleSelector, normalizeBaseUrl, parseRoleSelector, resolveApiKey } from "./llm-providers.ts";
 
 const log = logger("llm");
 const CONFIG_PATH = join(paths.config, "llm.json");
@@ -208,6 +208,10 @@ export const llm = {
       );
     }
     const ids = new Set(endpoints.map((endpoint) => endpoint.id));
+    if (ids.size !== endpoints.length) {
+      throw new Error("存在重复的 provider/model 端点；同一 provider/model 只能配置一条。");
+    }
+    assertEndpointRouting(endpoints);
     const roles: Record<string, string> = {};
     for (const [rawName, rawSelector] of Object.entries(input.roles)) {
       const name = rawName.trim();

@@ -17,7 +17,8 @@ import type { ToolContext } from "../context.ts";
 import { loadConfig, resolveModel } from "../llm.ts";
 import { parseRoleSelector } from "../llm-providers.ts";
 import { paths } from "../../paths.ts";
-import { localDir } from "../local-store.ts";
+import { lineRangeOf, sliceLines } from "../../harness/uri.ts";
+import { artifactsDir, localDir } from "../local-store.ts";
 import { agentMcpManager } from "../mcp.ts";
 import { openAuthStorage, openModelRuntime } from "../pi.ts";
 
@@ -27,13 +28,14 @@ const CHILD_TOOLS: Record<string, true> = {
   grep: true,
   find: true,
   glob: true,
-  bash: true,
 };
 
 const AGENTS_DIR = join(paths.root, ".omp", "agents");
 const SKILLS_DIR = join(paths.root, "skills");
 
 const AGENT_NAME = /^[A-Za-z0-9_-]+$/;
+const PREFETCH_BYTES = 16_000;
+const MAX_RESOURCES = 12;
 
 const OPERATING_RULES = [
   "你是子代理：只读、一次交卷。",
@@ -97,20 +99,27 @@ async function prefetch(resources: readonly string[], sessionId: string): Promis
   if (resources.length === 0) return "";
   const router = InternalUrlRouter.instance();
   const localProtocolOptions = {
-    getArtifactsDir: () => localDir(sessionId),
+    getArtifactsDir: () => artifactsDir(sessionId),
     getSessionId: () => sessionId,
   };
   const blocks = await Promise.all(
     resources.map(async (uri) => {
       try {
-        const resource = await router.resolve(uri, { cwd: paths.root, localProtocolOptions });
-        return `## 预取资源 ${uri}\n\n${resource.content}`;
+        const target = router.split(uri);
+        const resource = await router.resolve(target.path, { cwd: paths.root, localProtocolOptions });
+        const range = target.sel === undefined ? null : lineRangeOf(target.sel);
+        const content = range === null ? resource.content : sliceLines(resource.content, range);
+        const clipped =
+          Buffer.byteLength(content) > PREFETCH_BYTES
+            ? `${Buffer.from(content).subarray(0, PREFETCH_BYTES).toString("utf8")}\n…[预取已截断]`
+            : content;
+        return `## 预取资源 ${uri}\n\n${clipped}`;
       } catch (err) {
         return `## 预取资源 ${uri} 失败\n\n${err instanceof Error ? err.message : String(err)}`;
       }
     }),
   );
-  return ["# 已预取资源", ...blocks].join("\n\n");
+  return ["# 已预取资源", ...blocks].join("\n\n").slice(0, 96_000);
 }
 
 let sequence = 0;
@@ -131,6 +140,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
         .map((role) => `@${role}`)
         .join("、");
       const spec = await loadAgent(agentName);
+      const resources = (params.resources ?? []).slice(0, MAX_RESOURCES);
       let modelOverride: string[] | undefined;
       let endpoint: string | undefined;
       let thinking: ThinkingLevel | undefined;
@@ -145,14 +155,14 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
         modelOverride = [`@${roleName}`];
       }
       const authStorage = await openAuthStorage(config.endpoints);
-      const { settings, registry } = await openModelRuntime(authStorage, config.endpoints, config.roles);
-      const mcpManager = ctx.mcpManager?.() ?? (await agentMcpManager());
-      const repoRoot = existsSync(paths.repo) ? paths.repo : paths.root;
       try {
+        const { settings, registry } = await openModelRuntime(authStorage, config.endpoints, config.roles);
+        const mcpManager = ctx.mcpManager?.() ?? (await agentMcpManager());
+        const repoRoot = existsSync(paths.repo) ? paths.repo : paths.root;
         const shared = [
           params.context,
           `主代理 workspace：${localDir(ctx.sessionId)}\n仓库工作树：${repoRoot}`,
-          await prefetch(params.resources ?? [], ctx.sessionId),
+          await prefetch(resources, ctx.sessionId),
         ]
           .filter(Boolean)
           .join("\n\n");
@@ -160,7 +170,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
           cwd: repoRoot,
           additionalDirectories: [localDir(ctx.sessionId)],
           localProtocolOptions: {
-            getArtifactsDir: () => localDir(ctx.sessionId),
+            getArtifactsDir: () => artifactsDir(ctx.sessionId),
             getSessionId: () => ctx.sessionId,
           },
           agent: spec.agent,
@@ -204,7 +214,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
             ...(roleName === "" ? {} : { model: roleName }),
             ...(endpoint === undefined ? {} : { endpoint }),
             ...(thinking === undefined ? {} : { thinking }),
-            resources: params.resources ?? [],
+            resources,
           },
         };
       } finally {

@@ -77,6 +77,35 @@ export async function specialPairs(n: number): Promise<SpecialPair[]> {
   return resolveSpecial(plans, existing, moved);
 }
 
+const AGENT_TEXT_BYTES = 12_000;
+
+function clippedText(text: string | null): string | null {
+  if (text === null || Buffer.byteLength(text) <= AGENT_TEXT_BYTES) return text;
+  return `${Buffer.from(text).subarray(0, AGENT_TEXT_BYTES).toString("utf8")}\n…[已截断，read 对应文件路径取全文]`;
+}
+
+function clipSide(side: SpecialText, base: string | null, head: string | null): SpecialText {
+  return {
+    ...side,
+    base,
+    head,
+    truncated: side.truncated || base !== side.base || head !== side.head,
+    hunks: side.hunks === null ? null : side.hunks.slice(0, 50),
+  };
+}
+
+/** Web 需要完整文本，agent 读路径按 12 KB/侧截断，避免单条就爆掉读取预算。 */
+export function clipSpecialContent(item: SpecialPairContent): SpecialPairContent {
+  if (item.kind === "single") {
+    return { ...item, file: clipSide(item.file, clippedText(item.file.base), clippedText(item.file.head)) };
+  }
+  return {
+    ...item,
+    en: clipSide(item.en, clippedText(item.en.base), clippedText(item.en.head)),
+    zh: clipSide(item.zh, clippedText(item.zh.base), clippedText(item.zh.head)),
+  };
+}
+
 const emptyParsed = (): FlattenParsed => ({ entries: new Map(), lines: new Map() });
 
 function specialParsedOf(format: string, en: SpecialText, zh: SpecialText): SpecialParsed | null {

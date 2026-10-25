@@ -19,8 +19,18 @@ export function useSessionEvents(id: string | undefined, onEvent: (event: Sessio
     }
     setState("connecting");
     const source = new EventSource(api.sessionEventsUrl(id), { withCredentials: true });
-    source.onopen = () => setState("connected");
-    source.onerror = () => setState("disconnected");
+    let failures = 0;
+    source.onopen = () => {
+      failures = 0;
+      setState("connected");
+    };
+    source.onerror = () => {
+      failures += 1;
+      if (failures >= 5) {
+        source.close();
+      }
+      setState("disconnected");
+    };
     source.onmessage = (message) => {
       try {
         const event = JSON.parse(message.data) as SessionEvent;

@@ -16,8 +16,15 @@ export interface ThreadsView {
 }
 
 /** 线程状态来自 GitHub GraphQL；拿不到时明确说不可用，不把空数组伪装成“没有讨论”。 */
-export async function threadsOf(n: number): Promise<ThreadsView> {
-  return cache.wrap(String(n), async () => {
+export async function threadsOf(n: number, headSha?: string | null, fresh = false): Promise<ThreadsView> {
+  const key = String(n);
+  if (fresh) cache.delete(key);
+  const cached = cache.get(key);
+  if (cached !== undefined && (headSha === undefined || headSha === null || cached.headSha === headSha)) {
+    return cached;
+  }
+  cache.delete(key);
+  return cache.wrap(key, async () => {
     try {
       const state = await anonymousReviewState(serverGraphql, n);
       if (state === null) return { available: false, headSha: null, pendingReviewId: null, threads: [], error: "PR 无法读取。" };
@@ -38,4 +45,8 @@ export async function threadsOf(n: number): Promise<ThreadsView> {
       };
     }
   });
+}
+
+export function invalidateThreads(n: number): void {
+  cache.delete(String(n));
 }

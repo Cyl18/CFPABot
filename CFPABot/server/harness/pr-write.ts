@@ -1,7 +1,7 @@
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { z } from "zod";
-import type { ReviewDraft } from "@cfpa/contracts/api";
-import { DRAFT_FILE, parseDraftFile } from "@cfpa/review-core/draft";
+import type { ReviewDraft, ReviewEvent, ReviewThread } from "@cfpa/contracts/api";
+import { DRAFT_FILE } from "@cfpa/review-core/draft";
 import { env } from "../env.ts";
 import { assertBotWrites, gh, serverGraphql } from "../github/client.ts";
 import {
@@ -17,42 +17,34 @@ import { assertCanWrite, type WriteSession } from "../agent/policy.ts";
 import { publishDraft } from "../agent/workflows/review/publish.ts";
 import { prdata } from "../prdata.ts";
 import { errorResult, jsonResult } from "./result.ts";
-import { prepareDraft, saveDraftOf, markPublishedOf } from "./review/draft.ts";
+import { prepareDraft, saveDraftOf, markPublishedOf, storedDraftOf } from "./review/draft.ts";
 import { parseThreadState } from "./thread-state.ts";
+import { invalidateThreads, threadsOf } from "./review/threads.ts";
 import type { WriteTarget } from "./write-targets.ts";
 import type { PrParts } from "./uri.ts";
 
 const AGENT_MARKER_PREFIX = "<!--CFPA-AGENT:";
+const AGENT_MARKER_RE = /<!--CFPA-AGENT:[\s\S]*?-->/g;
 const REVIEW_EVENTS = ["COMMENT", "APPROVE", "REQUEST_CHANGES"] as const;
 
 const submitSchema = z.object({
   event: z.enum(REVIEW_EVENTS),
   body: z.string(),
 });
+type SubmitInput = z.infer<typeof submitSchema>;
 
 function markerOf(sessionId: string, toolCallId: string): string {
   return `${AGENT_MARKER_PREFIX}${sessionId}:${toolCallId}-->`;
 }
 
 function withMarker(body: string, sessionId: string, toolCallId: string): string {
-  return body.includes(AGENT_MARKER_PREFIX) ? body : `${body}\n\n${markerOf(sessionId, toolCallId)}`;
+  return `${body.replace(AGENT_MARKER_RE, "").trimEnd()}\n\n${markerOf(sessionId, toolCallId)}`;
 }
 
-function eventOf(uri: PrParts, content: string | undefined): "COMMENT" | "APPROVE" | "REQUEST_CHANGES" {
-  const fromQuery = uri.query.get("event");
-  if (fromQuery !== null) {
-    if (fromQuery === "COMMENT" || fromQuery === "APPROVE" || fromQuery === "REQUEST_CHANGES") return fromQuery;
-    throw new Error("event 只能是 COMMENT / APPROVE / REQUEST_CHANGES。");
-  }
-  if (content !== undefined && content.trim() !== "") {
-    try {
-      const parsed = JSON.parse(content) as { event?: unknown };
-      if (parsed.event === "APPROVE" || parsed.event === "REQUEST_CHANGES") return parsed.event;
-    } catch {
-      // JSON 错误由草稿校验给出更完整的信息。
-    }
-  }
-  return "COMMENT";
+function eventOf(uri: PrParts, fallback?: ReviewEvent): ReviewEvent {
+  const value = uri.query.get("event") ?? fallback ?? "COMMENT";
+  if (value === "COMMENT" || value === "APPROVE" || value === "REQUEST_CHANGES") return value;
+  throw new Error("event 只能是 COMMENT / APPROVE / REQUEST_CHANGES。");
 }
 
 function parseSubmit(content: string | undefined): { event: "COMMENT" | "APPROVE" | "REQUEST_CHANGES"; body: string } {
@@ -111,26 +103,47 @@ async function writeInlineComment(uri: PrParts, content: string | undefined, ctx
     body: withMarker(content ?? "", ctx.sessionId, toolCallId),
   });
   if (thread === null) throw new Error("PR 无法创建评论。");
-  return jsonResult({ ok: true, thread });
+  invalidateThreads(uri.number);
+  return jsonResult({
+    ok: true,
+    thread,
+    next: [`write pr://${uri.number}/review/submit 提交待审评论`],
+  });
+}
+
+async function ownedThread(n: number, threadId: string): Promise<ReviewThread> {
+  const view = await threadsOf(n, undefined, true);
+  if (!view.available) throw new Error(`读取 review 线程失败：${view.error ?? "未知错误"}`);
+  const thread = view.threads.find((entry) => entry.id === threadId);
+  if (thread === undefined) throw new Error(`线程 ${threadId} 不属于 PR #${n}；拒绝写入。`);
+  return thread;
 }
 
 async function writeThreadState(uri: PrParts, content: string | undefined) {
   const seg = uri.path.split("/").filter(Boolean);
   const threadId = seg[1] ?? "";
   const resolved = parseThreadState(content);
+  await ownedThread(uri.number, threadId);
   await setThreadResolved(serverGraphql, threadId, resolved);
+  invalidateThreads(uri.number);
   return jsonResult({ ok: true, threadId, resolved });
 }
 
 async function writeThreadReply(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
   if (content === undefined || content.trim() === "") throw new Error("线程回复需要正文。");
   const seg = uri.path.split("/").filter(Boolean);
+  const threadId = seg[1] ?? "";
+  const thread = await ownedThread(uri.number, threadId);
+  const marker = markerOf(ctx.sessionId, toolCallId);
+  const existing = thread.comments.find((comment) => comment.body.includes(marker));
+  if (existing !== undefined) return jsonResult({ ok: true, deduped: true, comment: existing });
   const comment = await replyToReviewThread(
     serverGraphql,
-    seg[1] ?? "",
-    withMarker(content ?? "", ctx.sessionId, toolCallId),
+    threadId,
+    withMarker(content, ctx.sessionId, toolCallId),
     env.BOT_LOGIN,
   );
+  invalidateThreads(uri.number);
   return jsonResult({ ok: true, comment });
 }
 
@@ -145,26 +158,59 @@ async function writeReview(uri: PrParts, content: string | undefined, ctx: Write
     }
     draft = prepared.draft;
   } else {
-    const raw = await readLocal(ctx.sessionId, DRAFT_FILE);
-    const saved = raw === null ? null : parseDraftFile(raw.content);
+    const saved = await storedDraftOf(ctx.sessionId);
     if (saved === null) throw new Error(`没有已保存的草稿；先 write pr://${n}/draft，或在正文里给草稿 JSON。`);
     if (saved.prNumber !== n) {
       throw new Error(`已保存的草稿属于 PR #${saved.prNumber}，不能发布到 PR #${n}；先审目标 PR。`);
     }
     draft = saved;
   }
+  if (draft.publishedUrl !== undefined) {
+    return errorResult({
+      ok: false,
+      errors: [`草稿已发布：${draft.publishedUrl}`],
+      next: [`read pr://${n}/draft 复核`, "重写草稿后再发布"],
+    });
+  }
   const marker = markerOf(ctx.sessionId, toolCallId);
   const existing = (await gh.listReviews(n)).find((review) => review.body.includes(marker));
   if (existing) return jsonResult({ ok: true, deduped: true, url: existing.htmlUrl });
-  const { url } = await publishDraft(draft, { event: eventOf(uri, content), marker });
+  const meta = await reviewMeta(serverGraphql, n);
+  if (meta?.pendingReviewId !== null && meta?.pendingReviewId !== undefined) {
+    return errorResult({
+      ok: false,
+      errors: ["PR 上已有待提交的 Review；先提交或清理后再发布草稿。"],
+      next: [`write pr://${n}/review/submit 提交待审评论`, `read pr://${n}/threads 查看待审线程`],
+    });
+  }
+  let url: string;
+  try {
+    ({ url } = await publishDraft(draft, { event: eventOf(uri, draft.event), marker }));
+  } catch (err) {
+    return errorResult({
+      ok: false,
+      errors: [err instanceof Error ? err.message : String(err)],
+      next: [`read pr://${n}/draft 检查 head 与校验结果`],
+    });
+  }
   const saved = await markPublishedOf(n, ctx.sessionId, draft, url);
+  invalidateThreads(n);
   await ctx.onDraftSaved?.(saved);
   return jsonResult({ ok: true, url, comments: saved.comments.length, next: [`read pr://${n}/draft 复核已发布状态`] });
 }
 
 async function writeReviewSubmit(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
   const n = uri.number;
-  const input = parseSubmit(content);
+  let input: SubmitInput;
+  try {
+    input = parseSubmit(content);
+  } catch (err) {
+    return errorResult({
+      ok: false,
+      errors: [err instanceof Error ? err.message : String(err)],
+      next: [`正文给 {"event":"COMMENT|APPROVE|REQUEST_CHANGES","body":"总结"}`],
+    });
+  }
   const marker = markerOf(ctx.sessionId, toolCallId);
   const existing = (await gh.listReviews(n)).find((review) => review.body.includes(marker));
   if (existing) return jsonResult({ ok: true, deduped: true, url: existing.htmlUrl });
@@ -180,6 +226,7 @@ async function writeReviewSubmit(uri: PrParts, content: string | undefined, ctx:
     }
     url = await createSubmittedReview(serverGraphql, meta.pullRequestId, meta.headSha, input.event, body);
   }
+  invalidateThreads(n);
   return jsonResult({ ok: true, url });
 }
 
@@ -204,6 +251,7 @@ async function replaceReviewComment(uri: PrParts, content: string | undefined, c
   if (comment === undefined) throw new Error("行内评论不存在。");
   if (comment.author !== env.BOT_LOGIN) throw new Error("只能编辑机器人自己的行内评论。");
   await gh.updateReviewComment(id, withMarker(content, ctx.sessionId, toolCallId));
+  invalidateThreads(uri.number);
   return jsonResult({ ok: true, url: comment.htmlUrl });
 }
 

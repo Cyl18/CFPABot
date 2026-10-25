@@ -143,6 +143,10 @@ export function SessionPage({ id }: { id: string }) {
   const [asideTab, setAsideTab] = useState<AsideTab>("files");
   const [asideOpen, setAsideOpen] = useState(true);
   const draftSeen = useRef(false);
+  const seededId = useRef<string | null>(null);
+  const idRef = useRef(id);
+  const dirtyRef = useRef(false);
+  const releasing = useRef(false);
   const [confirmEval, setConfirmEval] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [pending, setPending] = useState<readonly PendingSteer[]>(() => readPending(id));
@@ -158,11 +162,25 @@ export function SessionPage({ id }: { id: string }) {
     setPane("chat");
     setAsideTab("files");
     draftSeen.current = false;
+    seededId.current = null;
+    idRef.current = id;
+    releasing.current = false;
     setText("");
     setPending(readPending(id));
     sawRunning.current = false;
     setNote(undefined);
+    setItems([]);
+    setStatus("idle");
+    setDraft(null);
+    setDirty(false);
+    setLastError(undefined);
+    setActionError(undefined);
+    setDraftError(undefined);
   }, [id]);
+
+  useEffect(() => {
+    dirtyRef.current = dirty;
+  }, [dirty]);
 
   useEffect(() => {
     if (draft === null || draftSeen.current) return;
@@ -172,7 +190,8 @@ export function SessionPage({ id }: { id: string }) {
 
   useEffect(() => {
     const data = detail.data;
-    if (!data) return;
+    if (!data || seededId.current === id) return;
+    seededId.current = id;
     setItems(data.items);
     setStatus(data.status);
     setDraft(isReviewDraft(data.artifact) ? data.artifact : null);
@@ -181,7 +200,7 @@ export function SessionPage({ id }: { id: string }) {
     setNote(undefined);
     atBottomRef.current = true;
     setAtBottom(true);
-  }, [detail.data]);
+  }, [detail.data, id]);
 
   const pendingRef = useRef<readonly PendingSteer[]>(pending);
   useEffect(() => {
@@ -196,26 +215,27 @@ export function SessionPage({ id }: { id: string }) {
     [id],
   );
 
-  const releasing = useRef(false);
-
   /** 步边界放行全部待插话：按队列顺序逐条 steer 到下一次模型调用之前。 */
   const releasePending = useCallback(() => {
     if (releasing.current || pendingRef.current.length === 0) return;
     releasing.current = true;
+    const ownerId = id;
+    const items = [...pendingRef.current];
     const released = new Set<string>();
     void (async () => {
-      for (const item of [...pendingRef.current]) {
+      for (const item of items) {
         try {
-          await api.sendMessage(id, item.text);
+          await api.sendMessage(ownerId, item.text);
         } catch (error) {
-          setActionError(errorMessage(error));
+          if (ownerId === idRef.current) setActionError(errorMessage(error));
           return;
         }
+        if (ownerId !== idRef.current) return;
         released.add(item.id);
         applyPending(pendingRef.current.filter((entry) => !released.has(entry.id)));
       }
     })().finally(() => {
-      releasing.current = false;
+      if (ownerId === idRef.current) releasing.current = false;
     });
   }, [applyPending, id]);
 
@@ -223,9 +243,10 @@ export function SessionPage({ id }: { id: string }) {
     (event: SessionEvent) => {
       switch (event.type) {
         case "snapshot": {
+          seededId.current = id;
           setItems(event.session.items);
           setStatus(event.session.status);
-          if (!dirty) setDraft(isReviewDraft(event.session.artifact) ? event.session.artifact : null);
+          if (!dirtyRef.current) setDraft(isReviewDraft(event.session.artifact) ? event.session.artifact : null);
           setLastError(event.session.lastError);
           setNote(undefined);
           break;
@@ -233,10 +254,11 @@ export function SessionPage({ id }: { id: string }) {
         case "item": {
           const incoming = event.item;
           setItems((previous) => {
-            const kept =
+            const local =
               incoming.kind === "user"
-                ? previous.filter((item) => !(item.id.startsWith("local-") && item.kind === "user" && item.text === incoming.text))
-                : previous;
+                ? previous.findIndex((item) => item.id.startsWith("local-") && item.kind === "user")
+                : -1;
+            const kept = local < 0 ? previous : previous.filter((_, index) => index !== local);
             const index = kept.findIndex((item) => item.id === incoming.id);
             if (index < 0) return [...kept, incoming];
             const next = [...kept];
@@ -249,6 +271,10 @@ export function SessionPage({ id }: { id: string }) {
           setStatus(event.status);
           setLastError(event.lastError);
           setNote(event.note);
+          if (event.status !== "running") {
+            void client.invalidateQueries({ queryKey: qk.sessionFiles(id) });
+            void client.invalidateQueries({ queryKey: ["session-file", id] });
+          }
           break;
         }
         case "step": {
@@ -256,14 +282,16 @@ export function SessionPage({ id }: { id: string }) {
           break;
         }
         case "artifact": {
-          if (!dirty && isReviewDraft(event.artifact)) setDraft(event.artifact);
+          if (!dirtyRef.current && isReviewDraft(event.artifact)) setDraft(event.artifact);
+          void client.invalidateQueries({ queryKey: qk.sessionFiles(id) });
+          void client.invalidateQueries({ queryKey: ["session-file", id] });
           break;
         }
         default:
           break;
       }
     },
-    [dirty, releasePending],
+    [client, id, releasePending],
   );
 
   const connection = useSessionEvents(id, handleEvent);
@@ -280,7 +308,11 @@ export function SessionPage({ id }: { id: string }) {
           { id: "draft", label: `草稿（${draft.comments.length}）` },
         ];
 
-  // 只在本页确实见过运行后，回合结束才补发漏掉的待插话；避免刷新后直接把旧残留发给模型。
+  useEffect(() => {
+    if (asideTab === "draft" && draft === null) setAsideTab("files");
+  }, [asideTab, draft]);
+
+  const activeAsideTab: AsideTab = asideTab === "draft" && draft === null ? "files" : asideTab;
   useEffect(() => {
     if (status === "running") sawRunning.current = true;
     if (status !== "idle" || !sawRunning.current || detail.data === undefined || detail.data.archived) return;
@@ -321,7 +353,12 @@ export function SessionPage({ id }: { id: string }) {
   useEffect(() => {
     if (status !== "running" || confirmEval) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) {
+        return;
+      }
+      if (document.querySelector('[role="dialog"]') !== null) return;
       event.preventDefault();
       abort.mutate();
     };
@@ -431,7 +468,7 @@ export function SessionPage({ id }: { id: string }) {
 
   const submit = () => {
     const value = text.trim();
-    if (value === "" || archived) return;
+    if (value === "" || archived || send.isPending) return;
     if (running) {
       applyPending([...pendingRef.current, { id: `steer-${Date.now()}`, text: value }]);
       setText("");
@@ -538,7 +575,7 @@ export function SessionPage({ id }: { id: string }) {
       {connection !== "connected" && (
         <div className="flex shrink-0 items-center gap-2 border-b border-warn/40 bg-warn/10 px-4 py-1.5 text-xs text-warn">
           {connection === "disconnected" ? <WifiOff aria-hidden="true" className="size-3.5" /> : <Spinner className="text-warn" />}
-          {connection === "disconnected" ? "事件流已断开，正在重连" : "正在连接事件流…"}
+          {connection === "disconnected" ? "事件流已断开，请刷新页面重试" : "正在连接事件流…"}
         </div>
       )}
 
@@ -560,7 +597,7 @@ export function SessionPage({ id }: { id: string }) {
         <div className="shrink-0 border-b border-line px-3 py-2 xl:hidden">
           <Tabs
             items={[{ id: "chat", label: "对话" } as const, ...asideTabs]}
-            value={pane === "chat" ? "chat" : asideTab}
+            value={pane === "chat" ? "chat" : activeAsideTab}
             onChange={(next) => {
               if (next === "chat") {
                 setPane("chat");
@@ -622,6 +659,7 @@ export function SessionPage({ id }: { id: string }) {
                 onSubmit={submit}
                 placeholder={archived ? "会话已归档" : running ? "运行中：消息会暂存为待插话，本步结束后全部注入…" : "输入消息…"}
                 submitLabel={running ? "插话" : "发送"}
+                pending={send.isPending}
                 disabled={archived}
                 hint={hint}
                 error={send.isError ? errorMessage(send.error) : undefined}
@@ -677,10 +715,10 @@ export function SessionPage({ id }: { id: string }) {
             )}
           >
             <div className="flex shrink-0 items-center gap-2 border-b border-line px-2 py-1.5">
-              <Tabs items={asideTabs} value={asideTab} onChange={setAsideTab} ariaLabel="右栏视图" className="min-w-0" />
+              <Tabs items={asideTabs} value={activeAsideTab} onChange={setAsideTab} ariaLabel="右栏视图" className="min-w-0" />
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">
-              {asideTab === "draft" && draft !== null ? (
+              {activeAsideTab === "draft" && draft !== null ? (
                 <DraftPanel
                   draft={draft}
                   dirty={dirty}
@@ -694,8 +732,8 @@ export function SessionPage({ id }: { id: string }) {
                   onSave={() => saveDraft.mutate(draft)}
                   onPublish={() => publish.mutate()}
                 />
-              ) : asideTab === "files" ? (
-                <ArtifactPanel id={id} />
+              ) : activeAsideTab === "files" ? (
+                <ArtifactPanel key={id} id={id} live={running} />
               ) : (
                 <ReviewSidebar items={items} prNumber={meta.prNumber} />
               )}

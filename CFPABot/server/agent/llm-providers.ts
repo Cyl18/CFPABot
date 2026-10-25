@@ -12,6 +12,27 @@ export function endpointId(provider: string, model: string): string {
   return `${provider}/${model}`;
 }
 
+/** 同一 provider 必须共用一个 baseUrl/protocol/apiKey，否则 registry 与 auth 会各连一个端点。 */
+export function assertEndpointRouting(endpoints: readonly LlmEndpoint[]): void {
+  const seen = new Map<string, LlmEndpoint>();
+  for (const endpoint of endpoints) {
+    const previous = seen.get(endpoint.provider);
+    if (previous === undefined) {
+      seen.set(endpoint.provider, endpoint);
+      continue;
+    }
+    if (
+      previous.baseUrl !== endpoint.baseUrl ||
+      previous.protocol !== endpoint.protocol ||
+      previous.apiKey !== endpoint.apiKey
+    ) {
+      throw new Error(
+        `provider ${endpoint.provider} 配置了不同的 baseUrl/protocol/apiKey；请给每个端点用不同的 provider 名。`,
+      );
+    }
+  }
+}
+
 export function normalizeBaseUrl(baseUrl: string, protocol: LlmProtocol): string {
   const trimmed = baseUrl.trim().replace(/\/+$/, "");
   return protocol === "anthropic-messages" ? trimmed.replace(/\/v1$/, "") : trimmed;

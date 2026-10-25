@@ -6,7 +6,6 @@ import {
   loadSkillsFromDir,
   type AgentSession,
   type AuthStorage,
-  type SessionEntry,
   type Skill,
 } from "@oh-my-pi/pi-coding-agent";
 import type { Effort } from "@oh-my-pi/pi-catalog/effort";
@@ -31,7 +30,7 @@ import { markPublishedOf, saveDraftOf } from "../harness/review/draft.ts";
 import { SessionHub, statusEventOf } from "./events.ts";
 import { applySearchEnv, loadConfig, llm, resolveModel } from "./llm.ts";
 import { effortOf, parseRoleSelector } from "./llm-providers.ts";
-import { isLocalPath, listLocal, localDir, readLocal, writeLocal } from "./local-store.ts";
+import { isLocalPath, listLocal, localDir, readLocal } from "./local-store.ts";
 import { openAuthStorage, openModelRuntime, openSessionManager, sessionMessages } from "./pi.ts";
 import { LiveProjector, projectMessages } from "./projection.ts";
 import { buildSystemPrompt } from "./prompt.ts";
@@ -54,6 +53,7 @@ const hub = new SessionHub();
 interface Runtime {
   session: AgentSession;
   unsubscribe: () => void;
+  mcpUnsubscribe?: () => void;
   authStorage: AuthStorage;
 }
 
@@ -103,10 +103,19 @@ function now(): string {
   return new Date().toISOString();
 }
 
+let skillsPromise: Promise<Skill[]> | undefined;
+
+function allSkills(): Promise<Skill[]> {
+  skillsPromise ??= loadSkillsFromDir({ dir: SKILLS_DIR, source: "cfpa" }).then(({ skills, warnings }) => {
+    for (const warning of warnings) log.warn("技能加载告警", { warning });
+    return skills;
+  });
+  return skillsPromise;
+}
+
 async function agentSkills(workflow: WorkflowDefinition): Promise<Skill[]> {
   if (workflow.skills.length === 0) return [];
-  const { skills, warnings } = await loadSkillsFromDir({ dir: SKILLS_DIR, source: "cfpa" });
-  for (const warning of warnings) log.warn("技能加载告警", { warning });
+  const skills = await allSkills();
   const wanted = new Set(workflow.skills);
   const selected = skills.filter((skill) => wanted.has(skill.name));
   for (const name of workflow.skills) {
@@ -137,25 +146,10 @@ async function detailOf(record: SessionRecord): Promise<SessionDetail> {
 const draftInput = draftInputSchema.omit({ event: true }).extend({ headSha: z.string().min(1) });
 
 function toolContext(record: SessionRecord, mcp: { current?: MCPManager }): ToolContext {
-  const id = record.meta.id;
   return {
-    sessionId: id,
-    writeScope: record.meta.writeScope,
+    sessionId: record.meta.id,
     ...(record.meta.prNumber === undefined ? {} : { prNumber: record.meta.prNumber }),
     mcpManager: () => mcp.current,
-    local: async (name) => readLocal(id, name),
-    saveLocal: async (name, content) => {
-      if (!isLocalPath(name)) {
-        throw new Error("本地路径无效：只能是相对路径，不能含 .. 或绝对路径。");
-      }
-      const entry = await writeLocal(id, name, content);
-      const current = await store.get(id);
-      if (!current) throw new Error("会话不存在");
-      current.meta.updatedAt = entry.updatedAt;
-      await store.put(current);
-      return entry;
-    },
-    listLocal: async () => listLocal(id),
   };
 }
 
@@ -167,11 +161,13 @@ async function disposeRuntime(id: string): Promise<void> {
   if (!runtime) return;
   slot.runtime = undefined;
   runtime.unsubscribe();
+  runtime.mcpUnsubscribe?.();
   try {
     await runtime.session.dispose();
   } finally {
     runtime.authStorage.close();
   }
+  if (!slot.turn && live.get(id) === slot) live.delete(id);
 }
 
 async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
@@ -234,8 +230,7 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   mcp.current = mcpManager;
   // MCP 工具由 manager 拥有，非 UI 路径 omp 不会自动激活，必须显式刷新一次。
   if (mcpManager) await session.refreshMCPTools(mcpManager.getTools());
-  const entries: SessionEntry[] = manager.getEntries();
-  const projector = new LiveProjector(entries.filter((entry) => entry.type === "message").length);
+  const projector = new LiveProjector(session.agent.state.messages.length);
   const unsubscribe = session.subscribe((event) => {
     for (const item of projector.handle(event)) hub.emit(id, { type: "item", item });
     const status = statusEventOf(event);
@@ -259,6 +254,14 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
     throw err;
   }
   const runtime: Runtime = { session, unsubscribe, authStorage };
+  if (mcp.current !== undefined) {
+    const manager = mcp.current;
+    runtime.mcpUnsubscribe = manager.addToolsChangedListener(() => {
+      void session.refreshMCPTools(manager.getTools()).catch((err: unknown) => {
+        log.warn("MCP 工具刷新失败", { sessionId: id, err });
+      });
+    });
+  }
   slot.runtime = runtime;
   return runtime;
 }
@@ -267,7 +270,7 @@ async function runTurn(id: string, prompt: string, admit: () => void, slot: Live
   let error: string | undefined;
   try {
     const record = await store.get(id);
-    if (!record) return;
+    if (!record || record.meta.archived) return;
     await mkdir(localDir(id), { recursive: true });
     if (process.platform !== "win32") {
       await chmod(dirname(localDir(id)), 0o711);
@@ -279,7 +282,8 @@ async function runTurn(id: string, prompt: string, admit: () => void, slot: Live
       await runtime.session.abort();
       return;
     }
-    await runtime.session.prompt(prompt, { onPromptAdmitted: admit });
+    const accepted = await runtime.session.prompt(prompt, { onPromptAdmitted: admit });
+    if (accepted === false) throw new Error("消息未被模型受理（上下文预算不足或运行已取消）。");
     if (slot.abort) return;
     const last = runtime.session.agent.state.messages.at(-1);
     if (last?.role === "assistant" && last.errorMessage) error = last.errorMessage;
@@ -311,7 +315,7 @@ async function runTurn(id: string, prompt: string, admit: () => void, slot: Live
 function launch(id: string, prompt: string): boolean {
   const slot = live.get(id);
   const record = store.peek(id);
-  if (slot?.turn || !record) return false;
+  if (slot?.turn || !record || record.meta.archived) return false;
   const target = slot ?? slotOf(id);
   target.abort = undefined;
   let admit!: () => void;
@@ -329,6 +333,7 @@ function launch(id: string, prompt: string): boolean {
   target.turn = turn;
   void turn.finally(() => {
     if (target.turn === turn) target.turn = undefined;
+    if (target.runtime === undefined && target.turn === undefined && live.get(id) === target) live.delete(id);
   });
   return true;
 }
@@ -437,6 +442,7 @@ export const agent = {
         log.warn("首条消息写入失败", { id, err });
       }
       await store.put(record);
+      hub.emit(id, { type: "status", status: "idle", lastError: modelError });
     }
     const detail = await agent.get(id);
     if (!detail) throw new Error("会话创建失败");
@@ -603,6 +609,7 @@ export const agent = {
         meta.prNumber = patch.prNumber;
         meta.title = `PR #${patch.prNumber} · ${base}`;
       }
+      runtimeChanged = true;
     }
 
     if (runtimeChanged) {
@@ -628,6 +635,7 @@ export const agent = {
     const slots = [...live.values()];
     for (const slot of slots) void slot.runtime?.session.abort().catch(() => {});
     await Promise.allSettled(slots.flatMap((slot) => (slot.turn ? [slot.turn] : [])));
+    await Promise.allSettled([...publishing.values()]);
     await Promise.allSettled([...live.keys()].map((id) => disposeRuntime(id)));
     await closeAgentMcp();
   },

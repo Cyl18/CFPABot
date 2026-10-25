@@ -19,7 +19,7 @@ const PR: readonly ResourceEntry[] = [
   { path: "checks", comment: "机械检查报告；空 findings 不一定代表没跑，看 status" },
   { path: "workspaces", comment: "语言包工作区与 en/zh 路径" },
   { path: "related", comment: "同模组的关联 PR" },
-  { path: "compare?slug=&version=&namespace=", comment: "按 key 对比 base/head 的中英值" },
+  { path: "compare?slug=&version=&namespace=&review=1", comment: "按 key 对比 base/head 的中英值；review=1 附可评论行（默认省略以省预算）" },
   { path: "special-files?include=text&keys=&offset=&limit=", comment: "指南/手册等特殊文件；include=text 一次内联多对内容与 hunk" },
   { path: "special-files/<key>", comment: "单个特殊文件的成对内容" },
   { path: "meta?fields=", comment: "兼容入口：等价于不带 rows 的简报" },

@@ -5,7 +5,7 @@ import { cfgBashInterceptorEnabled, cfgBashInterceptorPatterns } from "@oh-my-pi
 import { checkBashInterception } from "@oh-my-pi/pi-coding-agent/tools/bash-interceptor";
 import { type } from "@oh-my-pi/omptype";
 import type { ToolContext } from "../context.ts";
-import { localDir } from "../local-store.ts";
+import { localDir, writeLocal } from "../local-store.ts";
 import { paths } from "../../paths.ts";
 import { prRoot } from "../../workspace.ts";
 import { onAbortSignal } from "./signal.ts";
@@ -122,19 +122,48 @@ export function bashTool(ctx: ToolContext, availableTools: string[]): CustomTool
         stdout: "pipe",
         stderr: "pipe",
       });
-      const timer = setTimeout(() => proc.kill(), timeoutMs);
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        proc.kill();
+      }, timeoutMs);
       const stopListening = onAbortSignal(signal, () => proc.kill());
-      const [stdout, stderr, exitCode] = await Promise.all([
+      const collected = Promise.all([
         new Response(proc.stdout).text(),
         new Response(proc.stderr).text(),
         proc.exited,
       ]);
+      const grace = Promise.withResolvers<null>();
+      const graceTimer = setTimeout(() => grace.resolve(null), timeoutMs + 5_000);
+      const result = await Promise.race([collected, grace.promise]);
       clearTimeout(timer);
+      clearTimeout(graceTimer);
       stopListening();
-      const output = [stdout.trimEnd(), stderr.trimEnd()].filter(Boolean).join("\n");
+      if (result === null) {
+        await proc.stdout.cancel().catch(() => undefined);
+        await proc.stderr.cancel().catch(() => undefined);
+        proc.kill();
+        return {
+          content: [{ type: "text", text: `bash 超时（>${timeoutMs} ms），后台子进程仍持有输出管道，已放弃等待。` }],
+          details: { exitCode: null, timedOut: true },
+          isError: true,
+        };
+      }
+      const [stdout, stderr, exitCode] = result;
+      const full = [stdout.trimEnd(), stderr.trimEnd()].filter(Boolean).join("\n");
+      const bytes = Buffer.byteLength(full);
+      let text = full || `(exit ${exitCode})`;
+      let log: string | undefined;
+      if (bytes > 50_000) {
+        const name = `bash/${Date.now().toString(36)}.log`;
+        await writeLocal(ctx.sessionId, name, full).catch(() => undefined);
+        log = `local://${name}`;
+        text = `${Buffer.from(full).subarray(0, 50_000).toString("utf8")}\n…[输出 ${bytes} B，全文 ${log}]`;
+      }
       return {
-        content: [{ type: "text", text: output || `(exit ${exitCode})` }],
-        details: { exitCode, stdout, stderr },
+        content: [{ type: "text", text }],
+        details: { exitCode, truncated: bytes > 50_000, ...(log === undefined ? {} : { log }), timedOut },
+        ...(exitCode === 0 && !timedOut ? {} : { isError: true }),
       };
     },
   };

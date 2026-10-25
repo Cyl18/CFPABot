@@ -4,12 +4,12 @@ import { prdata } from "../prdata.ts";
 import { sidePaths } from "../domain/pr.ts";
 import { prDetail } from "../views/pr.ts";
 import { compareWorkspace } from "../views/workspace.ts";
-import { specialPairContent } from "../views/special.ts";
+import { specialPairContent, clipSpecialContent } from "../views/special.ts";
 import { packSummary, peekPack } from "./pack.ts";
-import { jsonResult, pageOf, paginate, pickFields, textResult } from "./result.ts";
+import { jsonResult, numberParam, pageOf, paginate, pickFields, textResult } from "./result.ts";
 import { isAgentBody, trimBody, visibleIssueComment, visibleReviewComment } from "./format.ts";
 import { missingResource, PR_CHILDREN } from "./catalog.ts";
-import { flagParam, listParam, sliceLines, splitLineRange } from "./uri.ts";
+import { flagParam, listParam, nextPageUri } from "./uri.ts";
 import type { PrParts } from "./uri.ts";
 import type { HarnessSession } from "./types.ts";
 import { checksOf } from "./review/checks.ts";
@@ -20,27 +20,31 @@ import { termsOf } from "./review/terms.ts";
 import { readDraftOf } from "./review/draft.ts";
 import { specialPageOf } from "./review/special.ts";
 
-function numberParam(value: string | null): number | undefined {
-  if (value === null || value.trim() === "") return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 function filterParam(value: string | null, fallback: RowsFilter): RowsFilter {
   if (value === "reviewable" || value === "changed" || value === "flagged" || value === "all") return value;
-  return fallback;
+  if (value === null || value.trim() === "") return fallback;
+  throw new Error(`filter 只能是 reviewable / changed / flagged / all，收到：${value}`);
 }
 
 function includeParam(raw: string | null): RowsInclude {
   if (raw === null || raw.trim() === "") return defaultRowsInclude();
-  const names = new Set(raw.split(",").map((name) => name.trim()));
-  if (names.has("none")) return { terms: false, threads: false, duplicates: false, patch: false };
-  if (names.has("all")) return { terms: true, threads: true, duplicates: true, patch: true };
+  const names = [...new Set(raw.split(",").map((name) => name.trim()).filter(Boolean))];
+  const known: Record<string, true> = { none: true, all: true, terms: true, threads: true, duplicates: true, patch: true };
+  const unknown = names.filter((name) => known[name] !== true);
+  if (unknown.length > 0) throw new Error(`include 只认 terms/threads/duplicates/patch/all/none，收到：${unknown.join(", ")}`);
+  if (names.includes("none")) {
+    if (names.length > 1) throw new Error("include=none 不能和别的字段同时出现。");
+    return { terms: false, threads: false, duplicates: false, patch: false };
+  }
+  if (names.includes("all")) {
+    if (names.length > 1) throw new Error("include=all 不能和别的字段同时出现。");
+    return { terms: true, threads: true, duplicates: true, patch: true };
+  }
   return {
-    terms: names.has("terms"),
-    threads: names.has("threads"),
-    duplicates: names.has("duplicates"),
-    patch: names.has("patch"),
+    terms: names.includes("terms"),
+    threads: names.includes("threads"),
+    duplicates: names.includes("duplicates"),
+    patch: names.includes("patch"),
   };
 }
 
@@ -87,9 +91,10 @@ async function readFiles(uri: PrParts): Promise<AgentToolResult<Record<string, u
       limit: page.limit,
       truncated: page.truncated,
       nextOffset: page.nextOffset,
+      next: nextPageUri(`pr://${n}/files`, uri.query, page.nextOffset),
     });
   }
-  const { path: requested, range } = splitLineRange(seg.slice(1).join("/"));
+  const requested = seg.slice(1).join("/");
   const { pull, files } = await prdata.files(n);
   const file = files.find((entry) => entry.path === requested || entry.previousPath === requested);
   if (file === undefined) throw new Error(`PR #${n} 没有变更文件：${requested}`);
@@ -104,7 +109,7 @@ async function readFiles(uri: PrParts): Promise<AgentToolResult<Record<string, u
   if (sidePath === null) throw new Error(`该文件在 ${side} 侧不存在。`);
   const text = await gh.getFile(sidePath, side === "base" ? pull.baseSha : pull.headSha);
   if (text === null) throw new Error(`文件不存在：${sidePath}`);
-  return textResult(range === null ? text : sliceLines(text, range), { requestedPath: requested, path: sidePath });
+  return textResult(text, { requestedPath: requested, path: sidePath }, {}, { clip: false });
 }
 
 async function readSpecial(uri: PrParts): Promise<AgentToolResult<Record<string, unknown>>> {
@@ -133,33 +138,47 @@ async function specialContentOrThrow(n: number, key: string) {
   if (content === null) {
     throw new Error(`特殊文件不存在：${key}。key 必须与 pr://${n}/special-files 返回的 key 完全一致。`);
   }
-  return content;
+  return clipSpecialContent(content);
 }
 
 async function readComments(uri: PrParts): Promise<AgentToolResult<Record<string, unknown>>> {
   const n = uri.number;
   const [comments, reviews] = await Promise.all([gh.listComments(n), gh.listReviewComments(n)]);
+  const limit = pageOf(numberParam(uri.query.get("limit")), undefined, 100, 30).limit;
+  const issueOffset = pageOf(numberParam(uri.query.get("issueOffset")), limit, 10_000, 30).offset;
+  const reviewOffset = pageOf(numberParam(uri.query.get("reviewOffset")), limit, 10_000, 30).offset;
+  const bodyLimit = flagParam(uri.query, "full") ? 20_000 : 2_000;
+  const issueAll = comments.filter(visibleIssueComment);
+  const reviewAll = reviews.filter(visibleReviewComment);
+  const issuePage = issueAll.slice(issueOffset, issueOffset + limit);
+  const reviewPage = reviewAll.slice(reviewOffset, reviewOffset + limit);
+  const nextIssue = issueOffset + issuePage.length < issueAll.length ? issueOffset + issuePage.length : null;
+  const nextReview = reviewOffset + reviewPage.length < reviewAll.length ? reviewOffset + reviewPage.length : null;
+  const params = new URLSearchParams(uri.query);
+  if (nextIssue !== null) params.set("issueOffset", String(nextIssue));
+  if (nextReview !== null) params.set("reviewOffset", String(nextReview));
+  params.set("limit", String(limit));
   return jsonResult({
-    issueComments: comments
-      .filter(visibleIssueComment)
-      .map((comment) => ({
-        id: comment.id,
-        author: comment.author,
-        body: isAgentBody(comment.body) ? comment.body : trimBody(comment.body),
-        at: comment.createdAt,
-        isAgent: isAgentBody(comment.body),
-      })),
-    reviewComments: reviews
-      .filter(visibleReviewComment)
-      .map((comment) => ({
-        id: comment.id,
-        author: comment.author,
-        path: comment.path,
-        line: comment.line,
-        body: isAgentBody(comment.body) ? comment.body : trimBody(comment.body),
-        at: comment.createdAt,
-        isAgent: isAgentBody(comment.body),
-      })),
+    issueComments: issuePage.map((comment) => ({
+      id: comment.id,
+      author: comment.author,
+      body: trimBody(comment.body, bodyLimit),
+      at: comment.createdAt,
+      isAgent: isAgentBody(comment.body),
+    })),
+    issueTotal: issueAll.length,
+    reviewComments: reviewPage.map((comment) => ({
+      id: comment.id,
+      author: comment.author,
+      path: comment.path,
+      line: comment.line,
+      body: trimBody(comment.body, bodyLimit),
+      at: comment.createdAt,
+      isAgent: isAgentBody(comment.body),
+    })),
+    reviewTotal: reviewAll.length,
+    limit,
+    next: nextIssue === null && nextReview === null ? null : `pr://${n}/comments?${params.toString()}`,
   });
 }
 
@@ -169,14 +188,29 @@ async function readCompare(uri: PrParts): Promise<AgentToolResult<Record<string,
   const version = uri.query.get("version");
   const namespace = uri.query.get("namespace");
   if (!slug || !version || !namespace) throw new Error("pr://<n>/compare 需要 ?slug=&version=&namespace=");
-  const result = await compareWorkspace(n, { slug, version, namespace }, prdata.fileSource());
+  const includeReview = flagParam(uri.query, "review");
+  const reviewKeys = includeReview ? pageOf(undefined, numberParam(uri.query.get("reviewKeys")), 1000, 100).limit : 0;
+  const result = await compareWorkspace(n, { slug, version, namespace }, prdata.fileSource(), reviewKeys);
+  const { review, reviewEn, ...rest } = result;
   const page = pageOf(numberParam(uri.query.get("offset")), numberParam(uri.query.get("limit")), 500, 100);
+  const shown: typeof result.rows = [];
+  let bytes = 0;
+  for (const row of result.rows.slice(page.offset, page.offset + page.limit)) {
+    const size = Buffer.byteLength(JSON.stringify(row));
+    if (shown.length > 0 && bytes + size > 25_000) break;
+    shown.push(row);
+    bytes += size;
+  }
+  const nextOffset = page.offset + shown.length < result.rows.length ? page.offset + shown.length : null;
   return jsonResult({
-    ...result,
-    rows: result.rows.slice(page.offset, page.offset + page.limit),
+    ...rest,
+    ...(includeReview ? { review, reviewEn } : {}),
+    rows: shown,
     total: result.rows.length,
     offset: page.offset,
     limit: page.limit,
+    nextOffset,
+    next: nextPageUri(`pr://${n}/compare`, uri.query, nextOffset),
   });
 }
 
@@ -199,6 +233,10 @@ async function readReviewSummary(uri: PrParts): Promise<AgentToolResult<Record<s
   });
 }
 
+function assertChildless(seg: string[], uri: PrParts): void {
+  if (seg.length > 1) throw missingResource(`pr://${uri.number}/${seg.join("/")}`, PR_CHILDREN);
+}
+
 export async function readPr(
   uri: PrParts,
   session?: HarnessSession,
@@ -206,6 +244,9 @@ export async function readPr(
   const n = uri.number;
   const seg = uri.path.split("/").filter(Boolean);
   const sub = seg[0];
+  if (sub !== undefined && !PR_CHILDREN.includes(sub)) {
+    throw missingResource(`pr://${n}/${seg.join("/")}`, PR_CHILDREN);
+  }
   if (sub === undefined) {
     const review = flagParam(uri.query, "review") || flagParam(uri.query, "rows");
     return jsonResult(
@@ -217,16 +258,22 @@ export async function readPr(
     );
   }
 
-  if (sub === "rows") return jsonResult(await rowsOf(n, rowsQuery(uri, "reviewable")));
+  if (sub === "rows") {
+    assertChildless(seg, uri);
+    return jsonResult(await rowsOf(n, rowsQuery(uri, "reviewable")));
+  }
 
   if (sub === "review") {
     if (seg[1] === "rows") {
+      if (seg.length > 2) throw missingResource(`pr://${n}/${seg.join("/")}`, PR_CHILDREN);
       return jsonResult(await rowsOf(n, rowsQuery(uri, "changed")));
     }
+    if (seg.length > 1) throw missingResource(`pr://${n}/${seg.join("/")}`, PR_CHILDREN);
     return readReviewSummary(uri);
   }
 
   if (sub === "terms") {
+    assertChildless(seg, uri);
     const queries = listParam(uri.query, "term", "q");
     return jsonResult(
       await termsOf(n, {
@@ -239,15 +286,25 @@ export async function readPr(
     );
   }
 
-  if (sub === "draft") return jsonResult(await readDraftOf(n, session?.sessionId));
+  if (sub === "draft") {
+    assertChildless(seg, uri);
+    return jsonResult(await readDraftOf(n, session?.sessionId));
+  }
 
   if (sub === "files") return readFiles(uri);
 
-  if (sub === "comments") return readComments(uri);
+  if (sub === "comments") {
+    assertChildless(seg, uri);
+    return readComments(uri);
+  }
 
-  if (sub === "threads") return jsonResult(await threadsOf(n));
+  if (sub === "threads") {
+    assertChildless(seg, uri);
+    return jsonResult(await threadsOf(n));
+  }
 
   if (sub === "checks") {
+    assertChildless(seg, uri);
     const view = await checksOf(n);
     const page = paginate(view.findings, uri.query, 500, 100);
     return jsonResult({
@@ -256,12 +313,17 @@ export async function readPr(
       findingsTotal: page.total,
       truncated: page.truncated,
       nextOffset: page.nextOffset,
+      next: nextPageUri(`pr://${n}/checks`, uri.query, page.nextOffset),
     });
   }
 
-  if (sub === "workspaces") return jsonResult((await prDetail(n)).workspaces);
+  if (sub === "workspaces") {
+    assertChildless(seg, uri);
+    return jsonResult((await prDetail(n)).workspaces);
+  }
 
   if (sub === "related") {
+    assertChildless(seg, uri);
     const page = paginate(prdata.related(n), uri.query, 100, 20);
     return jsonResult({
       related: page.items,
@@ -270,14 +332,19 @@ export async function readPr(
       limit: page.limit,
       truncated: page.truncated,
       nextOffset: page.nextOffset,
+      next: nextPageUri(`pr://${n}/related`, uri.query, page.nextOffset),
     });
   }
 
-  if (sub === "compare") return readCompare(uri);
+  if (sub === "compare") {
+    assertChildless(seg, uri);
+    return readCompare(uri);
+  }
 
   if (sub === "special-files") return readSpecial(uri);
 
   if (sub === "meta") {
+    assertChildless(seg, uri);
     const brief = await reviewBrief(n, {
       review: false,
       rows: briefRowsQuery(uri),

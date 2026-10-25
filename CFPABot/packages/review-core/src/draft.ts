@@ -29,7 +29,7 @@ export const draftInputSchema = z.object({
 
 export const DRAFT_FILE = "draft.json";
 
-export const reviewDraftSchema = draftInputSchema.omit({ event: true }).extend({
+export const reviewDraftSchema = draftInputSchema.extend({
   headSha: z.string().min(1),
   updatedAt: z.string(),
   publishedAt: z.string().optional(),

@@ -1,7 +1,43 @@
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 
-export function jsonResult(value: unknown, details: Record<string, unknown> = {}): AgentToolResult<Record<string, unknown>> {
-  return { content: [{ type: "text", text: JSON.stringify(value) }], details };
+/** JSON 结果必须守住 omp 的 50 KiB 截断线 */
+export const RESULT_BUDGET_BYTES = 45_000;
+
+export interface OversizeGuide {
+  hint?: string;
+  next?: string[];
+}
+
+function envelope(bytes: number, guide: OversizeGuide, details: Record<string, unknown>): AgentToolResult<Record<string, unknown>> {
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify({
+          error: "结果超过单次读取预算，未返回残缺数据",
+          bytes,
+          budgetBytes: RESULT_BUDGET_BYTES,
+          ...(guide.hint === undefined ? {} : { hint: guide.hint }),
+          ...(guide.next === undefined ? {} : { next: guide.next }),
+        }),
+      },
+    ],
+    details: { ...details, oversized: true, bytes },
+    isError: true,
+  };
+}
+
+export function jsonResult(
+  value: unknown,
+  details: Record<string, unknown> = {},
+  guide: OversizeGuide = {},
+): AgentToolResult<Record<string, unknown>> {
+  const text = JSON.stringify(value);
+  const bytes = Buffer.byteLength(text);
+  if (bytes > RESULT_BUDGET_BYTES) {
+    return envelope(bytes, { hint: "缩小过滤范围，或用 limit/offset 分页后重试", ...guide }, details);
+  }
+  return { content: [{ type: "text", text }], details };
 }
 
 export interface ToolFailure extends AgentToolResult<Record<string, unknown>> {
@@ -13,8 +49,26 @@ export function errorResult(value: unknown): ToolFailure {
   return { content: [{ type: "text", text: JSON.stringify(value) }], details: {}, isError: true };
 }
 
-export function textResult(text: string, details: Record<string, unknown> = {}): AgentToolResult<Record<string, unknown>> {
-  return { content: [{ type: "text", text }], details };
+export function textResult(
+  text: string,
+  details: Record<string, unknown> = {},
+  guide: OversizeGuide = {},
+  options: { clip?: boolean } = {},
+): AgentToolResult<Record<string, unknown>> {
+  const bytes = Buffer.byteLength(text);
+  if (options.clip === false || bytes <= RESULT_BUDGET_BYTES) return { content: [{ type: "text", text }], details };
+  const notice = `\n…[已截断：原 ${bytes} B，改用行范围或更窄的过滤条件读取${guide.hint === undefined ? "" : `；${guide.hint}`}]`;
+  const clipped = Buffer.from(text).subarray(0, RESULT_BUDGET_BYTES - Buffer.byteLength(notice)).toString("utf8");
+  return {
+    content: [{ type: "text", text: clipped + notice }],
+    details: { ...details, truncated: true, bytes },
+  };
+}
+
+export function numberParam(value: string | null): number | undefined {
+  if (value === null || value.trim() === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 export function pageOf(

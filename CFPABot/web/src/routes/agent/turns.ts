@@ -50,6 +50,10 @@ function addUsage(target: UsageTotals, item: AssistantItem): void {
 
 export function buildTurns(items: readonly ChatItem[], running: boolean): Turn[] {
   const turns: Turn[] = [];
+  const assistants = new Map<string, AssistantItem>();
+  for (const item of items) {
+    if (item.kind === "assistant") assistants.set(item.id, item);
+  }
   let turn: Turn | undefined;
 
   const open = (at: string, user?: UserItem): Turn => {
@@ -108,14 +112,15 @@ export function buildTurns(items: readonly ChatItem[], running: boolean): Turn[]
     const began = Date.parse(entry.startedAt);
     entry.elapsed = lastKnown > 0 && Number.isFinite(began) ? Math.max(0, lastKnown - began) : undefined;
 
-    // 最后一段正文之后没有工具调用时，它才是这一轮的答案；否则仍在过程里。
+    // 最后一段正文之后没有工具调用时，它才是这一轮的答案；其余保留为过程。
     for (let position = entry.steps.length - 1; position > lastTool; position -= 1) {
       const step = entry.steps[position];
       if (step === undefined || step.text.trim() === "") continue;
-      const assistant = items.find((item): item is AssistantItem => item.kind === "assistant" && item.id === step.key);
+      const assistant = assistants.get(step.key);
       if (assistant === undefined) continue;
       entry.answer = assistant;
       entry.steps.splice(position, 1);
+      break;
     }
     entry.steps = entry.steps.filter(
       (step) => step.text.trim() !== "" || (step.thinking?.trim() ?? "") !== "" || step.tools.length > 0,

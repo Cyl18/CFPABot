@@ -146,7 +146,7 @@ function AgentSessionRoot() {
   const { id } = agentSessionRoute.useParams();
   return (
     <RequireAdmin>
-      <SessionPage id={id} />
+      <SessionPage key={id} id={id} />
     </RequireAdmin>
   );
 }

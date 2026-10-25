@@ -90,17 +90,25 @@ export function planStats(phases: readonly TodoPhase[] | undefined): { total: nu
   return { total, completed, active, blocked };
 }
 
-function resolveFilePath(raw: string, prNumber: number | undefined): string | null {
+export function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+export function resolveFilePath(raw: string, prNumber: number | undefined): string | null {
   const clean = (raw.split("?")[0] ?? "").split("#")[0]?.replaceAll("\\", "/") ?? "";
   if (clean.startsWith("skill://") || clean.startsWith("local://") || clean.startsWith("gh://")) {
     return null;
   }
   if (prNumber !== undefined) {
     const prefix = `pr://${prNumber}/files/`;
-    if (clean.startsWith(prefix)) return decodeURIComponent(clean.slice(prefix.length));
+    if (clean.startsWith(prefix)) return safeDecode(clean.slice(prefix.length).replace(/:\d+(?:-\d+)?$/, ""));
     const marker = `/runtime/work/pr/${prNumber}/`;
     const index = clean.indexOf(marker);
-    if (index >= 0) return decodeURIComponent(clean.slice(index + marker.length));
+    if (index >= 0) return safeDecode(clean.slice(index + marker.length).replace(/:\d+(?:-\d+)?$/, ""));
   }
   if (clean.startsWith("pr://")) return null;
   if (clean.startsWith("repo://")) return clean.slice("repo://".length);

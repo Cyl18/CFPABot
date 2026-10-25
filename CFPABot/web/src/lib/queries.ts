@@ -118,21 +118,27 @@ export function useSession(id: string | undefined, enabled = true) {
   });
 }
 
-export function useSessionFiles(id: string | undefined, enabled = true) {
+export function useSessionFiles(id: string | undefined, enabled = true, refetchInterval: number | false = 3_000) {
   return useQuery<SessionFile[]>({
     queryKey: qk.sessionFiles(id ?? ""),
     queryFn: ({ signal }) => api.sessionFiles(id as string, signal),
     enabled: enabled && id !== undefined && id.length > 0,
-    refetchInterval: 3_000,
+    refetchInterval,
     retry: 0,
   });
 }
 
-export function useSessionFile(id: string | undefined, path: string | null, enabled = true) {
+export function useSessionFile(
+  id: string | undefined,
+  path: string | null,
+  enabled = true,
+  refetchInterval: number | false = false,
+) {
   return useQuery<SessionFileContent>({
     queryKey: qk.sessionFile(id ?? "", path ?? ""),
     queryFn: ({ signal }) => api.sessionFile(id as string, path as string, signal),
     enabled: enabled && id !== undefined && path !== null,
+    refetchInterval,
     retry: 0,
   });
 }

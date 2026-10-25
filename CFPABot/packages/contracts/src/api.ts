@@ -126,6 +126,7 @@ export interface PackSummary {
   generatedAt: string;
   counts: { workspaces: number; rows: number; changed: number; flagged: number };
   workspaces: PackWorkspaceSummary[];
+  truncated?: boolean;
 }
 
 export interface WorkspaceBrief {
@@ -219,9 +220,12 @@ export interface ReviewRowsPage {
   slice?: string;
   plan?: ReviewPlan;
   counts: { workspaces: number; rows: number; changed: number; flagged: number; reviewable: number };
-  workspaces: WorkspaceBrief[];
+  /** 分片页省略工作区清单 */
+  workspaces?: WorkspaceBrief[];
   rows: ReviewRowView[];
   patches?: Record<string, string>;
+  /** 未内联的 patch 改用 files/<path>?format=patch 读 */
+  patchesOmitted?: string[];
   commentsAvailable: boolean;
   termsLoaded: boolean;
   next: string | null;
@@ -361,6 +365,7 @@ export interface ReviewHunk {
 export interface CompareReview {
   path: string;
   keys: Record<string, { line: number; raw: string }>;
+  keysOmitted?: number;
 }
 
 export type SpecialStatus = PrFile["status"] | "unchanged" | "missing";
@@ -516,6 +521,9 @@ export type ChatItem =
   | { id: string; kind: "tool"; tool: ToolCallView; at: string };
 
 export type Severity = "critical" | "major" | "minor" | "neutral";
+
+/** 严重度从高到低 */
+export const SEVERITY_RANK: Record<Severity, number> = { critical: 0, major: 1, minor: 2, neutral: 3 };
 export type Verdict = "approve" | "changes" | "reject";
 
 export interface DraftComment {
@@ -539,6 +547,7 @@ export interface ReviewDraft {
   verdict: Verdict;
   summary: string;
   comments: DraftComment[];
+  event?: ReviewEvent;
   updatedAt: string;
   publishedAt?: string;
   publishedUrl?: string;

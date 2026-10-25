@@ -6,16 +6,16 @@ import {
   SessionManager,
   Settings,
   type AuthStorage,
-  type SessionEntry,
 } from "@oh-my-pi/pi-coding-agent";
 import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import type { LlmEndpoint } from "@cfpa/contracts/api";
 import { paths } from "../paths.ts";
 import { localDir } from "./local-store.ts";
-import { resolveApiKey } from "./llm-providers.ts";
+import { assertEndpointRouting, resolveApiKey } from "./llm-providers.ts";
 import type { SessionRecord } from "./sessions.ts";
 
 export async function openAuthStorage(endpoints: LlmEndpoint[]): Promise<AuthStorage> {
+  assertEndpointRouting(endpoints);
   const authStorage = await discoverAuthStorage(paths.piAgent);
   for (const endpoint of endpoints) {
     const apiKey = resolveApiKey(endpoint.apiKey);
@@ -29,6 +29,7 @@ export async function openModelRuntime(
   endpoints: LlmEndpoint[],
   roles: Record<string, string>,
 ): Promise<{ settings: Settings; registry: ModelRegistry }> {
+  assertEndpointRouting(endpoints);
   const settings = await Settings.init({ cwd: paths.root, agentDir: paths.piAgent });
   settings.overrideModelRoles(roles);
   const registry = new ModelRegistry(authStorage);
@@ -81,8 +82,7 @@ export async function sessionMessages(record: SessionRecord): Promise<AgentMessa
   if (!record.sessionFile || !existsSync(record.sessionFile)) return [];
   try {
     const manager = await SessionManager.open(record.sessionFile, paths.sessions);
-    const entries: SessionEntry[] = manager.getEntries();
-    return entries.flatMap((entry) => (entry.type === "message" ? [entry.message] : []));
+    return manager.buildSessionContext({ transcript: true, collapseCompactedHistory: true }).messages;
   } catch {
     return [];
   }

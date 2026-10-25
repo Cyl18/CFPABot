@@ -59,10 +59,18 @@ export function prepareDraft(content: string, n: number, headSha: string): Prepa
       verdict: input.verdict,
       summary: input.summary,
       comments: input.comments,
+      ...(input.event === undefined ? {} : { event: input.event }),
       updatedAt: new Date().toISOString(),
     },
     errors: [],
   };
+}
+
+/** 读会话里的草稿：brief、draft 视图与发布共用同一份解析。 */
+export async function storedDraftOf(sessionId?: string): Promise<ReviewDraft | null> {
+  if (sessionId === undefined) return null;
+  const raw = await readLocal(sessionId, DRAFT_FILE);
+  return raw === null ? null : parseDraftFile(raw.content);
 }
 
 export function draftSchema(n: number, headSha: string): DraftSchemaView {
@@ -92,7 +100,7 @@ export function draftSchema(n: number, headSha: string): DraftSchemaView {
       "非 suspected 且没有 covers 的评论必须给 suggestion；suspected 时 severity 不得高于 minor。",
       "id 可省，服务端按顺序补 c1…cN；headSha 可省，服务端按当前 head 补。",
       "write pr://<n>/draft 保存并校验，errors 会直接返回，不通过不落盘。",
-      "发布用 write pr://<n>/review；结论默认 COMMENT，用 ?event=APPROVE|REQUEST_CHANGES 覆盖。",
+      "发布用 write pr://<n>/review；event 可写进草稿，发布时 ?event=APPROVE|REQUEST_CHANGES 优先。",
     ],
   };
 }
@@ -104,8 +112,7 @@ async function patchesOf(n: number): Promise<Map<string, string | undefined>> {
 
 export async function readDraftOf(n: number, sessionId?: string): Promise<ReviewDraftView> {
   const { pull } = await prdata.files(n);
-  const raw = sessionId === undefined ? null : await readLocal(sessionId, DRAFT_FILE);
-  const draft = raw === null ? null : parseDraftFile(raw.content);
+  const draft = await storedDraftOf(sessionId);
   const errors: string[] = [];
   const warnings: string[] = [];
   const headCurrent = draft === null || draft.headSha === pull.headSha;

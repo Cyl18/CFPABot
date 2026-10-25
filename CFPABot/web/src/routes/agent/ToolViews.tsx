@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn.ts";
 import { formatJson } from "@/lib/format.ts";
 import { isRecord } from "@/lib/guards.ts";
 import { CopyButton } from "@/ui/CopyButton.tsx";
-import { planStats, stringArg, subagentModel, todoPhases, type TaskStatus } from "./sessionInsights.ts";
+import { planStats, resolveFilePath, stringArg, subagentModel, todoPhases, type TaskStatus } from "./sessionInsights.ts";
 
 const TASK_ICON: Record<TaskStatus, ReactNode> = {
   completed: <CheckCircle2 aria-hidden="true" className="size-3.5 shrink-0 text-ok" />,
@@ -104,11 +104,9 @@ export function toolComposition(items: readonly { tool: ToolCallView }[]): strin
 function prFileLink(path: string, prNumber: number | undefined): string | null {
   if (prNumber === undefined) return null;
   const clean = path.split("?")[0] ?? "";
-  const prefix = `pr://${prNumber}/files/`;
-  if (clean.startsWith(prefix)) return decodeURIComponent(clean.slice(prefix.length));
   const marker = `/runtime/work/pr/${prNumber}/`;
-  const index = clean.indexOf(marker);
-  return index >= 0 ? decodeURIComponent(clean.slice(index + marker.length)) : null;
+  if (!clean.startsWith(`pr://${prNumber}/files/`) && !clean.includes(marker)) return null;
+  return resolveFilePath(path, prNumber);
 }
 
 function ReadBody({ tool, prNumber }: { tool: ToolCallView; prNumber?: number }) {

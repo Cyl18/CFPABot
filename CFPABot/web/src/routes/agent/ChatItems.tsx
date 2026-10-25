@@ -219,6 +219,11 @@ const TurnRow = memo(function TurnRow({
   onJump: (index: number) => void;
 }) {
   const [manual, setManual] = useState<boolean | null>(null);
+  const wasRunning = useRef(turn.running);
+  useEffect(() => {
+    if (turn.running && !wasRunning.current) setManual(true);
+    wasRunning.current = turn.running;
+  }, [turn.running]);
   const open = manual ?? turn.running;
   const now = useNow(turn.running);
   const elapsed = turnElapsed(turn, now);

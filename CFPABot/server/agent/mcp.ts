@@ -38,6 +38,7 @@ export function agentMcpManager(): Promise<MCPManager | undefined> {
       return manager;
     } catch (error) {
       log.error("MCP 初始化失败", { error });
+      shared = undefined;
       return undefined;
     }
   })();

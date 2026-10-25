@@ -1,6 +1,7 @@
 import type { ReviewDraft } from "@cfpa/contracts/api";
 import { assertBotWrites, gh } from "../../../github/client.ts";
 import { logger } from "../../../log.ts";
+import { prdata } from "../../../prdata.ts";
 import { renderInlineBody, renderReviewBody, validateDraft } from "../../draft.ts";
 
 const log = logger("agent-publish");
@@ -15,13 +16,13 @@ export async function publishDraft(
   opts: PublishOptions = {},
 ): Promise<{ url: string; headSha: string }> {
   assertBotWrites();
-  const pull = await gh.getPull(draft.prNumber);
+  await prdata.refresh(draft.prNumber);
+  const { pull, files } = await prdata.files(draft.prNumber);
   if (pull.headSha !== draft.headSha) {
     throw new Error(
       `PR #${draft.prNumber} 的 head 已变为 ${pull.headSha.slice(0, 7)}，草稿基于 ${draft.headSha.slice(0, 7)}，请重新审查后再发布`,
     );
   }
-  const files = await gh.listPullFiles(draft.prNumber);
   const patches = new Map(files.map((file) => [file.path, file.patch]));
   const errors = validateDraft(draft, { patches });
   if (errors.length > 0) throw new Error(`草稿校验失败：${errors.join("；")}`);

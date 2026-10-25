@@ -1,4 +1,4 @@
-import type { Finding, Workspace } from "@cfpa/contracts/api";
+import type { Finding, Workspace, WorkspaceBrief } from "@cfpa/contracts/api";
 import { duplicateZh, fileFindings, keyParity } from "./domain/checks.ts";
 import { inHunks, patchHunks } from "./domain/diff.ts";
 import { entryFindingsWithTerms } from "./domain/entry-findings.ts";
@@ -41,6 +41,7 @@ export interface Pack {
   generatedAt: string;
   workspaces: PackWorkspace[];
   counts: { workspaces: number; rows: number; changed: number; flagged: number };
+  workspacesTruncated?: boolean;
 }
 
 export interface PackInput {
@@ -66,6 +67,19 @@ export function findingHistogram(workspace: PackWorkspace): Record<string, numbe
     for (const finding of row.findings) histogram[finding.code] = (histogram[finding.code] ?? 0) + 1;
   }
   return histogram;
+}
+
+/** 共用工作区描述 */
+export function workspaceBrief(workspace: PackWorkspace): WorkspaceBrief {
+  return {
+    workspace: workspaceKey(workspace),
+    format: workspace.format,
+    enPath: workspace.enPath,
+    zhPath: workspace.zhPath,
+    counts: workspace.counts,
+    histogram: findingHistogram(workspace),
+    duplicates: workspace.duplicates.length,
+  };
 }
 
 export interface RowSelection {
@@ -183,7 +197,8 @@ async function buildWorkspace(
 export async function buildPack(input: PackInput): Promise<Pack> {
   const patches = new Map<string, string | undefined>();
   for (const file of input.files) patches.set(file.path, file.patch);
-  const workspaces = workspacesOf(input.files).slice(0, MAX_WORKSPACES);
+  const available = workspacesOf(input.files);
+  const workspaces = available.slice(0, MAX_WORKSPACES);
   const built: PackWorkspace[] = [];
   for (let index = 0; index < workspaces.length; index += WORKSPACE_CONCURRENCY) {
     const batch = workspaces.slice(index, index + WORKSPACE_CONCURRENCY);
@@ -196,6 +211,7 @@ export async function buildPack(input: PackInput): Promise<Pack> {
     headSha: input.headSha,
     generatedAt: new Date().toISOString(),
     workspaces: built,
+    ...(available.length > workspaces.length ? { workspacesTruncated: true } : {}),
     counts: {
       workspaces: built.length,
       rows: built.reduce((sum, workspace) => sum + workspace.counts.total, 0),

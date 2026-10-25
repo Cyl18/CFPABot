@@ -1,6 +1,6 @@
 import type { SpecialFilesPage } from "@cfpa/contracts/api";
 import { prdata } from "../../prdata.ts";
-import { specialContents, specialPairs } from "../../views/special.ts";
+import { specialContents, specialPairs, clipSpecialContent } from "../../views/special.ts";
 import { pageOf } from "../result.ts";
 import { nextPageUri } from "../uri.ts";
 
@@ -23,11 +23,13 @@ export async function specialPageOf(n: number, options: SpecialOptions): Promise
   let items: SpecialFilesPage["items"] = slice;
   let shown = slice.length;
   if (options.withText) {
-    const full = await specialContents(
-      n,
-      slice.map((pair) => pair.key),
-      prdata.fileSource(),
-    );
+    const full = (
+      await specialContents(
+        n,
+        slice.map((pair) => pair.key),
+        prdata.fileSource(),
+      )
+    ).map(clipSpecialContent);
     const kept: SpecialFilesPage["items"] = [];
     let bytes = 0;
     for (const item of full) {

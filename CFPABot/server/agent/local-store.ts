@@ -13,9 +13,13 @@ export function isLocalPath(path: string): boolean {
   return path.split("/").every((segment) => SEGMENT.test(segment));
 }
 
-export function localDir(id: string): string {
+export function artifactsDir(id: string): string {
   if (!ID_PATTERN.test(id)) throw new Error("会话 ID 非法。");
-  return join(paths.sessions, id, "local");
+  return join(paths.sessions, id);
+}
+
+export function localDir(id: string): string {
+  return join(artifactsDir(id), "local");
 }
 
 function localPath(id: string, name: string): string {
@@ -29,9 +33,11 @@ export async function readLocal(id: string, name: string): Promise<LocalEntry | 
   try {
     const path = localPath(id, name);
     const info = await stat(path);
+    if (info.size > 1_048_576) throw new Error(`本地文件超过 1 MiB：${name}`);
     return { content: await readFile(path, "utf8"), updatedAt: info.mtime.toISOString() };
-  } catch {
-    return null;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
   }
 }
 
@@ -40,8 +46,12 @@ export async function writeLocal(id: string, name: string, content: string): Pro
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, content, "utf8");
   if (process.platform === "linux") {
-    // bash 以 nobody 跑，workspace 必须让它可写。
-    await chmod(dirname(path), 0o777).catch(() => undefined);
+    // bash 以 nobody 跑，workspace 的每一级目录都必须让它可写。
+    const root = localDir(id);
+    for (let dir = dirname(path); dir.startsWith(root); dir = dirname(dir)) {
+      await chmod(dir, 0o777).catch(() => undefined);
+      if (dir === root) break;
+    }
     await chmod(path, 0o666).catch(() => undefined);
   }
   return { content, updatedAt: new Date().toISOString() };

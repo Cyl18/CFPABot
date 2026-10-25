@@ -1,7 +1,7 @@
 ---
 name: review
 description: 翻译审查子代理：只审分配的分片，返回结构化 findings。
-tools: read, grep, find, glob, bash
+tools: read, grep, find, glob
 output:
   properties:
     comments:

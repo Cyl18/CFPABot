@@ -53,11 +53,11 @@ async function clearStaleIndexLock(): Promise<void> {
 }
 
 export async function repoRoot(): Promise<string> {
-  return withLock("mirror", ensureRepoUnlocked);
+  return withLock("worktree", ensureRepoUnlocked);
 }
 
 export async function refreshRepo(): Promise<void> {
-  await withLock("mirror", async () => {
+  await withLock("worktree", async () => {
     const root = await ensureRepoUnlocked();
     await runGit(paths.mirror, ["fetch", "--depth", "1", "origin", repo.defaultBranch], null);
     await runGit(paths.mirror, ["update-ref", `refs/heads/${repo.defaultBranch}`, "FETCH_HEAD"], null);
@@ -111,15 +111,14 @@ async function prTexts(prNumber: number, headSha: string, wanted: readonly strin
 }
 
 /** 把 PR 的 head 文件物化到共享目录；同一 PR 多次调用只在 head 变化时重建。 */
-export async function ensurePrDir(prNumber: number, headSha: string): Promise<string> {
-  if ((await readMarker(prNumber)) === headSha) return prRoot(prNumber);
+export async function ensurePrDir(prNumber: number): Promise<string> {
   return withLock(`pr-worktree:${prNumber}`, async () => {
-    if ((await readMarker(prNumber)) === headSha) return prRoot(prNumber);
+    const { pull, files } = await prdata.files(prNumber);
+    if ((await readMarker(prNumber)) === pull.headSha) return prRoot(prNumber);
     const dir = prRoot(prNumber);
     const tmp = `${dir}.tmp`;
-    const { files } = await prdata.files(prNumber);
     const wanted = files.filter((file) => file.status !== "removed" && isRepoPath(file.path)).map((file) => file.path);
-    const texts = await prTexts(prNumber, headSha, wanted);
+    const texts = await prTexts(prNumber, pull.headSha, wanted);
     await rm(tmp, { recursive: true, force: true });
     await mkdir(tmp, { recursive: true });
     let written = 0;
@@ -134,9 +133,9 @@ export async function ensurePrDir(prNumber: number, headSha: string): Promise<st
     await rm(dir, { recursive: true, force: true });
     await rename(tmp, dir);
     await mkdir(paths.prs, { recursive: true });
-    await writeFile(join(paths.prs, `${prNumber}.head`), headSha, "utf8");
+    await writeFile(join(paths.prs, `${prNumber}.head`), pull.headSha, "utf8");
     await chmod(dir, 0o555).catch(() => undefined);
-    log.info("PR 文件已物化", { prNumber, headSha: headSha.slice(0, 7), files: written });
+    log.info("PR 文件已物化", { prNumber, headSha: pull.headSha.slice(0, 7), files: written });
     return dir;
   });
 }

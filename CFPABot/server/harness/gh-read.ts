@@ -4,9 +4,10 @@ import { gh } from "../github/client.ts";
 import { mirror } from "../mirror.ts";
 import { prdata } from "../prdata.ts";
 import { crossVersionKeys } from "../views/cross-version.ts";
-import { jsonResult } from "./result.ts";
+import { jsonResult, numberParam, pageOf } from "./result.ts";
 import { isAgentBody, trimBody, visibleIssueComment } from "./format.ts";
 import { GH_CHILDREN, missingResource } from "./catalog.ts";
+import { nextPageUri } from "./uri.ts";
 import type { ResourceParts } from "./uri.ts";
 
 export async function readGh(uri: ResourceParts): Promise<AgentToolResult<Record<string, unknown>>> {
@@ -70,17 +71,35 @@ export async function readGh(uri: ResourceParts): Promise<AgentToolResult<Record
     const pr = prRaw === null || prRaw.trim() === "" ? undefined : Number(prRaw);
     if (pr !== undefined && (!Number.isInteger(pr) || pr <= 0)) throw new Error("pr 参数无效。");
     const versions = uri.query.get("versions")?.split(",").filter(Boolean);
-    return jsonResult(
-      await crossVersionKeys(
-        slug,
-        {
-          namespace: uri.query.get("namespace") ?? undefined,
-          ...(pr === undefined ? {} : { pr }),
-          ...(versions === undefined || versions.length === 0 ? {} : { versions }),
-        },
-        prdata.fileSource(),
-      ),
+    const result = await crossVersionKeys(
+      slug,
+      {
+        namespace: uri.query.get("namespace") ?? undefined,
+        ...(pr === undefined ? {} : { pr }),
+        ...(versions === undefined || versions.length === 0 ? {} : { versions }),
+      },
+      prdata.fileSource(),
     );
+    const prefix = uri.query.get("prefix");
+    const rows = prefix === null ? result.rows : result.rows.filter((row) => row.key.startsWith(prefix));
+    const page = pageOf(numberParam(uri.query.get("offset")), numberParam(uri.query.get("limit")), 200, 40);
+    const shown: typeof rows = [];
+    let bytes = 0;
+    for (const row of rows.slice(page.offset, page.offset + page.limit)) {
+      const size = Buffer.byteLength(JSON.stringify(row));
+      if (shown.length > 0 && bytes + size > 30_000) break;
+      shown.push(row);
+      bytes += size;
+    }
+    const nextOffset = page.offset + shown.length < rows.length ? page.offset + shown.length : null;
+    return jsonResult({
+      ...result,
+      rows: shown,
+      total: rows.length,
+      offset: page.offset,
+      limit: page.limit,
+      next: nextPageUri(`gh://versions/${slug}/keys`, uri.query, nextOffset),
+    });
   }
 
   return missingResource(`gh://${uri.path}`, GH_CHILDREN);

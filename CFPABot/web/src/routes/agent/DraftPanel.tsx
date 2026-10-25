@@ -167,8 +167,9 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
             <Button
               variant="primary"
               icon={<Send aria-hidden="true" className="size-3.5" />}
-              disabled={published || dirty}
-              title={dirty ? "先保存草稿再发布" : undefined}
+              loading={publishing}
+              disabled={published || dirty || publishing}
+              title={publishing ? "正在发布…" : dirty ? "先保存草稿再发布" : undefined}
               onClick={() => setConfirmOpen(true)}
             >
               发布

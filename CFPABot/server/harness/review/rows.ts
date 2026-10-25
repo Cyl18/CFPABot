@@ -7,13 +7,12 @@ import type {
   WorkspaceBrief,
 } from "@cfpa/contracts/api";
 import { matchTerms, type TermIndex } from "@cfpa/review-core/domain/terms";
-import { findingHistogram, selectRows, workspaceKey, type Pack, type PackWorkspace } from "@cfpa/review-core/pack";
+import { selectRows, workspaceBrief, workspaceKey, type Pack, type PackWorkspace } from "@cfpa/review-core/pack";
 import type { SelectedRow } from "@cfpa/review-core/pack";
 import { glossaryTerms } from "../../domain/glossary.ts";
 import { prdata } from "../../prdata.ts";
-import { pageOf } from "../result.ts";
+import { RESULT_BUDGET_BYTES } from "../result.ts";
 import { loadPack } from "../pack.ts";
-import { nextPageUri } from "../uri.ts";
 import { threadsOf, type ThreadsView } from "./threads.ts";
 
 export type RowsFilter = "reviewable" | "changed" | "flagged" | "all";
@@ -31,9 +30,6 @@ export interface RowsOptions {
   prefix?: string;
   keys?: string[];
   query?: string;
-  /** 仅人类 HTTP 分页与兼容旧调用；agent 主流程不用。 */
-  offset?: number;
-  limit?: number;
   slice?: string;
   rebuild?: boolean;
   include: RowsInclude;
@@ -60,16 +56,19 @@ export function defaultRowsInclude(): RowsInclude {
   return { terms: true, threads: true, duplicates: true, patch: false };
 }
 
+const briefCache = new WeakMap<Pack, WorkspaceBrief[]>();
+
+function packBriefs(pack: Pack): WorkspaceBrief[] {
+  let briefs = briefCache.get(pack);
+  if (briefs === undefined) {
+    briefs = workspaceBriefs(pack);
+    briefCache.set(pack, briefs);
+  }
+  return briefs;
+}
+
 export function workspaceBriefs(pack: Pack): WorkspaceBrief[] {
-  return pack.workspaces.map((workspace) => ({
-    workspace: workspaceKey(workspace),
-    format: workspace.format,
-    enPath: workspace.enPath,
-    zhPath: workspace.zhPath,
-    counts: workspace.counts,
-    histogram: findingHistogram(workspace),
-    duplicates: workspace.duplicates.length,
-  }));
+  return pack.workspaces.map(workspaceBrief);
 }
 
 function reviewableCount(pack: Pack): number {
@@ -167,10 +166,8 @@ function filterParams(options: RowsOptions): URLSearchParams {
   return params;
 }
 
-function pageParams(options: RowsOptions): URLSearchParams {
-  const params = filterParams(options);
-  if (options.limit !== undefined) params.set("limit", String(options.limit));
-  return params;
+export function rowsUri(n: number, options: RowsOptions): string {
+  return `pr://${n}/rows?${filterParams(options).toString()}`;
 }
 
 function sliceParams(options: RowsOptions, id: string): URLSearchParams {
@@ -233,14 +230,31 @@ function buildRows(input: RowsInput, options: RowsOptions, selected: readonly Se
   });
 }
 
-function patchesOf(input: RowsInput, options: RowsOptions, rows: readonly ReviewRowView[]): Record<string, string> | undefined {
-  if (!options.include.patch) return undefined;
+function patchesOf(
+  input: RowsInput,
+  options: RowsOptions,
+  rows: readonly ReviewRowView[],
+): { patches?: Record<string, string>; omitted?: string[] } {
+  if (!options.include.patch) return {};
   const patches: Record<string, string> = {};
+  const omitted: string[] = [];
+  let bytes = 0;
   for (const path of new Set(rows.map((row) => row.path).filter((path): path is string => path !== null))) {
     const patch = input.patches.get(path);
-    if (patch !== undefined && patch !== "") patches[path] = patch;
+    if (patch === undefined || patch === "") continue;
+    const size = Buffer.byteLength(JSON.stringify(patch));
+    // 超大 patch 不内联
+    if (size > PATCH_BUDGET_BYTES || (bytes > 0 && bytes + size > PATCH_BUDGET_BYTES)) {
+      omitted.push(path);
+      continue;
+    }
+    patches[path] = patch;
+    bytes += size;
   }
-  return Object.keys(patches).length === 0 ? undefined : patches;
+  return {
+    ...(Object.keys(patches).length === 0 ? {} : { patches }),
+    ...(omitted.length === 0 ? {} : { omitted }),
+  };
 }
 
 function countsOf(pack: Pack): ReviewRowsPage["counts"] {
@@ -267,9 +281,29 @@ function basePage(
     plan?: ReviewPlan;
     hint: string;
     next: string | null;
+    /** 分片页不带工作区清单 */
+    withWorkspaces?: boolean;
   },
 ): ReviewRowsPage {
-  const patches = patchesOf(input, options, rows);
+  const patchView = patchesOf(input, options, rows);
+  const workspaceList = extra.withWorkspaces !== false && input.pack.workspaces.length <= MAX_PAGE_WORKSPACES;
+  const filtered =
+    options.workspace !== undefined ||
+    options.prefix !== undefined ||
+    options.keys !== undefined ||
+    options.query !== undefined ||
+    options.filter !== "all";
+  const scopeHint = filtered ? " counts 为整份 pack，total 为当前过滤结果。" : "";
+  const zeroHint =
+    input.pack.counts.changed > 0 && reviewableCount(input.pack) === 0
+      ? " changed 行不在 zh diff hunk 内，reviewable 为 0。"
+      : "";
+  const truncHint = input.pack.workspacesTruncated
+    ? ` 预审只覆盖前 ${input.pack.workspaces.length} 个工作区。`
+    : "";
+  const hint = workspaceList || extra.withWorkspaces === false
+    ? `${extra.hint}${scopeHint}${zeroHint}${truncHint}`
+    : `${extra.hint}${scopeHint}${zeroHint}${truncHint} 工作区清单超过 ${MAX_PAGE_WORKSPACES} 个已省略。`;
   return {
     prNumber: input.pack.prNumber,
     headSha: input.pack.headSha,
@@ -281,19 +315,25 @@ function basePage(
     ...(extra.slice === undefined ? {} : { slice: extra.slice }),
     ...(extra.plan === undefined ? {} : { plan: extra.plan }),
     counts: countsOf(input.pack),
-    workspaces: workspaceBriefs(input.pack),
+    ...(workspaceList ? { workspaces: packBriefs(input.pack) } : {}),
     rows,
-    ...(patches === undefined ? {} : { patches }),
+    ...(patchView.patches === undefined ? {} : { patches: patchView.patches }),
+    ...(patchView.omitted === undefined ? {} : { patchesOmitted: patchView.omitted }),
     commentsAvailable: input.threads.available,
     termsLoaded: input.terms !== null,
     next: extra.next,
-    hint: extra.hint,
+    hint,
   };
 }
 
 /** 公开的 plan 只列开头几片；其余靠每片的 next 串起来，别让 plan 自己撑爆预算。 */
 const PLAN_SLICES = 8;
 const PLAN_CACHE = 8;
+const PLAN_RESERVE_BYTES = 4_000;
+const PATCH_BUDGET_BYTES = 8_000;
+const BUDGET_MARGIN_BYTES = 1_500;
+const MIN_ROWS_BUDGET_BYTES = 2_000;
+const MAX_PAGE_WORKSPACES = 80;
 
 /** 边界按行索引记：同一份 pack 上重复读分片时不用重建整份 selection。 */
 const planCache = new WeakMap<Pack, Map<string, { bytes: number; slices: PlannedSlice[] }>>();
@@ -313,11 +353,11 @@ function selectionKey(options: RowsOptions): string {
   ].join("\u0000");
 }
 
-function planView(total: number, bytes: number, slices: readonly PlannedSlice[], fits: boolean): ReviewPlan {
+function planView(total: number, bytes: number, slices: readonly PlannedSlice[], fits: boolean, budget: number): ReviewPlan {
   return {
     total,
     bytes,
-    budgetBytes: ROWS_PAGE_BYTES,
+    budgetBytes: budget,
     fits,
     sliceCount: slices.length,
     slices: slices.slice(0, PLAN_SLICES).map((slice) => ({
@@ -332,14 +372,56 @@ function planView(total: number, bytes: number, slices: readonly PlannedSlice[],
   };
 }
 
-function planFor(input: RowsInput, options: RowsOptions, rows: readonly ReviewRowView[]): {
+function pageSkeletonBytes(input: RowsInput): number {
+  return Buffer.byteLength(
+    JSON.stringify({
+      prNumber: input.pack.prNumber,
+      headSha: input.pack.headSha,
+      total: 0,
+      offset: 0,
+      limit: 0,
+      nextOffset: null,
+      complete: false,
+      counts: { workspaces: 0, rows: 0, changed: 0, flagged: 0, reviewable: 0 },
+      rows: [],
+      commentsAvailable: input.threads.available,
+      termsLoaded: input.terms !== null,
+      next: null,
+      hint: "",
+    }),
+  );
+}
+
+/** 预算按整页 JSON 取全集页与分片页的较大开销 */
+function rowsBudget(input: RowsInput, options: RowsOptions): number {
+  const base = pageSkeletonBytes(input);
+  const workspaceBytes =
+    input.pack.workspaces.length <= MAX_PAGE_WORKSPACES
+      ? Buffer.byteLength(JSON.stringify(packBriefs(input.pack)))
+      : 0;
+  const patchReserve = options.include.patch ? PATCH_BUDGET_BYTES : 0;
+  return Math.max(
+    MIN_ROWS_BUDGET_BYTES,
+    Math.min(40_000, RESULT_BUDGET_BYTES - Math.max(base + workspaceBytes, base + PLAN_RESERVE_BYTES) - patchReserve - BUDGET_MARGIN_BYTES),
+  );
+}
+
+function shortHash(value: string): string {
+  let hash = 5381;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash << 5) + hash + value.charCodeAt(index)) | 0;
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function planFor(input: RowsInput, options: RowsOptions, rows: readonly ReviewRowView[], budget: number, seed: string): {
   plan: ReviewPlan;
   slices: PlannedSlice[];
 } {
   const sizes = rows.map(rowBytes);
   const totalBytes = sizes.reduce((sum, size) => sum + size, 0);
-  if (rows.length === 0 || totalBytes <= ROWS_PAGE_BYTES) {
-    return { plan: planView(rows.length, totalBytes, [], true), slices: [] };
+  if (rows.length === 0 || totalBytes <= budget) {
+    return { plan: planView(rows.length, totalBytes, [], true, budget), slices: [] };
   }
   const slices: PlannedSlice[] = [];
   let index = 0;
@@ -351,12 +433,12 @@ function planFor(input: RowsInput, options: RowsOptions, rows: readonly ReviewRo
     while (end < rows.length && rows[end]!.workspace === workspace && end - index < SLICE_MAX_ROWS) {
       const nextGroup = sliceGroup(rows[end]!.key);
       const size = sizes[end]!;
-      if (end > index && bytes + size > ROWS_PAGE_BYTES && nextGroup !== group) break;
+      if (end > index && bytes + size > budget && nextGroup !== group) break;
       bytes += size;
       group = nextGroup;
       end += 1;
     }
-    const id = `${input.pack.headSha.slice(0, 7)}~${workspace}~${index}`;
+    const id = `${input.pack.headSha.slice(0, 7)}~${shortHash(`${seed}\u0000${budget}`)}~${workspace}~${index}`;
     const uri = `pr://${input.pack.prNumber}/rows?${sliceParams(options, id).toString()}`;
     slices.push({
       id,
@@ -371,11 +453,12 @@ function planFor(input: RowsInput, options: RowsOptions, rows: readonly ReviewRo
     });
     index = end;
   }
-  return { plan: planView(rows.length, totalBytes, slices, false), slices };
+  return { plan: planView(rows.length, totalBytes, slices, false, budget), slices };
 }
 
 function cachePlan(pack: Pack, key: string, bytes: number, slices: PlannedSlice[]): void {
   const bucket = planCache.get(pack) ?? new Map<string, { bytes: number; slices: PlannedSlice[] }>();
+  bucket.delete(key);
   if (bucket.size >= PLAN_CACHE) {
     const oldest = bucket.keys().next().value;
     if (oldest !== undefined) bucket.delete(oldest);
@@ -393,12 +476,18 @@ function missingSlice(input: RowsInput, id: string): Error {
 /** 纯组装：预算内一次返回全量；超预算只返回 plan；带 slice 时返回完整分片。 */
 export function reviewRowsForInput(input: RowsInput, options: RowsOptions): ReviewRowsResult {
   const selected = selectForOptions(input.pack, options);
+  const budget = rowsBudget(input, options);
   const key = selectionKey(options);
   let cached = planCache.get(input.pack)?.get(key);
+  if (cached !== undefined) {
+    const bucket = planCache.get(input.pack);
+    bucket?.delete(key);
+    bucket?.set(key, cached);
+  }
   let built: ReviewRowView[] | undefined;
   if (cached === undefined) {
     built = buildRows(input, options, selected);
-    const computed = planFor(input, options, built);
+    const computed = planFor(input, options, built, budget, key);
     if (computed.plan.fits) {
       if (options.slice !== undefined) throw missingSlice(input, options.slice);
       return {
@@ -416,8 +505,9 @@ export function reviewRowsForInput(input: RowsInput, options: RowsOptions): Revi
     cachePlan(input.pack, key, computed.plan.bytes, computed.slices);
     cached = { bytes: computed.plan.bytes, slices: computed.slices };
   }
-  const slices = cached.slices;
-  const plan = planView(selected.length, cached.bytes, slices, false);
+  const cachedPlan = cached;
+  const slices = cachedPlan.slices;
+  const plan = planView(selected.length, cachedPlan.bytes, slices, false, budget);
   if (options.slice === undefined) {
     return {
       plan,
@@ -434,7 +524,11 @@ export function reviewRowsForInput(input: RowsInput, options: RowsOptions): Revi
   }
   const index = slices.findIndex((entry) => entry.id === options.slice);
   const slice = index < 0 ? undefined : slices[index];
-  if (slice === undefined) {
+  if (
+    slice === undefined ||
+    selected[slice.start]?.row.key !== slice.firstKey ||
+    selected[slice.end - 1]?.row.key !== slice.lastKey
+  ) {
     throw missingSlice(input, options.slice);
   }
   const part =
@@ -449,70 +543,24 @@ export function reviewRowsForInput(input: RowsInput, options: RowsOptions): Revi
       nextOffset: null,
       complete: true,
       slice: slice.id,
+      withWorkspaces: false,
       hint: `分片 ${slice.id} 完整：第 ${index + 1}/${slices.length} 片，${part.length} 行（${slice.firstKey} … ${slice.lastKey}）。`,
       next: slices[index + 1]?.uri ?? null,
     }),
   };
 }
 
-/** 兼容人类分页与旧调用；agent 主流程走 reviewRowsForInput。 */
-export function rowsPage(input: RowsInput, options: RowsOptions): ReviewRowsPage {
-  const selected = selectForOptions(input.pack, options);
-  const page = pageOf(options.offset, options.limit, 200, 100);
-  const slice = selected.slice(page.offset, page.offset + page.limit);
-  let rows = buildRows(input, options, slice);
-  let bytes = 0;
-  let kept = 0;
-  for (const row of rows) {
-    const size = rowBytes(row);
-    if (kept > 0 && bytes + size > ROWS_PAGE_BYTES) break;
-    bytes += size;
-    kept += 1;
-  }
-  rows = rows.slice(0, kept);
-  const nextOffset = page.offset + rows.length < selected.length ? page.offset + rows.length : null;
-  const trimmed = rows.length < slice.length;
-  return basePage(input, options, selected.length, rows, {
-    offset: page.offset,
-    limit: page.limit,
-    nextOffset,
-    complete: nextOffset === null,
-    hint:
-      nextOffset === null
-        ? `本页 ${rows.length} 行，已取完 ${selected.length} 行。`
-        : `本页 ${rows.length} 行${trimmed ? "（按体积截断）" : ""}，还剩 ${selected.length - page.offset - rows.length} 行；继续 read ${nextPageUri(`pr://${input.pack.prNumber}/rows`, pageParams(options), nextOffset)}`,
-    next: nextPageUri(`pr://${input.pack.prNumber}/rows`, pageParams(options), nextOffset),
-  });
-}
-
+/** Agent 主流程：加载 pack 与线程后走统一预算协议。 */
 export async function reviewRowsOf(n: number, options: RowsOptions): Promise<ReviewRowsResult> {
   const pack = await loadPack(n, options.rebuild === true);
   const threads = options.include.threads
-    ? await threadsOf(n)
+    ? await threadsOf(n, pack.headSha)
     : ({ available: false, headSha: null, pendingReviewId: null, threads: [] } satisfies ThreadsView);
   return reviewRowsForPack(n, pack, threads, options);
 }
 
 export async function rowsOf(n: number, options: RowsOptions): Promise<ReviewRowsPage> {
   return (await reviewRowsOf(n, options)).page;
-}
-
-/** 兼容 HTTP / 旧调用的 offset 分页；不参与 agent 主流程。 */
-export async function rowsPageOf(n: number, options: RowsOptions): Promise<ReviewRowsPage> {
-  const pack = await loadPack(n, options.rebuild === true);
-  const threads = options.include.threads
-    ? await threadsOf(n)
-    : ({ available: false, headSha: null, pendingReviewId: null, threads: [] } satisfies ThreadsView);
-  return rowsPageOfPack(n, pack, threads, options);
-}
-
-async function rowsPageOfPack(n: number, pack: Pack, threads: ThreadsView, options: RowsOptions): Promise<ReviewRowsPage> {
-  const terms = options.include.terms ? await glossaryTerms() : null;
-  const patches =
-    options.include.patch
-      ? new Map((await prdata.files(n)).files.map((file) => [file.path, file.patch]))
-      : new Map<string, string | undefined>();
-  return rowsPage({ pack, threads, terms, patches }, options);
 }
 
 /** 简报已经取过 pack 与线程时直接复用，避免同一轮再拉一次 GraphQL。 */

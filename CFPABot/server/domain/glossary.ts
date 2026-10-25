@@ -1,4 +1,4 @@
-import { cp, rm, stat } from "node:fs/promises";
+import { cp, rename, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { runGit } from "../git.ts";
 import { logger } from "../log.ts";
@@ -16,6 +16,8 @@ const SYNC_RETRY_MS = 10 * 60 * 1000;
 export const TERMS_DIR = join(paths.config, "vanilla-terms");
 
 let lastFailedAt = 0;
+let cachedIndex: TermIndex | null = null;
+let cachedStamp = -1;
 
 async function ensureClone(): Promise<void> {
   if (await stat(join(CLONE_DIR, ".git")).catch(() => null)) return;
@@ -36,8 +38,11 @@ export async function syncGlossary(): Promise<{ revision: string; files: number 
     const listed = (await runGit(CLONE_DIR, ["ls-files", TERMS_SUBDIR], null))
       .split("\n")
       .filter((line) => line.endsWith(".tsv"));
+    const temp = `${TERMS_DIR}.tmp`;
+    await rm(temp, { recursive: true, force: true });
+    await cp(join(CLONE_DIR, TERMS_SUBDIR), temp, { recursive: true });
     await rm(TERMS_DIR, { recursive: true, force: true });
-    await cp(join(CLONE_DIR, TERMS_SUBDIR), TERMS_DIR, { recursive: true });
+    await rename(temp, TERMS_DIR);
     log.info("术语表已同步", { revision, files: listed.length });
     return { revision, files: listed.length };
   });
@@ -45,8 +50,13 @@ export async function syncGlossary(): Promise<{ revision: string; files: number 
 
 async function load(): Promise<TermIndex | null> {
   try {
+    const info = await stat(TERMS_DIR).catch(() => null);
+    if (cachedIndex !== null && (info === null || info.mtimeMs === cachedStamp)) return cachedIndex;
     const index = await loadTermIndex(TERMS_DIR);
-    return index.all.length > 0 ? index : null;
+    if (index.all.length === 0) return null;
+    cachedIndex = index;
+    cachedStamp = info?.mtimeMs ?? -1;
+    return index;
   } catch (err) {
     log.warn("术语表加载失败", { err });
     return null;

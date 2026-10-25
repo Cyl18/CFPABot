@@ -6,13 +6,15 @@ import { entryFindings } from "@cfpa/review-core/domain/checks";
 import type { Pack, PackRow, PackWorkspace } from "@cfpa/review-core/pack";
 import { missingResource, PR_CHILDREN, resourceTree } from "./harness/catalog.ts";
 import type { InternalUrl } from "@oh-my-pi/pi-coding-agent/internal-urls";
-import { prPartsOf, sliceLines, splitLineRange } from "./harness/uri.ts";
+import { lineRangeOf, prPartsOf, sliceLines } from "./harness/uri.ts";
 import { findWriteTarget } from "./harness/write-targets.ts";
 import { buildTools } from "./agent/tools/index.ts";
 import { sandboxEnv } from "./agent/tools/bash.ts";
 import { prepareDraft } from "./harness/review/draft.ts";
-import { reviewRowsForInput, rowsPage } from "./harness/review/rows.ts";
+import { reviewRowsForInput } from "./harness/review/rows.ts";
 import { aggregateTerms } from "./harness/review/terms.ts";
+import { jsonResult } from "./harness/result.ts";
+import { secretReason } from "./agent/plugins/sandbox.ts";
 import { commentCheckedSha, unknownHint } from "./harness/review/checks.ts";
 import type { ThreadsView } from "./harness/review/threads.ts";
 
@@ -141,28 +143,25 @@ describe("review rows", () => {
     patches: new Map<string, string | undefined>([[ZH, "@@ -1,1 +1,2 @@\n+A\n+B"]]),
   };
 
-  test("reviewable 只留 changed 且在 hunk 内的行，并给出下一页", () => {
-    const page = rowsPage(data, {
+  test("reviewable 只留 changed 且在 hunk 内的行", () => {
+    const page = reviewRowsForInput(data, {
       filter: "reviewable",
-      limit: 1,
       include: { terms: true, threads: true, duplicates: true, patch: true },
-    });
+    }).page;
     expect(page.total).toBe(2);
     expect(page.counts.reviewable).toBe(2);
-    expect(page.rows).toHaveLength(1);
-    expect(page.nextOffset).toBe(1);
-    expect(page.next).toContain("offset=1");
+    expect(page.rows).toHaveLength(2);
+    expect(page.next).toBeNull();
     expect(page.commentsAvailable).toBe(true);
     expect(page.termsLoaded).toBe(true);
     expect(page.patches?.[ZH]).toContain("+A");
   });
 
   test("行上直接带 path、术语、线程与重复译文", () => {
-    const page = rowsPage(data, {
+    const page = reviewRowsForInput(data, {
       filter: "reviewable",
-      limit: 1,
       include: { terms: true, threads: true, duplicates: true, patch: false },
-    });
+    }).page;
     const first = page.rows[0]!;
     expect(first.path).toBe(ZH);
     expect(first.en).toBe("A");
@@ -186,53 +185,18 @@ describe("review rows", () => {
       ...pack([row("a", "A", "甲", 10)]),
       workspaces: [workspace([row("a", "A", "甲", 10)]), modern],
     };
-    const page = rowsPage(
+    const page = reviewRowsForInput(
       {
         pack: both,
         threads: { available: true, headSha: "head", pendingReviewId: null, threads: [thread, shared, open] },
         terms: null,
         patches: new Map(),
       },
-      { filter: "reviewable", limit: 5, include: { terms: false, threads: true, duplicates: false, patch: false } },
-    );
+      { filter: "reviewable", include: { terms: false, threads: true, duplicates: false, patch: false } },
+    ).page;
     const [legacyRow, modernRow] = page.rows;
     expect(legacyRow?.threads?.map((entry) => entry.id)).toEqual(["t1", "t2"]);
     expect(modernRow?.threads?.map((entry) => entry.id).sort()).toEqual(["t2", "t3"]);
-  });
-
-  test("单页超过体积预算时截断并给下一页", () => {
-    const many = Array.from({ length: 100 }, (_, index) =>
-      row(`k${index}`, "A".repeat(600), "甲".repeat(200), index + 1),
-    );
-    const page = rowsPage(
-      {
-        pack: pack(many),
-        threads: { available: false, headSha: null, pendingReviewId: null, threads: [] },
-        terms: null,
-        patches: new Map(),
-      },
-      {
-        filter: "reviewable",
-        limit: 120,
-        include: { terms: false, threads: false, duplicates: false, patch: false },
-      },
-    );
-    expect(page.total).toBe(100);
-    expect(page.rows.length).toBeLessThan(100);
-    expect(page.nextOffset).toBe(page.rows.length);
-    expect(page.next).toContain(`offset=${page.rows.length}`);
-    expect(page.hint).toContain("截断");
-  });
-
-  test("paginated 不影响过滤后的总数", () => {
-    const last = rowsPage(data, {
-      filter: "reviewable",
-      offset: 1,
-      limit: 1,
-      include: { terms: false, threads: false, duplicates: false, patch: false },
-    });
-    expect(last.nextOffset).toBeNull();
-    expect(last.rows[0]?.key).toBe("b");
   });
 });
 
@@ -249,7 +213,7 @@ describe("review rows plan", () => {
       terms: null,
       patches: new Map(),
     };
-    const result = reviewRowsForInput(input, { ...options, limit: 1 });
+    const result = reviewRowsForInput(input, options);
     expect(result.plan.fits).toBe(true);
     expect(result.plan.slices).toEqual([]);
     expect(result.page.complete).toBe(true);
@@ -258,7 +222,7 @@ describe("review rows plan", () => {
   });
 
   test("超预算只给 plan，切片链覆盖全部行且每片完整", () => {
-    const rows = Array.from({ length: 100 }, (_, index) =>
+    const rows = Array.from({ length: 400 }, (_, index) =>
       row(`k${index}`, "A".repeat(600), "甲".repeat(200), index + 1),
     );
     const input = {
@@ -381,6 +345,21 @@ describe("bash 子进程环境", () => {
   });
 });
 
+describe("result budget", () => {
+  test("超预算返回可解析的错误信封", () => {
+    const result = jsonResult({ blob: "x".repeat(60_000) });
+    const text = result.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(text).budgetBytes).toBe(45_000);
+    expect(Buffer.byteLength(text)).toBeLessThan(50_000);
+  });
+
+  test("写入正文里的敏感词不触发沙箱密钥扫描", () => {
+    expect(secretReason({ path: "pr://1/draft", content: "process.env / .env 只是评论正文" })).toBeUndefined();
+    expect(secretReason({ command: "printenv" })).toContain("环境变量");
+  });
+});
+
 describe("Patchouli 标记", () => {
   test("中文收尾 $ 少于英文时报没闭合", () => {
     expect(entryFindings("k", "$(thing)Ambit$", "$(thing)影响范围").some((finding) => finding.code === "patchouli_mismatch")).toBe(true);
@@ -389,19 +368,10 @@ describe("Patchouli 标记", () => {
 });
 
 describe("files 行范围", () => {
-  test("路径尾部的行范围被剥出来，不当成文件名", () => {
-    expect(splitLineRange("projects/a/zh_cn.json:160-172")).toEqual({
-      path: "projects/a/zh_cn.json",
-      range: { start: 160, end: 172 },
-    });
-    expect(splitLineRange("projects/a/zh_cn.json:160")).toEqual({
-      path: "projects/a/zh_cn.json",
-      range: { start: 160, end: null },
-    });
-    expect(splitLineRange("projects/a/zh_cn.json:1.20")).toEqual({
-      path: "projects/a/zh_cn.json:1.20",
-      range: null,
-    });
+  test("直接解析 omp 剥出的选择器", () => {
+    expect(lineRangeOf("160-172")).toEqual({ start: 160, end: 172 });
+    expect(lineRangeOf("160")).toEqual({ start: 160, end: null });
+    expect(lineRangeOf("raw")).toBeNull();
   });
 
   test("按行切，end 越界夹到末尾，start 越界报错", () => {

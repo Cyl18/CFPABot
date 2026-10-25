@@ -28,12 +28,15 @@ function previewText(content: string, name: string): string {
   return text.length > PREVIEW_LIMIT ? `${text.slice(0, PREVIEW_LIMIT)}\n…（已截断，共 ${text.length} 字符）` : text;
 }
 
-export function ArtifactPanel({ id }: { id: string }) {
-  const files = useSessionFiles(id);
+export function ArtifactPanel({ id, live = false }: { id: string; live?: boolean }) {
+  const interval = live ? 3_000 : false;
+  const files = useSessionFiles(id, true, interval);
   const [picked, setPicked] = useState<string | null>(null);
   const list = files.data ?? [];
-  const active = picked ?? list.find((file) => file.name === "draft.json")?.name ?? list[0]?.name ?? null;
-  const file = useSessionFile(id, active, files.isSuccess);
+  const active = picked !== null && list.some((entry) => entry.name === picked)
+    ? picked
+    : list.find((file) => file.name === "draft.json")?.name ?? list[0]?.name ?? null;
+  const file = useSessionFile(id, active, files.isSuccess, interval);
 
   if (files.isError) return <ErrorState error={files.error} onRetry={() => void files.refetch()} />;
   if (list.length === 0) {

@@ -83,6 +83,8 @@ const openIndex = new Map<number, PrSummary>();
 const meta = new Map<number, PrMeta>();
 const relation = new Map<string, Map<number, Set<string>>>();
 const fileCaches = ttlCache<PrFileCache>(FILE_CACHE_TTL_MS, FILE_CACHE_MAX);
+const inflight = new Map<number, Promise<PrFileCache>>();
+const lastChecked = new Map<number, number>();
 const closedList = ttlCache<PrSummary[]>(CLOSED_TTL_MS, 4);
 let listed = new Map<number, GhPull>();
 let listedAt = 0;
@@ -147,6 +149,7 @@ async function persistIndex(): Promise<void> {
 async function drop(n: number): Promise<void> {
   meta.delete(n);
   fileCaches.delete(String(n));
+  lastChecked.delete(n);
   openIndex.delete(n);
   await removeFile(prPath(n));
 }
@@ -228,6 +231,37 @@ function drip(): Promise<void> {
   return dripping;
 }
 
+async function loadFiles(n: number): Promise<PrFileCache> {
+  return withLock("prdata", async () => {
+    const indexHead = openIndex.get(n)?.headSha;
+    const checkedAt = lastChecked.get(n) ?? 0;
+    const fresh = Date.now() - checkedAt < 60_000;
+    const cached = fileCaches.get(String(n));
+    if (cached && fresh && (indexHead === undefined || indexHead === cached.headSha)) return cached;
+    const onDisk = fresh ? await readJson(prPath(n), cacheSchema) : null;
+    if (onDisk && fresh && (indexHead === undefined || indexHead === onDisk.headSha)) {
+      fileCaches.set(String(n), onDisk);
+      if (onDisk.pull.state === "open") {
+        meta.set(n, { headSha: onDisk.headSha, slugs: onDisk.slugs, entries: onDisk.entries });
+      }
+      return onDisk;
+    }
+    const pull = await gh.getPull(n);
+    lastChecked.set(n, Date.now());
+    if (cached && cached.headSha === pull.headSha) {
+      await touchPull(pull);
+      return fileCaches.get(String(n)) ?? cached;
+    }
+    if (onDisk && onDisk.headSha === pull.headSha) {
+      await touchPull(pull);
+      return fileCaches.get(String(n)) ?? onDisk;
+    }
+    const stored = await storePull(pull, await gh.listPullFiles(n));
+    if (stored.pull.state === "open") await persistIndex();
+    return stored;
+  });
+}
+
 export const prdata = {
   /** 冷启动只翻 PR 列表；文件缓存交给 drip()，等服务起来之后再慢慢补。 */
   async init(): Promise<void> {
@@ -254,6 +288,7 @@ export const prdata = {
   async refresh(n: number): Promise<void> {
     await withLock("prdata", async () => {
       const pull = await gh.getPull(n);
+      lastChecked.set(n, Date.now());
       if (pull.state === "closed") {
         await drop(n);
         await persistIndex();
@@ -282,22 +317,19 @@ export const prdata = {
     return byUpdatedDesc([...openIndex.values(), ...closed]);
   },
 
-  async files(n: number): Promise<{ pull: GhPull; files: GhFile[] }> {
+  async files(n: number): Promise<PrFileCache> {
     const indexHead = openIndex.get(n)?.headSha;
     const cached = fileCaches.get(String(n));
-    if (cached && (indexHead === undefined || indexHead === cached.headSha)) return { pull: cached.pull, files: cached.files };
-    const onDisk = await readJson(prPath(n), cacheSchema);
-    if (onDisk && (indexHead === undefined || indexHead === onDisk.headSha)) {
-      fileCaches.set(String(n), onDisk);
-      if (onDisk.pull.state === "open") {
-        meta.set(n, { headSha: onDisk.headSha, slugs: onDisk.slugs, entries: onDisk.entries });
-      }
-      return { pull: onDisk.pull, files: onDisk.files };
-    }
-    const pull = await gh.getPull(n);
-    const stored = await storePull(pull, await gh.listPullFiles(n));
-    if (stored.pull.state === "open") await persistIndex();
-    return { pull: stored.pull, files: stored.files };
+    const fresh = Date.now() - (lastChecked.get(n) ?? 0) < 60_000;
+    if (cached && fresh && (indexHead === undefined || indexHead === cached.headSha)) return cached;
+    const pending = inflight.get(n);
+    if (pending !== undefined) return pending;
+    const run = loadFiles(n);
+    inflight.set(n, run);
+    void run.finally(() => {
+      if (inflight.get(n) === run) inflight.delete(n);
+    }).catch(() => undefined);
+    return run;
   },
 
   /** 同一次请求内重复读同一文件只发一次；gh.getFile 只缓存结果，不合并并发。 */

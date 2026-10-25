@@ -22,7 +22,7 @@ export interface WorkspaceTexts {
 }
 
 /** 同一 locale 有多份文件时，优先版本对应的 canonical 文件名，再按路径排序。 */
-function pickLocale(workspace: Workspace, locale: Locale): LangPath | null {
+export function pickLocale(workspace: Workspace, locale: Locale): LangPath | null {
   const expected = `${locale}.${langFormatFor(workspace.version)}`;
   const candidates = workspace.files
     .map(parseLangPath)

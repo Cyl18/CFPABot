@@ -415,7 +415,17 @@ export async function createReviewComment(
   n: number,
   input: { path: string; line: number; body: string },
 ): Promise<ReviewThread | null> {
-  const { pull, files } = await prdata.files(n);
+  const meta = await reviewMeta(octokit, n);
+  if (meta === null) return null;
+  let data = await prdata.files(n);
+  if (data.pull.headSha !== meta.headSha) {
+    await prdata.refresh(n);
+    data = await prdata.files(n);
+  }
+  const { pull, files } = data;
+  if (pull.headSha !== meta.headSha) {
+    throw new HttpError(409, "PR head 正在更新，请重新读取后再评论", "head_moved");
+  }
   const file = files.find((entry) => entry.path === input.path);
   if (file === undefined || file.status === "removed") throw new HttpError(422, NOT_IN_DIFF, "not_in_diff");
   const headText =
@@ -424,8 +434,6 @@ export async function createReviewComment(
     throw new HttpError(422, NOT_IN_DIFF, "not_in_diff");
   }
 
-  const meta = await reviewMeta(octokit, n);
-  if (meta === null) return null;
   let reviewId = meta.pendingReviewId;
   if (reviewId === null) {
     try {

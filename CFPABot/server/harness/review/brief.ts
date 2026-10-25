@@ -7,10 +7,9 @@ import type {
   ReviewPlan,
   WorkspaceBrief,
 } from "@cfpa/contracts/api";
+import { SEVERITY_RANK } from "@cfpa/contracts/api";
 import type { Pack } from "@cfpa/review-core/pack";
-import { DRAFT_FILE, parseDraftFile } from "@cfpa/review-core/draft";
 import { parseLangPath } from "@cfpa/review-core/domain/path";
-import { readLocal } from "../../agent/local-store.ts";
 import { gh, type GhComment } from "../../github/client.ts";
 import { paths } from "../../paths.ts";
 import { prdata } from "../../prdata.ts";
@@ -18,9 +17,11 @@ import { ensurePrDir, prRoot } from "../../workspace.ts";
 import { prDetail } from "../../views/pr.ts";
 import { trimBody, visibleIssueComment } from "../format.ts";
 import { checksOf, checksSummary } from "./checks.ts";
-import { defaultRowsInclude, reviewRowsForPack, workspaceBriefs, type RowsOptions } from "./rows.ts";
+import { storedDraftOf } from "./draft.ts";
+import { defaultRowsInclude, reviewRowsForPack, rowsUri, workspaceBriefs, type RowsOptions } from "./rows.ts";
 import { threadsOf, type ThreadsView } from "./threads.ts";
 import { peekPack, loadPack } from "../pack.ts";
+import { RESULT_BUDGET_BYTES } from "../result.ts";
 import type { HarnessSession } from "../types.ts";
 
 export interface BriefOptions {
@@ -55,8 +56,9 @@ function briefWorkspaces(detail: PrDetail, pack: Pack | null): WorkspaceBrief[] 
 
 async function discussionsOf(
   n: number,
+  headSha: string | null,
 ): Promise<{ brief: DiscussionsBrief; threads: ThreadsView; comments: GhComment[] | null }> {
-  const threads = await threadsOf(n);
+  const threads = await threadsOf(n, headSha);
   let issueComments = 0;
   let recentIssueComments: DiscussionsBrief["recentIssueComments"];
   let commentsError: string | undefined;
@@ -92,8 +94,7 @@ async function discussionsOf(
 }
 
 async function draftSummaryOf(n: number, session?: HarnessSession): Promise<ReviewBrief["draft"]> {
-  const raw = session === undefined ? null : await readLocal(session.sessionId, DRAFT_FILE);
-  const stored: ReviewDraft | null = raw === null ? null : parseDraftFile(raw.content);
+  const stored = await storedDraftOf(session?.sessionId);
   const draft = stored !== null && stored.prNumber === n ? stored : null;
   return {
     exists: draft !== null,
@@ -133,8 +134,6 @@ function nextOf(
   return [...next];
 }
 
-const SEVERITY_RANK = { critical: 0, major: 1, minor: 2, neutral: 3 } as const;
-
 function warningsOf(findings: readonly Finding[]): Finding[] {
   return findings
     .filter((finding) => finding.severity === "critical" || finding.severity === "major")
@@ -148,25 +147,55 @@ function tallyOf(findings: readonly Finding[]): { critical: number; major: numbe
   return counts;
 }
 
+function fitBrief(brief: ReviewBrief, rowsLink: string | null): ReviewBrief {
+  if (Buffer.byteLength(JSON.stringify(brief)) <= RESULT_BUDGET_BYTES) return brief;
+  const reduced = { ...brief };
+  if (reduced.rows !== undefined) {
+    delete reduced.rows;
+    if (rowsLink !== null) {
+      reduced.hint = `${reduced.hint} 简报预算不足，rows 未内嵌，read ${rowsLink} 取全集。`;
+      reduced.next = [`read ${rowsLink}`, ...reduced.next];
+    }
+  }
+  if (Buffer.byteLength(JSON.stringify(reduced)) <= RESULT_BUDGET_BYTES) return reduced;
+  reduced.files = { ...reduced.files, items: [], truncated: true };
+  reduced.specialFiles = { ...reduced.specialFiles, paths: [], truncated: true };
+  reduced.related = [];
+  reduced.checks = { ...reduced.checks, top: [] };
+  reduced.discussions = { ...reduced.discussions };
+  delete reduced.discussions.recentIssueComments;
+  if (Buffer.byteLength(JSON.stringify(reduced)) <= RESULT_BUDGET_BYTES) return reduced;
+  reduced.workspaces = [];
+  reduced.hint = `${reduced.hint} 工作区清单过大已省略。`;
+  return reduced;
+}
+
 /** 一次拿全貌：PR、工作区、检查、讨论、特殊文件、草稿、下一步；review=1 附全集或分片 plan。 */
 export async function reviewBrief(n: number, options: BriefOptions): Promise<ReviewBrief> {
   const detail = await prDetail(n);
   const pack = options.review ? await loadPack(n) : peekPack(n, detail.headSha);
   const workspaces = briefWorkspaces(detail, pack);
   const [discussion, draft, localRoot] = await Promise.all([
-    discussionsOf(n),
+    discussionsOf(n, detail.headSha),
     draftSummaryOf(n, options.session),
-    ensurePrDir(n, detail.headSha).catch(() => prRoot(n)),
+    ensurePrDir(n).catch(() => prRoot(n)),
   ]);
   const checks = await checksOf(n, discussion.comments);
+  const rowsOptions: RowsOptions = {
+    ...options.rows,
+    include: options.rows.include ?? defaultRowsInclude(),
+  };
   const reviewed =
     options.review && pack !== null
-      ? await reviewRowsForPack(n, pack, discussion.threads, {
-          ...options.rows,
-          include: options.rows.include ?? defaultRowsInclude(),
-        })
+      ? await reviewRowsForPack(n, pack, discussion.threads, rowsOptions)
       : undefined;
-  const rows = reviewed?.page.complete === true ? reviewed.page : undefined;
+  const complete = reviewed?.page.complete === true ? reviewed.page : undefined;
+  let rows = complete;
+  if (complete !== undefined) {
+    const pruned = { ...complete };
+    delete pruned.workspaces;
+    rows = pruned;
+  }
   const plan = reviewed?.plan;
   const additions = detail.files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = detail.files.reduce((sum, file) => sum + file.deletions, 0);
@@ -200,11 +229,12 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
         : `审查从 rows 开始；一次拿全貌用 read pr://${n}?review=1。`;
   const hint = [
     localMajor.length === 0 ? undefined : `本地机械检查 ${localMajor.length} 条（含键集/占位符/标签/术语），见 warnings。`,
+    pack?.workspacesTruncated === true ? `预审只覆盖前 ${pack.workspaces.length} 个工作区。` : undefined,
     checksView.hint ?? fallbackHint,
   ]
     .filter(Boolean)
     .join(" ");
-  return {
+  const brief: ReviewBrief = {
     next: nextOf(n, detail, rows?.next ?? null, plan, pack !== null, reviewed !== undefined, detail.specialFiles.length),
     hint,
     pr: {
@@ -231,7 +261,7 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
       files: detail.files.length,
       additions,
       deletions,
-      workspaces: detail.workspaces.length,
+      workspaces: pack?.counts.workspaces ?? detail.workspaces.length,
       specialFiles: detail.specialFiles.length,
       related: detail.related.length,
       changedRows: rows?.counts.changed ?? pack?.counts.changed ?? null,
@@ -259,5 +289,6 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
     },
     ...(rows === undefined ? {} : { rows }),
   };
+  return fitBrief(brief, reviewed === undefined ? null : rowsUri(n, rowsOptions));
 }
 

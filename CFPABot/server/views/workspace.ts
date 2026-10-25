@@ -1,13 +1,14 @@
 import { parseLang } from "@cfpa/review-core/domain/langfile";
 import type { ParsedLang } from "@cfpa/review-core/domain/langfile";
 import { compareLang, inHunks } from "@cfpa/review-core/domain/diff";
-import { buildLangPath, parseLangPath, langPathFor } from "@cfpa/review-core/domain/path";
+import { buildLangPath, langPathFor } from "@cfpa/review-core/domain/path";
 import type { LangFormat, Locale } from "@cfpa/review-core/domain/path";
 import type { GhFile } from "../github/client.ts";
 import { prdata } from "../prdata.ts";
 import { commentableHunks } from "../review.ts";
 import { sidePaths, type FileSource } from "../domain/pr.ts";
-import type { CompareResult, CompareReview } from "@cfpa/contracts/api";
+import type { CompareResult, CompareReview, Workspace } from "@cfpa/contracts/api";
+import { pickLocale } from "@cfpa/review-core/domain/workspace-files";
 
 export interface WorkspaceKey {
   slug: string;
@@ -27,24 +28,20 @@ interface LangRead {
 }
 
 function pickLang(files: GhFile[], key: WorkspaceKey, locale: Locale): LangSide | null {
-  const preferred = `projects/assets/${key.slug}/${key.version}/${key.namespace}/lang/${locale}.`;
-  let found: GhFile | null = null;
-  for (const file of files) {
-    const parsed = parseLangPath(file.path);
-    if (!parsed) continue;
-    if (parsed.slug !== key.slug || parsed.version !== key.version || parsed.namespace !== key.namespace) continue;
-    if (parsed.locale !== locale) continue;
-    if (file.path.startsWith(preferred)) {
-      found = file;
-      break;
-    }
-    found ??= file;
-  }
-  if (!found) return null;
-  return { format: parseLangPath(found.path)?.format ?? "json", ...sidePaths(found) };
+  const workspace: Workspace = { ...key, files: files.map((file) => file.path) };
+  const picked = pickLocale(workspace, locale);
+  if (picked === null) return null;
+  const file = files.find((entry) => entry.path === picked.path);
+  if (file === undefined) return null;
+  return { format: picked.format, ...sidePaths(file) };
 }
 
-export async function compareWorkspace(n: number, key: WorkspaceKey, source: FileSource): Promise<CompareResult> {
+export async function compareWorkspace(
+  n: number,
+  key: WorkspaceKey,
+  source: FileSource,
+  reviewKeys?: number,
+): Promise<CompareResult> {
   const { pull, files } = await prdata.files(n);
   const missing: string[] = [];
   const readOne = source.read;
@@ -97,12 +94,17 @@ export async function compareWorkspace(n: number, key: WorkspaceKey, source: Fil
     format,
     rows: compareLang(base, head),
     missing,
-    review: compareReview(headZhText, head.zh, files),
-    reviewEn: compareReview(headEnText, head.en, files),
+    review: compareReview(headZhText, head.zh, files, reviewKeys),
+    reviewEn: compareReview(headEnText, head.en, files, reviewKeys),
   };
 }
 
-function compareReview(read: LangRead | null, parsed: ParsedLang | null, files: GhFile[]): CompareReview | null {
+function compareReview(
+  read: LangRead | null,
+  parsed: ParsedLang | null,
+  files: GhFile[],
+  maxKeys?: number,
+): CompareReview | null {
   if (read === null || parsed === null) return null;
   const file = files.find((entry) => entry.path === read.path);
   if (file === undefined || file.status === "removed") return null;
@@ -110,9 +112,16 @@ function compareReview(read: LangRead | null, parsed: ParsedLang | null, files: 
   if (hunks.length === 0) return null;
   const lines = read.text.split("\n");
   const keys: CompareReview["keys"] = {};
+  let kept = 0;
+  let omitted = 0;
   for (const [key, line] of parsed.lines) {
     if (!inHunks(line, hunks)) continue;
+    if (maxKeys !== undefined && kept >= maxKeys) {
+      omitted += 1;
+      continue;
+    }
     keys[key] = { line, raw: (lines[line - 1] ?? "").replace(/\r$/, "") };
+    kept += 1;
   }
-  return { path: read.path, keys };
+  return { path: read.path, keys, ...(omitted === 0 ? {} : { keysOmitted: omitted }) };
 }

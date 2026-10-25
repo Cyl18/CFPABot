@@ -14,16 +14,17 @@ export async function loadPack(n: number, rebuild = false): Promise<Pack> {
   const { pull, files } = await prdata.files(n);
   const key = `${n}@${pull.headSha}`;
   if (rebuild) packs.delete(key);
-  return packs.wrap(key, async () =>
+  const terms = await glossaryTerms();
+  const build = () =>
     buildPack({
       prNumber: n,
       baseSha: pull.baseSha,
       headSha: pull.headSha,
       files,
       read: (path, ref) => gh.getFile(path, ref === "base" ? pull.baseSha : pull.headSha),
-      terms: await glossaryTerms(),
-    }),
-  );
+      terms,
+    });
+  return terms === null ? build() : packs.wrap(key, build);
 }
 
 export function peekPack(n: number, headSha: string): Pack | null {
@@ -31,20 +32,26 @@ export function peekPack(n: number, headSha: string): Pack | null {
 }
 
 export function packSummary(pack: Pack): PackSummary {
-  return {
-    prNumber: pack.prNumber,
-    headSha: pack.headSha,
-    generatedAt: pack.generatedAt,
-    counts: pack.counts,
-    workspaces: pack.workspaces.map((workspace) => ({
+  let truncated = pack.workspacesTruncated === true;
+  const workspaces = pack.workspaces.map((workspace) => {
+    if (workspace.duplicates.length > 5 || workspace.fileFindings.length > 5) truncated = true;
+    return {
       workspace: workspaceKey(workspace),
       format: workspace.format,
       enPath: workspace.enPath,
       zhPath: workspace.zhPath,
       counts: workspace.counts,
       histogram: findingHistogram(workspace),
-      duplicates: workspace.duplicates,
-      files: workspace.fileFindings,
-    })),
+      duplicates: workspace.duplicates.slice(0, 5),
+      files: workspace.fileFindings.slice(0, 5),
+    };
+  });
+  return {
+    prNumber: pack.prNumber,
+    headSha: pack.headSha,
+    generatedAt: pack.generatedAt,
+    counts: pack.counts,
+    workspaces,
+    ...(truncated ? { truncated: true } : {}),
   };
 }

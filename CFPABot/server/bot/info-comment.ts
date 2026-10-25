@@ -177,7 +177,6 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
     }
   }
 
-  const data = await loadWorkspaceData(ctx);
   const mods = await safeSegment(
     () => collectMods(ctx.files, prNumber, env.PUBLIC_URL),
     (err) => `⚠ 更新模组列表出错: ${messageOf(err)}`,
@@ -198,27 +197,31 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
     !opts.force &&
     state.checks !== "" &&
     previousReport !== null &&
-    (await Bun.file(checkReportPath(prNumber, ctx.pull.headSha)).exists());
+    previousReport.prNumber === prNumber &&
+    previousReport.headSha === ctx.pull.headSha;
   if (skipChecks) {
     checks = state.checks;
     report = previousReport;
   } else {
+    const data = await loadWorkspaceData(ctx);
     const items = await collectChecks(prNumber, ctx, data).catch((err: unknown) => {
       log.error("检查项收集失败", { pr: prNumber, error: err });
       checksError = messageOf(err);
       return null;
     });
     if (canWrite && items !== null) for (const label of items.extraLabels) await gh.addLabels(prNumber, [label]);
-    const nextReport = items?.report ?? previousReport;
+    const nextReport = items === null ? null : items.report;
     report = nextReport;
     const comment =
-      nextReport === null
-        ? state.checks
-        : await safeSegment(
-            () => buildCheckComment(nextReport, env.PUBLIC_URL),
-            (err) => `⚠ 检查出错: ${messageOf(err)}`,
-          );
-    checks = comment.trim() !== "" ? comment : state.checks;
+      items === null
+        ? ""
+        : nextReport === null
+          ? state.checks
+          : await safeSegment(
+              () => buildCheckComment(nextReport, env.PUBLIC_URL),
+              (err) => `⚠ 检查出错: ${messageOf(err)}`,
+            );
+    checks = comment.trim() !== "" ? comment : "";
   }
 
   const diffs = await safeSegment(
