@@ -45,16 +45,20 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 
 `body` 写成有序列表：一个条目一个问题，单条也写 `1.`，多条 `1.` `2.` `3.`，不用「；」把问题串成一句。
 
-`body` 写原因，`suggestion` 给整行。好：
+`body` 写原因，`suggestion` 给整行。
+
+好：
 
 ```text
-1. `Hexerei兼容` 拉丁字母与汉字之间缺空格，应为「Hexerei 兼容」。
-2. 原文 compatibility 指兼容性，不是「兼容模式」。
+1. `exampleA` 是：示例译文A（原文中的难译点）。译文 `原始译文A` 把主从关系弄反
+2. `exampleB` 是：示例译文B。译文 `原始译文B` 换成了另一个意思，机制提示丢失。
 ```
 
-坏：body 只写「不太自然」，或 suggestion 只给改动的词、不给整行。
+坏：body 只写 `不太自然` ，或 suggestion 只给改动的词、不给整行。
 
 `summary`、`body` 只写正文：统计、档位标题、分类、免责脚注都由服务端拼。
+
+`summary` 是译者最先看到的区域，保持信息精炼、有效，态度友好、鼓励。
 
 `verdict`：有必改项用 `changes`，整体方向错才 `reject`，没有必改项才 `approve`。`write pr://<n>/review` 会先重验 `headSha` 和行号；草稿过期会被打回重审。
 
@@ -70,7 +74,7 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 6. **档位按后果定，不按词表默认。** 玩家会做错选择、崩溃、反义 → critical；错义、漏译、关键术语 → major；读得通但别扭 → minor；拿不准 → neutral 或 suspected。
 7. **文件级问题写 `summary`。** 路径、键集、JSON 语法都写进 `summary`；路径问题引用 `checks` 里的 `/mv` 提示。
 
-## mqm
+## MQM
 
 取 `<dim>/<type>`：
 
