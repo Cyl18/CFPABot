@@ -1,9 +1,10 @@
-import { parse, type ParseError } from "jsonc-parser";
 import pMap from "p-map";
 import type { CompareRow, PrFile, Workspace } from "@cfpa/contracts/api";
 import { compareLang } from "@cfpa/review-core/domain/diff";
-import { jsonErrorMessage, parseLang, type ParsedLang } from "@cfpa/review-core/domain/langfile";
-import { diffModPathsOf, langPathFor, parseLangPath, workspacesOf, type LangFormat, type Locale } from "@cfpa/review-core/domain/path";
+import { parseLang, type ParsedLang } from "@cfpa/review-core/domain/langfile";
+import { diffModPathsOf, workspacesOf, type LangFormat } from "@cfpa/review-core/domain/path";
+import { loadWorkspaceTexts } from "@cfpa/review-core/domain/workspace-files";
+import { MAX_WORKSPACES } from "@cfpa/review-core/pack";
 import { glossaryTerms } from "../domain/glossary.ts";
 import { matchTerms } from "@cfpa/review-core/domain/terms";
 import { repo } from "../env.ts";
@@ -13,7 +14,6 @@ import { logger } from "../log.ts";
 import { prdata } from "../prdata.ts";
 import { collapseBlankRuns, DIFF_EXCEPTION, Lines, messageOf } from "./render.ts";
 
-export const MAX_WORKSPACES = 40;
 export const MAX_CHECK_FILES = 1000;
 export const MAX_DIFF_GIST = 20000;
 
@@ -43,48 +43,18 @@ export async function loadPrContext(n: number): Promise<PrContext> {
 }
 
 async function loadOneWorkspace(ctx: PrContext, workspace: Workspace): Promise<WorkspaceData | null> {
-  let en: { path: string; format: LangFormat } | undefined;
-  let zh: { path: string; format: LangFormat } | undefined;
-  for (const file of workspace.files) {
-    const parsed = parseLangPath(file);
-    if (!parsed || parsed.locale === null) continue;
-    if (parsed.locale === "en_us") en = { path: parsed.path, format: parsed.format };
-    else zh = { path: parsed.path, format: parsed.format };
-  }
-  if (!en && zh) en = { path: langPathFor(zh.path, "en_us")[0] ?? zh.path, format: zh.format };
-  if (!zh && en) zh = { path: langPathFor(en.path, "zh_cn")[0] ?? en.path, format: en.format };
-  if (!en && !zh) return null;
-
-  const statusOf = new Map(ctx.files.map((file) => [file.path, file.status]));
-  const read = async (side: { path: string; format: LangFormat } | undefined, locale: Locale, ref: "base" | "head"): Promise<string | null> => {
-    if (!side) return null;
-    const status = statusOf.get(side.path);
-    if (ref === "base" ? status === "added" : status === "removed") return null;
-    for (const candidate of langPathFor(side.path, locale)) {
-      const text = await gh.getFile(candidate, ref === "base" ? ctx.pull.baseSha : ctx.pull.headSha);
-      if (text !== null) return text;
-    }
-    return null;
-  };
-
-  const [baseEnText, baseZhText, headEnText, headZhText] = await Promise.all([
-    read(en, "en_us", "base"),
-    read(zh, "zh_cn", "base"),
-    read(en, "en_us", "head"),
-    read(zh, "zh_cn", "head"),
-  ]);
-  const baseEn = en && baseEnText !== null ? parseLang(baseEnText, en.format) : null;
-  const baseZh = zh && baseZhText !== null ? parseLang(baseZhText, zh.format) : null;
-  const headEn = en && headEnText !== null ? parseLang(headEnText, en.format) : null;
-  const headZh = zh && headZhText !== null ? parseLang(headZhText, zh.format) : null;
+  const loaded = await loadWorkspaceTexts(workspace, ctx.files, (path, ref) =>
+    gh.getFile(path, ref === "base" ? ctx.pull.baseSha : ctx.pull.headSha),
+  );
+  if (loaded === null) return null;
   return {
     workspace,
-    format: en?.format ?? zh?.format ?? "json",
-    baseEn,
-    baseZh,
-    headEn,
-    headZh,
-    rows: compareLang({ en: baseEn, zh: baseZh }, { en: headEn, zh: headZh }),
+    format: loaded.format,
+    baseEn: loaded.baseEn,
+    baseZh: loaded.baseZh,
+    headEn: loaded.headEn,
+    headZh: loaded.headZh,
+    rows: compareLang({ en: loaded.baseEn, zh: loaded.baseZh }, { en: loaded.headEn, zh: loaded.headZh }),
   };
 }
 
@@ -110,31 +80,13 @@ function postProcess(value: string | null): string | null {
     .replaceAll("|", "\\|");
 }
 
-function parseRefJson(text: string): Map<string, string> {
-  const errors: ParseError[] = [];
-  const parsed = parse(text.replace(/^\uFEFF/, ""), errors) as unknown;
-  const first = errors[0];
-  if (first !== undefined) throw new Error(jsonErrorMessage(text, first));
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("The requested operation requires an element of type 'Object'.");
-  }
+function parseRef(text: string, format: LangFormat): Map<string, string> {
+  const parsed = parseLang(text, format);
+  if (format === "json" && parsed.errors.length > 0) throw new Error(parsed.errors[0] ?? "JSON 语法错误");
   const out = new Map<string, string>();
-  for (const [key, value] of Object.entries(parsed)) {
-    if (key.startsWith("_") || out.has(key)) continue;
-    out.set(key, typeof value === "string" ? value : JSON.stringify(value));
-  }
-  return out;
-}
-
-function parseRefLang(text: string): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
-    if (line === "" || line.startsWith("#") || !line.includes("=")) continue;
-    const eq = line.indexOf("=");
-    const key = line.slice(0, eq);
-    if (out.has(key)) continue;
-    out.set(key, line.slice(eq + 1));
+  for (const [key, value] of parsed.entries) {
+    if (key.startsWith("_")) continue;
+    out.set(key, value);
   }
   return out;
 }
@@ -239,12 +191,12 @@ export async function buildDiffComment(pull: GhPull, files: PrFile[], publicUrl:
           fetchLangAt(pull.headSha, base, "en_us", ext),
           fetchLangAt(pull.headSha, base, "zh_cn", ext),
         ]);
-        const parse = ext === "lang" ? parseRefLang : parseRefJson;
+        const format: LangFormat = ext === "lang" ? "lang" : "json";
         maps = {
-          baseEn: baseEnText === null ? null : parse(baseEnText),
-          baseZh: baseZhText === null ? null : parse(baseZhText),
-          headEn: headEnText === null ? null : parse(headEnText),
-          headZh: headZhText === null ? null : parse(headZhText),
+          baseEn: baseEnText === null ? null : parseRef(baseEnText, format),
+          baseZh: baseZhText === null ? null : parseRef(baseZhText, format),
+          headEn: headEnText === null ? null : parseRef(headEnText, format),
+          headZh: headZhText === null ? null : parseRef(headZhText, format),
         };
       } catch (err) {
         log.warn("LangFileFetcher", { path: `${modPath.slug}/${modPath.dir}/${modPath.domain}`, err });

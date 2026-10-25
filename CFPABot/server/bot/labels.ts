@@ -1,18 +1,8 @@
 import type { PrFile } from "@cfpa/contracts/api";
+import { SIZE_LABELS } from "@cfpa/contracts/labels";
 import { botWritesEnabled, gh } from "../github/client.ts";
 import { logger } from "../log.ts";
 import { prdata } from "../prdata.ts";
-
-const SIZE_LABELS: { name: string; min: number; max: number }[] = [
-  { name: "1+", min: 0, max: 10 },
-  { name: "10+", min: 10, max: 40 },
-  { name: "40+", min: 40, max: 100 },
-  { name: "100+", min: 100, max: 500 },
-  { name: "500+", min: 500, max: 1000 },
-  { name: "1000+", min: 1000, max: 2000 },
-  { name: "2000+", min: 2000, max: 5000 },
-  { name: "5000+", min: 5000, max: Number.MAX_SAFE_INTEGER },
-];
 
 const PATH_LABELS: { name: string; prefix: string }[] = [
   { name: "config", prefix: "config" },
@@ -62,7 +52,7 @@ export async function labelCheck(n: number): Promise<void> {
     name: LABEL_CHECK_NAME,
     headSha: pull.headSha,
     conclusion: hit.length > 0 ? "failure" : "success",
-    title: hit.length > 0 ? `检测到不能被 Merge 的标签：${hit.join("")}。` : "标签检查通过。",
+    title: hit.length > 0 ? `检测到不能被 Merge 的标签：${hit.join("、")}。` : "标签检查通过。",
     summary: "",
   });
 }

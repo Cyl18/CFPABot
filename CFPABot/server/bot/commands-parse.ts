@@ -1,3 +1,5 @@
+import { COMMANDS } from "@cfpa/contracts/commands";
+
 export interface CommandLine {
   name: string;
   args: string[];
@@ -61,13 +63,12 @@ export function permissionDecision(input: {
   return input.headOwnerIsAuthor ? "allow" : "owner-denied";
 }
 
-export const COMMANDS_NEEDING_REPO: Record<string, true> = {
-  rename: true,
-  mv: true,
-  "update-en": true,
-  replace: true,
-  "add-comment": true,
-  "add-co-author": true,
-  revert: true,
-  "sort-keys": true,
-};
+export const COMMANDS_NEEDING_REPO = Object.fromEntries(
+  COMMANDS.filter((command) => command.needsRepo).map((command) => [command.name, true]),
+) as Record<string, true>;
+
+export const COMMAND_NAMES = new Set(COMMANDS.map((command) => command.name));
+
+export const COLLABORATOR_ONLY = new Set(
+  COMMANDS.filter((command) => command.collaboratorOnly).map((command) => command.name),
+);

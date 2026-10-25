@@ -1,9 +1,10 @@
 import { join } from "node:path";
 import { z } from "zod";
 import type { CheckReport, Finding, ModFileCheck } from "@cfpa/contracts/api";
-import { entryFindings, keyParity, pathChecks, typoCheck, type TypoRule } from "@cfpa/review-core/domain/checks";
+import { keyParity, pathChecks, typoCheck, type TypoRule } from "@cfpa/review-core/domain/checks";
+import { entryFindingsWithTerms } from "@cfpa/review-core/domain/entry-findings";
 import { glossaryTerms } from "../domain/glossary.ts";
-import { matchTerms, type TermIndex } from "@cfpa/review-core/domain/terms";
+import type { TermIndex } from "@cfpa/review-core/domain/terms";
 import { patchAddedLines, withLiteralNewlines } from "@cfpa/review-core/domain/diff";
 import { parseLang, type ParsedLang } from "@cfpa/review-core/domain/langfile";
 import { parseLangPath } from "@cfpa/review-core/domain/path";
@@ -88,22 +89,13 @@ function entryItems(item: WorkspaceData, terms: TermIndex | null): Finding[] {
   const out: Finding[] = [];
   const unit = unitOf(item.workspace);
   for (const row of item.rows) {
-    if (row.enStatus === "same" && row.zhStatus === "same") continue;
-    for (const finding of entryFindings(row.key, row.headEn, row.headZh, { en: row.baseEn, zh: row.baseZh })) {
-      out.push({ ...finding, unit });
-    }
-    if (!terms || row.headEn === undefined) continue;
-    for (const hit of matchTerms(terms, row.key, row.headEn, row.headZh ?? "", item.workspace.version)) {
-      if (hit.ok) continue;
-      out.push({
-        source: "term",
-        code: `term:${hit.id ?? hit.en}`,
-        severity: "major",
-        detail: `${hit.en} → ${hit.zh.join(" / ")}${hit.reason ? `（${hit.reason}）` : ""}`,
-        key: row.key,
-        unit,
-      });
-    }
+    const findings = entryFindingsWithTerms(
+      row.key,
+      { baseEn: row.baseEn, headEn: row.headEn, baseZh: row.baseZh, headZh: row.headZh },
+      item.workspace.version,
+      terms,
+    );
+    for (const finding of findings) out.push({ ...finding, unit });
   }
   return out;
 }
@@ -355,8 +347,8 @@ async function targetItems(target: ModTarget): Promise<{ findings: Finding[]; mc
   return { findings, mcreator: info.isMCreator, modFiles: target.all.map((item) => modFileRow(item, file, jar)) };
 }
 
-function unitOf(workspace: { slug: string; version: string }): string {
-  return `${workspace.slug}/${workspace.version}`;
+function unitOf(workspace: { slug: string; version: string; namespace: string }): string {
+  return `${workspace.slug}/${workspace.version}/${workspace.namespace}`;
 }
 
 export async function collectChecks(prNumber: number, ctx: PrContext, data: WorkspaceData[]): Promise<ChecksResult> {

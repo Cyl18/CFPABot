@@ -8,6 +8,8 @@
     "./pack": "./src/pack.ts",
     "./types": "./src/types.ts",
     "./domain/checks": "./src/domain/checks.ts",
+    "./domain/entry-findings": "./src/domain/entry-findings.ts",
+    "./domain/workspace-files": "./src/domain/workspace-files.ts",
     "./domain/diff": "./src/domain/diff.ts",
     "./domain/langfile": "./src/domain/langfile.ts",
     "./domain/path": "./src/domain/path.ts",

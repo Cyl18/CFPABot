@@ -11,6 +11,8 @@ import { logger } from "../log.ts";
 import { mods } from "../mods/index.ts";
 import { prdata } from "../prdata.ts";
 import {
+  COLLABORATOR_ONLY,
+  COMMAND_NAMES,
   COMMANDS_NEEDING_REPO,
   OWNER_PERMISSION_DENIED,
   PERMISSION_DENIED,
@@ -109,12 +111,12 @@ export async function runCommands(input: CommandRunInput): Promise<void> {
 
     const execute = async (ws: Workspace | null): Promise<void> => {
       for (const line of lines) {
-        if (!isRepoCommand(line) && line.name !== "add-mapping" && line.name !== "agent" && line.name !== "agent-review") continue;
+        if (!COMMAND_NAMES.has(line.name)) continue;
         if (permission !== "allow") {
           replies.push(permission === "owner-denied" ? OWNER_PERMISSION_DENIED : PERMISSION_DENIED);
           continue;
         }
-        if ((line.name === "agent" || line.name === "agent-review") && !isCollaborator) {
+        if (COLLABORATOR_ONLY.has(line.name) && !isCollaborator) {
           replies.push(PERMISSION_DENIED);
           continue;
         }
@@ -308,6 +310,7 @@ export async function runCommands(input: CommandRunInput): Promise<void> {
             break;
           }
           default:
+            replies.push(`⚠ 未实现的命令：/${line.name}`);
             break;
         }
       }

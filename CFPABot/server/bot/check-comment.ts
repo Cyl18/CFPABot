@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { CheckReport, Finding, Severity } from "@cfpa/contracts/api";
+import { FINDING_CODE_RANK } from "@cfpa/contracts/findings";
 import { checkReportPath } from "../paths.ts";
 import { CHECK_TRANSLATE_HINT, Lines } from "./render.ts";
 
@@ -11,7 +12,6 @@ const SEVERITY: Record<Severity, { icon: string; label: string; rank: number }> 
   neutral: { icon: "ℹ", label: "备注", rank: 3 },
 };
 
-const CODE_RANK: Record<string, number> = { mod_not_found: 0, slug_changed: 0, mod_domain: 1, key_parity: 2, mod_en: 3 };
 const MAX_REPORT_EMBED = 30000;
 
 function fold(summary: string, body: string): string {
@@ -28,7 +28,7 @@ function lineOf(finding: Finding): string {
 function bySeverity(a: Finding, b: Finding): number {
   const rank = SEVERITY[a.severity].rank - SEVERITY[b.severity].rank;
   if (rank !== 0) return rank;
-  const code = (CODE_RANK[a.code] ?? 9) - (CODE_RANK[b.code] ?? 9);
+  const code = (FINDING_CODE_RANK[a.code] ?? 9) - (FINDING_CODE_RANK[b.code] ?? 9);
   return code !== 0 ? code : a.detail.localeCompare(b.detail);
 }
 

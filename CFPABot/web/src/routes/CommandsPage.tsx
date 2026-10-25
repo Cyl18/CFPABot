@@ -1,4 +1,4 @@
-import { COMMANDS, COMMAND_NOTES } from "@/lib/commands.ts";
+import { COMMANDS, COMMAND_NOTES } from "@cfpa/contracts/commands";
 import { Markdown } from "@/components/Markdown.tsx";
 import { PageHeader } from "@/components/PageHeader.tsx";
 import { Card, CardBody, CardHeader } from "@/ui/Card.tsx";

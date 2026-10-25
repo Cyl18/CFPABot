@@ -1,4 +1,5 @@
 import type { CheckReport, Finding, Severity } from "@cfpa/contracts/api";
+import { FINDING_CODE_RANK } from "@cfpa/contracts/findings";
 import { CircleCheck, CircleX, Info, TriangleAlert } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Markdown } from "@/components/Markdown.tsx";
@@ -18,8 +19,6 @@ const SEVERITY_ICON: Record<Worst, ReactNode> = {
 };
 
 const SEVERITY_RANK: Record<Worst, number> = { critical: 0, major: 1, minor: 2, neutral: 3, ok: 4 };
-
-const CODE_RANK: Record<string, number> = { mod_not_found: 0, slug_changed: 0, mod_domain: 1, key_parity: 2, mod_en: 3 };
 
 type Filter = "attention" | "info" | "ok" | "all";
 
@@ -48,7 +47,7 @@ function sectionsOf(report: CheckReport): Section[] {
   for (const unit of report.units) if (!groups.has(unit)) groups.set(unit, []);
   const sections = [...groups].map(([key, list]): Section => {
     const sorted = [...list].sort(
-      (a, b) => (SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]) || ((CODE_RANK[a.code] ?? 9) - (CODE_RANK[b.code] ?? 9)),
+      (a, b) => (SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]) || ((FINDING_CODE_RANK[a.code] ?? 9) - (FINDING_CODE_RANK[b.code] ?? 9)),
     );
     const worst = sorted.reduce<Worst>((acc, finding) => (SEVERITY_RANK[finding.severity] < SEVERITY_RANK[acc] ? finding.severity : acc), "ok");
     return { key, title: key === "" ? "PR 整体" : key, findings: sorted, worst };

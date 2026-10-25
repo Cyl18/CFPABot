@@ -25,6 +25,12 @@ function prId(c: AppContext, name: string): number {
   return n;
 }
 
+function requireWebhookSecret(c: AppContext, code = "webhook_disabled"): void {
+  const secret = env.GITHUB_WEBHOOK_SECRET;
+  if (!secret) throw new HttpError(503, "未配置 GITHUB_WEBHOOK_SECRET", code);
+  if (c.req.header("authorization") !== secret) throw new HttpError(401, "未授权", "unauthorized");
+}
+
 utilsRoutes.get("/Utils/PathValidation", async (c) => {
   const pr = Number(c.req.query("pr") ?? "");
   if (!Number.isInteger(pr) || pr <= 0) throw new HttpError(400, "PR 编号无效", "invalid_pr");
@@ -83,6 +89,7 @@ utilsRoutes.get("/Utils/ModName/:slug", async (c) => {
 });
 
 utilsRoutes.get("/Utils/AddMapping/:id", async (c) => {
+  requireWebhookSecret(c);
   const id = c.req.param("id");
   try {
     const numeric = Number(id);
@@ -135,9 +142,7 @@ utilsRoutes.get("/Utils/Diff/:prid", async (c) => {
 });
 
 utilsRoutes.get("/Utils/GitHubToken", async (c) => {
-  const secret = env.GITHUB_WEBHOOK_SECRET;
-  if (!secret) throw new HttpError(503, "未配置 GITHUB_WEBHOOK_SECRET", "token_disabled");
-  if (c.req.header("authorization") !== secret) throw new HttpError(401, "未授权", "unauthorized");
+  requireWebhookSecret(c, "token_disabled");
   const token = await gh.gitToken();
   if (token === null) throw new Error("GitHub 客户端未配置凭据");
   return c.text(token, 200, TEXT);

@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { CheckReport } from "@cfpa/contracts/api";
 import { env } from "../env.ts";
-import type { GhComment } from "../github/client.ts";
 import { botWritesEnabled, gh } from "../github/client.ts";
 import { httpStatus } from "../github/mappers.ts";
 import { logger } from "../log.ts";
@@ -19,6 +18,7 @@ import {
   CRITICAL_FAILURE,
   CYBOT_MARKER,
   DIFF_EXCEPTION,
+  isMainBot,
   messageOf,
   PIC,
   RELOAD_LINE,
@@ -86,11 +86,6 @@ function statePath(prNumber: number): string {
 
 function sectionsOf(state: CommentState): CommentSections {
   return { mods: state.mods, packer: state.packer, checks: state.checks, diffs: state.diffs };
-}
-
-function isBotComment(comment: GhComment): boolean {
-  if (!comment.body.startsWith(CYBOT_MARKER)) return false;
-  return comment.author === env.BOT_LOGIN || comment.author === "Cyl18-Bot";
 }
 
 function emptyState(prNumber: number): CommentState {
@@ -163,7 +158,7 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
 
   const canWrite = botWritesEnabled();
   const comments = await gh.listComments(prNumber);
-  const botComments = comments.filter(isBotComment);
+  const botComments = comments.filter((comment) => isMainBot(comment.author, comment.body));
   if (canWrite && botComments.length > 1) {
     for (const comment of botComments) await gh.updateComment(comment.id, CRITICAL_FAILURE);
     log.warn("发现多个 Bot 评论，已全部标记", { pr: prNumber, count: botComments.length });

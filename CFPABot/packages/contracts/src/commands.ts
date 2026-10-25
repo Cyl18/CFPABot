@@ -1,4 +1,7 @@
-export interface CommandHelp {
+export interface CommandSpec {
+  name: string;
+  needsRepo: boolean;
+  collaboratorOnly?: boolean;
   syntax: string;
   args: string;
   summary: string;
@@ -7,8 +10,10 @@ export interface CommandHelp {
   example: string;
 }
 
-export const COMMANDS: readonly CommandHelp[] = [
+export const COMMANDS: readonly CommandSpec[] = [
   {
+    name: "mv",
+    needsRepo: true,
     syntax: "/mv <fromDir> <toDir>",
     args: "两个目录路径，支持引号",
     summary: "移动目录及其全部子文件。",
@@ -17,6 +22,8 @@ export const COMMANDS: readonly CommandHelp[] = [
     example: "/mv projects/assets/mod/1.20/old projects/assets/mod/1.20/new",
   },
   {
+    name: "rename",
+    needsRepo: true,
     syntax: "/rename <from> <to>",
     args: "两个文件路径，支持引号",
     summary: "重命名单个文件，目标存在时覆盖。",
@@ -24,6 +31,8 @@ export const COMMANDS: readonly CommandHelp[] = [
     example: '/rename "projects/assets/mod/1.20/mod/lang/en_us.json" "projects/assets/mod/1.20/mod/lang/zh_cn.json"',
   },
   {
+    name: "update-en",
+    needsRepo: true,
     syntax: "/update-en <slug|modrinth-slug> <game-version>",
     args: "模组 slug 与游戏版本目录",
     summary: "从 CurseForge 或 Modrinth 下载该版本的 en_us 语言文件并覆盖仓库文件。",
@@ -32,6 +41,8 @@ export const COMMANDS: readonly CommandHelp[] = [
     example: "/update-en jei 1.20.1",
   },
   {
+    name: "replace",
+    needsRepo: true,
     syntax: "/replace <a> <b>",
     args: "两个字符串，支持引号",
     summary: "在本次 PR 改动的 zh_cn 文件中把 a 替换为 b。",
@@ -40,6 +51,8 @@ export const COMMANDS: readonly CommandHelp[] = [
     example: '/replace "物品" "物品栏"',
   },
   {
+    name: "add-comment",
+    needsRepo: true,
     syntax: "/add-comment <key> <comment...>",
     args: "语言文件 key 与注释文本",
     summary: "在 zh_cn JSON 中该 key 后插入一行 `__comment.cpfa.{用户名}.{key}` 注释。",
@@ -48,6 +61,8 @@ export const COMMANDS: readonly CommandHelp[] = [
     example: "/add-comment item.mod.name 这里指的是机器名称",
   },
   {
+    name: "add-co-author",
+    needsRepo: true,
     syntax: "/add-co-author <login>",
     args: "GitHub 用户名",
     summary: "把指定用户加为共同作者（空提交 + Co-authored-by 尾注）。",
@@ -55,6 +70,8 @@ export const COMMANDS: readonly CommandHelp[] = [
     example: "/add-co-author Cyl18",
   },
   {
+    name: "revert",
+    needsRepo: true,
     syntax: "/revert [commit-hash]",
     args: "可选提交哈希",
     summary: "回退最近一次提交，或回退指定提交。",
@@ -63,6 +80,8 @@ export const COMMANDS: readonly CommandHelp[] = [
     example: "/revert",
   },
   {
+    name: "sort-keys",
+    needsRepo: true,
     syntax: "/sort-keys <file>",
     args: "语言文件路径",
     summary: "按键名重新排序语言文件。",
@@ -71,6 +90,8 @@ export const COMMANDS: readonly CommandHelp[] = [
     example: "/sort-keys projects/assets/mod/1.20/mod/lang/zh_cn.json",
   },
   {
+    name: "add-mapping",
+    needsRepo: false,
     syntax: "/add-mapping <slug> <curseforge-project-id>",
     args: "模组 slug 与 CurseForge 项目 ID",
     summary: "写入 slug 到 CurseForge 项目的映射，并强制刷新信息评论。",
@@ -79,6 +100,9 @@ export const COMMANDS: readonly CommandHelp[] = [
     example: "/add-mapping jei 238222",
   },
   {
+    name: "agent",
+    needsRepo: false,
+    collaboratorOnly: true,
     syntax: "/agent [text]",
     args: "可选补充说明",
     summary: "在 PR 上启动 Agent 对话会话。",
@@ -87,6 +111,9 @@ export const COMMANDS: readonly CommandHelp[] = [
     example: "/agent 看看这个模组的术语",
   },
   {
+    name: "agent-review",
+    needsRepo: false,
+    collaboratorOnly: true,
     syntax: "/agent-review [text]",
     args: "可选补充说明",
     summary: "在 PR 上启动 Agent 审查，产出可发布的审查草稿。",

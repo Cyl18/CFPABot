@@ -1,4 +1,12 @@
+import { env } from "../env.ts";
+
 export const CYBOT_MARKER = "<!--CYBOT-->";
+const LEGACY_BOT_LOGIN = "Cyl18-Bot";
+
+export function isMainBot(author: string, body: string): boolean {
+  return body.startsWith(CYBOT_MARKER) && (author === env.BOT_LOGIN || author === LEGACY_BOT_LOGIN);
+}
+
 export const RELOAD_LINE = "- [ ] 🔄 勾选这个复选框来强制刷新";
 export const UPDATING_LINE = "**:construction: 正在更新内容...**";
 export const CRITICAL_FAILURE = `${CYBOT_MARKER}❌ CRITICAL_FAILURE：找到了多个 Bot Comment。 请删除到只保留一个。删除后请点击强制刷新.\n\n---\n\n${RELOAD_LINE}`;

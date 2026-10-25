@@ -5,7 +5,10 @@
   "type": "module",
   "exports": {
     "./api": "./src/api.ts",
+    "./commands": "./src/commands.ts",
     "./diffview": "./src/diffview.ts",
+    "./findings": "./src/findings.ts",
+    "./labels": "./src/labels.ts",
     "./mqm": "./src/mqm.ts"
   }
 }

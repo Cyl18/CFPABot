@@ -9,7 +9,7 @@ import { getCheckReport, getCheckStatus, isRefreshing, refreshInfoComment } from
 import { labelCheck, syncLabels } from "./labels.ts";
 import { autoApprovePacker, PACKER_WORKFLOW_NAME } from "./packer.ts";
 import { drainPending, track } from "./pending.ts";
-import { CYBOT_MARKER } from "./render.ts";
+import { isMainBot } from "./render.ts";
 
 export { getCheckReport, getCheckStatus, isRefreshing, refreshInfoComment };
 
@@ -115,8 +115,7 @@ async function onIssueComment(payload: unknown): Promise<void> {
     return;
   }
   if (action !== "edited") return;
-  if (!comment.body.startsWith(CYBOT_MARKER)) return;
-  if (comment.user.login !== env.BOT_LOGIN && comment.user.login !== "Cyl18-Bot") return;
+  if (!isMainBot(comment.user.login, comment.body)) return;
   if (!comment.body.includes("- [x] 🔄") && !comment.body.includes("- [x] 🔃")) return;
   track(`pr:${issue.number}`, () => refreshInfoComment(issue.number, { force: true, refreshPacker: true }));
 }

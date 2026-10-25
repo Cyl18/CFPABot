@@ -1,3 +1,4 @@
+import { SIZE_LABELS } from "@cfpa/contracts/labels";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn.ts";
 import { Popover } from "@/ui/Popover.tsx";
@@ -13,24 +14,13 @@ export const TONES: Record<BadgeTone, string> = {
   info: "border-info/40 bg-info/15 text-info",
 };
 
-const SIZE_LABELS: readonly (readonly [string, BadgeTone])[] = [
-  ["1+", "ok"],
-  ["10+", "ok"],
-  ["40+", "ok"],
-  ["100+", "ok"],
-  ["500+", "warn"],
-  ["1000+", "warn"],
-  ["2000+", "danger"],
-  ["5000+", "danger"],
-];
-
 export function sizeLabelRank(label: string): number {
-  const index = SIZE_LABELS.findIndex(([name]) => name === label);
+  const index = SIZE_LABELS.findIndex((entry) => entry.name === label);
   return index === -1 ? SIZE_LABELS.length : index;
 }
 
 export function sizeLabelTone(label: string): BadgeTone | undefined {
-  return SIZE_LABELS.find(([name]) => name === label)?.[1];
+  return SIZE_LABELS.find((entry) => entry.name === label)?.tone;
 }
 
 /** 数字行数标签按从小到大排在最前，其余保持原顺序。 */

@@ -1,9 +1,11 @@
 import type { Finding, Workspace } from "@cfpa/contracts/api";
-import { entryFindings, duplicateZh, fileFindings } from "./domain/checks.ts";
+import { duplicateZh, fileFindings } from "./domain/checks.ts";
 import { inHunks, patchHunks } from "./domain/diff.ts";
-import { parseLang, type ParsedLang } from "./domain/langfile.ts";
-import { parseLangPath, langPathFor, workspacesOf, type LangFormat, type Locale } from "./domain/path.ts";
-import { matchTerms, type TermIndex } from "./domain/terms.ts";
+import { entryFindingsWithTerms } from "./domain/entry-findings.ts";
+import type { ParsedLang } from "./domain/langfile.ts";
+import { workspacesOf, type LangFormat } from "./domain/path.ts";
+import type { TermIndex } from "./domain/terms.ts";
+import { loadWorkspaceTexts } from "./domain/workspace-files.ts";
 import type { PackFile } from "./types.ts";
 
 export interface PackRow {
@@ -50,6 +52,8 @@ export interface PackInput {
 }
 
 const WORKSPACE_CONCURRENCY = 4;
+/** 与 Bot 检查共用同一个上限，避免面板/Agent 对超大 PR 触发无界文件读取。 */
+export const MAX_WORKSPACES = 40;
 
 export function workspaceKey(workspace: Pick<PackWorkspace, "slug" | "version" | "namespace">): string {
   return `${workspace.slug}/${workspace.version}/${workspace.namespace}`;
@@ -99,10 +103,6 @@ function matchesQuery(row: PackRow, query: string): boolean {
   );
 }
 
-function parseOrNull(content: string | null, format: LangFormat): ParsedLang | null {
-  return content === null ? null : parseLang(content, format);
-}
-
 function keyOrder(head: ParsedLang | null, others: (ParsedLang | null)[]): string[] {
   const order: string[] = [];
   const seen = new Set<string>();
@@ -120,67 +120,14 @@ function keyOrder(head: ParsedLang | null, others: (ParsedLang | null)[]): strin
   return [...order, ...[...rest].sort()];
 }
 
-function findingsFor(
-  key: string,
-  values: { baseEn?: string; headEn?: string; baseZh?: string; headZh?: string },
-  version: string,
-  terms: TermIndex | null,
-): Finding[] {
-  const findings: Finding[] = [];
-  findings.push(...entryFindings(key, values.headEn, values.headZh, { en: values.baseEn, zh: values.baseZh }));
-  if (!terms || values.headEn === undefined) return findings;
-  for (const hit of matchTerms(terms, key, values.headEn, values.headZh ?? "", version)) {
-    if (hit.ok) continue;
-    findings.push({
-      source: "term",
-      code: `term:${hit.id ?? hit.en}`,
-      severity: "major",
-      detail: `${hit.en} → ${hit.zh.join(" / ")}${hit.reason ? `（${hit.reason}）` : ""}`,
-      key,
-    });
-  }
-  return findings;
-}
-
 async function buildWorkspace(
   workspace: Workspace,
   input: PackInput,
   patches: Map<string, string | undefined>,
 ): Promise<PackWorkspace | null> {
-  let enPath: string | null = null;
-  let zhPath: string | null = null;
-  for (const file of workspace.files) {
-    const parsed = parseLangPath(file);
-    if (!parsed) continue;
-    if (parsed.locale === "en_us") enPath ??= file;
-    else if (parsed.locale === "zh_cn") zhPath ??= file;
-  }
-  if (enPath === null && zhPath !== null) enPath = langPathFor(zhPath, "en_us")[0] ?? null;
-  if (zhPath === null && enPath !== null) zhPath = langPathFor(enPath, "zh_cn")[0] ?? null;
-  const sample = parseLangPath(zhPath ?? enPath ?? "");
-  if (!sample) return null;
-  const format = sample.format;
-  const statusOf = new Map(input.files.map((file) => [file.path, file.status]));
-  const readSide = async (path: string | null, locale: Locale, ref: "base" | "head"): Promise<string | null> => {
-    if (path === null) return null;
-    const status = statusOf.get(path);
-    if (ref === "base" ? status === "added" : status === "removed") return null;
-    for (const candidate of langPathFor(path, locale)) {
-      const text = await input.read(candidate, ref);
-      if (text !== null) return text;
-    }
-    return null;
-  };
-  const [baseEnText, baseZhText, headEnText, headZhText] = await Promise.all([
-    readSide(enPath, "en_us", "base"),
-    readSide(zhPath, "zh_cn", "base"),
-    readSide(enPath, "en_us", "head"),
-    readSide(zhPath, "zh_cn", "head"),
-  ]);
-  const baseEn = parseOrNull(baseEnText, format);
-  const baseZh = parseOrNull(baseZhText, format);
-  const headEn = parseOrNull(headEnText, format);
-  const headZh = parseOrNull(headZhText, format);
+  const loaded = await loadWorkspaceTexts(workspace, input.files, input.read);
+  if (loaded === null) return null;
+  const { format, enPath, zhPath, baseEn, baseZh, headEn, headZh, headEnText, headZhText } = loaded;
   const patch = zhPath ? patches.get(zhPath) : undefined;
   const hunks = patch === undefined || patch === "" ? null : patchHunks(patch);
   const rows: PackRow[] = [];
@@ -198,7 +145,7 @@ async function buildWorkspace(
       line,
       inHunk: line !== null && hunks !== null && inHunks(line, hunks),
       changed: values.baseEn !== values.headEn || values.baseZh !== values.headZh,
-      findings: findingsFor(key, values, workspace.version, input.terms),
+      findings: entryFindingsWithTerms(key, values, workspace.version, input.terms),
     });
   }
   const fileLevel: { path: string; findings: Finding[] }[] = [];
@@ -233,7 +180,7 @@ async function buildWorkspace(
 export async function buildPack(input: PackInput): Promise<Pack> {
   const patches = new Map<string, string | undefined>();
   for (const file of input.files) patches.set(file.path, file.patch);
-  const workspaces = workspacesOf(input.files);
+  const workspaces = workspacesOf(input.files).slice(0, MAX_WORKSPACES);
   const built: PackWorkspace[] = [];
   for (let index = 0; index < workspaces.length; index += WORKSPACE_CONCURRENCY) {
     const batch = workspaces.slice(index, index + WORKSPACE_CONCURRENCY);

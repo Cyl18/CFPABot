@@ -4,6 +4,7 @@ import { createAppAuth } from "@octokit/auth-app";
 import { retry } from "@octokit/plugin-retry";
 import { throttling, type ThrottlingOptions } from "@octokit/plugin-throttling";
 import { env, isDev, repo } from "../env.ts";
+import { HttpError } from "../errors.ts";
 import { logger } from "../log.ts";
 import { ttlCache } from "../ttl.ts";
 import { asRecord, httpStatus, mapComment, mapFile, mapPull, mapReviewComment, mapRun } from "./mappers.ts";
@@ -91,6 +92,12 @@ export function isRateLimited(err: unknown): boolean {
 /** 只有 App 身份写出来的评论、标签、check run 才属于机器人自己，其他身份一律暂停。 */
 export function botWritesEnabled(): boolean {
   return mode === "app";
+}
+
+export function assertBotWrites(): void {
+  if (!botWritesEnabled()) {
+    throw new HttpError(403, "当前 GitHub 身份不是机器人，已暂停评论 / 审查写入。", "bot_writes_disabled");
+  }
 }
 
 log.info("GitHub 客户端已初始化", { mode, repo: repo.fullName });
