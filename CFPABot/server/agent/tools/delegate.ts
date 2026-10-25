@@ -1,28 +1,24 @@
 import { type } from "@oh-my-pi/omptype";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  createAgentSession,
-  SessionManager,
-  type CustomTool,
-  type ExtensionFactory,
-} from "@oh-my-pi/pi-coding-agent";
+import type { CustomTool, ExtensionFactory } from "@oh-my-pi/pi-coding-agent";
+import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task";
 import { parseAgent } from "@oh-my-pi/pi-coding-agent/task/agents";
+import { runSubprocess } from "@oh-my-pi/pi-coding-agent/task/executor";
 import type { ToolContext } from "../context.ts";
 import { loadConfig, resolveModel } from "../llm.ts";
 import { parseRoleSelector } from "../llm-providers.ts";
 import { paths } from "../../paths.ts";
 import { agentMcpManager } from "../mcp.ts";
 import { openAuthStorage, openModelRuntime } from "../pi.ts";
-import { onAbortSignal } from "./signal.ts";
 
-export const CHILD_TOOLS: Record<string, true> = {
+// 子代理只读：agent md 声明的工具先过这张表，再交给 SDK 装配。
+const CHILD_TOOLS: Record<string, true> = {
   read: true,
   grep: true,
   find: true,
   glob: true,
   bash: true,
-  yield: true,
 };
 
 const AGENTS_DIR = join(paths.root, ".omp", "agents");
@@ -43,8 +39,7 @@ const DELEGATE_PARAMS = type({
 });
 
 interface AgentSpec {
-  systemPrompt: string;
-  tools: string[];
+  agent: AgentDefinition;
   output: unknown;
 }
 
@@ -67,32 +62,18 @@ async function loadAgent(name: string): Promise<AgentSpec> {
   const agent = parseAgent(file, content, "project", "fatal");
   if (agent.output === undefined) throw new Error(`.omp/agents/${name}.md 缺少 output schema`);
   return {
-    systemPrompt: `${agent.systemPrompt.trim()}\n\n${OPERATING_RULES}`,
-    tools: (agent.tools ?? []).filter((tool) => CHILD_TOOLS[tool] === true),
+    agent: {
+      ...agent,
+      systemPrompt: `${agent.systemPrompt.trim()}\n\n${OPERATING_RULES}`,
+      tools: (agent.tools ?? []).filter((tool) => CHILD_TOOLS[tool] === true),
+    },
     output: agent.output,
   };
 }
 
-/** yield 在工具内校验过 schema，父代理只取最后一次交卷的 data。 */
-function yieldedData(messages: readonly unknown[]): unknown {
-  for (let index = messages.length - 1; index >= 0; index--) {
-    const message = messages[index] as { role?: string; content?: unknown };
-    if (message?.role !== "assistant" || !Array.isArray(message.content)) continue;
-    for (const block of message.content) {
-      const call = block as { type?: string; name?: string; arguments?: unknown };
-      if (call?.type !== "toolCall" || call.name !== "yield") continue;
-      const args = call.arguments as { data?: unknown } | undefined;
-      if (args !== undefined && "data" in args) return args.data;
-    }
-  }
-  return undefined;
-}
+let sequence = 0;
 
-export function delegateTool(
-  ctx: ToolContext,
-  childTools: (ctx: ToolContext) => CustomTool[],
-  extensions: ExtensionFactory[],
-): CustomTool<typeof DELEGATE_PARAMS> {
+export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): CustomTool<typeof DELEGATE_PARAMS> {
   return {
     name: "delegate",
     label: "派发子代理",
@@ -111,61 +92,52 @@ export function delegateTool(
       const selector = config.roles[roleName];
       if (selector === undefined) throw new Error(`未知模型 @${roleName}；可用：${available || "（未配置）"}`);
       const spec = await loadAgent(agentName);
-      const { endpoint: endpointId, thinking } = parseRoleSelector(selector);
-      const { model } = await resolveModel(endpointId, thinking);
+      const { endpoint, thinking } = parseRoleSelector(selector);
+      // 先确认端点存在，避免 SDK 的模型解析静默回退到别的模型。
+      await resolveModel(endpoint, thinking);
       const authStorage = await openAuthStorage(config.endpoints);
-      const runtime = await openModelRuntime(authStorage, config.endpoints, config.roles);
-      const inherited = ctx.mcpManager?.() ?? (await agentMcpManager());
-      const created = await createAgentSession({
-        cwd: paths.root,
-        agentDir: paths.piAgent,
-        model,
-        authStorage,
-        modelRegistry: runtime.registry,
-        settings: runtime.settings,
-        sessionManager: SessionManager.inMemory(paths.root),
-        customTools: childTools(ctx).filter((tool) => CHILD_TOOLS[tool.name] === true),
-        extensions,
-        disableExtensionDiscovery: true,
-        systemPrompt: spec.systemPrompt,
-        outputSchema: spec.output,
-        requireYieldTool: true,
-        ...(inherited === undefined ? { enableMCP: false } : { mcpManager: inherited }),
-      });
-      const session = created.session;
-      // 共享 manager 不参与本会话发现，刷新只负责把工具注册并激活。
-      if (inherited) await session.refreshMCPTools(inherited.getTools());
-      const allowed = new Set(["yield", ...spec.tools]);
-      const stopListening = onAbortSignal(signal, () => void session.abort());
+      const { settings, registry } = await openModelRuntime(authStorage, config.endpoints, config.roles);
+      const mcpManager = ctx.mcpManager?.() ?? (await agentMcpManager());
       try {
-        await session.setActiveToolsByName(
-          session.getActiveToolNames().filter((name) => allowed.has(name) || name.startsWith("mcp__")),
-        );
-        await session.prompt(params.task);
-        const messages = session.agent.state.messages;
-        const last = messages.at(-1);
-        if (last?.role === "assistant" && last.errorMessage) throw new Error(last.errorMessage);
-        const data = yieldedData(messages);
-        const text =
-          last?.role === "assistant"
-            ? last.content
-                .filter((block) => block.type === "text")
-                .map((block) => block.text)
-                .join("")
-                .trim()
-            : "";
+        const result = await runSubprocess({
+          cwd: paths.root,
+          agent: spec.agent,
+          task: params.task,
+          id: `${agentName}-${Date.now().toString(36)}-${++sequence}`,
+          index: 0,
+          modelOverride: [`@${roleName}`],
+          structured: true,
+          outputSchema: spec.output,
+          authStorage,
+          settings,
+          modelRegistry: registry,
+          enableLsp: false,
+          enableIrc: false,
+          keepAlive: false,
+          preloadedCustomToolPaths: [],
+          preloadedPreparedExtensions: extensions.map((factory, index) => ({
+            path: `<cfpa-extension:${index}>`,
+            resolvedPath: `<cfpa-extension:${index}>`,
+            factory,
+            error: null,
+          })),
+          ...(mcpManager === undefined ? { enableMCP: false } : { mcpManager }),
+          signal,
+        });
+        if (result.aborted || result.exitCode !== 0 || result.error !== undefined) {
+          throw new Error(result.error ?? (result.stderr.trim() || "子代理失败"));
+        }
+        const data = result.structuredOutput?.data;
         return {
           content: [
             {
               type: "text",
-              text: data === undefined ? text || "(子代理没有返回结果)" : JSON.stringify(data),
+              text: data === undefined ? result.output.trim() || "(子代理没有返回结果)" : JSON.stringify(data),
             },
           ],
-          details: { agent: agentName, model: roleName, endpoint: endpointId, thinking },
+          details: { agent: agentName, model: roleName, endpoint, thinking },
         };
       } finally {
-        stopListening();
-        await session.dispose().catch(() => {});
         authStorage.close();
       }
     },
