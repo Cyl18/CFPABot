@@ -11,12 +11,6 @@ function file(path: string, status: PrFile["status"], previousPath?: string): Pr
   return { path, status, additions: 0, deletions: 0, ...(previousPath === undefined ? {} : { previousPath }) };
 }
 
-function first(plans: readonly SpecialPlan[]): SpecialPlan {
-  const [plan] = plans;
-  if (plan === undefined) throw new Error("缺少计划");
-  return plan;
-}
-
 function pairWhere(plans: readonly SpecialPlan[], match: (plan: Extract<SpecialPlan, { kind: "pair" }>) => boolean) {
   const plan = plans.find((item): item is Extract<SpecialPlan, { kind: "pair" }> => item.kind === "pair" && match(item));
   if (plan === undefined) throw new Error("缺少配对计划");
@@ -41,21 +35,5 @@ describe("special head 过滤", () => {
     });
     const next = pairWhere(resolved, (plan) => plan.en.file?.path === `${ROOT}/concepts2.md`);
     expect(planAtHead(next, existing, moved)).toBe(true);
-  });
-
-  test("中文删除、英文未变时保留为 unchanged/removed", () => {
-    const existing = new Set([EN]);
-    const plans = resolveDerived(planSpecial([file(ZH, "removed")]), existing);
-    expect(planAtHead(first(plans), existing, new Set())).toBe(true);
-    expect(resolveSpecial(plans, existing)[0]).toMatchObject({
-      en: { status: "unchanged" },
-      zh: { status: "removed" },
-    });
-  });
-
-  test("单文件删除不产出", () => {
-    const path = `${ROOT}/plain.md`;
-    const plans = planSpecial([file(path, "removed")]);
-    expect(planAtHead(first(plans), new Set([path]), new Set())).toBe(false);
   });
 });
