@@ -1,8 +1,6 @@
 import type { ChatItem, SubagentInfo, TodoPhase, TodoStatus } from "@cfpa/contracts/api";
-import { useMutation } from "@tanstack/react-query";
-import { Ban, Bot, CheckCircle2, ChevronRight, Circle, CircleAlert, CircleMinus, ListTodo, LoaderCircle } from "lucide-react";
+import { Bot, CheckCircle2, ChevronRight, Circle, CircleAlert, CircleMinus, ListTodo } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { api } from "@/lib/api.ts";
 import { cn } from "@/lib/cn.ts";
 import {
   delegateItems,
@@ -109,7 +107,6 @@ function SubagentList({
   infos?: Record<string, SubagentInfo>;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
-  const stop = useMutation({ mutationFn: (agentId: string) => api.abortSubagent(sessionId, agentId) });
   const rows = items.map((item) => {
     const snapshot = subagentInfo(item.tool);
     const live = snapshot === undefined ? undefined : infos?.[snapshot.agentId];
@@ -140,7 +137,6 @@ function SubagentList({
                 ? `${formatTokens(info.tokens)} · ${formatDuration(info.durationMs)}`
                 : undefined;
             const model = info?.model ?? subagentModel(item.tool);
-            const stopping = stop.isPending && stop.variables === info?.agentId;
             return (
               <div
                 key={item.id}
@@ -176,22 +172,6 @@ function SubagentList({
                     {meta !== undefined && <span className="shrink-0 tabular-nums text-muted">{meta}</span>}
                   </span>
                 </button>
-                {kind === "running" && info !== undefined && (
-                  <button
-                    type="button"
-                    title="停止这个子代理"
-                    aria-label="停止这个子代理"
-                    disabled={stopping}
-                    onClick={() => stop.mutate(info.agentId)}
-                    className="flex size-6 shrink-0 items-center justify-center rounded bg-danger text-white transition-colors hover:bg-danger-hover disabled:opacity-60"
-                  >
-                    {stopping ? (
-                      <LoaderCircle aria-hidden="true" className="size-3 animate-spin" />
-                    ) : (
-                      <Ban aria-hidden="true" className="size-3" />
-                    )}
-                  </button>
-                )}
               </div>
             );
           })}
