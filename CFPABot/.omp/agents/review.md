@@ -44,7 +44,7 @@ output:
             type: string
           zhNew:
             metadata:
-              description: 语言包片用：只给新译文本身，不带引号、缩进、逗号；整行由服务端拼
+              description: 语言包片用：只给新译文本身，不带引号、缩进、逗号；整行由服务端拼。含换行时在值里写 \n，不要预先转义成 \\n，例："第一行\n第二行"
             type: string
           suggestion:
             metadata:
@@ -108,7 +108,7 @@ output:
 
 - 拿不准的写进 `uncertain[]`，一条一句：要核对什么、可能的两个方向。主代理统一裁决。
 - 不确定不等于不报：有把握的部分照常写 `comments`，不要把整片放掉。
-- 术语仍不放心就查 glossary 工具（`mcp__glossary_query`），一次一个词；能从行上的 `term` 读到的不要重复查。
+- 行上的 `term` 只命中原版术语；跨模组体例查 glossary：英文正向，中文候选加 `inverse`，多个词用 `mcp__glossary_query_batch`。零命中写 `uncertain`，不判 major。
 
 ## 交卷
 

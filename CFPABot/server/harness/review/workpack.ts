@@ -120,7 +120,7 @@ function rulesBlock(manual: boolean): string {
         "- suggestion 只给这一行的中文，不带行号前缀。",
         "- 同一 pattern 只报一条，其余 key 进 covers。",
         "- suspected 为真时 severity 最高 minor。",
-        "- 术语拿不准再用 glossary 工具查（一次一个词）。",
+        "- 跨模组体例查 glossary：英文正向，中文候选加 inverse，多个词用 mcp__glossary_query_batch。",
       ]
     : [
         "## 交付",
@@ -131,7 +131,7 @@ function rulesBlock(manual: boolean): string {
         "- 只给 zhNew：新译文本身，不带引号、缩进、逗号；整行由服务端拼。en/zh 不用给。非 suspected 必给。",
         "- 同一 pattern 只报一条，其余 key 进 covers；本条 key 不进 covers。",
         "- suspected 为真时 severity 最高 minor。",
-        "- 术语拿不准再用 glossary 工具查（一次一个词）；能由行上的 term 回答的不要重复查。",
+        "- 行上的 term 只命中原版术语；跨模组体例查 glossary：英文正向，中文候选加 inverse，多个词用 mcp__glossary_query_batch。",
       ];
   return [
     ...deliver,

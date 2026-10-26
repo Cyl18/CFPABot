@@ -176,7 +176,7 @@ export function draftSchema(n: number, headSha: string): DraftSchemaView {
           body: "为什么错、后果是什么；不要重复原文/译文",
           en: "可省：原文，服务端按 path+line 补",
           zh: "可省：当前译文，服务端按 path+line 补",
-          zhNew: "语言包用：只给新译文本身，不带引号、缩进、逗号；整行由服务端拼",
+          zhNew: "语言包用：只给新译文本身，不带引号、缩进、逗号；整行由服务端拼。含换行写 \\n，例：\"第一行\\n第二行\"",
           suggestion: "整行替换后的译文；手册类评论用，缩进/引号/转义与文件一致",
           covers: ["同一 pattern 的其余 key"],
           suspected: false,
