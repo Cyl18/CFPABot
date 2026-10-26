@@ -80,49 +80,47 @@ async function loadAgent(name: string): Promise<AgentSpec> {
   };
 }
 
-/** 父代理已经拿到分片时，直接把内容带进子代理上下文，省掉一次重复取数。 */
+/** 预取只读资源：local:// 是打包分片，读不到或超限都直接报错；其它资源降级成截断与说明。 */
 export async function prefetch(resources: readonly string[], sessionId: string): Promise<string> {
   if (resources.length === 0) return "";
-  const router = InternalUrlRouter.instance();
-  const localProtocolOptions = {
-    getArtifactsDir: () => artifactsDir(sessionId),
-    getSessionId: () => sessionId,
-  };
-  const failures: Error[] = [];
-  const blocks = await Promise.all(
-    resources.map(async (uri) => {
-      const local = /^local:\/\//i.test(uri);
-      try {
-        const target = router.split(uri);
-        const range = target.sel === undefined ? null : lineRangeOf(target.sel);
-        // omp 的 local:// 只嗅前 8 KB：截断落在多字节字符中间就会把整片判成二进制，子代理只能拿到占位符。
-        const raw = local
-          ? (await readLocal(sessionId, target.path.replace(/^local:\/\//i, "")))?.content
-          : (await router.resolve(target.path, { cwd: paths.root, localProtocolOptions })).content;
-        if (raw === undefined) throw new Error(`local:// 文件不存在：${uri}`);
-        const content = range === null ? raw : sliceLines(raw, range);
-        const bytes = Buffer.byteLength(content);
-        if (bytes > PREFETCH_BYTES) {
-          // 子代理没有读取工具，截断等于让它审半份材料；本地分片必须整份送达。
-          if (local) throw new Error(`分片超过预取上限 ${PREFETCH_BYTES} B：${uri}（${bytes} B），重新打包成更小的片`);
-          const clipped = Buffer.from(content).subarray(0, PREFETCH_BYTES).toString("utf8");
-          return `## 预取资源 ${uri}\n\n${clipped}\n…[预取已截断]`;
-        }
-        return `## 预取资源 ${uri}\n\n${content}`;
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        if (local) failures.push(error);
-        return `## 预取资源 ${uri} 失败\n\n${error.message}`;
-      }
-    }),
-  );
-  const first = failures[0];
-  if (first !== undefined) throw first;
+  const blocks = await Promise.all(resources.map((uri) => readResource(uri, sessionId)));
   const joined = ["# 已预取资源", ...blocks].join("\n\n");
   if (Buffer.byteLength(joined) > PREFETCH_TOTAL_BYTES) {
     throw new Error(`预取总量超过 ${PREFETCH_TOTAL_BYTES} B；减少 resources 或拆片`);
   }
   return joined;
+}
+
+async function readResource(uri: string, sessionId: string): Promise<string> {
+  const local = /^local:\/\//i.test(uri);
+  try {
+    const router = InternalUrlRouter.instance();
+    const target = router.split(uri);
+    const range = target.sel === undefined ? null : lineRangeOf(target.sel);
+    // 本地分片走 readLocal：omp 的 local:// 只嗅前 8 KB，截断落在多字节字符中间会把整片判成二进制。
+    const text = local
+      ? (await readLocal(sessionId, target.path.replace(/^local:\/\//i, "")))?.content
+      : (
+          await router.resolve(target.path, {
+            cwd: paths.root,
+            localProtocolOptions: {
+              getArtifactsDir: () => artifactsDir(sessionId),
+              getSessionId: () => sessionId,
+            },
+          })
+        ).content;
+    if (text === undefined) throw new Error(`资源不存在：${uri}`);
+    const content = range === null ? text : sliceLines(text, range);
+    const bytes = Buffer.byteLength(content);
+    if (bytes <= PREFETCH_BYTES) return `## 预取资源 ${uri}\n\n${content}`;
+    // 子代理没有读取工具，截断等于让它审半份材料，所以整份分片必须装得下。
+    if (local) throw new Error(`分片超过预取上限 ${PREFETCH_BYTES} B：${uri}（${bytes} B），重新打包成更小的片`);
+    const head = Buffer.from(content).subarray(0, PREFETCH_BYTES).toString("utf8").replace(/\uFFFD+$/, "");
+    return `## 预取资源 ${uri}\n\n${head}\n…[预取已截断]`;
+  } catch (err) {
+    if (local) throw err;
+    return `## 预取资源 ${uri} 失败\n\n${err instanceof Error ? err.message : String(err)}`;
+  }
 }
 
 let sequence = 0;

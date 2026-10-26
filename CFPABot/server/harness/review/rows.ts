@@ -6,6 +6,7 @@ import type {
   ReviewThread,
   WorkspaceBrief,
 } from "@cfpa/contracts/api";
+import { LRUCache } from "lru-cache";
 import { matchTerms, type TermIndex } from "@cfpa/review-core/domain/terms";
 import { selectRows, workspaceBrief, workspaceKey, type Pack, type PackWorkspace } from "@cfpa/review-core/pack";
 import type { SelectedRow } from "@cfpa/review-core/pack";
@@ -13,6 +14,7 @@ import { glossaryTerms } from "../../domain/glossary.ts";
 import { prdata } from "../../prdata.ts";
 import { RESULT_BUDGET_BYTES } from "../result.ts";
 import { loadPack } from "../pack.ts";
+import { sliceRuns } from "./slices.ts";
 import { threadsOf, type ThreadsView } from "./threads.ts";
 
 export type RowsFilter = "reviewable" | "changed" | "flagged" | "all";
@@ -139,76 +141,8 @@ function duplicateOf(workspace: PackWorkspace, key: string, zh: string | undefin
   return keys.length === 0 ? undefined : { zh: group.zh, keys };
 }
 
-const ROWS_PAGE_BYTES = 28_000;
-const SLICE_MAX_ROWS = 300;
-
 function rowBytes(row: ReviewRowView): number {
   return Buffer.byteLength(JSON.stringify(row));
-}
-
-export interface SliceBounds {
-  start: number;
-  end: number;
-  bytes: number;
-}
-
-/** 先按总字节定片数，再按行数均分；单行超预算时独占一片。 */
-export function balanceSlices(
-  sizes: readonly number[],
-  budget: number,
-  maxRows: number,
-): SliceBounds[] {
-  const count = sizes.length;
-  if (count === 0) return [];
-  const cap = Math.max(1, budget);
-  const rowCap = Math.max(1, maxRows);
-  const prefix = new Array<number>(count + 1).fill(0);
-  for (let index = 0; index < count; index += 1) prefix[index + 1] = prefix[index]! + sizes[index]!;
-  const total = prefix[count]!;
-  let plan = Math.min(count, Math.max(1, Math.ceil(total / cap), Math.ceil(count / rowCap)));
-  for (;;) {
-    const bounds: SliceBounds[] = [];
-    let start = 0;
-    let complete = true;
-    for (let index = 0; index < plan; index += 1) {
-      const left = plan - index;
-      const remaining = count - start;
-      if (remaining < left) {
-        complete = false;
-        break;
-      }
-      let end = start + Math.min(Math.ceil(remaining / left), rowCap);
-      let bytes = prefix[end]! - prefix[start]!;
-      while (end > start + 1 && bytes > cap) {
-        end -= 1;
-        bytes -= sizes[end]!;
-      }
-      bounds.push({ start, end, bytes });
-      start = end;
-    }
-    if (complete && start === count) return mergeTinyTail(bounds, cap, rowCap, total);
-    plan += 1;
-  }
-}
-
-/** 尾片小于平均片一半且并得进去时并入前片，别留孤儿片。 */
-function mergeTinyTail(
-  bounds: SliceBounds[],
-  cap: number,
-  maxRows: number,
-  total: number,
-): SliceBounds[] {
-  while (bounds.length > 1) {
-    const last = bounds[bounds.length - 1]!;
-    const prev = bounds[bounds.length - 2]!;
-    if (last.bytes * 2 >= total / bounds.length) break;
-    if (last.end - last.start + (prev.end - prev.start) > maxRows) break;
-    if (prev.bytes + last.bytes > cap) break;
-    prev.end = last.end;
-    prev.bytes += last.bytes;
-    bounds.pop();
-  }
-  return bounds;
 }
 
 function filterParams(options: RowsOptions): URLSearchParams {
@@ -396,7 +330,16 @@ const MIN_ROWS_BUDGET_BYTES = 2_000;
 const MAX_PAGE_WORKSPACES = 80;
 
 /** 边界按行索引记：同一份 pack 上重复读分片时不用重建整份 selection。 */
-const planCache = new WeakMap<Pack, Map<string, { bytes: number; slices: PlannedSlice[] }>>();
+const planCache = new WeakMap<Pack, LRUCache<string, { bytes: number; slices: PlannedSlice[] }>>();
+
+function plansOf(pack: Pack): LRUCache<string, { bytes: number; slices: PlannedSlice[] }> {
+  let cache = planCache.get(pack);
+  if (cache === undefined) {
+    cache = new LRUCache({ max: PLAN_CACHE });
+    planCache.set(pack, cache);
+  }
+  return cache;
+}
 
 function selectionKey(options: RowsOptions): string {
   const include = Object.entries(options.include)
@@ -466,60 +409,31 @@ function rowsBudget(input: RowsInput, options: RowsOptions): number {
   );
 }
 
-function shortHash(value: string): string {
-  let hash = 5381;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = ((hash << 5) + hash + value.charCodeAt(index)) | 0;
-  }
-  return (hash >>> 0).toString(36);
-}
-
-function planFor(input: RowsInput, options: RowsOptions, rows: readonly ReviewRowView[], budget: number, seed: string): {
+function planFor(input: RowsInput, options: RowsOptions, rows: readonly ReviewRowView[], budget: number, key: string): {
   plan: ReviewPlan;
   slices: PlannedSlice[];
 } {
-  const sizes = rows.map(rowBytes);
-  const totalBytes = sizes.reduce((sum, size) => sum + size, 0);
+  const entries = rows.map((row) => ({ run: row.workspace, bytes: Buffer.byteLength(JSON.stringify(row)) }));
+  const totalBytes = entries.reduce((sum, entry) => sum + entry.bytes, 0);
   if (rows.length === 0 || totalBytes <= budget) {
     return { plan: planView(rows.length, totalBytes, [], true, budget), slices: [] };
   }
-  const slices: PlannedSlice[] = [];
-  let index = 0;
-  while (index < rows.length) {
-    const workspace = rows[index]!.workspace;
-    let end = index;
-    while (end < rows.length && rows[end]!.workspace === workspace) end += 1;
-    for (const bound of balanceSlices(sizes.slice(index, end), budget, SLICE_MAX_ROWS)) {
-      const start = index + bound.start;
-      const stop = index + bound.end;
-      const id = `${input.pack.headSha.slice(0, 7)}~${shortHash(`${seed}\u0000${budget}`)}~${workspace}~${start}`;
-      const uri = `pr://${input.pack.prNumber}/rows?${sliceParams(options, id).toString()}`;
-      slices.push({
-        id,
-        workspace,
-        rows: stop - start,
-        bytes: bound.bytes,
-        firstKey: rows[start]!.key,
-        lastKey: rows[stop - 1]!.key,
-        uri,
-        start,
-        end: stop,
-      });
-    }
-    index = end;
-  }
+  const tag = Bun.hash(key).toString(36);
+  const slices = sliceRuns(entries, budget).map((bound): PlannedSlice => {
+    const id = `${input.pack.headSha.slice(0, 7)}~${tag}~${rows[bound.start]!.workspace}~${bound.start}`;
+    return {
+      id,
+      workspace: rows[bound.start]!.workspace,
+      rows: bound.end - bound.start,
+      bytes: bound.bytes,
+      firstKey: rows[bound.start]!.key,
+      lastKey: rows[bound.end - 1]!.key,
+      uri: `pr://${input.pack.prNumber}/rows?${sliceParams(options, id).toString()}`,
+      start: bound.start,
+      end: bound.end,
+    };
+  });
   return { plan: planView(rows.length, totalBytes, slices, false, budget), slices };
-}
-
-function cachePlan(pack: Pack, key: string, bytes: number, slices: PlannedSlice[]): void {
-  const bucket = planCache.get(pack) ?? new Map<string, { bytes: number; slices: PlannedSlice[] }>();
-  bucket.delete(key);
-  if (bucket.size >= PLAN_CACHE) {
-    const oldest = bucket.keys().next().value;
-    if (oldest !== undefined) bucket.delete(oldest);
-  }
-  bucket.set(key, { bytes, slices });
-  planCache.set(pack, bucket);
 }
 
 function missingSlice(input: RowsInput, id: string): Error {
@@ -538,12 +452,8 @@ export function reviewRowsForInput(input: RowsInput, options: RowsOptions): Revi
   const selected = selectForOptions(input.pack, options);
   const budget = rowsBudget(input, options);
   const key = selectionKey(options);
-  let cached = planCache.get(input.pack)?.get(key);
-  if (cached !== undefined) {
-    const bucket = planCache.get(input.pack);
-    bucket?.delete(key);
-    bucket?.set(key, cached);
-  }
+  const plans = plansOf(input.pack);
+  let cached = plans.get(key);
   let built: ReviewRowView[] | undefined;
   if (cached === undefined) {
     built = buildRows(input, options, selected);
@@ -562,12 +472,11 @@ export function reviewRowsForInput(input: RowsInput, options: RowsOptions): Revi
         }),
       };
     }
-    cachePlan(input.pack, key, computed.plan.bytes, computed.slices);
     cached = { bytes: computed.plan.bytes, slices: computed.slices };
+    plans.set(key, cached);
   }
-  const cachedPlan = cached;
-  const slices = cachedPlan.slices;
-  const plan = planView(selected.length, cachedPlan.bytes, slices, false, budget);
+  const slices = cached.slices;
+  const plan = planView(selected.length, cached.bytes, slices, false, budget);
   if (options.slice === undefined) {
     return {
       plan,

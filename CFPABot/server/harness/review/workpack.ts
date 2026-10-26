@@ -7,12 +7,12 @@ import { glossaryTerms } from "../../domain/glossary.ts";
 import { prdata } from "../../prdata.ts";
 import { specialContents, specialPairs } from "../../views/special.ts";
 import { loadPack } from "../pack.ts";
-import { balanceSlices, reviewRowViews, type RowsInput, type RowsOptions } from "./rows.ts";
+import { sliceRuns } from "./slices.ts";
+import { reviewRowViews, type RowsInput, type RowsOptions } from "./rows.ts";
 import { threadsOf } from "./threads.ts";
 
 /** 一片文档的目标大小：子代理一次读完，不靠工具翻页。 */
 const SLICE_BUDGET_BYTES = 48_000;
-const SLICE_MAX_ROWS = 300;
 /** 片头（元信息 + 一条提交说明）的预留字节；规则与 MQM 表已搬进子代理系统提示。 */
 const SLICE_RESERVE_BYTES = 1_500;
 const LIST_CAP = 200;
@@ -111,21 +111,22 @@ function rowBlock(row: ReviewRowView, near?: { prev?: string; next?: string }): 
   return lines.join("\n");
 }
 
-function langHeader(slice: {
+interface SliceDraft {
   id: string;
-  prNumber: number;
-  headSha: string;
   workspace: string;
   path: string;
+  body: string;
   rows: number;
   firstKey: string;
   lastKey: string;
-}): string {
+}
+
+function langHeader(draft: SliceDraft, pack: Pack): string {
   return [
-    `# 审查分片 ${slice.id}`,
-    `PR #${slice.prNumber} · head ${slice.headSha.slice(0, 7)} · workspace ${slice.workspace}`,
-    `文件：${slice.path}`,
-    `本片 ${slice.rows} 行，key 范围 ${slice.firstKey} … ${slice.lastKey}。只判本片，片外的事不要猜。`,
+    `# 审查分片 ${draft.id}`,
+    `PR #${pack.prNumber} · head ${pack.headSha.slice(0, 7)} · workspace ${draft.workspace}`,
+    `文件：${draft.path}`,
+    `本片 ${draft.rows} 行，key 范围 ${draft.firstKey} … ${draft.lastKey}。只判本片，片外的事不要猜。`,
     "",
     "提交 `zhNew`（新译文本身，整行由服务端拼）；`path` 用上面「文件：」路径，`line` 用行块里的 line。",
     "",
@@ -175,47 +176,21 @@ function manualHeader(meta: {
   ].join("\n");
 }
 
-interface SliceDraft {
-  id: string;
-  workspace: string;
-  path: string;
-  rows: ReviewRowView[];
-}
-
-function chunk(
-  rows: readonly ReviewRowView[],
-  headSha: string,
-  budget: number,
-  near: Map<string, { prev?: string; next?: string }>,
-): SliceDraft[] {
-  const drafts: SliceDraft[] = [];
-  const cap = Math.max(1, budget - SLICE_RESERVE_BYTES);
-  let index = 0;
-  while (index < rows.length) {
-    const first = rows[index]!;
-    const path = first.path ?? "";
-    let end = index;
-    while (end < rows.length && rows[end]!.workspace === first.workspace && (rows[end]!.path ?? "") === path) {
-      end += 1;
-    }
-    const segment = rows.slice(index, end);
-    const sizes = segment.map(
-      (row) => Buffer.byteLength(rowBlock(row, near.get(`${row.workspace}\u0000${row.key}`))) + 2,
-    );
-    for (const bound of balanceSlices(sizes, cap, SLICE_MAX_ROWS)) {
-      drafts.push({
-        id: "",
-        workspace: first.workspace,
-        path,
-        rows: segment.slice(bound.start, bound.end),
-      });
-    }
-    index = end;
-  }
-  for (const [position, draft] of drafts.entries()) {
-    draft.id = `${headSha.slice(0, 7)}-${String(position + 1).padStart(2, "0")}`;
-  }
-  return drafts;
+/** 行块只拼一次：切片的字节数就是这份正文，落盘直接用它。 */
+function chunk(rows: readonly ReviewRowView[], blocks: readonly string[], headSha: string, budget: number): SliceDraft[] {
+  const entries = rows.map((row, index) => ({
+    run: `${row.workspace}\u0000${row.path ?? ""}`,
+    bytes: Buffer.byteLength(blocks[index]!) + 2,
+  }));
+  return sliceRuns(entries, budget - SLICE_RESERVE_BYTES).map((bound, position) => ({
+    id: `${headSha.slice(0, 7)}-${String(position + 1).padStart(2, "0")}`,
+    workspace: rows[bound.start]!.workspace,
+    path: rows[bound.start]!.path ?? "",
+    body: blocks.slice(bound.start, bound.end).join("\n\n"),
+    rows: bound.end - bound.start,
+    firstKey: rows[bound.start]!.key,
+    lastKey: rows[bound.end - 1]!.key,
+  }));
 }
 
 /** 打包只做组装：输入是完整的行视图，输出是 manifest 与待落盘的片文档。 */
@@ -227,25 +202,13 @@ export function composeWorkPack(
 ): WorkPackComposition {
   const reviewable = rows.filter((row) => row.path !== null && row.line !== null);
   const near = neighborIndex(pack);
-  const drafts = chunk(reviewable, pack.headSha, budget, near);
+  const blocks = reviewable.map((row) => rowBlock(row, near.get(`${row.workspace}\u0000${row.key}`)));
+  const drafts = chunk(reviewable, blocks, pack.headSha, budget);
   const files: WorkPackComposition["files"] = [];
   const slices: WorkPackSlice[] = [];
   let docBytes = 0;
   for (const draft of drafts) {
-    const content = [
-      langHeader({
-        id: draft.id,
-        prNumber: pack.prNumber,
-        headSha: pack.headSha,
-        workspace: draft.workspace,
-        path: draft.path,
-        rows: draft.rows.length,
-        firstKey: draft.rows[0]?.key ?? "",
-        lastKey: draft.rows[draft.rows.length - 1]?.key ?? "",
-      }),
-      draft.rows.map((row) => rowBlock(row, near.get(`${row.workspace}\u0000${row.key}`))).join("\n\n"),
-      "",
-    ].join("\n");
+    const content = [langHeader(draft, pack), draft.body, ""].join("\n");
     const bytes = Buffer.byteLength(content);
     docBytes += bytes;
     const name = `pack/${pack.headSha.slice(0, 7)}/slices/${draft.id}.md`;
@@ -256,10 +219,10 @@ export function composeWorkPack(
       kind: "lang",
       workspace: draft.workspace,
       path: draft.path,
-      rows: draft.rows.length,
+      rows: draft.rows,
       bytes,
-      firstKey: draft.rows[0]?.key ?? "",
-      lastKey: draft.rows[draft.rows.length - 1]?.key ?? "",
+      firstKey: draft.firstKey,
+      lastKey: draft.lastKey,
     });
   }
   const manifest: WorkPackManifest = {

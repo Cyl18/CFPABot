@@ -78,12 +78,12 @@ export function splitLineSuffix(path: string): { path: string; range: LineRange 
   return range === null ? { path, range: null } : { path: path.slice(0, colon), range };
 }
 
-/** 1-based，越界的 end 夹到文件末尾；start 超过总行数是调用方写错了范围，直接报。 */
+/** 1-based，越界的端夹到文件内；start 超过总行数是调用方写错了范围，直接报。 */
 export function sliceLines(text: string, range: LineRange): string {
   const lines = text.split("\n");
   if (range.start > lines.length) {
     throw new Error(`行范围超出文件：文件只有 ${lines.length} 行，请求从第 ${range.start} 行开始。`);
   }
-  const end = range.end === null ? lines.length : Math.min(range.end, lines.length);
-  return lines.slice(range.start - 1, end).join("\n");
+  const end = Math.min(range.end ?? lines.length, lines.length);
+  return lines.slice(range.start - 1, Math.max(end, range.start)).join("\n");
 }
