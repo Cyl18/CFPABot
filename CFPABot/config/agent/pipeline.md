@@ -27,7 +27,7 @@ PR 审查：`prep` → `post`。需要补译时在中间插 `translate`。
   delegate({ agent: "review", model: "@模型名", task: "片 id + 该片特有的提示", resources: ["local://<manifest.dir>/slices/<id>.md", "local://<manifest.dir>/shared.md"] })
   ```
 
-  `model` 可省；`resources` 整份进子代理上下文。
+  `model` 可省；`resources` 整份进子代理上下文。`task` 里不写行号：片文档每条已有 `line:`，子代理照抄；草稿评论也只给 key，服务端按 pack 定位。
 - `shared.md` 由你写：锁定术语、放行 key、已报 pattern、本轮体例。子代理没有读取工具，看不到的东西就是没有。
 - 子代理停止且无产出时不要原样重派：按 `###` 或 key 边界拆成两片再派；第二次仍停就写进 `summary`。
 - 手册类 PR 的片 `kind=manual`，一对一片，同样派。

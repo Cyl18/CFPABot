@@ -22,6 +22,7 @@ description: 译前草稿：路径闸门、范围、术语表、风格指南、�
    python3 "$CFPA_ROOT/skills/prep/scripts/scope.py" ./work ./scope --prefix "item." --pattern '^block\.'
    ```
    `--prefix` 和 `--pattern` 至少给一个，否则工具退出。
+   - `<100` changed 行的轻量包可以整段跳过本步与 `local://work/` 副本：直接走第 4 步的 `terms?changed=1`，`prep.json.scope` 写全量。
 4. **术语依据**：先 `read pr://<n>/terms?changed=1`。它给本 PR 同词多译、术语缺失和原版术语命中，按 `misses` 排序；逐行命中在 rows 的 `terms` 字段里。PR 内一致性看这里；跨模组体例另查 glossary。
    - 按包的形状判断，不按 changed 行数；`mod prep` 几秒跑完。
 

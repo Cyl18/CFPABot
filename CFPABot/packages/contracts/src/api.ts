@@ -206,7 +206,8 @@ export interface ReviewSlice {
 export interface ReviewPlan {
   total: number;
   bytes: number;
-  budgetBytes: number;
+  /** 单页 JSON 的预算；和 pack 的片文档预算不是同一口径。 */
+  rowsBudgetBytes: number;
   fits: boolean;
   /** 分片总数；slices 只列开头几片，其余照每片的 next 继续。 */
   sliceCount: number;
@@ -247,7 +248,8 @@ export interface ReviewDraftView {
   headSha: string;
   exists: boolean;
   draft: ReviewDraft | null;
-  schema: DraftSchemaView;
+  /** `?schema=0` 时不返回：复核草稿只要 validation。 */
+  schema?: DraftSchemaView;
   validation: { errors: string[]; warnings: string[]; headCurrent: boolean };
   write: string;
   publish: string;

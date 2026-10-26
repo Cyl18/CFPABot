@@ -181,6 +181,25 @@ describe("draft 回填", () => {
     expect(filled.comments[0]).toMatchObject({ en: "A", zh: "甲", suggestion: '    "a": "乙",' });
     expect("zhNew" in (filled.comments[0] ?? {})).toBe(false);
   });
+
+  test("line 可省：按 key 定位，手写的错行被 key 覆盖", async () => {
+    const space = pack([row("a", "A", "甲", 41), row("b", "B", "乙", 42)]);
+    const payload = JSON.stringify({
+      prNumber: 7,
+      headSha: "head",
+      verdict: "changes",
+      summary: "两处",
+      comments: [
+        { id: "c1", path: ZH, key: "a", severity: "major", mqm: "accuracy/mistranslation", body: "错", zhNew: "丙" },
+        { id: "c2", path: ZH, line: 3, key: "b", severity: "major", mqm: "accuracy/mistranslation", body: "错", zhNew: "丁" },
+      ],
+    });
+    const filled = JSON.parse(await withServerFilledFields(7, payload, space)) as {
+      comments: Record<string, unknown>[];
+    };
+    expect(filled.comments[0]).toMatchObject({ line: 41, suggestion: '    "a": "丙",' });
+    expect(filled.comments[1]).toMatchObject({ line: 42, suggestion: '    "b": "丁",' });
+  });
 });
 
 describe("bash heredoc", () => {

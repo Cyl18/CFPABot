@@ -34,26 +34,36 @@ function jsonPayload(content: string): string {
 
 interface RowFact {
   key: string;
+  line: number;
   en?: string;
   zh?: string;
   raw?: string;
 }
 
-function rowFacts(pack: Pack): Map<string, RowFact> {
-  const facts = new Map<string, RowFact>();
+interface RowFactIndex {
+  byLine: Map<string, RowFact>;
+  byKey: Map<string, RowFact>;
+}
+
+function rowFacts(pack: Pack): RowFactIndex {
+  const byLine = new Map<string, RowFact>();
+  const byKey = new Map<string, RowFact>();
   for (const workspace of pack.workspaces) {
     if (workspace.zhPath === null) continue;
     for (const row of workspace.rows) {
       if (row.line === null) continue;
-      facts.set(`${workspace.zhPath}\u0000${row.line}`, {
+      const fact: RowFact = {
         key: row.key,
+        line: row.line,
         ...(row.headEn === undefined ? {} : { en: row.headEn }),
         ...(row.headZh === undefined ? {} : { zh: row.headZh }),
         ...(row.headRaw === undefined ? {} : { raw: row.headRaw }),
-      });
+      };
+      byLine.set(`${workspace.zhPath}\u0000${row.line}`, fact);
+      byKey.set(`${workspace.zhPath}\u0000${row.key}`, fact);
     }
   }
-  return facts;
+  return { byLine, byKey };
 }
 
 /** 整行替换由服务端拼：缩进、引号、逗号、转义都跟 head 原行走。 */
@@ -75,7 +85,7 @@ export async function withServerFilledFields(n: number, content: string, pack?: 
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return content;
   const record = parsed as Record<string, unknown>;
   if (!Array.isArray(record.comments) || record.comments.length === 0) return content;
-  let facts: Map<string, RowFact>;
+  let facts: RowFactIndex;
   try {
     facts = rowFacts(pack ?? (await loadPack(n)));
   } catch {
@@ -86,8 +96,15 @@ export async function withServerFilledFields(n: number, content: string, pack?: 
     if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return entry;
     const comment = { ...(entry as Record<string, unknown>) };
     const path = typeof comment.path === "string" ? comment.path : "";
+    const key = typeof comment.key === "string" ? comment.key.trim() : "";
+    // 行号以 key 为准：手数的 line 会错，key 在 pack 里只有一处。
+    const located = key === "" ? undefined : facts.byKey.get(`${path}\u0000${key}`);
+    if (located !== undefined && comment.line !== located.line) {
+      comment.line = located.line;
+      touched = true;
+    }
     const line = typeof comment.line === "number" ? comment.line : Number.NaN;
-    const fact = facts.get(`${path}\u0000${line}`);
+    const fact = located ?? facts.byLine.get(`${path}\u0000${line}`);
     const zhNew = typeof comment.zhNew === "string" ? comment.zhNew : "";
     if (fact !== undefined) {
       if ((comment.en === undefined || comment.en === "") && fact.en !== undefined) {
@@ -138,13 +155,24 @@ export function prepareDraft(content: string, n: number, headSha: string): Prepa
     return { errors: parsed.error.issues.map((issue) => `${issue.path.join(".") || "草稿"}: ${issue.message}`) };
   }
   const input = parsed.data;
+  const comments: ReviewDraft["comments"] = [];
+  for (const comment of input.comments) {
+    if (comment.line === undefined) {
+      return {
+        errors: [
+          `${comment.path} ${comment.key}: 没有 line，且 path+key 在 pack 里定位不到；补 key 或给 head 行号`,
+        ],
+      };
+    }
+    comments.push({ ...comment, line: comment.line });
+  }
   return {
     draft: {
       prNumber: input.prNumber,
       headSha: input.headSha ?? headSha,
       verdict: input.verdict,
       summary: input.summary,
-      comments: input.comments,
+      comments,
       ...(input.event === undefined ? {} : { event: input.event }),
       updatedAt: new Date().toISOString(),
     },
@@ -159,7 +187,7 @@ export async function storedDraftOf(sessionId?: string): Promise<ReviewDraft | n
   return raw === null ? null : parseDraftFile(raw.content);
 }
 
-export function draftSchema(n: number, headSha: string): DraftSchemaView {
+export function draftSchema(n: number, headSha: string, notes = true): DraftSchemaView {
   return {
     shape: {
       prNumber: n,
@@ -169,7 +197,7 @@ export function draftSchema(n: number, headSha: string): DraftSchemaView {
       comments: [
         {
           path: "projects/assets/<mod>/<版本>/<namespace>/lang/zh_cn.json",
-          line: 12,
+          line: "可省：head 行号；给了 key 就按 path+key 从 pack 定位",
           key: "item.example",
           severity: "critical | major | minor | neutral",
           mqm: "accuracy/mistranslation",
@@ -183,14 +211,16 @@ export function draftSchema(n: number, headSha: string): DraftSchemaView {
         },
       ],
     },
-    notes: [
-      "评论的 path 是 zh_cn 文件路径，line 是 head 行号且必须在 diff hunk 新侧；rows 已给 path/line/inHunk。",
-      "同一 path+key 只能出一条；同一模式的其余 key 放进 covers，两者可以同时给（suggestion 只替换当前行，缩进与行尾逗号要跟 head 该行一致）。",
-      "非 suspected 的评论必须能拼出 suggestion：语言包给 zhNew，手册类给 suggestion（covers 不替代）；suspected 时 severity 不得高于 minor。",
-      "id 可省，服务端按顺序补 c1…cN；headSha 可省，服务端按当前 head 补。",
-      "write pr://<n>/draft 保存并校验，errors 会直接返回，不通过不落盘。",
-      "发布用 write pr://<n>/review；event 可写进草稿，发布时 ?event=APPROVE|REQUEST_CHANGES 优先。",
-    ],
+    notes: notes
+      ? [
+          "评论的 path 是 zh_cn 文件路径；line 可省，给了 key 就按 path+key 定位（手写的 line 会被 key 覆盖）。",
+          "同一 path+key 只能出一条；同一模式的其余 key 放进 covers，两者可以同时给（suggestion 只替换当前行，缩进与行尾逗号要跟 head 该行一致）。",
+          "非 suspected 的评论必须能拼出 suggestion：语言包给 zhNew，手册类给 suggestion（covers 不替代）；suspected 时 severity 不得高于 minor。",
+          "id 可省，服务端按顺序补 c1…cN；headSha 可省，服务端按当前 head 补。",
+          "write pr://<n>/draft 保存并校验，errors 会直接返回，不通过不落盘。",
+          "发布用 write pr://<n>/review；event 可写进草稿，发布时 ?event=APPROVE|REQUEST_CHANGES 优先。",
+        ]
+      : [],
   };
 }
 
@@ -199,7 +229,16 @@ async function patchesOf(n: number): Promise<Map<string, string | undefined>> {
   return new Map(files.map((file) => [file.path, file.patch]));
 }
 
-export async function readDraftOf(n: number, sessionId?: string): Promise<ReviewDraftView> {
+export interface ReadDraftOptions {
+  schema?: boolean;
+  notes?: boolean;
+}
+
+export async function readDraftOf(
+  n: number,
+  sessionId?: string,
+  options: ReadDraftOptions = {},
+): Promise<ReviewDraftView> {
   const { pull } = await prdata.files(n);
   const draft = await storedDraftOf(sessionId);
   const errors: string[] = [];
@@ -219,7 +258,7 @@ export async function readDraftOf(n: number, sessionId?: string): Promise<Review
     headSha: pull.headSha,
     exists: draft !== null,
     draft,
-    schema: draftSchema(n, pull.headSha),
+    ...(options.schema === false ? {} : { schema: draftSchema(n, pull.headSha, options.notes !== false) }),
     validation: { errors, warnings, headCurrent },
     write: `pr://${n}/draft`,
     publish: `pr://${n}/review`,

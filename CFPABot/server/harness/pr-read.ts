@@ -20,6 +20,12 @@ import { termsOf } from "./review/terms.ts";
 import { readDraftOf } from "./review/draft.ts";
 import { specialPageOf } from "./review/special.ts";
 
+/** `?name=0|false` 关掉，缺省为开。 */
+function flagDefault(query: URLSearchParams, name: string): boolean {
+  const value = query.get(name);
+  return value === null || (value !== "0" && value !== "false");
+}
+
 function filterParam(value: string | null, fallback: RowsFilter): RowsFilter {
   if (value === "reviewable" || value === "changed" || value === "flagged" || value === "all") return value;
   if (value === null || value.trim() === "") return fallback;
@@ -299,7 +305,12 @@ export async function readPr(
 
   if (sub === "draft") {
     assertChildless(seg, uri);
-    return jsonResult(await readDraftOf(n, session?.sessionId));
+    return jsonResult(
+      await readDraftOf(n, session?.sessionId, {
+        schema: flagDefault(uri.query, "schema"),
+        notes: flagDefault(uri.query, "notes"),
+      }),
+    );
   }
 
   if (sub === "files") return readFiles(uri);

@@ -39,7 +39,8 @@ export interface WorkPackManifest {
   generatedAt: string;
   dir: string;
   manifestPath: string;
-  budgetBytes: number;
+  /** 单片 markdown 的预算；rows 的 plan 预算另算。 */
+  sliceBudgetBytes: number;
   counts: { reviewable: number; slices: number; manualPairs: number; docBytes: number };
   workspaces: {
     workspace: string;
@@ -51,7 +52,8 @@ export interface WorkPackManifest {
   slices: WorkPackSlice[];
   fileFindings: { path: string; findings: Finding[] }[];
   duplicates: { workspace: string; zh: string; keys: string[] }[];
-  checks: { workspace: string; findings: Finding[] }[];
+  /** 工作区级机械检查；行级 findings 不在这里，别和简报的 checks 比。 */
+  fileChecks: { workspace: string; findings: Finding[] }[];
   excluded: { rows: number };
 }
 
@@ -231,7 +233,7 @@ export function composeWorkPack(
     generatedAt: now.toISOString(),
     dir: `pack/${pack.headSha.slice(0, 7)}`,
     manifestPath: `local://${MANIFEST_PATH}`,
-    budgetBytes: budget,
+    sliceBudgetBytes: budget,
     counts: { reviewable: reviewable.length, slices: slices.length, manualPairs: 0, docBytes },
     workspaces: pack.workspaces.map((workspace) => ({
       workspace: workspaceKey(workspace),
@@ -250,7 +252,7 @@ export function composeWorkPack(
         workspace.duplicates.map((entry) => ({ workspace: workspaceKey(workspace), zh: entry.zh, keys: entry.keys })),
       )
       .slice(0, LIST_CAP),
-    checks: pack.workspaces
+    fileChecks: pack.workspaces
       .filter((workspace) => workspace.checks.length > 0)
       .map((workspace) => ({ workspace: workspaceKey(workspace), findings: workspace.checks.slice(0, 10) })),
     excluded: { rows: rows.length - reviewable.length },

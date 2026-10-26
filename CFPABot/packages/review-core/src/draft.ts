@@ -3,27 +3,28 @@ import type { DraftComment, ReviewDraft, Severity, Verdict } from "@cfpa/contrac
 import { MQM_BY_ID } from "@cfpa/contracts/mqm";
 import { inHunks, patchHeadLines, patchHunks } from "./domain/diff.ts";
 
+/** 模型给的评论：line 可省，服务端按 path+key 从 pack 定位。 */
+const draftCommentInput = z.object({
+  id: z.string().min(1),
+  path: z.string().min(1),
+  line: z.number().int().positive().optional(),
+  key: z.string(),
+  severity: z.enum(["critical", "major", "minor", "neutral"]),
+  mqm: z.string(),
+  en: z.string().optional(),
+  zh: z.string().optional(),
+  body: z.string(),
+  suggestion: z.string().optional(),
+  covers: z.array(z.string()).optional(),
+  suspected: z.boolean().optional(),
+});
+
 export const draftInputSchema = z.object({
   prNumber: z.number().int().positive(),
   headSha: z.string().min(1).optional(),
   verdict: z.enum(["approve", "changes", "reject"]),
   summary: z.string(),
-  comments: z.array(
-    z.object({
-      id: z.string().min(1),
-      path: z.string().min(1),
-      line: z.number().int().positive(),
-      key: z.string(),
-      severity: z.enum(["critical", "major", "minor", "neutral"]),
-      mqm: z.string(),
-      en: z.string().optional(),
-      zh: z.string().optional(),
-      body: z.string(),
-      suggestion: z.string().optional(),
-      covers: z.array(z.string()).optional(),
-      suspected: z.boolean().optional(),
-    }),
-  ),
+  comments: z.array(draftCommentInput),
   event: z.enum(["COMMENT", "APPROVE", "REQUEST_CHANGES"]).optional(),
 });
 
@@ -31,6 +32,7 @@ export const DRAFT_FILE = "draft.json";
 
 export const reviewDraftSchema = draftInputSchema.extend({
   headSha: z.string().min(1),
+  comments: z.array(draftCommentInput.extend({ line: z.number().int().positive() })),
   updatedAt: z.string(),
   publishedAt: z.string().optional(),
   publishedUrl: z.string().optional(),

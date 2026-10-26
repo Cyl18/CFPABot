@@ -17,7 +17,7 @@ import { assertCanWrite, type WriteSession } from "../agent/policy.ts";
 import { publishDraft } from "../agent/workflows/review/publish.ts";
 import { prdata } from "../prdata.ts";
 import { errorResult, jsonResult } from "./result.ts";
-import { prepareDraft, saveDraftOf, markPublishedOf, storedDraftOf } from "./review/draft.ts";
+import { prepareDraft, saveDraftOf, markPublishedOf, storedDraftOf, withServerFilledFields } from "./review/draft.ts";
 import { writeWorkPack } from "./review/workpack.ts";
 import { parseThreadState } from "./thread-state.ts";
 import { invalidateThreads, threadsOf } from "./review/threads.ts";
@@ -56,10 +56,12 @@ function parseSubmit(content: string | undefined): { event: "COMMENT" | "APPROVE
 async function writeDraft(uri: PrParts, content: string | undefined, ctx: WriteSession): Promise<AgentToolResult<Record<string, unknown>>> {
   // 空正文 = 复用 local://draft.json：可以先 edit 几行，再整份校验落盘。
   let body = content ?? "";
+  let reused = false;
   if (body.trim() === "") {
     const raw = await readLocal(ctx.sessionId, DRAFT_FILE);
     if (raw === null) throw new Error("没有已保存的草稿；正文里给草稿 JSON，或先写 local://draft.json。");
     body = raw.content;
+    reused = true;
   }
   const result = await saveDraftOf(uri.number, ctx.sessionId, body);
   if (!result.ok || result.draft === undefined) {
@@ -73,7 +75,16 @@ async function writeDraft(uri: PrParts, content: string | undefined, ctx: WriteS
   return jsonResult({
     ok: true,
     saved: `local://${DRAFT_FILE}`,
-    comments: result.draft.comments.length,
+    ...(reused ? { reused: `local://${DRAFT_FILE}` } : {}),
+    // 回显服务端拼好的整行；不用先保存再读回来验证。
+    comments: result.draft.comments.map((comment) => ({
+      id: comment.id,
+      path: comment.path,
+      line: comment.line,
+      key: comment.key,
+      severity: comment.severity,
+      ...(comment.suggestion === undefined ? {} : { suggestion: comment.suggestion }),
+    })),
     warnings: result.warnings,
     next: result.next,
   });
@@ -153,7 +164,7 @@ async function writeReview(uri: PrParts, content: string | undefined, ctx: Write
   let draft: ReviewDraft;
   if (content !== undefined && content.trim() !== "") {
     const { pull } = await prdata.files(n);
-    const prepared = prepareDraft(content, n, pull.headSha);
+    const prepared = prepareDraft(await withServerFilledFields(n, content), n, pull.headSha);
     if (prepared.draft === undefined) {
       return errorResult({ ok: false, errors: prepared.errors, next: [`write pr://${n}/draft 修正后再发布`] });
     }

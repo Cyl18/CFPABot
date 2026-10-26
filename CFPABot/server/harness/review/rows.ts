@@ -360,7 +360,7 @@ function planView(total: number, bytes: number, slices: readonly PlannedSlice[],
   return {
     total,
     bytes,
-    budgetBytes: budget,
+    rowsBudgetBytes: budget,
     fits,
     sliceCount: slices.length,
     slices: slices.slice(0, PLAN_SLICES).map((slice) => ({
@@ -486,7 +486,7 @@ export function reviewRowsForInput(input: RowsInput, options: RowsOptions): Revi
         nextOffset: null,
         complete: false,
         plan,
-        hint: `共 ${selected.length} 行 / ${plan.bytes} B，超过单页预算 ${plan.budgetBytes} B；要派单先 write pr://${input.pack.prNumber}/pack {}，或照 next 逐片读，共 ${plan.sliceCount} 片。`,
+        hint: `共 ${selected.length} 行 / ${plan.bytes} B，超过单页预算 ${plan.rowsBudgetBytes} B；要派单先 write pr://${input.pack.prNumber}/pack {}，或照 next 逐片读，共 ${plan.sliceCount} 片。`,
         next: slices[0]?.uri ?? null,
       }),
     };
