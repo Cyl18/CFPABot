@@ -527,6 +527,12 @@ export interface SubagentInfo {
   currentToolStartMs?: number;
   contextTokens?: number;
   contextWindow?: number;
+  /** 后台 job id。 */
+  jobId?: string;
+  percent?: number;
+  stage?: string;
+  watch?: string;
+  probeCost?: number;
 }
 
 /** 子代理 transcript 的一页；`total` 是投影后的总条数，前端拿它做下一次的 offset。 */
@@ -537,6 +543,20 @@ export interface SubagentTranscript {
   live: boolean;
   status?: SubagentInfo["status"];
   activity?: string;
+  percent?: number;
+  stage?: string;
+  watch?: string;
+  probeCost?: number;
+  /** 子代理此刻是否在流式接收。 */
+  streaming?: boolean;
+  /** 正在流式的那条助手的字符数；它增长就说明上游还在吐 token。 */
+  streamChars?: number;
+  /** 用量计数器比 percent/stage 刷新得勤，抽屉头部用它们显示实时值。 */
+  tokens?: number;
+  toolCount?: number;
+  durationMs?: number;
+  /** 子代理创建时刻；运行中的耗时以它为准，progress 的时间戳会停在最后一次事件。 */
+  startedAt?: number;
 }
 
 export type ChatItem =
@@ -591,6 +611,8 @@ export interface SessionDetail extends SessionSummary {
   items: ChatItem[];
   artifact?: unknown;
   artifactFile?: string;
+  /** 已知子代理的最近状态；服务重启后从 status.json 回放。 */
+  subagents?: SubagentInfo[];
 }
 
 export interface SessionFile {
@@ -631,6 +653,10 @@ export type SessionEvent =
   | { type: "item"; item: ChatItem }
   /** 一次模型往返（step）结束：响应正文与思考都已完整返回。 */
   | { type: "step"; phase: "end" }
+  /** omp 插入队列快照：用户消息已受理但还没到下一个步边界。 */
+  | { type: "queue"; steering: string[]; followUp: string[] }
+  /** 子代理状态更新：进度、探针估计、完成或失败。 */
+  | { type: "subagent"; info: SubagentInfo }
   | { type: "artifact"; artifact: unknown }
   | { type: "ping" };
 

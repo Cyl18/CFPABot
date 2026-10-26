@@ -11,6 +11,8 @@ import { buildTurns, formatDuration, formatTokens } from "./turns.ts";
 
 const POLL_MS = 1_200;
 
+const FLOW_QUIET_MS = 4_000;
+
 const IDLE_POLLS_BEFORE_STOP = 4;
 
 const STATUS_TEXT: Record<SubagentInfo["status"], string> = {
@@ -43,6 +45,10 @@ export function SubagentDrawer({
   const [items, setItems] = useState<readonly ChatItem[]>([]);
   const [status, setStatus] = useState<SubagentInfo["status"] | undefined>();
   const [activity, setActivity] = useState<string | undefined>();
+  const [estimate, setEstimate] = useState<{ percent?: number; stage?: string; watch?: string }>({});
+  const [counters, setCounters] = useState<{ tokens?: number; toolCount?: number; durationMs?: number; startedAt?: number }>({});
+  const [flow, setFlow] = useState<{ chars: number; since: number } | undefined>();
+  const flowRef = useRef<{ chars: number; since: number } | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const offset = useRef(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -59,6 +65,7 @@ export function SubagentDrawer({
 
   useEffect(() => {
     let alive = true;
+    flowRef.current = undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let quiet = 0;
     const tick = async () => {
@@ -77,6 +84,19 @@ export function SubagentDrawer({
         }
         setStatus(page.status);
         setActivity(page.activity);
+        setEstimate({ percent: page.percent, stage: page.stage, watch: page.watch });
+        setCounters({
+          tokens: page.tokens,
+          toolCount: page.toolCount,
+          durationMs: page.durationMs,
+          startedAt: page.startedAt,
+        });
+        // 字符增长才算有流；收尾归零、换下一条时不刷新 since。
+        const chars = page.streamChars ?? 0;
+        const previous = flowRef.current;
+        const since = previous !== undefined && chars > previous.chars ? Date.now() : (previous?.since ?? Date.now());
+        flowRef.current = { chars, since };
+        setFlow(flowRef.current);
         setError(null);
       } catch (err) {
         if (!alive) return;
@@ -97,10 +117,17 @@ export function SubagentDrawer({
   const shown = status ?? info.status;
   const shownActivity = activity ?? info.activity;
   const turns = buildTurns(items, live);
-  const percent =
-    info.contextTokens !== undefined && info.contextWindow !== undefined && info.contextWindow > 0
-      ? Math.min(100, (info.contextTokens / info.contextWindow) * 100)
-      : undefined;
+  const percent = estimate.percent ?? info.percent;
+  const stage = estimate.stage ?? info.stage;
+  const watch = estimate.watch ?? info.watch;
+  const tokens = counters.tokens ?? info.tokens;
+  const toolCount = counters.toolCount ?? info.toolCount;
+  const durationMs =
+    shown === "running" && counters.startedAt !== undefined
+      ? Math.max(counters.durationMs ?? 0, Date.now() - counters.startedAt)
+      : (counters.durationMs ?? info.durationMs);
+  const stalledMs = flow === undefined ? 0 : Date.now() - flow.since;
+  const flowing = stalledMs < FLOW_QUIET_MS && (flow?.chars ?? 0) > 0;
 
   return createPortal(
     <aside
@@ -130,22 +157,40 @@ export function SubagentDrawer({
         </div>
       </header>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-3 py-1.5 text-[11px] tabular-nums text-muted">
-        <span>{formatTokens(info.tokens)} tok</span>
-        <span>{info.toolCount} 次工具</span>
-        <span>{formatDuration(info.durationMs)}</span>
+        <span>{formatTokens(tokens)} tok</span>
+        <span>{toolCount} 次工具</span>
+        <span>{formatDuration(durationMs)}</span>
         {info.cost > 0 && <span>${info.cost.toFixed(4)}</span>}
+        {shown === "running" && flow !== undefined && (
+          <span
+            className={flowing ? "text-ok" : "text-warn"}
+            title={flowing ? "正在接收上游输出" : "这段时间没有收到新的输出字符"}
+          >
+            {flowing ? "有流" : stalledMs === 0 ? "等上游" : `无新输出 ${formatDuration(stalledMs)}`}
+          </span>
+        )}
         {percent !== undefined && (
           <span className="flex items-center gap-1">
             <span className="h-1 w-12 overflow-hidden rounded-full bg-elevated">
               <span
-                className={cn("block h-full", percent > 80 ? "bg-danger" : "bg-accent")}
+                className={cn("block h-full", percent >= 100 ? "bg-ok" : "bg-accent")}
                 style={{ width: `${percent}%` }}
               />
             </span>
-            ctx {Math.round(percent)}%
+            完成 {percent}%
           </span>
         )}
       </div>
+      {stage !== undefined && (
+        <p className="line-clamp-1 break-words border-b border-line px-3 py-1 text-[11px] text-muted">
+          阶段 {stage}
+        </p>
+      )}
+      {watch !== undefined && (
+        <p className="line-clamp-2 break-words border-b border-line px-3 py-1 text-[11px] text-muted">
+          观察 {watch}
+        </p>
+      )}
       {shownActivity !== undefined && (
         <p className="line-clamp-2 break-words border-b border-line px-3 py-1.5 text-[11px] text-accent">
           {shownActivity}

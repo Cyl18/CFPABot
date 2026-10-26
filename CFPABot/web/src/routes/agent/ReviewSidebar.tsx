@@ -1,4 +1,4 @@
-import type { ChatItem } from "@cfpa/contracts/api";
+import type { ChatItem, SubagentInfo } from "@cfpa/contracts/api";
 import { useMutation } from "@tanstack/react-query";
 import { Ban, Bot, CheckCircle2, ChevronRight, Circle, CircleAlert, CircleMinus, Files, ListTodo, LoaderCircle } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -165,10 +165,24 @@ function PlanCard({ phases }: { phases: readonly TodoPhase[] | undefined }) {
   );
 }
 
-function SubagentList({ items, sessionId, prNumber }: { items: readonly ToolItem[]; sessionId: string; prNumber?: number }) {
+function SubagentList({
+  items,
+  sessionId,
+  prNumber,
+  infos,
+}: {
+  items: readonly ToolItem[];
+  sessionId: string;
+  prNumber?: number;
+  infos?: Record<string, SubagentInfo>;
+}) {
   const [openId, setOpenId] = useState<string | null>(null);
   const stop = useMutation({ mutationFn: (agentId: string) => api.abortSubagent(sessionId, agentId) });
-  const rows = items.map((item) => ({ item, info: subagentInfo(item.tool) }));
+  const rows = items.map((item) => {
+    const snapshot = subagentInfo(item.tool);
+    const live = snapshot === undefined ? undefined : infos?.[snapshot.agentId];
+    return { item, info: live === undefined ? snapshot : { ...snapshot, ...live } };
+  });
   const opened = rows.find((row) => row.info !== undefined && row.info.agentId === openId);
   return (
     <SectionCard icon={<Bot aria-hidden="true" className="size-3.5" />} title="子代理" meta={rows.length > 0 ? String(rows.length) : undefined}>
@@ -177,7 +191,17 @@ function SubagentList({ items, sessionId, prNumber }: { items: readonly ToolItem
       ) : (
         <div className="space-y-1">
           {rows.map(({ item, info }) => {
-            const state = SUBAGENT_STATE[item.tool.state];
+            const kind =
+              info === undefined
+                ? item.tool.state
+                : info.status === "running"
+                  ? "running"
+                  : info.status === "error"
+                    ? "error"
+                    : info.status === "queued"
+                      ? "pending"
+                      : "done";
+            const state = SUBAGENT_STATE[kind];
             const activity = info?.activity ?? stringArg(item.tool, "task");
             const meta =
               info !== undefined && info.tokens > 0
@@ -200,20 +224,27 @@ function SubagentList({ items, sessionId, prNumber }: { items: readonly ToolItem
                   onClick={() => setOpenId(info === undefined ? null : info.agentId)}
                   title={item.tool.result}
                   className={cn(
-                    "flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left text-[11px]",
+                    "flex min-w-0 flex-1 flex-col gap-0.5 py-1.5 text-left text-[11px]",
                     info === undefined ? "cursor-default" : "cursor-pointer",
                   )}
                 >
-                  <span className={cn("size-1.5 shrink-0 rounded-full", SUBAGENT_DOT[item.tool.state])} />
-                  <code className="shrink-0 font-mono">
-                    {model !== undefined ? `@${model}` : (info?.agent ?? "子代理")}
-                  </code>
-                  <span className={cn("shrink-0", state.className)}>{state.label}</span>
-                  <span className="min-w-0 flex-1 truncate text-muted">{activity ?? "—"}</span>
-                  {meta !== undefined && <span className="shrink-0 tabular-nums text-muted">{meta}</span>}
-                  {info !== undefined && <ChevronRight aria-hidden="true" className="size-3 shrink-0 text-muted" />}
+                  <span className="flex w-full min-w-0 items-center gap-2">
+                    <span className={cn("size-1.5 shrink-0 rounded-full", SUBAGENT_DOT[kind])} />
+                    <code className="shrink-0 font-mono">
+                      {model !== undefined ? `@${model}` : (info?.agent ?? "子代理")}
+                    </code>
+                    <span className={cn("shrink-0", state.className)}>{state.label}</span>
+                    {kind === "running" && info?.percent !== undefined && (
+                      <span className="shrink-0 tabular-nums text-muted">{info.percent}%</span>
+                    )}
+                    {info !== undefined && <ChevronRight aria-hidden="true" className="ml-auto size-3 shrink-0 text-muted" />}
+                  </span>
+                  <span className="flex w-full min-w-0 items-center gap-2 pl-3.5">
+                    <span className="min-w-0 flex-1 truncate text-muted">{activity ?? "—"}</span>
+                    {meta !== undefined && <span className="shrink-0 tabular-nums text-muted">{meta}</span>}
+                  </span>
                 </button>
-                {item.tool.state === "running" && info !== undefined && (
+                {kind === "running" && info !== undefined && (
                   <button
                     type="button"
                     title="停止这个子代理"
@@ -238,7 +269,7 @@ function SubagentList({ items, sessionId, prNumber }: { items: readonly ToolItem
         <SubagentDrawer
           sessionId={sessionId}
           info={opened.info}
-          live={opened.item.tool.state === "running"}
+          live={opened.info.status === "running"}
           {...(prNumber === undefined ? {} : { prNumber })}
           onClose={() => setOpenId(null)}
         />
@@ -247,7 +278,17 @@ function SubagentList({ items, sessionId, prNumber }: { items: readonly ToolItem
   );
 }
 
-export function ReviewSidebar({ items, prNumber, sessionId }: { items: readonly ChatItem[]; prNumber?: number; sessionId: string }) {
+export function ReviewSidebar({
+  items,
+  prNumber,
+  sessionId,
+  infos,
+}: {
+  items: readonly ChatItem[];
+  prNumber?: number;
+  sessionId: string;
+  infos?: Record<string, SubagentInfo>;
+}) {
   const pr = usePr(prNumber ?? 0);
   const files = pr.data?.files ?? [];
   const progress = fileProgress(items, files, prNumber);
@@ -263,7 +304,7 @@ export function ReviewSidebar({ items, prNumber, sessionId }: { items: readonly 
         totalReads={progress.totalReads}
       />
       <PlanCard phases={plan} />
-      <SubagentList items={subagents} sessionId={sessionId} {...(prNumber === undefined ? {} : { prNumber })} />
+      <SubagentList items={subagents} sessionId={sessionId} infos={infos} {...(prNumber === undefined ? {} : { prNumber })} />
     </div>
   );
 }

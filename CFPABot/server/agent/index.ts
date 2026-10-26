@@ -17,6 +17,7 @@ import type {
   SessionEvent,
   SessionFile,
   SessionFileContent,
+  SessionStatus,
   SessionSummary,
   SubagentTranscript,
   ThinkingLevel,
@@ -36,10 +37,10 @@ import { openAuthStorage, openModelRuntime, openSessionManager, messagesFromFile
 import { LiveProjector, projectMessages } from "./projection.ts";
 import { buildSystemPrompt } from "./prompt.ts";
 import { sandbox } from "./plugins/sandbox.ts";
-import { sessionTitle } from "./title.ts";
+import { fallbackTitle, sessionTitle } from "./title.ts";
 import { SessionStore, summarize, type SessionMeta, type SessionRecord } from "./sessions.ts";
 import { registerSchemes } from "./schemes.ts";
-import { subagentTranscript } from "./subagents.ts";
+import { subagentTranscript, loadSubagents } from "./subagents.ts";
 import { buildTools } from "./tools/index.ts";
 import { publishDraft } from "./workflows/review/publish.ts";
 import { generalWorkflow } from "./workflows/general.ts";
@@ -105,6 +106,21 @@ function now(): string {
   return new Date().toISOString();
 }
 
+/** 回合力以 session 事件为准：omp 自己起的续跑回合也能被看见、被中止、被归档。 */
+function markStatus(id: string, status: SessionStatus): void {
+  const record = store.peek(id);
+  if (!record) return;
+  const changed = record.meta.status !== status;
+  record.meta.status = status;
+  record.meta.updatedAt = now();
+  void store.put(record).catch((err: unknown) => log.error("会话状态写入失败", { id, err }));
+  const slot = live.get(id);
+  if (changed) hub.emit(id, { type: "status", status });
+  if (status === "idle" && !slot?.turn && (slot?.stale || record.meta.archived)) {
+    void disposeRuntime(id).catch((err: unknown) => log.error("会话资源释放失败", { id, err }));
+  }
+}
+
 let skillsPromise: Promise<Skill[]> | undefined;
 
 function allSkills(): Promise<Skill[]> {
@@ -134,6 +150,7 @@ async function detailOf(record: SessionRecord): Promise<SessionDetail> {
   const draft = raw === null ? null : parseDraftFile(raw.content);
   const cached = live.get(meta.id)?.runtime?.session.agent.state.messages;
   const messages = cached ? [...cached] : await messagesFromFile(record.sessionFile);
+  const subagents = await loadSubagents(meta.id);
   return {
     ...summarize(
       record,
@@ -141,17 +158,25 @@ async function detailOf(record: SessionRecord): Promise<SessionDetail> {
       draft ? { prNumber: draft.prNumber, verdict: draft.verdict, comments: draft.comments.length } : undefined,
     ),
     items: projectMessages(messages),
+    ...(subagents.length === 0 ? {} : { subagents }),
     ...(draft !== null ? { artifact: draft, artifactFile: DRAFT_FILE } : {}),
   };
 }
 
 const draftInput = draftInputSchema.omit({ event: true }).extend({ headSha: z.string().min(1) });
 
-function toolContext(record: SessionRecord, mcp: { current?: MCPManager }): ToolContext {
+function toolContext(
+  record: SessionRecord,
+  mcp: { current?: MCPManager },
+  session: { current?: AgentSession },
+): ToolContext {
+  const id = record.meta.id;
   return {
-    sessionId: record.meta.id,
+    sessionId: id,
     ...(record.meta.prNumber === undefined ? {} : { prNumber: record.meta.prNumber }),
     mcpManager: () => mcp.current,
+    session: () => session.current,
+    emit: (event) => hub.emit(id, event),
   };
 }
 
@@ -183,7 +208,7 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   const systemPrompt =
     aliases.length === 0
       ? basePrompt
-      : `${basePrompt}\n\n可用模型：${aliases.map((role) => `@${role}`).join("、")}。派子代理用 delegate({ agent: "review", model: "@模型名", task: "…", resources: ["pr://…"] })；model 可省，省略时用默认模型。`;
+      : `${basePrompt}\n\n可用模型：${aliases.map((role) => `@${role}`).join("、")}。派子代理用 delegate({ agent: "review", model: "@模型名", task: "…", resources: ["pr://…"] })；model 可省，省略时用默认模型。delegate 立即返回后台 job，结果自动投递：不要轮询，完全被挡住时才调用 wait；wait 会被用户插话打断，先处理用户消息。`;
   const skills = await agentSkills(workflow);
   const configured = record.meta.thinking;
   const { model, thinking } = await resolveModel(record.meta.model, configured);
@@ -203,8 +228,9 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
     await store.put(record);
   }
   const mcp: { current?: MCPManager } = {};
+  const sessionRef: { current?: AgentSession } = {};
   const mcpManager = await agentMcpManager();
-  const customTools = buildTools(toolContext(record, mcp), Object.keys(ALLOWED_TOOLS), extensions);
+  const customTools = buildTools(toolContext(record, mcp, sessionRef), Object.keys(ALLOWED_TOOLS), extensions);
   const created = await createAgentSession({
     // 发现面（.mcp.json、规则）以仓库根为准；运行时 cwd 由 sessionManager 的 workspace 决定。
     cwd: paths.root,
@@ -229,6 +255,7 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
     throw err;
   });
   const session: AgentSession = created.session;
+  sessionRef.current = session;
   mcp.current = mcpManager;
   // MCP 工具由 manager 拥有，非 UI 路径 omp 不会自动激活，必须显式刷新一次。
   if (mcpManager) await session.refreshMCPTools(mcpManager.getTools());
@@ -237,6 +264,11 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
     for (const item of projector.handle(event)) hub.emit(id, { type: "item", item });
     const status = statusEventOf(event);
     if (status !== undefined) hub.emit(id, status);
+    if (event.type === "agent_start") markStatus(id, "running");
+    else if (event.type === "agent_end" && event.isTerminal !== false) markStatus(id, "idle");
+    else if (event.type === "queue_update") {
+      hub.emit(id, { type: "queue", steering: event.steering, followUp: event.followUp });
+    }
     if (event.type === "message_end" && event.message.role === "assistant") hub.emit(id, { type: "step", phase: "end" });
   });
   try {
@@ -298,18 +330,19 @@ async function runTurn(id: string, prompt: string, admit: () => void, slot: Live
     slot.abort = undefined;
     admit();
     slot.admitted = undefined;
+    const streaming = slot.runtime?.session.isStreaming === true;
     const fresh = await store.get(id).catch(() => null);
     if (fresh) {
-      fresh.meta.status = "idle";
+      if (!streaming) fresh.meta.status = "idle";
       fresh.meta.updatedAt = now();
       if (error) fresh.meta.lastError = error;
       else delete fresh.meta.lastError;
       await store.put(fresh).catch((err: unknown) => log.error("会话状态写入失败", { id, err }));
     }
-    if (slot.stale || !fresh || fresh.meta.archived) {
+    if (!streaming) hub.emit(id, { type: "status", status: "idle", ...(error ? { lastError: error } : {}) });
+    if (!streaming && (slot.stale || !fresh || fresh.meta.archived)) {
       await disposeRuntime(id).catch((err: unknown) => log.error("会话资源释放失败", { id, err }));
     }
-    hub.emit(id, { type: "status", status: "idle", ...(error ? { lastError: error } : {}) });
   }
 }
 
@@ -454,32 +487,33 @@ export const agent = {
   async send(id: string, text: string): Promise<void> {
     const message = text.trim();
     if (!message) throw httpError("消息不能为空", 400);
-    for (;;) {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
       const current = await store.get(id);
       if (!current) throw httpError("会话不存在", 404);
       if (current.meta.archived) throw httpError("会话已归档", 400);
       const slot = live.get(id);
+      const session = slot?.runtime?.session;
+      // 流式中立刻排队：omp 在下一个步边界注入，而不是等一下个 step 事件再发。
+      if (session?.isStreaming) {
+        await session.prompt(message, { streamingBehavior: "steer" });
+        return;
+      }
       if (!slot?.turn) {
         if (launch(id, message)) return;
         continue;
       }
-      // 先等 omp 受理：受理之后 isStreaming 才反映这一轮，steer 才插得进去。
-      if (slot.admitted) await slot.admitted;
-      const runtime = slot.runtime;
-      if (runtime?.session.isStreaming) {
-        await runtime.session.prompt(message, { streamingBehavior: "steer" });
-        return;
-      }
-      // runtime 还在建立，或这一轮刚好收尾：等它结束再重新判断。
-      await slot.turn;
+      // runtime 还在建立：等 omp 受理，受理之后 isStreaming 才反映这一轮。
+      await (slot.admitted ?? slot.turn);
     }
+    throw httpError("会话持续忙碌，消息未受理", 409, "session_busy");
   },
 
   async abort(id: string): Promise<void> {
     const slot = live.get(id);
-    if (!slot?.turn) return;
+    const session = slot?.runtime?.session;
+    if (!session) return;
     slot.abort = true;
-    void slot.runtime?.session.abort().catch(() => {});
+    void session.abort().catch(() => {});
   },
 
   async subagent(id: string, agentId: string, offset: number): Promise<SubagentTranscript> {
@@ -492,7 +526,8 @@ export const agent = {
     const record = await store.get(id);
     if (!record) throw httpError("会话不存在", 404);
     const slot = live.get(id);
-    if (slot?.turn) {
+    const busy = slot?.turn !== undefined || slot?.runtime?.session.isStreaming === true;
+    if (busy && slot !== undefined) {
       slot.abort = true;
       slot.stale = true;
       void slot.runtime?.session.abort().catch(() => {});
@@ -501,7 +536,7 @@ export const agent = {
     record.meta.updatedAt = now();
     await store.put(record);
     hub.touch(id);
-    if (!slot?.turn) await disposeRuntime(id);
+    if (!busy) await disposeRuntime(id);
   },
 
   subscribe(id: string, listener: (event: SessionEvent) => void): () => void {
@@ -577,7 +612,7 @@ export const agent = {
     await store.put(record);
     hub.touch(id);
     const slot = live.get(id);
-    if (slot?.turn) slot.stale = true;
+    if (slot?.turn !== undefined || slot?.runtime?.session.isStreaming === true) slot.stale = true;
     else await disposeRuntime(id);
   },
 
@@ -634,7 +669,7 @@ export const agent = {
     hub.touch(id);
     if (runtimeChanged) {
       const slot = live.get(id);
-      if (slot?.turn) slot.stale = true;
+      if (slot?.turn !== undefined || slot?.runtime?.session.isStreaming === true) slot.stale = true;
       else await disposeRuntime(id);
     }
   },

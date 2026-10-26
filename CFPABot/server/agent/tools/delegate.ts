@@ -3,9 +3,12 @@ import { mkdir, readFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { CustomTool, ExtensionFactory } from "@oh-my-pi/pi-coding-agent";
+import { AsyncJobError } from "@oh-my-pi/pi-coding-agent/async";
 import { InternalUrlRouter } from "@oh-my-pi/pi-coding-agent/internal-urls";
+import { AgentRegistry } from "@oh-my-pi/pi-coding-agent/registry/agent-registry";
 import type { AgentDefinition } from "@oh-my-pi/pi-coding-agent/task";
 import { parseAgent } from "@oh-my-pi/pi-coding-agent/task/agents";
+import { startCompletionProbe } from "@oh-my-pi/pi-coding-agent/task/completion-probe";
 import { runSubprocess } from "@oh-my-pi/pi-coding-agent/task/executor";
 import type { SubagentInfo, ThinkingLevel } from "@cfpa/contracts/api";
 import type { ToolContext } from "../context.ts";
@@ -16,15 +19,9 @@ import { lineRangeOf, sliceLines } from "../../harness/uri.ts";
 import { artifactsDir, localDir } from "../local-store.ts";
 import { agentMcpManager } from "../mcp.ts";
 import { openAuthStorage, openModelRuntime } from "../pi.ts";
-import { subagentDir } from "../subagents.ts";
+import { noteSubagent, subagentDir } from "../subagents.ts";
 
-// 子代理只读：agent md 声明的工具先过这张表，再交给 SDK 装配。
-const CHILD_TOOLS: Record<string, true> = {
-  read: true,
-  grep: true,
-  find: true,
-  glob: true,
-};
+// 子代理的工具面由 agent md 的 tools 决定；孙代理由 omp 的 task 深度配置决定。
 
 const AGENTS_DIR = join(paths.root, ".omp", "agents");
 
@@ -77,7 +74,6 @@ async function loadAgent(name: string): Promise<AgentSpec> {
     agent: {
       ...agent,
       systemPrompt: `${agent.systemPrompt.trim()}\n\n${OPERATING_RULES}`,
-      tools: (agent.tools ?? []).filter((tool) => CHILD_TOOLS[tool] === true),
     },
     output: agent.output,
   };
@@ -133,7 +129,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
     name: "delegate",
     label: "派发子代理",
     description:
-      "按 agent 定义启动只读子代理，返回结构化 findings JSON。model 可省；resources 的内容由服务端整份塞进子代理上下文，超过上限直接报错、不截断。子代理的工具面由 agent md 决定，review 没有读取工具。",
+      "把一片任务交给子代理在后台跑，立即返回 agentId；结果自动投递，不要轮询，完全被挡住时才用 wait。model 可省；resources 的内容由服务端整份塞进子代理上下文，超过上限直接报错、不截断。子代理的工具面由 agent md 决定。",
     parameters: DELEGATE_PARAMS,
     execute: async (_toolCallId, params, onUpdate, _ctx, signal) => {
       const agentName = (params.agent ?? "").trim();
@@ -179,100 +175,166 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
       };
       let lastSentAt = 0;
       let lastKey = "";
-      const authStorage = await openAuthStorage(config.endpoints);
-      try {
-        const { settings, registry } = await openModelRuntime(authStorage, config.endpoints, config.roles);
-        const mcpManager = ctx.mcpManager?.() ?? (await agentMcpManager());
-        const repoRoot = existsSync(paths.repo) ? paths.repo : paths.root;
-        const shared = [params.context, await prefetch(resources, ctx.sessionId)].filter(Boolean).join("\n\n");
-        const artifacts = subagentDir(ctx.sessionId);
-        await mkdir(artifacts, { recursive: true });
-        onUpdate?.({ content: [], details: { ...base, subagent: lastInfo } });
-        const result = await runSubprocess({
-          cwd: repoRoot,
-          additionalDirectories: [localDir(ctx.sessionId)],
-          localProtocolOptions: {
-            getArtifactsDir: () => artifactsDir(ctx.sessionId),
-            getSessionId: () => ctx.sessionId,
-          },
-          agent: spec.agent,
-          task: params.task,
-          ...(shared === "" ? {} : { context: shared }),
-          id: agentId,
-          artifactsDir: artifacts,
-          index: 0,
-          ...(modelOverride === undefined ? {} : { modelOverride }),
-          structured: true,
-          outputSchema: spec.output,
-          authStorage,
-          settings,
-          modelRegistry: registry,
-          enableLsp: false,
-          enableIrc: false,
-          keepAlive: false,
-          skills: [],
-          preloadedCustomToolPaths: [],
-          preloadedPreparedExtensions: extensions.map((factory, index) => ({
-            path: `<cfpa-extension:${index}>`,
-            resolvedPath: `<cfpa-extension:${index}>`,
-            factory,
-            error: null,
-          })),
-          ...(mcpManager === undefined ? { enableMCP: false } : { mcpManager }),
-          signal,
-          onProgress: (progress) => {
-            const now = Date.now();
-            if (now - lastSentAt < PROGRESS_INTERVAL_MS) return;
-            const seen = `${progress.toolCount}|${progress.tokens}|${progress.currentTool ?? ""}|${progress.lastIntent ?? ""}`;
-            if (seen === lastKey) return;
-            lastSentAt = now;
-            lastKey = seen;
-            const activity = progress.currentToolIntent ?? progress.lastIntent ?? progress.currentTool;
-            lastInfo = {
-              agentId,
-              agent: agentName,
-              status: "running",
-              ...(roleName === "" ? {} : { model: roleName }),
-              ...(activity === undefined ? {} : { activity }),
-              toolCount: progress.toolCount,
-              tokens: progress.tokens,
-              cost: progress.cost,
-              durationMs: progress.durationMs,
-              ...(progress.currentTool === undefined ? {} : { currentTool: progress.currentTool }),
-              ...(progress.currentToolStartMs === undefined ? {} : { currentToolStartMs: progress.currentToolStartMs }),
-              ...(progress.contextTokens === undefined ? {} : { contextTokens: progress.contextTokens }),
-              ...(progress.contextWindow === undefined ? {} : { contextWindow: progress.contextWindow }),
-            };
-            onUpdate?.({ content: [], details: { ...base, subagent: lastInfo } });
-          },
-        });
-        if (result.aborted || result.exitCode !== 0 || result.error !== undefined) {
-          const text =
-            result.error ??
-            (signal?.aborted === true
-              ? "主代理中止，子代理一起停了"
-              : result.aborted
-                ? "子代理已停止"
-                : result.stderr.trim() || "子代理失败");
-          return {
-            content: [{ type: "text", text }],
-            details: { ...base, subagent: { ...lastInfo, status: "error" } },
-            isError: true,
-          };
-        }
-        const data = result.structuredOutput?.data;
-        return {
-          content: [
-            {
-              type: "text",
-              text: data === undefined ? result.output.trim() || "(子代理没有返回结果)" : JSON.stringify(data),
+      const publish = (info: SubagentInfo) => {
+        lastInfo = info;
+        noteSubagent(ctx.sessionId, info);
+        ctx.emit?.({ type: "subagent", info });
+      };
+      const shared = [params.context, await prefetch(resources, ctx.sessionId)].filter(Boolean).join("\n\n");
+      const artifacts = subagentDir(ctx.sessionId);
+      await mkdir(artifacts, { recursive: true });
+      const session = ctx.session?.();
+      const manager = session?.asyncJobManager;
+
+      const run = async (
+        runSignal: AbortSignal,
+        live: boolean,
+        reportProgress?: (text: string, details?: Record<string, unknown>) => Promise<void>,
+      ) => {
+        const authStorage = await openAuthStorage(config.endpoints);
+        const probeAbort = new AbortController();
+        const stopProbe = () => probeAbort.abort();
+        runSignal.addEventListener("abort", stopProbe, { once: true });
+        try {
+          const { settings, registry } = await openModelRuntime(authStorage, config.endpoints, config.roles);
+          const mcpManager = ctx.mcpManager?.() ?? (await agentMcpManager());
+          const repoRoot = existsSync(paths.repo) ? paths.repo : paths.root;
+          startCompletionProbe({
+            session: () => AgentRegistry.global().get(agentId)?.session ?? null,
+            signal: AbortSignal.any([runSignal, probeAbort.signal]),
+            onEstimate: (estimate, cost) => {
+              publish({
+                ...lastInfo,
+                percent: estimate.percent,
+                probeCost: (lastInfo.probeCost ?? 0) + cost,
+                ...(estimate.stage === undefined ? {} : { stage: estimate.stage }),
+                ...(estimate.watch === undefined ? {} : { watch: estimate.watch }),
+              });
             },
-          ],
-          details: { ...base, subagent: { ...lastInfo, status: "done" } },
+          });
+          return await runSubprocess({
+            cwd: repoRoot,
+            additionalDirectories: [localDir(ctx.sessionId)],
+            localProtocolOptions: {
+              getArtifactsDir: () => artifactsDir(ctx.sessionId),
+              getSessionId: () => ctx.sessionId,
+            },
+            agent: spec.agent,
+            task: params.task,
+            ...(shared === "" ? {} : { context: shared }),
+            id: agentId,
+            artifactsDir: artifacts,
+            index: 0,
+            detached: true,
+            ...(modelOverride === undefined ? {} : { modelOverride }),
+            structured: true,
+            outputSchema: spec.output,
+            authStorage,
+            settings,
+            modelRegistry: registry,
+            ...(manager === undefined ? {} : { asyncJobManager: manager }),
+            ...(session?.getAgentId() === undefined ? {} : { parentAgentId: session.getAgentId() }),
+            enableLsp: false,
+            enableIrc: false,
+            keepAlive: false,
+            skills: [],
+            preloadedCustomToolPaths: [],
+            preloadedPreparedExtensions: extensions.map((factory, index) => ({
+              path: `<cfpa-extension:${index}>`,
+              resolvedPath: `<cfpa-extension:${index}>`,
+              factory,
+              error: null,
+            })),
+            ...(mcpManager === undefined ? { enableMCP: false } : { mcpManager }),
+            signal: runSignal,
+            onProgress: (progress) => {
+              const now = Date.now();
+              if (now - lastSentAt < PROGRESS_INTERVAL_MS) return;
+              const seen = `${progress.toolCount}|${progress.tokens}|${progress.currentTool ?? ""}|${progress.lastIntent ?? ""}`;
+              if (seen === lastKey) return;
+              lastSentAt = now;
+              lastKey = seen;
+              const activity = progress.currentToolIntent ?? progress.lastIntent ?? progress.currentTool;
+              publish({
+                ...lastInfo,
+                ...(activity === undefined ? {} : { activity }),
+                toolCount: progress.toolCount,
+                tokens: progress.tokens,
+                cost: progress.cost,
+                durationMs: progress.durationMs,
+                ...(progress.currentTool === undefined ? {} : { currentTool: progress.currentTool }),
+                ...(progress.currentToolStartMs === undefined ? {} : { currentToolStartMs: progress.currentToolStartMs }),
+                ...(progress.contextTokens === undefined ? {} : { contextTokens: progress.contextTokens }),
+                ...(progress.contextWindow === undefined ? {} : { contextWindow: progress.contextWindow }),
+              });
+              void reportProgress?.(activity ?? `${progress.toolCount} 次工具`, { subagent: lastInfo });
+              if (live) onUpdate?.({ content: [], details: { ...base, subagent: lastInfo } });
+            },
+          });
+        } finally {
+          runSignal.removeEventListener("abort", stopProbe);
+          stopProbe();
+          authStorage.close();
+        }
+      };
+
+      if (manager === undefined || session === undefined) {
+        // 没有 job 管理器就只能同步跑；宁可慢，也不能把结果静默丢掉。
+        const result = await run(signal ?? new AbortController().signal, true);
+        const failed = result.aborted || result.exitCode !== 0 || result.error !== undefined;
+        publish({ ...lastInfo, status: failed ? "error" : "done" });
+        const data = result.structuredOutput?.data;
+        const text = failed
+          ? result.error ?? (result.aborted ? "子代理已停止" : result.stderr.trim() || "子代理失败")
+          : data === undefined
+            ? result.output.trim() || "(子代理没有返回结果)"
+            : JSON.stringify(data);
+        return {
+          content: [{ type: "text", text }],
+          details: { ...base, subagent: lastInfo },
+          ...(failed ? { isError: true } : {}),
         };
-      } finally {
-        authStorage.close();
       }
+
+      const ownerId = session.getAgentId();
+      const info: SubagentInfo = { ...lastInfo, jobId: agentId };
+      publish(info);
+      manager.register(
+        "task",
+        agentId,
+        async ({ signal: jobSignal, reportProgress }) => {
+          try {
+            const result = await run(jobSignal, false, reportProgress);
+            const structured = result.structuredOutput;
+            if (result.aborted || result.exitCode !== 0 || result.error !== undefined) {
+              throw new AsyncJobError(
+                result.error ?? (result.aborted ? "子代理已停止" : result.stderr.trim() || "子代理失败"),
+                structured,
+              );
+            }
+            publish({ ...lastInfo, status: "done" });
+            const data = structured?.data;
+            return {
+              text: data === undefined ? result.output.trim() || "(子代理没有返回结果)" : JSON.stringify(data),
+              ...(structured === undefined ? {} : { structured }),
+            };
+          } catch (error) {
+            publish({ ...lastInfo, status: "error" });
+            throw error;
+          }
+        },
+        { id: agentId, agentId, ...(ownerId === undefined ? {} : { ownerId }) },
+      );
+      onUpdate?.({ content: [], details: { ...base, subagent: info } });
+      return {
+        content: [
+          {
+            type: "text",
+            text: `已派发 ${agentId}，后台运行中。结果会自动投递，不要轮询；完全被挡住时调用 wait。`,
+          },
+        ],
+        details: { ...base, jobId: agentId, subagent: info },
+      };
     },
   };
 }

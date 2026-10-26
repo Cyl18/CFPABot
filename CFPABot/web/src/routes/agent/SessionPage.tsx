@@ -5,12 +5,13 @@ import type {
   SessionEvent,
   SessionStatus,
   SetSessionConfigRequest,
+  SubagentInfo,
   ThinkingLevel,
   WriteScope,
 } from "@cfpa/contracts/api";
 import { parseModelSelector } from "@cfpa/contracts/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, Ban, Bot, Brain, Cpu, CornerDownRight, GitPullRequest, PanelLeft, PanelRight, WifiOff, X } from "lucide-react";
+import { Archive, Ban, Bot, Brain, Cpu, CornerDownRight, GitPullRequest, PanelLeft, PanelRight, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SessionStatusBadge } from "@/components/StatusBadges.tsx";
 import { useModelsDevIndex } from "@/hooks/useModelsDev.ts";
@@ -47,70 +48,22 @@ function isReviewDraft(value: unknown): value is ReviewDraft {
   return "verdict" in value && "comments" in value && Array.isArray(value.comments);
 }
 
-interface PendingSteer {
-  id: string;
-  text: string;
-}
-
-const STEER_KEY = "cfpa-agent-steer";
-
-function readPending(id: string): PendingSteer[] {
-  try {
-    const raw = localStorage.getItem(`${STEER_KEY}:${id}`);
-    if (raw === null) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is PendingSteer =>
-        typeof item === "object" && item !== null && typeof (item as PendingSteer).id === "string" && typeof (item as PendingSteer).text === "string",
-    );
-  } catch {
-    return [];
-  }
-}
-
-function writePending(id: string, items: readonly PendingSteer[]): void {
-  try {
-    if (items.length === 0) localStorage.removeItem(`${STEER_KEY}:${id}`);
-    else localStorage.setItem(`${STEER_KEY}:${id}`, JSON.stringify(items));
-  } catch {}
-}
-
-function PendingSteers({
-  items,
-  onChange,
-  onRemove,
-}: {
-  items: readonly PendingSteer[];
-  onChange: (id: string, text: string) => void;
-  onRemove: (id: string) => void;
-}) {
+function QueuedSteers({ steering, followUp }: { steering: readonly string[]; followUp: readonly string[] }) {
+  const items = [...steering, ...followUp];
   if (items.length === 0) return null;
   return (
     <div className="mb-2 overflow-hidden rounded-lg border border-warn/40 bg-warn/5">
       <div className="flex items-center gap-1.5 border-b border-warn/30 px-2.5 py-1 text-[11px] text-warn">
         <CornerDownRight aria-hidden="true" className="size-3" />
-        待插话 · {items.length} · 每步结束后全部注入
+        已排队 · {items.length} · 下一个步边界注入
       </div>
-      {items.map((item) => (
-        <div key={item.id} className="flex items-start gap-1 border-t border-warn/15 px-1.5 py-1 first:border-t-0">
-          <textarea
-            value={item.text}
-            rows={2}
-            aria-label="待插话内容"
-            onChange={(event) => onChange(item.id, event.target.value)}
-            className="scroll-thin min-h-10 flex-1 resize-none rounded bg-transparent px-1 py-0.5 text-xs leading-relaxed text-fg focus:outline-none"
-          />
-          <button
-            type="button"
-            aria-label="删除这条插话"
-            title="删除"
-            onClick={() => onRemove(item.id)}
-            className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded text-muted hover:bg-elevated hover:text-danger"
-          >
-            <X aria-hidden="true" className="size-3.5" />
-          </button>
-        </div>
+      {items.map((text, index) => (
+        <p
+          key={`${index}-${text}`}
+          className="line-clamp-2 break-words border-t border-warn/15 px-2.5 py-1 text-xs leading-relaxed text-fg first:border-t-0"
+        >
+          {text}
+        </p>
       ))}
     </div>
   );
@@ -146,13 +99,12 @@ export function SessionPage({ id }: { id: string }) {
   const seededId = useRef<string | null>(null);
   const idRef = useRef(id);
   const dirtyRef = useRef(false);
-  const releasing = useRef(false);
   const [confirmEval, setConfirmEval] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
-  const [pending, setPending] = useState<readonly PendingSteer[]>(() => readPending(id));
+  const [queued, setQueued] = useState<{ steering: string[]; followUp: string[] }>({ steering: [], followUp: [] });
+  const [subagents, setSubagents] = useState<Record<string, SubagentInfo>>({});
   const [activeTurn, setActiveTurn] = useState(0);
   const jumpRef = useRef<((index: number) => void) | null>(null);
-  const sawRunning = useRef(false);
   const llm = useLlmConfig(true);
   const modelsDev = useModelsDevIndex();
   const modelsDevIndex = modelsDev.index;
@@ -164,13 +116,12 @@ export function SessionPage({ id }: { id: string }) {
     draftSeen.current = false;
     seededId.current = null;
     idRef.current = id;
-    releasing.current = false;
     setText("");
-    setPending(readPending(id));
-    sawRunning.current = false;
     setNote(undefined);
     setItems([]);
     setStatus("idle");
+    setQueued({ steering: [], followUp: [] });
+    setSubagents({});
     setDraft(null);
     setDirty(false);
     setLastError(undefined);
@@ -188,6 +139,15 @@ export function SessionPage({ id }: { id: string }) {
     setAsideTab("draft");
   }, [draft]);
 
+  const mergeSubagents = useCallback((rows: readonly SubagentInfo[]) => {
+    if (rows.length === 0) return;
+    setSubagents((previous) => {
+      const next = { ...previous };
+      for (const row of rows) next[row.agentId] = { ...next[row.agentId], ...row };
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     const data = detail.data;
     if (!data || seededId.current === id) return;
@@ -198,46 +158,10 @@ export function SessionPage({ id }: { id: string }) {
     setDirty(false);
     setLastError(data.lastError);
     setNote(undefined);
+    mergeSubagents(data.subagents ?? []);
     atBottomRef.current = true;
     setAtBottom(true);
-  }, [detail.data, id]);
-
-  const pendingRef = useRef<readonly PendingSteer[]>(pending);
-  useEffect(() => {
-    pendingRef.current = pending;
-  }, [pending]);
-
-  const applyPending = useCallback(
-    (next: PendingSteer[]) => {
-      setPending(next);
-      writePending(id, next);
-    },
-    [id],
-  );
-
-  /** 步边界放行全部待插话：按队列顺序逐条 steer 到下一次模型调用之前。 */
-  const releasePending = useCallback(() => {
-    if (releasing.current || pendingRef.current.length === 0) return;
-    releasing.current = true;
-    const ownerId = id;
-    const items = [...pendingRef.current];
-    const released = new Set<string>();
-    void (async () => {
-      for (const item of items) {
-        try {
-          await api.sendMessage(ownerId, item.text);
-        } catch (error) {
-          if (ownerId === idRef.current) setActionError(errorMessage(error));
-          return;
-        }
-        if (ownerId !== idRef.current) return;
-        released.add(item.id);
-        applyPending(pendingRef.current.filter((entry) => !released.has(entry.id)));
-      }
-    })().finally(() => {
-      if (ownerId === idRef.current) releasing.current = false;
-    });
-  }, [applyPending, id]);
+  }, [detail.data, id, mergeSubagents]);
 
   const handleEvent = useCallback(
     (event: SessionEvent) => {
@@ -249,6 +173,7 @@ export function SessionPage({ id }: { id: string }) {
           if (!dirtyRef.current) setDraft(isReviewDraft(event.session.artifact) ? event.session.artifact : null);
           setLastError(event.session.lastError);
           setNote(undefined);
+          mergeSubagents(event.session.subagents ?? []);
           break;
         }
         case "item": {
@@ -277,8 +202,12 @@ export function SessionPage({ id }: { id: string }) {
           }
           break;
         }
-        case "step": {
-          releasePending();
+        case "queue": {
+          setQueued({ steering: event.steering, followUp: event.followUp });
+          break;
+        }
+        case "subagent": {
+          mergeSubagents([event.info]);
           break;
         }
         case "artifact": {
@@ -291,7 +220,7 @@ export function SessionPage({ id }: { id: string }) {
           break;
       }
     },
-    [client, id, releasePending],
+    [client, id, mergeSubagents],
   );
 
   const connection = useSessionEvents(id, handleEvent);
@@ -313,11 +242,6 @@ export function SessionPage({ id }: { id: string }) {
   }, [asideTab, draft]);
 
   const activeAsideTab: AsideTab = asideTab === "draft" && draft === null ? "status" : asideTab;
-  useEffect(() => {
-    if (status === "running") sawRunning.current = true;
-    if (status !== "idle" || !sawRunning.current || detail.data === undefined || detail.data.archived) return;
-    releasePending();
-  }, [status, detail.data, releasePending]);
 
   useEffect(() => {
     const node = listRef.current;
@@ -469,35 +393,25 @@ export function SessionPage({ id }: { id: string }) {
   const submit = () => {
     const value = text.trim();
     if (value === "" || archived || send.isPending) return;
-    if (running) {
-      applyPending([...pendingRef.current, { id: `steer-${Date.now()}`, text: value }]);
-      setText("");
-      return;
+    // 运行中只进服务端队列：气泡等 omp 注入后由回声显示，免得提前出现在 transcript。
+    const localId = running ? undefined : `local-${Date.now()}`;
+    if (localId !== undefined) {
+      setItems((previous) => [...previous, { id: localId, kind: "user", text: value, at: new Date().toISOString() }]);
+      scrollToBottom();
     }
-    const localId = `local-${Date.now()}`;
-    setItems((previous) => [...previous, { id: localId, kind: "user", text: value, at: new Date().toISOString() }]);
     setText("");
-    scrollToBottom();
     send.mutate(value, {
       onError: () => {
-        setItems((previous) => previous.filter((item) => item.id !== localId));
+        if (localId !== undefined) setItems((previous) => previous.filter((item) => item.id !== localId));
         setText(value);
       },
     });
   };
 
-  const editPending = (key: string, value: string) => {
-    applyPending(pendingRef.current.map((item) => (item.id === key ? { ...item, text: value } : item)));
-  };
-
-  const removePending = (key: string) => {
-    applyPending(pendingRef.current.filter((item) => item.id !== key));
-  };
-
   const hint = archived
     ? "会话已归档，不能再发送消息"
     : running
-      ? `运行中 · 待插话 ${pending.length} 条 · 每步结束后全部注入 · Esc 中止`
+      ? `运行中 · 消息立即排队，在下一个步边界注入${queued.steering.length + queued.followUp.length > 0 ? `（队列 ${queued.steering.length + queued.followUp.length} 条）` : ""} · Esc 中止`
       : "Enter 发送 · Shift+Enter 换行";
 
   return (
@@ -652,12 +566,12 @@ export function SessionPage({ id }: { id: string }) {
                   ↓ 回到最新
                 </button>
               )}
-              <PendingSteers items={pending} onChange={editPending} onRemove={removePending} />
+              <QueuedSteers steering={queued.steering} followUp={queued.followUp} />
               <Composer
                 value={text}
                 onChange={setText}
                 onSubmit={submit}
-                placeholder={archived ? "会话已归档" : running ? "运行中：消息会暂存为待插话，本步结束后全部注入…" : "输入消息…"}
+                placeholder={archived ? "会话已归档" : running ? "运行中：消息立即排队，下一个步边界注入…" : "输入消息…"}
                 submitLabel={running ? "插话" : "发送"}
                 pending={send.isPending}
                 disabled={archived}
@@ -735,7 +649,7 @@ export function SessionPage({ id }: { id: string }) {
               ) : activeAsideTab === "files" ? (
                 <ArtifactPanel key={id} id={id} live={running} />
               ) : (
-                <ReviewSidebar items={items} prNumber={meta.prNumber} sessionId={id} />
+                <ReviewSidebar items={items} prNumber={meta.prNumber} sessionId={id} infos={subagents} />
               )}
             </div>
           </aside>
