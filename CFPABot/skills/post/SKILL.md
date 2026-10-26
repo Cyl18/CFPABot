@@ -10,8 +10,8 @@ PR 校对。产出 `local://draft.json`；术语表、风格指南、格式要�
 ## 流程
 
 1. **读译前产物**：`local://terms.tsv`、`local://STYLE.md`、`local://format.md`。没有就跳过。`terms.tsv` 只取 changed 行里出现的词，不整表读。
-2. **打包**：`write pr://<n>/pack {}`。返回 manifest：`slices[]`（id、doc、kind、workspace、path、rows、bytes、首尾 key）、`fileFindings`、`duplicates`、`checks`、`excluded`。手册类 PR 的片 `kind=manual`，一对一片。全量行不进你的上下文。
-3. **派单**：每片一个 `review` 子代理，`resources` 只给那片的 `local://` 文档；跨片裁定另写 `local://<manifest.dir>/shared.md`，一起进 `resources`。`task` 只写片 id 与该片要特别留意的东西。
+2. **打包**：`write pr://<n>/pack {}`。返回 manifest：`manifestPath`（它自己的地址）、`slices[]`（id、doc、kind、workspace、path、rows、bytes、首尾 key）、`fileFindings`、`duplicates`、`checks`、`excluded`。手册类 PR 的片 `kind=manual`，一对一片。全量行不进你的上下文。
+3. **派单**：命令形状见「流水线」。每片一个 `review` 子代理，`resources` 只给那片的文档；跨片裁定写 `local://<manifest.dir>/shared.md` 一起递；`task` 只写片 id 与该片要特别留意的东西。
 4. **合并**：按 `(path, key)` 去重取高档；跨片同 pattern 归到首现片，其余 key 进 `covers`；同一 key 两片结论冲突时你裁决，依据写进 `body`。
 5. **裁决 uncertain**：PR 内同词多译看 `read pr://<n>/terms?changed=1`；跨模组体例用 glossary（英文正向 `mcp__glossary_query`，中文候选加 `inverse`，批量 ≤20）。能定的补成 comment 或删掉，零命中或定不了的写进 `summary` 的存疑段并标 `suspected`。
 6. **写草稿**：`read pr://<n>/draft` 拿 schema 与当前状态；`write pr://<n>/draft <JSON>` 保存并校验。`errors` 会直接返回，按字段改到 `ok: true`；不需要再跑 bash 校验脚本。
@@ -90,12 +90,8 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 
 ## 子代理
 
-`review` 是裸 post：没有文件读取工具（glossary MCP 除外），只看 `resources` 递过去的那一片。片文档由 `write pr://<n>/pack` 生成，已含原文、译文、`raw`、机械发现、原版术语命中、旧线程、重复译文与 MQM 表。
+`review` 是裸 post：没有文件读取工具（glossary MCP 除外），只看 `resources` 递过去的那一片。片文档由 `write pr://<n>/pack` 生成，含原文、译文、`raw`、机械发现、原版术语命中、旧线程、重复译文；MQM 表在它的系统提示里。
 
-- 一片一个子代理：`resources: ["local://<manifest.dir>/slices/<id>.md", "local://<manifest.dir>/shared.md"]`。
-- `shared.md` 由你写：锁定术语、`released-keys`、已报 pattern、本轮体例约定。写得越具体，子代理越不用猜。
-- 分片按 `manifest.budgetBytes` 切好，整份送达；正常不会超预取上限（单行超大除外）。
-- 子代理只回 key 级 `comments` 与 `uncertain`；`path`/`line`/`en`/`zh` 它照片头与行块回填，你合并时按 `pr://` 核对行号。
-- 你不重判译文；术语分歧由你统一裁决，裁决不了的按 `uncertain` 流程处理。
+派单命令、`shared.md` 内容与失败重派见「流水线」。术语分歧由你统一裁决，裁决不了的按 `uncertain` 流程处理。
 
 `read pr://<n>` 的 `localRoot` 是 head 文件的物化目录，只读；要跑脚本先复制到 `local://work/`，脚本吃 `./work`。仓库工作树用 `$CFPA_REPO`（`grep`/`find` 可给绝对路径，`bash` 里用环境变量）。

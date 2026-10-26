@@ -214,12 +214,8 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   const workflow = resolveWorkflow(record.meta.workflow);
   const config = await loadConfig();
   applySearchEnv(config.search);
-  const basePrompt = await buildSystemPrompt(workflow, localDir(id), paths.root, record.meta.prNumber);
   const aliases = Object.keys(config.roles).filter((role) => role !== "default");
-  const systemPrompt =
-    aliases.length === 0
-      ? basePrompt
-      : `${basePrompt}\n\n可用模型：${aliases.map((role) => `@${role}`).join("、")}。派子代理用 delegate({ agent: "review", model: "@模型名", task: "…", resources: ["pr://…"] })；model 可省，省略时用默认模型。delegate 立即返回后台 job，结果自动投递：不要轮询，完全被挡住时才调用 wait；wait 会被用户插话打断，先处理用户消息。`;
+  const systemPrompt = await buildSystemPrompt(workflow, localDir(id), paths.root, record.meta.prNumber, aliases);
   const skills = await agentSkills(workflow);
   const configured = record.meta.thinking;
   const { model, thinking } = await resolveModel(record.meta.model, configured);

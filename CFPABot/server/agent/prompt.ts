@@ -12,6 +12,7 @@ const WORKSPACE_PLACEHOLDER = "{{WORKSPACE_DIR}}";
 const ROOT_PLACEHOLDER = "{{ROOT_DIR}}";
 const PR_PLACEHOLDER = "{{PR_BOUND}}";
 const REPO_PLACEHOLDER = "{{REPO_DIR}}";
+const MODELS_PLACEHOLDER = "{{MODELS}}";
 
 async function readPrompt(file: string): Promise<string> {
   try {
@@ -26,7 +27,10 @@ export async function buildSystemPrompt(
   workspaceDir: string,
   repoRoot: string,
   prNumber?: number,
+  models: readonly string[] = [],
 ): Promise<string> {
+  const modelsLine =
+    models.length === 0 ? "" : `派子代理可指定模型：${models.map((role) => `@${role}`).join("、")}；省略用默认。`;
   const writeTable = [
     "```",
     ...WRITE_TARGETS.map((target) => `${target.uri}\t# ${target.summary}`),
@@ -41,7 +45,8 @@ export async function buildSystemPrompt(
     .replace(WRITE_PLACEHOLDER, writeTable)
     .replace(WORKSPACE_PLACEHOLDER, workspaceDir)
     .replaceAll(ROOT_PLACEHOLDER, repoRoot)
-    .replaceAll(REPO_PLACEHOLDER, paths.repo)
+    .replace(REPO_PLACEHOLDER, paths.repo)
+    .replace(MODELS_PLACEHOLDER, modelsLine)
     .replace(PR_PLACEHOLDER, prBound);
   const fragments = await Promise.all(workflow.promptFiles.map(readPrompt));
   return [system, ...fragments].filter(Boolean).join("\n\n");

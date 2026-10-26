@@ -97,12 +97,26 @@ function dropPrivileges(command: string): string {
   return `exec setpriv --reuid=65534 --regid=65534 --clear-groups bash -lc ${shellQuote(command)}`;
 }
 
+// 程序体走 eval、文件走 write：heredoc 进 shell 后，中文、引号与 $ 会被吃掉，且一次只回答一个问题。
+const PYTHON_HEREDOC = /(?:^|[\s;&|(])(?:python[\d.]*|py)\b[^\n]*<</;
+const FILE_HEREDOC = /(?:^|[\s;&|(])(?:cat|tee)\b[^\n]*<</;
+
+export function heredocReason(command: string): string | undefined {
+  if (PYTHON_HEREDOC.test(command)) {
+    return "bash 里不要用 heredoc 跑 python：中文、引号与 `$` 会被 shell 吃掉，而且一次只回答一个问题。改用 `eval`（language=py）在一个细胞里并行读、筛完只打印命中行；脚本超过几行就先 `write` 成 .py 再 `python 文件名.py`。";
+  }
+  if (FILE_HEREDOC.test(command)) {
+    return "bash 里不要用 heredoc 写文件：改用 `write` 写整份内容，或 `edit` 改某一段，路径用 `local://…`。";
+  }
+  return undefined;
+}
+
 export function bashTool(ctx: ToolContext, availableTools: string[]): CustomTool<typeof BASH_PARAMS> {
   return {
     name: "bash",
     label: "执行 shell",
     description:
-      "在会话 workspace 执行 bash；cwd 就是 local://。仓库在 $CFPA_REPO，PR 物化目录在 $CFPA_PR，工作区根是 $CFPA_WORK。evalScope=off 时调用会被拒绝。",
+      "在会话 workspace 执行 bash；cwd 就是 local://。仓库在 $CFPA_REPO，PR 物化目录在 $CFPA_PR，工作区根是 $CFPA_WORK。不要用 heredoc（程序体走 eval，写文件走 write），会被直接拒绝。evalScope=off 时调用会被拒绝。",
     parameters: BASH_PARAMS,
     execute: async (_toolCallId, params, _onUpdate, runtime, signal) => {
       const settings = runtime.settings;
@@ -112,6 +126,8 @@ export function bashTool(ctx: ToolContext, availableTools: string[]): CustomTool
         const hit = checkBashInterception(params.command, availableTools, rules);
         if (hit.block) throw new Error(hit.message ?? "这条命令请改用对应的专用工具。");
       }
+      const heredoc = heredocReason(params.command);
+      if (heredoc !== undefined) throw new Error(heredoc);
       const cwd = localDir(ctx.sessionId);
       const timeoutMs = Math.min(300_000, Math.max(1_000, (params.timeout ?? 60) * 1000));
       const script = `${envPrologue(cwd, ctx.prNumber)}${dropPrivileges(params.command)}`;

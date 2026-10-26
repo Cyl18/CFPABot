@@ -16,7 +16,8 @@ import { loadConfig, resolveModel } from "../llm.ts";
 import { parseRoleSelector } from "../llm-providers.ts";
 import { paths } from "../../paths.ts";
 import { lineRangeOf, sliceLines } from "../../harness/uri.ts";
-import { artifactsDir, localDir } from "../local-store.ts";
+import { MQM_TABLE } from "../../harness/review/workpack.ts";
+import { artifactsDir, localDir, readLocal } from "../local-store.ts";
 import { agentMcpManager } from "../mcp.ts";
 import { openAuthStorage, openModelRuntime } from "../pi.ts";
 import { noteSubagent, saveYield, subagentDir } from "../subagents.ts";
@@ -73,14 +74,14 @@ async function loadAgent(name: string): Promise<AgentSpec> {
   return {
     agent: {
       ...agent,
-      systemPrompt: `${agent.systemPrompt.trim()}\n\n${OPERATING_RULES}`,
+      systemPrompt: `${agent.systemPrompt.trim().replaceAll("{{MQM}}", MQM_TABLE)}\n\n${OPERATING_RULES}`,
     },
     output: agent.output,
   };
 }
 
 /** 父代理已经拿到分片时，直接把内容带进子代理上下文，省掉一次重复取数。 */
-async function prefetch(resources: readonly string[], sessionId: string): Promise<string> {
+export async function prefetch(resources: readonly string[], sessionId: string): Promise<string> {
   if (resources.length === 0) return "";
   const router = InternalUrlRouter.instance();
   const localProtocolOptions = {
@@ -93,9 +94,13 @@ async function prefetch(resources: readonly string[], sessionId: string): Promis
       const local = /^local:\/\//i.test(uri);
       try {
         const target = router.split(uri);
-        const resource = await router.resolve(target.path, { cwd: paths.root, localProtocolOptions });
         const range = target.sel === undefined ? null : lineRangeOf(target.sel);
-        const content = range === null ? resource.content : sliceLines(resource.content, range);
+        // omp 的 local:// 只嗅前 8 KB：截断落在多字节字符中间就会把整片判成二进制，子代理只能拿到占位符。
+        const raw = local
+          ? (await readLocal(sessionId, target.path.replace(/^local:\/\//i, "")))?.content
+          : (await router.resolve(target.path, { cwd: paths.root, localProtocolOptions })).content;
+        if (raw === undefined) throw new Error(`local:// 文件不存在：${uri}`);
+        const content = range === null ? raw : sliceLines(raw, range);
         const bytes = Buffer.byteLength(content);
         if (bytes > PREFETCH_BYTES) {
           // 子代理没有读取工具，截断等于让它审半份材料；本地分片必须整份送达。

@@ -83,7 +83,7 @@ output:
 
 你只看到主代理打包好的一片材料，一次交卷。片外的东西你看不到，也不要猜。
 
-语言包分片里每行带 `key`、`line`、`en`、`zh`、`raw`（head 原始行），有才给 `base`（旧译）、`prev`/`next`（相邻条目译文）、`find`（机械发现）、`term`（术语命中）、`thread`（旧线程）、`dup`（重复译文）。片头有文件路径、MQM 表和判定规则。
+语言包分片里每行带 `key`、`line`、`en`、`zh`、`raw`（head 原始行），有才给 `base`（旧译）、`prev`/`next`（相邻条目译文）、`find`（机械发现）、`term`（术语命中）、`thread`（旧线程）、`dup`（重复译文）。片头只有本片元信息与提交方式。
 
 手册分片（`pair`）是两侧带行号的全文，没有 `raw`；按片头的交付说明判，`suggestion` 只给该行的中文。
 
@@ -95,14 +95,18 @@ output:
 
 ## 判据
 
-- `mqm` 只用片头 MQM 表列出的全形 `<dim>/<type>`，不自编。
-- 档位按后果定：崩溃/反义 = critical，错义/漏译/关键术语 = major，体例/标点/风格 = minor，拿不准 = neutral 或 `suspected: true`。
+- `mqm` 只用下面 MQM 表里的全形 `<dim>/<type>`，不自编。
+- 档位按后果定：崩溃/反义/与既有译名撞车 = critical，错义/漏译/关键术语 = major，体例/标点/风格 = minor，拿不准 = neutral 或 `suspected: true`。
 - 行上的 `find` 是线索不是结论，成立才报；`term` 是 glossary 命中，标 ✗ 才需要裁决。
-- 没依据不判 major；一致性不证明正确；同一 pattern 只报一条首现，其余进 `covers`。
-- 语言包片给 `zhNew`：只写新译文本身，不带引号、缩进、逗号，服务端按 `raw` 拼整行；手册片给 `suggestion`（整行中文）。`en`/`zh` 不用给。
+- 没依据不判 major；一致性不证明正确；同一 pattern 只报一条首现，其余进 `covers`，本条 key 不进 `covers`。
+- 语言包片给 `zhNew`：只写新译文本身，不带引号、缩进、逗号，服务端按 `raw` 拼整行；手册片给 `suggestion`（整行中文）。`en`/`zh` 不用给，非 `suspected` 必给。
 - 有 `covers` 也一样给当前行的 `zhNew`/`suggestion`。
 - 上游英文自己就错的，用 `source/defect` + neutral，不算错译。
 - 亚文化梗放行，看不懂不判。
+
+## MQM（只能用这些 id）
+
+{{MQM}}
 
 ## 不确定
 

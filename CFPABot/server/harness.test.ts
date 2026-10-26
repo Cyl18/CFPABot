@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { ReviewComment, ReviewThread } from "@cfpa/contracts/api";
 import { buildTermIndex } from "@cfpa/review-core/domain/terms";
 import type { Pack, PackRow, PackWorkspace } from "@cfpa/review-core/pack";
 import { reviewRowsForInput } from "./harness/review/rows.ts";
 import { withServerFilledFields } from "./harness/review/draft.ts";
 import { execPathReason, secretReason } from "./agent/plugins/sandbox.ts";
+import { heredocReason } from "./agent/tools/bash.ts";
+import { prefetch } from "./agent/tools/delegate.ts";
+import { localDir } from "./agent/local-store.ts";
 import type { ThreadsView } from "./harness/review/threads.ts";
 
 const EN = "projects/assets/demo/1.20.1/demo/lang/en_us.json";
@@ -175,6 +180,40 @@ describe("draft 回填", () => {
     };
     expect(filled.comments[0]).toMatchObject({ en: "A", zh: "甲", suggestion: '    "a": "乙",' });
     expect("zhNew" in (filled.comments[0] ?? {})).toBe(false);
+  });
+});
+
+describe("bash heredoc", () => {
+  test("heredoc 里的程序与文件改写分别改走 eval 与 write", () => {
+    expect(heredocReason("python - <<'EOF'\nprint(1)\nEOF")).toContain("eval");
+    expect(heredocReason('cd "$CFPA_REPO" && python3 - <<EOF\nprint(1)\nEOF')).toContain("eval");
+    expect(heredocReason("cat >> terms.tsv <<'EOF'\n甲\t乙\nEOF")).toContain("write");
+    expect(heredocReason("cat > notes.md <<EOF\n正文\nEOF")).toContain("write");
+  });
+
+  test("脚本文件、单行 -c 与普通命令放行", () => {
+    expect(
+      heredocReason('python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod prep ./scope -o ./prep/x'),
+    ).toBeUndefined();
+    expect(heredocReason('python -c "import json;print(1)"')).toBeUndefined();
+    expect(heredocReason("git log --oneline -3")).toBeUndefined();
+  });
+});
+
+describe("本地分片预取", () => {
+  test("8 KB 边界切在多字节字符中间时整份送达，不判成二进制", async () => {
+    const sessionId = `test-prefetch-${Date.now().toString(36)}`;
+    const dir = localDir(sessionId);
+    await mkdir(join(dir, "pack"), { recursive: true });
+    // 3000 个「甲」= 9000 B，8192 落在第二个字节上。
+    await writeFile(join(dir, "pack", "s.md"), `${"甲".repeat(3000)}\n结尾标记\n`, "utf8");
+    try {
+      const joined = await prefetch(["local://pack/s.md"], sessionId);
+      expect(joined).not.toContain("Cannot read binary");
+      expect(joined).toContain("结尾标记");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

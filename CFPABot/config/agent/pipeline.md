@@ -14,17 +14,24 @@ PR 审查：`prep` → `post`。需要补译时在中间插 `translate`。
 
 规模：<100 变更行走轻量 prep；其余先跑 `mod prep`；changed 行有整句长文本才加 `mod mine`；>1000 先按 key 分片。术语只读命中 changed 行的部分。
 
+取证（既有译法、中英对照、换行体例）用一个 `eval` 细胞跑完：并行 `read` 多个来源，在细胞里筛，只打印命中行。一条 `bash` 只问一个问题的串行取数，会把十几次往返花在同一件事上。长脚本先写成文件再跑，不走 heredoc（中文、引号、`$` 会被 shell 吃掉）；镜像里 `python3`，Windows 上 `python`。
+
 ## 打包与派单
 
-`write pr://<n>/pack` 一次拿到 manifest（片清单、key 范围、bytes、文件级问题、重复译文簇、excluded）。全量行不进你的上下文。
+`write pr://<n>/pack {}` 一次拿到 manifest；字段与手册片的差异见 `skill://post` 第 2 步。全量行不进你的上下文。
 
-- `delegate` 立即返回后台 job，结果自动投递；不要轮询，被挡住时才 `wait`。
-- 一批互不依赖的片一次派完：`tasks` 逐个 `delegate({ agent: "review", model: "@模型名", task, resources: ["local://<manifest.dir>/slices/<id>.md", "local://<manifest.dir>/shared.md"] })`，不要一片一片串行等。
+- `delegate` 立即返回后台 job，结果自动投递；不要轮询，被挡住时才 `wait`。`wait` 会被用户插话打断，先处理用户消息。
+- 一批互不依赖的片一次派完：
+
+  ```js
+  delegate({ agent: "review", model: "@模型名", task: "片 id + 该片特有的提示", resources: ["local://<manifest.dir>/slices/<id>.md", "local://<manifest.dir>/shared.md"] })
+  ```
+
+  `model` 可省；`resources` 整份进子代理上下文。
 - `shared.md` 由你写：锁定术语、放行 key、已报 pattern、本轮体例。子代理没有读取工具，看不到的东西就是没有。
-- 分片按 `manifest.budgetBytes` 切好，整份送达；正常不会超预取上限。
-- 子代理只回 key 级 comments 与 uncertain；path/line/en/zh 它照片头与行块回填。
-- 合并、去重、裁决 uncertain、落盘 `pr://<n>/draft` 都是你的活；子代理没审到的行要么重派，要么写进 summary。
+- 子代理停止且无产出时不要原样重派：按 `###` 或 key 边界拆成两片再派；第二次仍停就写进 `summary`。
 - 手册类 PR 的片 `kind=manual`，一对一片，同样派。
+- 子代理只回 key 级 conclusions；合并、去重、裁决 `uncertain`、落盘 `pr://<n>/draft` 都是你的活。没审到的行要么重派，要么写进 summary。
 
 ## 进度
 

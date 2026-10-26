@@ -13,10 +13,11 @@ import { threadsOf } from "./threads.ts";
 /** 一片文档的目标大小：子代理一次读完，不靠工具翻页。 */
 const SLICE_BUDGET_BYTES = 48_000;
 const SLICE_MAX_ROWS = 300;
-/** 片头（规则 + MQM + 元信息）的预留字节，实际片头只会更小。 */
-const SLICE_RESERVE_BYTES = 6_000;
+/** 片头（元信息 + 一条提交说明）的预留字节；规则与 MQM 表已搬进子代理系统提示。 */
+const SLICE_RESERVE_BYTES = 1_500;
 const LIST_CAP = 200;
 const THREAD_SNIPPET = 140;
+const MANIFEST_PATH = "pack/manifest.json";
 
 export interface WorkPackSlice {
   id: string;
@@ -37,6 +38,7 @@ export interface WorkPackManifest {
   headSha: string;
   generatedAt: string;
   dir: string;
+  manifestPath: string;
   budgetBytes: number;
   counts: { reviewable: number; slices: number; manualPairs: number; docBytes: number };
   workspaces: {
@@ -58,7 +60,7 @@ export interface WorkPackComposition {
   files: { name: string; content: string }[];
 }
 
-const MQM_TABLE = MQM_TYPES.map((type) => `${type.id} ${type.label} ${type.severity} — ${type.rule}`).join("\n");
+export const MQM_TABLE = MQM_TYPES.map((type) => `${type.id} ${type.label} ${type.severity} — ${type.rule}`).join("\n");
 
 function oneLine(value: string, limit: number): string {
   const flat = value.replace(/\s+/g, " ").trim();
@@ -109,44 +111,6 @@ function rowBlock(row: ReviewRowView, near?: { prev?: string; next?: string }): 
   return lines.join("\n");
 }
 
-function rulesBlock(manual: boolean): string {
-  const deliver = manual
-    ? [
-        "## 交付",
-        "- 只回判错的段落，写进 comments[]；每条给 key（pair 名）、severity、mqm、body、suggestion。path 用片头的 zh 路径，line 用文本里的行号。",
-        "- 拿不准的写进 uncertain[]：key + 一句明确的问题。确定的先照常报，不要因为拿不准就把整片放掉。",
-        "- 没判错就给空数组，不硬凑。",
-        "- body 只写原因，不写标题、原文、译文行；多个问题写成有序列表。",
-        "- suggestion 只给这一行的中文，不带行号前缀。",
-        "- 同一 pattern 只报一条，其余 key 进 covers。",
-        "- suspected 为真时 severity 最高 minor。",
-        "- 跨模组体例查 glossary：英文正向，中文候选加 inverse，多个词用 mcp__glossary_query_batch。",
-      ]
-    : [
-        "## 交付",
-        "- 只回判错的行，写进 comments[]；每条给 key、severity、mqm、body、suggestion。path 固定用上面的文件路径，line 用行块里的 line。",
-        "- 拿不准的写进 uncertain[]：key + 一句明确的问题。确定的先照常报，不要因为拿不准就把整片放掉。",
-        "- 没判错就给空数组，不硬凑。",
-        "- body 只写原因，不写标题、原文、译文行；多个问题写成有序列表。",
-        "- 只给 zhNew：新译文本身，不带引号、缩进、逗号；整行由服务端拼。en/zh 不用给。非 suspected 必给。",
-        "- 同一 pattern 只报一条，其余 key 进 covers；本条 key 不进 covers。",
-        "- suspected 为真时 severity 最高 minor。",
-        "- 行上的 term 只命中原版术语；跨模组体例查 glossary：英文正向，中文候选加 inverse，多个词用 mcp__glossary_query_batch。",
-      ];
-  return [
-    ...deliver,
-    "",
-    "## MQM（只能用这些 id）",
-    MQM_TABLE,
-    "",
-    "## 判定",
-    "- critical：崩溃、反义、与既有译名撞车。major：错义、漏译、关键术语。minor：体例、标点、风格。neutral：灰区。",
-    "- 行上的 find（如果有）是机械线索，不是结论；成立才报。",
-    "- 一致性不是正确性；上游英文自己错的用 source/defect + neutral。",
-    "- 看不懂的梗放行，不判。",
-  ].join("\n");
-}
-
 function langHeader(slice: {
   id: string;
   prNumber: number;
@@ -163,7 +127,7 @@ function langHeader(slice: {
     `文件：${slice.path}`,
     `本片 ${slice.rows} 行，key 范围 ${slice.firstKey} … ${slice.lastKey}。只判本片，片外的事不要猜。`,
     "",
-    rulesBlock(false),
+    "提交 `zhNew`（新译文本身，整行由服务端拼）；`path` 用上面「文件：」路径，`line` 用行块里的 line。",
     "",
     "## 行",
     "",
@@ -204,7 +168,7 @@ function manualHeader(meta: {
     "两侧文本按 head 全文给出，行号写成 `n| 内容`。只判 zh 侧译文；没出现的行不要判。",
     ...(meta.truncated === "" ? [] : [`截断：${meta.truncated} 只给了前 12 KB。`]),
     "",
-    rulesBlock(true),
+    "提交 `suggestion`（该行中文）；`path` 用片头的 zh 路径，`line` 用文本行号。",
     "",
     "--- en ---",
     "",
@@ -303,6 +267,7 @@ export function composeWorkPack(
     headSha: pack.headSha,
     generatedAt: now.toISOString(),
     dir: `pack/${pack.headSha.slice(0, 7)}`,
+    manifestPath: `local://${MANIFEST_PATH}`,
     budgetBytes: budget,
     counts: { reviewable: reviewable.length, slices: slices.length, manualPairs: 0, docBytes },
     workspaces: pack.workspaces.map((workspace) => ({
@@ -411,7 +376,7 @@ export async function withManualSlices(
 /** 片文档先落盘，manifest 最后写：manifest 存在才视为整包可用。 */
 export async function persistWorkPack(sessionId: string, composed: WorkPackComposition): Promise<void> {
   for (const file of composed.files) await writeLocal(sessionId, file.name, file.content);
-  await writeLocal(sessionId, "pack/manifest.json", `${JSON.stringify(composed.manifest, null, 2)}\n`);
+  await writeLocal(sessionId, MANIFEST_PATH, `${JSON.stringify(composed.manifest, null, 2)}\n`);
 }
 
 /** 主代理一条命令拿到整包：文件落到会话 workspace，返回值只有 manifest。 */
