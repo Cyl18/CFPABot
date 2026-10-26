@@ -310,7 +310,7 @@ export interface TermGroup {
   en: string;
   inPr: TermVariant[];
   /** 本组命中 glossary 但译文没对上的条目；没命中就是空数组。 */
-  missed: { en: string; zh: string[]; reason?: string }[];
+  missed: { en: string; zh: string[]; keys: string[]; reason?: string }[];
   rows: number;
   misses: number;
 }

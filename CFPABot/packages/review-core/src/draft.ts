@@ -9,7 +9,7 @@ const draftCommentInput = z.object({
   path: z.string().min(1),
   line: z.number().int().positive().optional(),
   key: z.string(),
-  severity: z.enum(["critical", "major", "minor", "neutral"]),
+  severity: z.enum(["critical", "major", "minor", "neutral"]).optional(),
   mqm: z.string(),
   en: z.string().optional(),
   zh: z.string().optional(),
@@ -32,7 +32,12 @@ export const DRAFT_FILE = "draft.json";
 
 export const reviewDraftSchema = draftInputSchema.extend({
   headSha: z.string().min(1),
-  comments: z.array(draftCommentInput.extend({ line: z.number().int().positive() })),
+  comments: z.array(
+    draftCommentInput.extend({
+      line: z.number().int().positive(),
+      severity: z.enum(["critical", "major", "minor", "neutral"]),
+    }),
+  ),
   updatedAt: z.string(),
   publishedAt: z.string().optional(),
   publishedUrl: z.string().optional(),

@@ -1,4 +1,5 @@
 import type { DraftSchemaView, ReviewDraft, ReviewDraftView } from "@cfpa/contracts/api";
+import { MQM_BY_ID } from "@cfpa/contracts/mqm";
 import {
   DRAFT_FILE,
   draftInputSchema,
@@ -66,6 +67,12 @@ function rowFacts(pack: Pack): RowFactIndex {
   return { byLine, byKey };
 }
 
+/** 行内评论按 key 定位：path+key 在 pack 里只有一处。 */
+export async function lineOfKey(n: number, path: string, key: string): Promise<number | null> {
+  const { byKey } = rowFacts(await loadPack(n));
+  return byKey.get(`${path}\u0000${key}`)?.line ?? null;
+}
+
 /** 整行替换由服务端拼：缩进、引号、逗号、转义都跟 head 原行走。 */
 export function composeSuggestion(path: string, key: string, raw: string, value: string): string {
   const indent = /^\s*/.exec(raw)?.[0] ?? "";
@@ -105,6 +112,14 @@ export async function withServerFilledFields(n: number, content: string, pack?: 
     }
     const line = typeof comment.line === "number" ? comment.line : Number.NaN;
     const fact = located ?? facts.byLine.get(`${path}\u0000${line}`);
+    const mqm = typeof comment.mqm === "string" ? comment.mqm.trim() : "";
+    if (comment.severity === undefined) {
+      const fallback = MQM_BY_ID.get(mqm)?.severity;
+      if (fallback !== undefined) {
+        comment.severity = fallback;
+        touched = true;
+      }
+    }
     const zhNew = typeof comment.zhNew === "string" ? comment.zhNew : "";
     if (fact !== undefined) {
       if ((comment.en === undefined || comment.en === "") && fact.en !== undefined) {
@@ -164,7 +179,12 @@ export function prepareDraft(content: string, n: number, headSha: string): Prepa
         ],
       };
     }
-    comments.push({ ...comment, line: comment.line });
+    if (comment.severity === undefined) {
+      return {
+        errors: [`${comment.path} ${comment.key}: 没有 severity，且 mqm 不在词表里；补 severity 或改用词表里的 mqm`],
+      };
+    }
+    comments.push({ ...comment, line: comment.line, severity: comment.severity });
   }
   return {
     draft: {
@@ -199,11 +219,11 @@ export function draftSchema(n: number, headSha: string, notes = true): DraftSche
           path: "projects/assets/<mod>/<版本>/<namespace>/lang/zh_cn.json",
           line: "可省：head 行号；给了 key 就按 path+key 从 pack 定位",
           key: "item.example",
-          severity: "critical | major | minor | neutral",
+          severity: "可省：按 mqm 默认档补；后果不同才显式改",
           mqm: "accuracy/mistranslation",
           body: "为什么错、后果是什么；不要重复原文/译文",
-          en: "可省：原文，服务端按 path+line 补",
-          zh: "可省：当前译文，服务端按 path+line 补",
+          en: "可省：原文，服务端按 path+key 或 line 补",
+          zh: "可省：当前译文，服务端按 path+key 或 line 补",
           zhNew: "语言包用：只给新译文本身，不带引号、缩进、逗号；整行由服务端拼。含换行写 \\n，例：\"第一行\\n第二行\"",
           suggestion: "整行替换后的译文；手册类评论用，缩进/引号/转义与文件一致",
           covers: ["同一 pattern 的其余 key"],

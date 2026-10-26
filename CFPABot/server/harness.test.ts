@@ -6,6 +6,7 @@ import { buildTermIndex } from "@cfpa/review-core/domain/terms";
 import type { Pack, PackRow, PackWorkspace } from "@cfpa/review-core/pack";
 import { reviewRowsForInput } from "./harness/review/rows.ts";
 import { withServerFilledFields } from "./harness/review/draft.ts";
+import { aggregateTerms } from "./harness/review/terms.ts";
 import { execPathReason, secretReason } from "./agent/plugins/sandbox.ts";
 import { heredocReason } from "./agent/tools/bash.ts";
 import { prefetch } from "./agent/tools/delegate.ts";
@@ -191,14 +192,25 @@ describe("draft 回填", () => {
       summary: "两处",
       comments: [
         { id: "c1", path: ZH, key: "a", severity: "major", mqm: "accuracy/mistranslation", body: "错", zhNew: "丙" },
-        { id: "c2", path: ZH, line: 3, key: "b", severity: "major", mqm: "accuracy/mistranslation", body: "错", zhNew: "丁" },
+        { id: "c2", path: ZH, line: 3, key: "b", mqm: "accuracy/reversed", body: "错", zhNew: "丁" },
       ],
     });
     const filled = JSON.parse(await withServerFilledFields(7, payload, space)) as {
       comments: Record<string, unknown>[];
     };
     expect(filled.comments[0]).toMatchObject({ line: 41, suggestion: '    "a": "丙",' });
-    expect(filled.comments[1]).toMatchObject({ line: 42, suggestion: '    "b": "丁",' });
+    expect(filled.comments[1]).toMatchObject({ line: 42, severity: "critical", suggestion: '    "b": "丁",' });
+  });
+});
+
+describe("terms 归组", () => {
+  test("missed 带命中该术语的 key", () => {
+    const index = buildTermIndex({ "terms-v1.tsv": "en\tzh\nA\t甲\n" });
+    const view = aggregateTerms(pack([row("a", "A", "乙", 10), row("b", "A", "乙", 20)]), index, {
+      queries: [],
+      changed: true,
+    });
+    expect(view.groups[0]?.missed[0]).toMatchObject({ en: "A", keys: ["a", "b"] });
   });
 });
 

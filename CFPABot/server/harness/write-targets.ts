@@ -41,8 +41,8 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
   },
   {
     id: "pr-inline-comment",
-    uri: "pr://<n>/files/<path>/comments?line=<head 行号>",
-    summary: "在 PR 文件的 head 行上发一条行内评论",
+    uri: "pr://<n>/files/<path>/comments?line=<head 行号>|key=<key>",
+    summary: "在 PR 文件的 head 行上发一条行内评论；给 key 就按 path+key 定位并校验 hunk",
     match: (parts) => {
       const seg = prSegments(parts);
       return seg.length >= 3 && seg[0] === "files" && seg[seg.length - 1] === "comments";

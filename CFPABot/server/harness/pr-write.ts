@@ -2,6 +2,7 @@ import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { z } from "zod";
 import type { ReviewDraft, ReviewEvent, ReviewThread } from "@cfpa/contracts/api";
 import { DRAFT_FILE } from "@cfpa/review-core/draft";
+import { inHunks, patchHunks } from "@cfpa/review-core/domain/diff";
 import { env } from "../env.ts";
 import { assertBotWrites, gh, serverGraphql } from "../github/client.ts";
 import {
@@ -17,7 +18,7 @@ import { assertCanWrite, type WriteSession } from "../agent/policy.ts";
 import { publishDraft } from "../agent/workflows/review/publish.ts";
 import { prdata } from "../prdata.ts";
 import { errorResult, jsonResult } from "./result.ts";
-import { prepareDraft, saveDraftOf, markPublishedOf, storedDraftOf, withServerFilledFields } from "./review/draft.ts";
+import { prepareDraft, saveDraftOf, markPublishedOf, storedDraftOf, withServerFilledFields, lineOfKey } from "./review/draft.ts";
 import { writeWorkPack } from "./review/workpack.ts";
 import { parseThreadState } from "./thread-state.ts";
 import { invalidateThreads, threadsOf } from "./review/threads.ts";
@@ -104,11 +105,20 @@ async function writeInlineComment(uri: PrParts, content: string | undefined, ctx
   const seg = uri.path.split("/").filter(Boolean);
   const path = seg.slice(1, -1).join("/");
   if (!path) throw new Error("行内评论需要文件路径。");
-  const line = Number(uri.query.get("line"));
-  if (!Number.isInteger(line) || line <= 0) throw new Error("行内评论需要 ?line=<head 行号>。");
   const marker = markerOf(ctx.sessionId, toolCallId);
   const existing = (await gh.listReviewComments(uri.number)).find((comment) => comment.body.includes(marker));
   if (existing) return jsonResult({ ok: true, deduped: true, id: existing.id, url: existing.htmlUrl });
+  const key = uri.query.get("key")?.trim() ?? "";
+  const line = key === "" ? Number(uri.query.get("line")) : await lineOfKey(uri.number, path, key);
+  if (line === null) throw new Error(`pack 里找不到 ${path} 的 key：${key}；改用 ?line=<head 行号>。`);
+  if (!Number.isInteger(line) || line <= 0) {
+    throw new Error("行内评论需要 ?line=<head 行号> 或 ?key=<key>。");
+  }
+  const { files } = await prdata.files(uri.number);
+  const patch = files.find((file) => file.path === path)?.patch;
+  if (patch !== undefined && patch !== "" && !inHunks(line, patchHunks(patch))) {
+    throw new Error(`line ${line} 不在 ${path} 的 diff hunk 新侧；换 key 或确认 head 行号。`);
+  }
   const thread = await createReviewComment(serverGraphql, uri.number, {
     path,
     line,

@@ -130,7 +130,7 @@ function langHeader(draft: SliceDraft, pack: Pack): string {
     `文件：${draft.path}`,
     `本片 ${draft.rows} 行，key 范围 ${draft.firstKey} … ${draft.lastKey}。只判本片，片外的事不要猜。`,
     "",
-    "提交 `zhNew`（新译文本身，整行由服务端拼）；`path` 用上面「文件：」路径，`line` 用行块里的 line。",
+    "提交 `zhNew`（新译文本身，整行由服务端拼）；`path` 用上面「文件：」路径，`line` 可省：给了 key 就按 key 定位。",
     "",
     "## 行",
     "",

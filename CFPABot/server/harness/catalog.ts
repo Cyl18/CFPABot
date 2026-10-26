@@ -10,7 +10,7 @@ const REPO: readonly ResourceEntry[] = [
 
 const PR: readonly ResourceEntry[] = [
   { path: "rows?slice=<id>&filter=reviewable|changed|flagged|all&workspace=&prefix=&keys=&query=&include=terms,threads,duplicates,patch&rebuild=1", comment: "审查行：预算内一次给全集；超预算返回 plan（sliceCount + 开头几片），要派单先 write pr://<n>/pack {}；不要用 offset 猜页" },
-  { path: "terms?term=&changed=1&limit=&offset=", comment: "术语证据：本 PR 同词多译 + 命中 glossary 却没对上的条目（missed）；changed=1 只给可行动组，inconsistent 置顶；offset 可翻页" },
+  { path: "terms?term=&changed=1&limit=&offset=", comment: "术语证据：本 PR 同词多译 + 命中 glossary 却没对上的条目（missed，带 keys）；changed=1 只给可行动组，inconsistent 置顶；offset 可翻页" },
   { path: "draft?schema=0&notes=0", comment: "草稿 schema、当前草稿与校验；write 同一地址保存并校验，不通过不落盘，回包给拼好的 suggestion；复核用 schema=0" },
   { path: "files", comment: "变更文件清单，支持 ?offset=&limit=" },
   { path: "files/<path>[:N-M]?side=head|base&format=patch", comment: "单文件内容（可带 :N-M 行范围）或该文件的 diff patch" },

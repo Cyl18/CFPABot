@@ -49,12 +49,17 @@ export function aggregateTerms(pack: Pack, index: TermIndex | null, options: Ter
           builder.misses += 1;
           missRows += 1;
           for (const entry of failed) {
-            if (builder.missed.has(entry.en)) continue;
-            builder.missed.set(entry.en, {
-              en: entry.en,
-              zh: entry.zh,
-              ...(entry.reason === undefined ? {} : { reason: entry.reason }),
-            });
+            const existing = builder.missed.get(entry.en);
+            if (existing === undefined) {
+              builder.missed.set(entry.en, {
+                en: entry.en,
+                zh: entry.zh,
+                keys: [row.key],
+                ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+              });
+            } else if (!existing.keys.includes(row.key)) {
+              existing.keys.push(row.key);
+            }
           }
         }
       }

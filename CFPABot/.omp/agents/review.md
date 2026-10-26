@@ -13,17 +13,9 @@ output:
             metadata:
               description: 分片头给的文件路径
             type: string
-          line:
-            metadata:
-              description: 该行的 head 行号
-            type: uint32
           key:
             metadata:
               description: 语言包 key
-            type: string
-          severity:
-            metadata:
-              description: critical | major | minor | neutral
             type: string
           mqm:
             metadata:
@@ -34,13 +26,21 @@ output:
               description: 散文原因，不含标题、原文、译文行；多个问题写成有序列表
             type: string
         optionalProperties:
+          line:
+            metadata:
+              description: 该行的 head 行号；可省，服务端按 path+key 定位
+            type: uint32
+          severity:
+            metadata:
+              description: critical | major | minor | neutral；可省，按 mqm 默认档补，后果不同才显式改
+            type: string
           en:
             metadata:
-              description: 原文；可省，服务端按 path+line 补
+              description: 原文；可省，服务端按 path+key 或 line 补
             type: string
           zh:
             metadata:
-              description: 译文；可省，服务端按 path+line 补
+              description: 译文；可省，服务端按 path+key 或 line 补
             type: string
           zhNew:
             metadata:
