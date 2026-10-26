@@ -6,8 +6,7 @@ import { checkBashInterception } from "@oh-my-pi/pi-coding-agent/tools/bash-inte
 import { type } from "@oh-my-pi/omptype";
 import type { ToolContext } from "../context.ts";
 import { localDir, writeLocal } from "../local-store.ts";
-import { paths } from "../../paths.ts";
-import { prRoot } from "../../workspace.ts";
+import { sessionPaths } from "../session-env.ts";
 import { onAbortSignal } from "./signal.ts";
 
 const ENV_ALLOW: Record<string, true> = {
@@ -51,20 +50,17 @@ function bashBinary(): string {
 
 const BASH_BIN = bashBinary();
 
-function shellPath(path: string): string {
-  return process.platform === "win32" ? path.replaceAll("\\", "/") : path;
-}
-
 /** WSL 会丢 env；Git Bash 也统一用 shell 里的显式 export，工具行为不随 shell 改变。 */
 function envPrologue(cwd: string, prNumber: number | undefined): string {
-  const vars: Record<string, string> = {
-    CFPA_ROOT: shellPath(paths.root),
-    CFPA_WORK: shellPath(paths.work),
-    CFPA_REPO: shellPath(paths.repo),
-    CFPA_SESSION: shellPath(cwd),
+  const vars = sessionPaths(cwd, prNumber);
+  const env: Record<string, string> = {
+    CFPA_ROOT: vars.root,
+    CFPA_WORK: vars.work,
+    CFPA_REPO: vars.repo,
+    CFPA_SESSION: vars.session,
   };
-  if (prNumber !== undefined) vars.CFPA_PR = shellPath(prRoot(prNumber));
-  const lines = Object.entries(vars).map(([key, value]) => `export ${key}=${shellQuote(value)}`);
+  if (vars.pr !== undefined) env.CFPA_PR = vars.pr;
+  const lines = Object.entries(env).map(([key, value]) => `export ${key}=${shellQuote(value)}`);
   if (prNumber === undefined) lines.push("unset CFPA_PR");
   return `${lines.join("\n")}\n`;
 }

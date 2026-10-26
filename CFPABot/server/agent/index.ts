@@ -34,6 +34,7 @@ import { SessionHub, statusEventOf } from "./events.ts";
 import { applySearchEnv, loadConfig, llm, resolveModel } from "./llm.ts";
 import { effortOf, parseRoleSelector } from "./llm-providers.ts";
 import { isLocalPath, listLocal, localDir, readLocal } from "./local-store.ts";
+import { writeSessionEnv } from "./session-env.ts";
 import { openAuthStorage, openModelRuntime, openSessionManager, messagesFromFile, planFromFile } from "./pi.ts";
 import { LiveProjector, projectMessages } from "./projection.ts";
 import { buildSystemPrompt } from "./prompt.ts";
@@ -229,6 +230,7 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
     }),
   ];
   const manager = await openSessionManager(record);
+  writeSessionEnv(record.meta.id, record.meta.prNumber);
   const sessionFile = manager.getSessionFile() ?? record.sessionFile;
   if (sessionFile) {
     record.sessionFile = sessionFile;
