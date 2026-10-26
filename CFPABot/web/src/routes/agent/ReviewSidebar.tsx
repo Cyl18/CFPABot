@@ -1,27 +1,21 @@
-import type { ChatItem, SubagentInfo } from "@cfpa/contracts/api";
+import type { ChatItem, SubagentInfo, TodoPhase, TodoStatus } from "@cfpa/contracts/api";
 import { useMutation } from "@tanstack/react-query";
-import { Ban, Bot, CheckCircle2, ChevronRight, Circle, CircleAlert, CircleMinus, Files, ListTodo, LoaderCircle } from "lucide-react";
+import { Ban, Bot, CheckCircle2, ChevronRight, Circle, CircleAlert, CircleMinus, ListTodo, LoaderCircle } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { api } from "@/lib/api.ts";
 import { cn } from "@/lib/cn.ts";
-import { usePr } from "@/lib/queries.ts";
 import {
   delegateItems,
-  fileProgress,
-  parsePlan,
   planStats,
   stringArg,
   subagentInfo,
   subagentModel,
-  type FileEntry,
-  type TaskStatus,
-  type TodoPhase,
   type ToolItem,
 } from "./sessionInsights.ts";
 import { SubagentDrawer } from "./SubagentDrawer.tsx";
 import { formatDuration, formatTokens } from "./turns.ts";
 
-const TASK_ICON: Record<TaskStatus, ReactNode> = {
+const TASK_ICON: Record<TodoStatus, ReactNode> = {
   completed: <CheckCircle2 aria-hidden="true" className="size-3.5 shrink-0 text-ok" />,
   in_progress: <Circle aria-hidden="true" className="size-3.5 shrink-0 animate-pulse text-accent" />,
   pending: <Circle aria-hidden="true" className="size-3.5 shrink-0 text-muted" />,
@@ -62,68 +56,6 @@ function Meter({ value, total }: { value: number; total: number }) {
     <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
       <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${Math.round(ratio * 100)}%` }} />
     </div>
-  );
-}
-
-function FileRow({ entry }: { entry: FileEntry }) {
-  return (
-    <div className="agent-fade flex items-center gap-1.5 py-0.5 text-[11px]">
-      {entry.reviewed ? (
-        <CheckCircle2 aria-hidden="true" className="size-3 shrink-0 text-ok" />
-      ) : entry.reads > 0 ? (
-        <Circle aria-hidden="true" className="size-3 shrink-0 fill-current text-accent" />
-      ) : (
-        <Circle aria-hidden="true" className="size-3 shrink-0 text-muted/40" />
-      )}
-      <span className={cn("min-w-0 flex-1 truncate", entry.reads === 0 && !entry.reviewed && "text-muted")} title={entry.path}>
-        {entry.path.split("/").at(-1)}
-      </span>
-      {entry.reads > 0 && <span className="shrink-0 tabular-nums text-[10px] text-muted">{entry.reads}×</span>}
-    </div>
-  );
-}
-
-function FileProgressCard({ entries, read, reviewed, total, totalReads }: { entries: readonly FileEntry[]; read: number; reviewed: number; total: number; totalReads: number }) {
-  const [showAll, setShowAll] = useState(false);
-  const touched = entries.filter((entry) => entry.reads > 0 || entry.reviewed);
-  const collapsed = !showAll && entries.length > 20;
-  const visible = collapsed ? (touched.length > 0 ? touched : entries.slice(0, 8)) : entries;
-  return (
-    <SectionCard icon={<Files aria-hidden="true" className="size-3.5" />} title="文件进度">
-      <div className="space-y-2">
-        <div className="flex items-baseline gap-2">
-          <span className="text-lg font-semibold tabular-nums">{total > 0 ? `${read}/${total}` : read}</span>
-          <span className="text-[11px] text-muted">已读</span>
-          {reviewed > 0 && <span className="ml-auto text-[11px] text-ok">已审 {reviewed}</span>}
-          {reviewed === 0 && totalReads > 0 && <span className="ml-auto text-[11px] text-muted">{totalReads} 次读取</span>}
-        </div>
-        <Meter value={read} total={total > 0 ? total : read} />
-        {total === 0 && (
-          <p className="text-[11px] text-muted">{read === 0 ? "还没有读取文件。" : "未关联 PR 或文件列表不可用，只统计已读到的路径。"}</p>
-        )}
-        {visible.length > 0 && (
-          <div className="scroll-thin max-h-64 overflow-y-auto pt-0.5">
-            {visible.map((entry) => (
-              <FileRow key={entry.path} entry={entry} />
-            ))}
-          </div>
-        )}
-        {collapsed && (
-          <button
-            type="button"
-            onClick={() => setShowAll(true)}
-            className="text-[11px] text-accent hover:underline"
-          >
-            显示全部 {entries.length} 个文件
-          </button>
-        )}
-        {showAll && entries.length > 20 && (
-          <button type="button" onClick={() => setShowAll(false)} className="text-[11px] text-muted hover:text-fg">
-            只看已读
-          </button>
-        )}
-      </div>
-    </SectionCard>
   );
 }
 
@@ -280,29 +212,20 @@ function SubagentList({
 
 export function ReviewSidebar({
   items,
+  plan,
   prNumber,
   sessionId,
   infos,
 }: {
   items: readonly ChatItem[];
+  plan?: TodoPhase[];
   prNumber?: number;
   sessionId: string;
   infos?: Record<string, SubagentInfo>;
 }) {
-  const pr = usePr(prNumber ?? 0);
-  const files = pr.data?.files ?? [];
-  const progress = fileProgress(items, files, prNumber);
-  const plan = parsePlan(items);
   const subagents = delegateItems(items);
   return (
     <div className="scroll-thin h-full min-h-0 space-y-3 overflow-y-auto p-3">
-      <FileProgressCard
-        entries={progress.entries}
-        read={progress.read}
-        reviewed={progress.reviewed}
-        total={progress.total}
-        totalReads={progress.totalReads}
-      />
       <PlanCard phases={plan} />
       <SubagentList items={subagents} sessionId={sessionId} infos={infos} {...(prNumber === undefined ? {} : { prNumber })} />
     </div>

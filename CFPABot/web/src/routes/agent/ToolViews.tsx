@@ -1,13 +1,13 @@
-import type { ToolCallView } from "@cfpa/contracts/api";
+import type { TodoStatus, ToolCallView } from "@cfpa/contracts/api";
 import { ArrowUpRight, Bot, CheckCircle2, Circle, CircleAlert, CircleMinus, FileText } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn.ts";
 import { formatJson } from "@/lib/format.ts";
 import { isRecord } from "@/lib/guards.ts";
 import { CopyButton } from "@/ui/CopyButton.tsx";
-import { planStats, resolveFilePath, stringArg, subagentModel, todoPhases, type TaskStatus } from "./sessionInsights.ts";
+import { planStats, resolveFilePath, stringArg, subagentModel, todoPhases } from "./sessionInsights.ts";
 
-const TASK_ICON: Record<TaskStatus, ReactNode> = {
+const TASK_ICON: Record<TodoStatus, ReactNode> = {
   completed: <CheckCircle2 aria-hidden="true" className="size-3.5 shrink-0 text-ok" />,
   in_progress: <Circle aria-hidden="true" className="size-3.5 shrink-0 animate-pulse text-accent" />,
   pending: <Circle aria-hidden="true" className="size-3.5 shrink-0 text-muted" />,

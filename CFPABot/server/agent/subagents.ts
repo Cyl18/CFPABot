@@ -83,7 +83,7 @@ export async function subagentTranscript(
     live !== undefined && live.length > 0
       ? live
       : await messagesFromFile(join(subagentDir(sessionId), `${agentId}.jsonl`));
-  const items: ChatItem[] = projectMessages(messages);
+  const items: ChatItem[] = projectMessages(messages, session?.agent.state.pendingToolCalls);
   const info = await loadSubagentInfo(sessionId, agentId);
   const status = ref === undefined ? info?.status : STATUS[ref.status];
   const activity = ref?.activity ?? info?.activity;

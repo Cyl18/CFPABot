@@ -7,6 +7,7 @@ import type {
   SetSessionConfigRequest,
   SubagentInfo,
   ThinkingLevel,
+  TodoPhase,
   WriteScope,
 } from "@cfpa/contracts/api";
 import { parseModelSelector } from "@cfpa/contracts/api";
@@ -103,6 +104,7 @@ export function SessionPage({ id }: { id: string }) {
   const [atBottom, setAtBottom] = useState(true);
   const [queued, setQueued] = useState<{ steering: string[]; followUp: string[] }>({ steering: [], followUp: [] });
   const [subagents, setSubagents] = useState<Record<string, SubagentInfo>>({});
+  const [plan, setPlan] = useState<TodoPhase[] | undefined>(undefined);
   const [activeTurn, setActiveTurn] = useState(0);
   const jumpRef = useRef<((index: number) => void) | null>(null);
   const llm = useLlmConfig(true);
@@ -122,6 +124,7 @@ export function SessionPage({ id }: { id: string }) {
     setStatus("idle");
     setQueued({ steering: [], followUp: [] });
     setSubagents({});
+    setPlan(undefined);
     setDraft(null);
     setDirty(false);
     setLastError(undefined);
@@ -159,6 +162,7 @@ export function SessionPage({ id }: { id: string }) {
     setLastError(data.lastError);
     setNote(undefined);
     mergeSubagents(data.subagents ?? []);
+    setPlan(data.plan);
     atBottomRef.current = true;
     setAtBottom(true);
   }, [detail.data, id, mergeSubagents]);
@@ -174,6 +178,7 @@ export function SessionPage({ id }: { id: string }) {
           setLastError(event.session.lastError);
           setNote(undefined);
           mergeSubagents(event.session.subagents ?? []);
+          setPlan(event.session.plan);
           break;
         }
         case "item": {
@@ -208,6 +213,10 @@ export function SessionPage({ id }: { id: string }) {
         }
         case "subagent": {
           mergeSubagents([event.info]);
+          break;
+        }
+        case "plan": {
+          setPlan(event.plan);
           break;
         }
         case "artifact": {
@@ -649,7 +658,7 @@ export function SessionPage({ id }: { id: string }) {
               ) : activeAsideTab === "files" ? (
                 <ArtifactPanel key={id} id={id} live={running} />
               ) : (
-                <ReviewSidebar items={items} prNumber={meta.prNumber} sessionId={id} infos={subagents} />
+                <ReviewSidebar items={items} plan={plan} prNumber={meta.prNumber} sessionId={id} infos={subagents} />
               )}
             </div>
           </aside>

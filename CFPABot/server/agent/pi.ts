@@ -7,8 +7,9 @@ import {
   Settings,
   type AuthStorage,
 } from "@oh-my-pi/pi-coding-agent";
+import { getLatestTodoPhasesFromEntries } from "@oh-my-pi/pi-coding-agent/tools/todo";
 import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
-import type { LlmEndpoint } from "@cfpa/contracts/api";
+import type { LlmEndpoint, TodoPhase } from "@cfpa/contracts/api";
 import { paths } from "../paths.ts";
 import { localDir } from "./local-store.ts";
 import { assertEndpointRouting, resolveApiKey } from "./llm-providers.ts";
@@ -83,6 +84,17 @@ export async function messagesFromFile(file: string | undefined): Promise<AgentM
   try {
     const manager = await SessionManager.open(file, paths.sessions);
     return manager.buildSessionContext({ transcript: true, collapseCompactedHistory: true }).messages;
+  } catch {
+    return [];
+  }
+}
+
+/** 计划以会话分支上的 todo 快照为准：压缩后的消息里可能已经没有那次调用。 */
+export async function planFromFile(file: string | undefined): Promise<TodoPhase[]> {
+  if (file === undefined || !existsSync(file)) return [];
+  try {
+    const manager = await SessionManager.open(file, paths.sessions);
+    return getLatestTodoPhasesFromEntries(manager.getBranch());
   } catch {
     return [];
   }

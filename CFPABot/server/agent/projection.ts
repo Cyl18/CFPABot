@@ -135,7 +135,10 @@ function assistantItem(index: number, message: AgentMessage, streaming: boolean,
   };
 }
 
-export function projectMessages(messages: AgentMessage[]): ChatItem[] {
+export function projectMessages(
+  messages: AgentMessage[],
+  pending?: ReadonlySet<string>,
+): ChatItem[] {
   const results = new Map<string, { text: string; isError: boolean; details: unknown }>();
   for (const message of messages) {
     if (message.role !== "toolResult") continue;
@@ -157,8 +160,9 @@ export function projectMessages(messages: AgentMessage[]): ChatItem[] {
     if (assistant) items.push(assistant);
     for (const call of toolCallsOf(message.content)) {
       const result = results.get(call.id);
+      const state = result ? (result.isError ? "error" : "done") : pending?.has(call.id) ? "running" : "pending";
       items.push(
-        toolItem(call.id, call.name, call.args, result ? (result.isError ? "error" : "done") : "pending", {
+        toolItem(call.id, call.name, call.args, state, {
           at,
           ...(result ? { result: clip(result.text, readsWholeSkill(call.name, call.args)) } : {}),
           ...(result ? { details: toolDetailsOf(call.name, result.details) } : {}),
@@ -174,17 +178,29 @@ export class LiveProjector {
   private currentIndex = 0;
   private lastStreamAt = 0;
   private toolArgs = new Map<string, unknown>();
+  private stream: AgentMessage | undefined;
 
   constructor(startIndex: number) {
     this.nextIndex = startIndex;
+  }
+
+  /** 正在流式的助手消息；它还没进 `state.messages`，快照要单独补上。 */
+  partial(): ChatItem | undefined {
+    const message = this.stream;
+    if (message === undefined || message.role !== "assistant") return undefined;
+    const item = assistantItem(this.currentIndex, message, true);
+    if (item === null || item.kind !== "assistant") return undefined;
+    return item.text !== "" || item.thinking !== undefined ? item : undefined;
   }
 
   handle(event: AgentEvent | AgentSessionEvent): ChatItem[] {
     switch (event.type) {
       case "message_start":
         this.currentIndex = this.nextIndex++;
+        this.stream = event.message;
         return [];
       case "message_update": {
+        this.stream = event.message;
         if (event.message.role !== "assistant") return [];
         const now = Date.now();
         if (now - this.lastStreamAt < STREAM_THROTTLE_MS) return [];
@@ -193,6 +209,7 @@ export class LiveProjector {
         return item ? [item] : [];
       }
       case "message_end": {
+        this.stream = undefined;
         const index = this.currentIndex;
         if (event.message.role === "user") {
           return [{ id: `m${index}`, kind: "user", text: textOf(event.message.content), at: isoAt(event.message.timestamp) }];
@@ -207,6 +224,9 @@ export class LiveProjector {
         }
         return out;
       }
+      case "agent_end":
+        this.stream = undefined;
+        return [];
       case "tool_execution_start":
         this.toolArgs.set(event.toolCallId, event.args);
         return [toolItem(event.toolCallId, event.toolName, event.args, "running")];

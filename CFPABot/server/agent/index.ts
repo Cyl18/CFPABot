@@ -9,6 +9,7 @@ import {
   type Skill,
 } from "@oh-my-pi/pi-coding-agent";
 import type { Effort } from "@oh-my-pi/pi-catalog/effort";
+import { committedTodoPhases } from "@oh-my-pi/pi-coding-agent/tools/todo";
 import type { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp";
 import type {
   CreateSessionRequest,
@@ -33,7 +34,7 @@ import { SessionHub, statusEventOf } from "./events.ts";
 import { applySearchEnv, loadConfig, llm, resolveModel } from "./llm.ts";
 import { effortOf, parseRoleSelector } from "./llm-providers.ts";
 import { isLocalPath, listLocal, localDir, readLocal } from "./local-store.ts";
-import { openAuthStorage, openModelRuntime, openSessionManager, messagesFromFile } from "./pi.ts";
+import { openAuthStorage, openModelRuntime, openSessionManager, messagesFromFile, planFromFile } from "./pi.ts";
 import { LiveProjector, projectMessages } from "./projection.ts";
 import { buildSystemPrompt } from "./prompt.ts";
 import { sandbox } from "./plugins/sandbox.ts";
@@ -55,6 +56,7 @@ const hub = new SessionHub();
 
 interface Runtime {
   session: AgentSession;
+  projector: LiveProjector;
   unsubscribe: () => void;
   mcpUnsubscribe?: () => void;
   authStorage: AuthStorage;
@@ -148,17 +150,26 @@ async function detailOf(record: SessionRecord): Promise<SessionDetail> {
   const meta = record.meta;
   const raw = await readLocal(meta.id, DRAFT_FILE);
   const draft = raw === null ? null : parseDraftFile(raw.content);
-  const cached = live.get(meta.id)?.runtime?.session.agent.state.messages;
+  const [subagents, plan] = await Promise.all([
+    loadSubagents(meta.id),
+    live.get(meta.id)?.runtime?.session.getTodoPhases() ?? planFromFile(record.sessionFile),
+  ]);
+  // 异步都走完再读运行中状态：快照与随后的 SSE 事件之间尽量不留窗口。
+  const runtime = live.get(meta.id)?.runtime;
+  const cached = runtime?.session.agent.state.messages;
   const messages = cached ? [...cached] : await messagesFromFile(record.sessionFile);
-  const subagents = await loadSubagents(meta.id);
+  const items = projectMessages(messages, runtime?.session.agent.state.pendingToolCalls);
+  const partial = runtime?.projector.partial();
+  if (partial !== undefined) items.push(partial);
   return {
     ...summarize(
       record,
       draft !== null,
       draft ? { prNumber: draft.prNumber, verdict: draft.verdict, comments: draft.comments.length } : undefined,
     ),
-    items: projectMessages(messages),
+    items,
     ...(subagents.length === 0 ? {} : { subagents }),
+    ...(plan.length === 0 ? {} : { plan }),
     ...(draft !== null ? { artifact: draft, artifactFile: DRAFT_FILE } : {}),
   };
 }
@@ -262,6 +273,10 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   const projector = new LiveProjector(session.agent.state.messages.length);
   const unsubscribe = session.subscribe((event) => {
     for (const item of projector.handle(event)) hub.emit(id, { type: "item", item });
+    if (event.type === "tool_execution_end" && event.toolName === "todo") {
+      const plan = committedTodoPhases(event.result);
+      if (plan !== undefined) hub.emit(id, { type: "plan", plan });
+    }
     const status = statusEventOf(event);
     if (status !== undefined) hub.emit(id, status);
     if (event.type === "agent_start") markStatus(id, "running");
@@ -287,7 +302,7 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
     authStorage.close();
     throw err;
   }
-  const runtime: Runtime = { session, unsubscribe, authStorage };
+  const runtime: Runtime = { session, projector, unsubscribe, authStorage };
   if (mcp.current !== undefined) {
     const manager = mcp.current;
     runtime.mcpUnsubscribe = manager.addToolsChangedListener(() => {

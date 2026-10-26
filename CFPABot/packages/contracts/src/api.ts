@@ -607,12 +607,28 @@ export interface ReviewDraft {
   publishedUrl?: string;
 }
 
+export const TODO_STATUSES = ["pending", "in_progress", "completed", "abandoned", "blocked"] as const;
+export type TodoStatus = (typeof TODO_STATUSES)[number];
+
+export interface TodoTask {
+  content: string;
+  status: TodoStatus;
+  blocker?: string;
+}
+
+export interface TodoPhase {
+  name: string;
+  tasks: readonly TodoTask[];
+}
+
 export interface SessionDetail extends SessionSummary {
   items: ChatItem[];
   artifact?: unknown;
   artifactFile?: string;
   /** 已知子代理的最近状态；服务重启后从 status.json 回放。 */
   subagents?: SubagentInfo[];
+  /** 最近一次提交的计划；没有计划时省略。 */
+  plan?: TodoPhase[];
 }
 
 export interface SessionFile {
@@ -659,6 +675,8 @@ export type SessionEvent =
   | { type: "queue"; steering: string[]; followUp: string[] }
   /** 子代理状态更新：进度、探针估计、完成或失败。 */
   | { type: "subagent"; info: SubagentInfo }
+  /** 计划更新：`todo` 提交成功后的整份快照。 */
+  | { type: "plan"; plan: TodoPhase[] }
   | { type: "artifact"; artifact: unknown }
   | { type: "ping" };
 
