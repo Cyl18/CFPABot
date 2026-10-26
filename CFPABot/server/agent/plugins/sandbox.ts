@@ -14,6 +14,8 @@ const READ_SELECTOR = /(?::(?:raw|img|conflicts|\d[\d,+-]*|-\d+))+$/;
 const EXEC_SOURCE: Record<string, string> = { bash: "command", eval: "code" };
 const PARENT_SEGMENT = /(?:^|[^A-Za-z0-9._-])\.\.(?:$|[^A-Za-z0-9._-])/;
 const ABSOLUTE_PATH = /(?:^|[\s"'`(,=;|&])(?:[A-Za-z]:[\\/]|\/(?!dev\/null\b)(?![/*]))/;
+const RESERVED_REDIRECT = /(?:^|[\s;&|(])(?:\d|&)?>>?\s*["']?(?:nul|con|prn|aux|com[1-9]|lpt[1-9])(?:\.\w+)?["']?(?=$|[\s;&|)])/i;
+// shortcut: 只挡 shell 重定向，eval 里 open("nul") 这类直接写文件不拦；等到真出现 eval 造设备名再扩。
 const SECRET_FIELDS = ["path", "paths", "command", "code", "resources", "url"];
 const ALLOWED_READ_SCHEMES: Record<string, true> = { repo: true, pr: true, gh: true, skill: true, local: true };
 
@@ -94,6 +96,7 @@ export function execPathReason(toolName: string, input: unknown): string | undef
   if (typeof source !== "string") return undefined;
   if (PARENT_SEGMENT.test(source)) return "只允许会话 workspace 内的相对路径，禁止 `..`；仓库文件用 `$CFPA_ROOT/…` 或 repo:// 读。";
   if (ABSOLUTE_PATH.test(source)) return "执行与写入只用相对路径，绝对路径一律拒绝；仓库用 `$CFPA_ROOT/…` 或 repo://，PR 文件先复制到 local://work/。";
+  if (RESERVED_REDIRECT.test(source)) return "Windows 保留设备名不能当重定向目标；丢弃输出用 /dev/null。";
   return undefined;
 }
 

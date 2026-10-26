@@ -4,7 +4,7 @@ import { buildTermIndex } from "@cfpa/review-core/domain/terms";
 import type { Pack, PackRow, PackWorkspace } from "@cfpa/review-core/pack";
 import { reviewRowsForInput } from "./harness/review/rows.ts";
 import { withServerFilledFields } from "./harness/review/draft.ts";
-import { secretReason } from "./agent/plugins/sandbox.ts";
+import { execPathReason, secretReason } from "./agent/plugins/sandbox.ts";
 import type { ThreadsView } from "./harness/review/threads.ts";
 
 const EN = "projects/assets/demo/1.20.1/demo/lang/en_us.json";
@@ -182,5 +182,12 @@ describe("sandbox", () => {
   test("写入正文里的敏感词不触发沙箱密钥扫描", () => {
     expect(secretReason({ path: "pr://1/draft", content: "process.env / .env 只是评论正文" })).toBeUndefined();
     expect(secretReason({ command: "printenv" })).toContain("环境变量");
+  });
+
+  test("保留设备名不能当重定向目标", () => {
+    expect(execPathReason("bash", { command: "make >nul 2>&1" })).toContain("保留设备名");
+    expect(execPathReason("bash", { command: "ls 2>NUL" })).toContain("保留设备名");
+    expect(execPathReason("bash", { command: "make >/dev/null" })).toBeUndefined();
+    expect(execPathReason("bash", { command: "node check.js" })).toBeUndefined();
   });
 });
