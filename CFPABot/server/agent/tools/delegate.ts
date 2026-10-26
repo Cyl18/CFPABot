@@ -19,7 +19,7 @@ import { lineRangeOf, sliceLines } from "../../harness/uri.ts";
 import { artifactsDir, localDir } from "../local-store.ts";
 import { agentMcpManager } from "../mcp.ts";
 import { openAuthStorage, openModelRuntime } from "../pi.ts";
-import { noteSubagent, subagentDir } from "../subagents.ts";
+import { noteSubagent, saveYield, subagentDir } from "../subagents.ts";
 
 // 子代理的工具面由 agent md 的 tools 决定；孙代理由 omp 的 task 深度配置决定。
 
@@ -212,7 +212,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
               });
             },
           });
-          return await runSubprocess({
+          const result = await runSubprocess({
             cwd: repoRoot,
             additionalDirectories: [localDir(ctx.sessionId)],
             localProtocolOptions: {
@@ -271,6 +271,8 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
               if (live) onUpdate?.({ content: [], details: { ...base, subagent: lastInfo } });
             },
           });
+          await saveYield(ctx.sessionId, agentId, result.structuredOutput?.data);
+          return result;
         } finally {
           runSignal.removeEventListener("abort", stopProbe);
           stopProbe();

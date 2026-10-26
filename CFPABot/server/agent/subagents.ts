@@ -4,6 +4,7 @@ import type { ChatItem, SubagentInfo, SubagentTranscript } from "@cfpa/contracts
 import { HttpError } from "../errors.ts";
 import { paths } from "../paths.ts";
 import { readJson, withLock, writeJson } from "../store.ts";
+import { writeLocal } from "./local-store.ts";
 import { messagesFromFile } from "./pi.ts";
 import { projectMessages } from "./projection.ts";
 
@@ -19,6 +20,12 @@ const STATUS: Record<string, SubagentInfo["status"]> = {
 /** 子代理的会话文件、产出和结构化结果都落在这个目录。 */
 export function subagentDir(sessionId: string): string {
   return join(paths.sessions, sessionId, "subagents");
+}
+
+/** subagents/ 对 agent 永久关闭，yield 载荷另存一份到 workspace 才算可用。 */
+export async function saveYield(sessionId: string, agentId: string, data: unknown): Promise<void> {
+  if (data === undefined || !AGENT_ID.test(agentId)) return;
+  await writeLocal(sessionId, `yield/${agentId}.json`, `${JSON.stringify(data, null, 2)}\n`);
 }
 
 const STATUS_FILE = "status.json";
