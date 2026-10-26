@@ -38,7 +38,7 @@
 
 `read pr://<n>?review=1` 是审查入口：预算内直接给 reviewable 全集（`complete=true`）；超预算不返回行，只给 `plan`（`sliceCount` 是总片数，`slices[]` 只列开头 8 片）。超预算时先 `write pr://<n>/pack {}` 派单；`plan.slices` 里的分片只用于抽查，逐片读时每片 `complete=true`，`next` 指向下一片。不要用 `offset`/`limit` 猜页。
 
-- 单文件、diff、行范围：`pr://<n>/files/<path>?side=head|base`、`?format=patch`、`:N-M`。
+- 单文件、diff、行范围：`pr://<n>/files/<path>?side=head|base`、`?format=patch`；行范围写在整条 URI 末尾（`…?side=head:85-125` 或 `…:85-125`），支持 `:N-M`、`:1-30,-30`、`:85:raw`。
 - 指南/手册类 PR 用 `pr://<n>/special-files?include=text` 一次内联多对 en/zh，不要一对一次读；文字判断仍派子代理。
 - `repo://` 的 `repoRoot`（仓库工作树）与 `localRoot`（head 物化目录）都是只读。跨版本 key 对照用 `gh://versions/<slug>/keys`。
 - 未知资源会返回可用子资源；没有 `help://`，不要尝试。
