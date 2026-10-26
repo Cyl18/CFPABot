@@ -272,8 +272,16 @@ export async function writePr(
   switch (target.id) {
     case "pr-draft":
       return writeDraft(uri, content, ctx);
-    case "pr-pack":
+    case "pr-pack": {
+      const body = content?.trim() ?? "";
+      if (body !== "" && body !== "{}") {
+        return errorResult({
+          error: "pr://<n>/pack 不接受参数；片大小由服务端按预算切",
+          hint: "用 write pr://<n>/pack {}",
+        });
+      }
       return jsonResult(await writeWorkPack(uri.number, ctx.sessionId));
+    }
     case "pr-comment":
       return writeComment(uri, content, ctx, toolCallId);
     case "pr-inline-comment":

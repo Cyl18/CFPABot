@@ -7,7 +7,7 @@ import { glossaryTerms } from "../../domain/glossary.ts";
 import { prdata } from "../../prdata.ts";
 import { specialContents, specialPairs } from "../../views/special.ts";
 import { loadPack } from "../pack.ts";
-import { reviewRowViews, sliceGroup, type RowsInput, type RowsOptions } from "./rows.ts";
+import { balanceSlices, reviewRowViews, type RowsInput, type RowsOptions } from "./rows.ts";
 import { threadsOf } from "./threads.ts";
 
 /** 一片文档的目标大小：子代理一次读完，不靠工具翻页。 */
@@ -216,7 +216,6 @@ interface SliceDraft {
   workspace: string;
   path: string;
   rows: ReviewRowView[];
-  bytes: number;
 }
 
 function chunk(
@@ -225,37 +224,32 @@ function chunk(
   budget: number,
   near: Map<string, { prev?: string; next?: string }>,
 ): SliceDraft[] {
-  const pieces = rows.map((row) => ({
-    row,
-    bytes: Buffer.byteLength(rowBlock(row, near.get(`${row.workspace}\u0000${row.key}`))) + 2,
-  }));
   const drafts: SliceDraft[] = [];
-  let current: SliceDraft | null = null;
-  let group = "";
-  const flush = (): void => {
-    if (current !== null && current.rows.length > 0) drafts.push(current);
-    current = null;
-  };
-  for (const piece of pieces) {
-    const { row } = piece;
-    const path = row.path ?? "";
-    if (current === null || current.workspace !== row.workspace || current.path !== path) {
-      flush();
-      current = { id: "", workspace: row.workspace, path, rows: [], bytes: SLICE_RESERVE_BYTES };
+  const cap = Math.max(1, budget - SLICE_RESERVE_BYTES);
+  let index = 0;
+  while (index < rows.length) {
+    const first = rows[index]!;
+    const path = first.path ?? "";
+    let end = index;
+    while (end < rows.length && rows[end]!.workspace === first.workspace && (rows[end]!.path ?? "") === path) {
+      end += 1;
     }
-    const nextGroup = sliceGroup(row.key);
-    const overBudget = current.bytes + piece.bytes > budget;
-    if (current.rows.length > 0 && (current.rows.length >= SLICE_MAX_ROWS || (overBudget && nextGroup !== group))) {
-      flush();
-      current = { id: "", workspace: row.workspace, path, rows: [], bytes: SLICE_RESERVE_BYTES };
+    const segment = rows.slice(index, end);
+    const sizes = segment.map(
+      (row) => Buffer.byteLength(rowBlock(row, near.get(`${row.workspace}\u0000${row.key}`))) + 2,
+    );
+    for (const bound of balanceSlices(sizes, cap, SLICE_MAX_ROWS)) {
+      drafts.push({
+        id: "",
+        workspace: first.workspace,
+        path,
+        rows: segment.slice(bound.start, bound.end),
+      });
     }
-    current.rows.push(row);
-    current.bytes += piece.bytes;
-    group = nextGroup;
+    index = end;
   }
-  flush();
-  for (const [index, draft] of drafts.entries()) {
-    draft.id = `${headSha.slice(0, 7)}-${String(index + 1).padStart(2, "0")}`;
+  for (const [position, draft] of drafts.entries()) {
+    draft.id = `${headSha.slice(0, 7)}-${String(position + 1).padStart(2, "0")}`;
   }
   return drafts;
 }

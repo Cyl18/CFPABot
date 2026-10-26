@@ -6,6 +6,7 @@ import { prdata } from "../../prdata.ts";
 
 export interface ChecksView {
   status: ChecksSummary["status"];
+  source: ChecksSummary["source"];
   headSha: string;
   checkedSha: string | null;
   builtAt: string | null;
@@ -79,6 +80,7 @@ export async function checksOf(n: number, comments?: readonly GhComment[] | null
   }
   return {
     status,
+    source: report === null ? "none" : "bot",
     headSha: pull.headSha,
     checkedSha: report?.headSha ?? null,
     builtAt: report?.generatedAt ?? null,
@@ -94,6 +96,7 @@ export async function checksOf(n: number, comments?: readonly GhComment[] | null
 export function checksSummary(view: ChecksView): ChecksSummary {
   return {
     status: view.status,
+    source: view.source,
     headSha: view.headSha,
     checkedSha: view.checkedSha,
     builtAt: view.builtAt,

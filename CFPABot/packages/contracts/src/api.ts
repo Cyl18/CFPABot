@@ -141,6 +141,8 @@ export interface WorkspaceBrief {
 
 export interface ChecksSummary {
   status: "unknown" | "running" | "ok" | "stale" | "failed";
+  /** counts/top 的来源：bot 结构化报告、本地预审、或都没有。 */
+  source: "bot" | "local" | "none";
   headSha: string;
   checkedSha: string | null;
   builtAt: string | null;

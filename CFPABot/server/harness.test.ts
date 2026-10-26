@@ -13,7 +13,7 @@ import { buildTools } from "./agent/tools/index.ts";
 import { sandboxEnv } from "./agent/tools/bash.ts";
 import { localDir, readLocal } from "./agent/local-store.ts";
 import { composeSuggestion, prepareDraft, withServerFilledFields } from "./harness/review/draft.ts";
-import { reviewRowsForInput, reviewRowViews } from "./harness/review/rows.ts";
+import { balanceSlices, reviewRowsForInput, reviewRowViews } from "./harness/review/rows.ts";
 import { composeManualSlices, composeWorkPack, persistWorkPack } from "./harness/review/workpack.ts";
 import { aggregateTerms } from "./harness/review/terms.ts";
 import { jsonResult } from "./harness/result.ts";
@@ -263,7 +263,7 @@ describe("review rows plan", () => {
     expect(pages).toBe(result.plan.sliceCount);
   });
 
-  test("同一 key 组跨预算也不切开", () => {
+  test("同一 key 组超预算时按行硬切", () => {
     const rows = [
       ...Array.from({ length: 25 }, (_, index) =>
         row(`mod.page.alpha.f${index}`, "A".repeat(600), "甲".repeat(200), index + 1),
@@ -279,14 +279,11 @@ describe("review rows plan", () => {
       patches: new Map(),
     };
     const { plan } = reviewRowsForInput(input, options);
-    expect(plan.slices).toHaveLength(2);
-    expect(plan.slices[0]).toMatchObject({
-      rows: 25,
-      firstKey: "mod.page.alpha.f0",
-      lastKey: "mod.page.alpha.f24",
-    });
-    expect(plan.slices[0]!.bytes).toBeGreaterThan(plan.budgetBytes);
-    expect(plan.slices[1]?.firstKey).toBe("mod.page.beta.f0");
+    expect(plan.slices.length).toBeGreaterThan(2);
+    expect(plan.slices.every((slice) => slice.bytes <= plan.budgetBytes)).toBe(true);
+    expect(plan.slices.every((slice) => slice.rows > 0 && slice.rows <= 300)).toBe(true);
+    expect(plan.slices[0]?.firstKey).toBe("mod.page.alpha.f0");
+    expect(plan.slices.reduce((sum, slice) => sum + slice.rows, 0)).toBe(rows.length);
   });
 
   test("未知分片报错并指向重新取 plan", () => {
@@ -469,17 +466,25 @@ describe("work pack", () => {
     expect("zhNew" in (filled.comments[0] ?? {})).toBe(false);
   });
 
-  test("按预算切片，同 key 组不切开", () => {
-    const space = pack([
-      row("mod.page.a.one", "A", "甲", 1),
-      row("mod.page.a.two", "B", "乙", 2),
-      row("mod.page.b.one", "C", "丙", 3),
+  test("按总字节定片数再均分，尾片不落单", () => {
+    const bounds = balanceSlices([10, 10, 10, 10, 10, 10], 25, 300);
+    expect(bounds.map((bound) => bound.end - bound.start)).toEqual([2, 2, 2]);
+    expect(bounds.every((bound) => bound.bytes <= 25)).toBe(true);
+    expect(balanceSlices([30, 30, 30, 30], 50, 300)).toHaveLength(4);
+    expect(balanceSlices([40, 40, 1], 48, 300)).toEqual([
+      { start: 0, end: 1, bytes: 40 },
+      { start: 1, end: 3, bytes: 41 },
     ]);
-    const { manifest } = composeWorkPack(space, rowsOf(space), new Date("2026-01-01T00:00:00.000Z"), 120);
-    expect(manifest.counts.slices).toBe(2);
-    expect(manifest.slices[0]).toMatchObject({ firstKey: "mod.page.a.one", lastKey: "mod.page.a.two" });
-    expect(manifest.slices[1]?.firstKey).toBe("mod.page.b.one");
-    expect(manifest.slices.every((slice) => slice.bytes > 0)).toBe(true);
+  });
+
+  test("打包切片不超预算，同组也硬切", () => {
+    const space = pack(
+      Array.from({ length: 40 }, (_, index) => row(`mod.page.a.${index}`, `E${index}`, `甲${index}`, index + 1)),
+    );
+    const budget = 6_400;
+    const { manifest } = composeWorkPack(space, rowsOf(space), new Date("2026-01-01T00:00:00.000Z"), budget);
+    expect(manifest.counts.slices).toBeGreaterThan(1);
+    expect(manifest.slices.every((slice) => slice.rows > 0 && slice.bytes <= budget)).toBe(true);
   });
 });
 

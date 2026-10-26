@@ -34,8 +34,8 @@ export async function buildSystemPrompt(
   ].join("\n");
   const prBound =
     prNumber === undefined
-      ? "本会话未绑定 PR。用户给出编号后，从 `read pr://<n>?review=1` 开始；返回 `plan` 时从 `next` 开始逐片读。"
-      : `本会话绑定 PR #${prNumber}。审查从 \`read pr://${prNumber}?review=1\` 开始；返回 \`plan\` 时从 \`next\` 开始逐片读，不要用 offset。`;
+      ? "本会话未绑定 PR。用户给出编号后，从 `read pr://<n>?review=1` 开始；返回 `plan` 时先 `write pr://<n>/pack {}` 派单。"
+      : `本会话绑定 PR #${prNumber}。审查从 \`read pr://${prNumber}?review=1\` 开始；返回 \`plan\` 时先 \`write pr://${prNumber}/pack {}\` 派单，不要用 offset。`;
   const system = (await readPrompt("system.md"))
     .replace(TREE_PLACEHOLDER, resourceTree())
     .replace(WRITE_PLACEHOLDER, writeTable)

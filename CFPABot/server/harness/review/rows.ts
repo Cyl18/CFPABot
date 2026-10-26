@@ -146,10 +146,69 @@ function rowBytes(row: ReviewRowView): number {
   return Buffer.byteLength(JSON.stringify(row));
 }
 
-/** 同组分片：键的前三段（如 slate_work.page.<page>）整组进同片，回填才有相邻条目可拼。 */
-export function sliceGroup(key: string): string {
-  const parts = key.split(".");
-  return parts.length > 3 ? parts.slice(0, 3).join(".") : key;
+export interface SliceBounds {
+  start: number;
+  end: number;
+  bytes: number;
+}
+
+/** 先按总字节定片数，再按行数均分；单行超预算时独占一片。 */
+export function balanceSlices(
+  sizes: readonly number[],
+  budget: number,
+  maxRows: number,
+): SliceBounds[] {
+  const count = sizes.length;
+  if (count === 0) return [];
+  const cap = Math.max(1, budget);
+  const rowCap = Math.max(1, maxRows);
+  const prefix = new Array<number>(count + 1).fill(0);
+  for (let index = 0; index < count; index += 1) prefix[index + 1] = prefix[index]! + sizes[index]!;
+  const total = prefix[count]!;
+  let plan = Math.min(count, Math.max(1, Math.ceil(total / cap), Math.ceil(count / rowCap)));
+  for (;;) {
+    const bounds: SliceBounds[] = [];
+    let start = 0;
+    let complete = true;
+    for (let index = 0; index < plan; index += 1) {
+      const left = plan - index;
+      const remaining = count - start;
+      if (remaining < left) {
+        complete = false;
+        break;
+      }
+      let end = start + Math.min(Math.ceil(remaining / left), rowCap);
+      let bytes = prefix[end]! - prefix[start]!;
+      while (end > start + 1 && bytes > cap) {
+        end -= 1;
+        bytes -= sizes[end]!;
+      }
+      bounds.push({ start, end, bytes });
+      start = end;
+    }
+    if (complete && start === count) return mergeTinyTail(bounds, cap, rowCap, total);
+    plan += 1;
+  }
+}
+
+/** 尾片小于平均片一半且并得进去时并入前片，别留孤儿片。 */
+function mergeTinyTail(
+  bounds: SliceBounds[],
+  cap: number,
+  maxRows: number,
+  total: number,
+): SliceBounds[] {
+  while (bounds.length > 1) {
+    const last = bounds[bounds.length - 1]!;
+    const prev = bounds[bounds.length - 2]!;
+    if (last.bytes * 2 >= total / bounds.length) break;
+    if (last.end - last.start + (prev.end - prev.start) > maxRows) break;
+    if (prev.bytes + last.bytes > cap) break;
+    prev.end = last.end;
+    prev.bytes += last.bytes;
+    bounds.pop();
+  }
+  return bounds;
 }
 
 function filterParams(options: RowsOptions): URLSearchParams {
@@ -429,29 +488,24 @@ function planFor(input: RowsInput, options: RowsOptions, rows: readonly ReviewRo
   while (index < rows.length) {
     const workspace = rows[index]!.workspace;
     let end = index;
-    let bytes = 0;
-    let group = sliceGroup(rows[index]!.key);
-    while (end < rows.length && rows[end]!.workspace === workspace && end - index < SLICE_MAX_ROWS) {
-      const nextGroup = sliceGroup(rows[end]!.key);
-      const size = sizes[end]!;
-      if (end > index && bytes + size > budget && nextGroup !== group) break;
-      bytes += size;
-      group = nextGroup;
-      end += 1;
+    while (end < rows.length && rows[end]!.workspace === workspace) end += 1;
+    for (const bound of balanceSlices(sizes.slice(index, end), budget, SLICE_MAX_ROWS)) {
+      const start = index + bound.start;
+      const stop = index + bound.end;
+      const id = `${input.pack.headSha.slice(0, 7)}~${shortHash(`${seed}\u0000${budget}`)}~${workspace}~${start}`;
+      const uri = `pr://${input.pack.prNumber}/rows?${sliceParams(options, id).toString()}`;
+      slices.push({
+        id,
+        workspace,
+        rows: stop - start,
+        bytes: bound.bytes,
+        firstKey: rows[start]!.key,
+        lastKey: rows[stop - 1]!.key,
+        uri,
+        start,
+        end: stop,
+      });
     }
-    const id = `${input.pack.headSha.slice(0, 7)}~${shortHash(`${seed}\u0000${budget}`)}~${workspace}~${index}`;
-    const uri = `pr://${input.pack.prNumber}/rows?${sliceParams(options, id).toString()}`;
-    slices.push({
-      id,
-      workspace,
-      rows: end - index,
-      bytes,
-      firstKey: rows[index]!.key,
-      lastKey: rows[end - 1]!.key,
-      uri,
-      start: index,
-      end,
-    });
     index = end;
   }
   return { plan: planView(rows.length, totalBytes, slices, false, budget), slices };
@@ -523,7 +577,7 @@ export function reviewRowsForInput(input: RowsInput, options: RowsOptions): Revi
         nextOffset: null,
         complete: false,
         plan,
-        hint: `共 ${selected.length} 行 / ${plan.bytes} B，超过单页预算 ${plan.budgetBytes} B；照 next 逐片读，共 ${plan.sliceCount} 片。`,
+        hint: `共 ${selected.length} 行 / ${plan.bytes} B，超过单页预算 ${plan.budgetBytes} B；要派单先 write pr://${input.pack.prNumber}/pack {}，或照 next 逐片读，共 ${plan.sliceCount} 片。`,
         next: slices[0]?.uri ?? null,
       }),
     };
