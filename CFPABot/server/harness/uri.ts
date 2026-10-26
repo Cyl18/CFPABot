@@ -70,12 +70,22 @@ export function lineRangeOf(selector: string): LineRange | null {
   return { start: Math.max(1, start), end };
 }
 
+/** 选择器写在了查询前面（omp 剥不掉）时，只有 `:N`/`:N-M` 能在这里补；其它形态给明确出路。 */
+const SELECTOR_SUFFIX = /^(?:raw|img|conflicts|\d[\d,+-]*|-\d+)$/;
+
 /** `x.json:85-125` / `x.json:85` 剥出范围；omp 只在选择器紧贴 URL 结尾时才剥，写在查询前的在这里补。 */
 export function splitLineSuffix(path: string): { path: string; range: LineRange | null } {
   const colon = path.lastIndexOf(":");
   if (colon <= 0) return { path, range: null };
-  const range = lineRangeOf(path.slice(colon + 1));
-  return range === null ? { path, range: null } : { path: path.slice(0, colon), range };
+  const suffix = path.slice(colon + 1);
+  const range = lineRangeOf(suffix);
+  if (range !== null) return { path: path.slice(0, colon), range };
+  if (SELECTOR_SUFFIX.test(suffix)) {
+    throw new Error(
+      `":${suffix}" 写在查询前时只认 :N 或 :N-M；其它选择器要放到整条 URI 末尾，例如 pr://…/files/x.json?side=head:${suffix}。`,
+    );
+  }
+  return { path, range: null };
 }
 
 /** 1-based，越界的端夹到文件内；start 超过总行数是调用方写错了范围，直接报。 */

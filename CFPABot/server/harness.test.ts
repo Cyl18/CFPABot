@@ -11,6 +11,7 @@ import { execPathReason, secretReason } from "./agent/plugins/sandbox.ts";
 import { heredocReason } from "./agent/tools/bash.ts";
 import { prefetch } from "./agent/tools/delegate.ts";
 import { localDir } from "./agent/local-store.ts";
+import { splitLineSuffix } from "./harness/uri.ts";
 import type { ThreadsView } from "./harness/review/threads.ts";
 
 const EN = "projects/assets/demo/1.20.1/demo/lang/en_us.json";
@@ -211,6 +212,17 @@ describe("terms 归组", () => {
       changed: true,
     });
     expect(view.groups[0]?.missed[0]).toMatchObject({ en: "A", keys: ["a", "b"] });
+  });
+});
+
+describe("行范围", () => {
+  test("查询前只认 :N / :N-M，其它选择器指向 URI 末尾", () => {
+    expect(splitLineSuffix("files/a.json:85-125")).toEqual({ path: "files/a.json", range: { start: 85, end: 125 } });
+    expect(splitLineSuffix("files/a.json")).toEqual({ path: "files/a.json", range: null });
+    expect(() => splitLineSuffix("files/a.json:85-")).toThrow(/末尾/);
+    expect(() => splitLineSuffix("files/a.json:-5")).toThrow(/末尾/);
+    expect(() => splitLineSuffix("files/a.json:1-30,-30")).toThrow(/末尾/);
+    expect(() => splitLineSuffix("files/a.json:raw")).toThrow(/末尾/);
   });
 });
 
