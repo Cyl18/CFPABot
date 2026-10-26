@@ -1,6 +1,6 @@
 import type { DraftComment, ReviewDraft, Severity, Verdict } from "@cfpa/contracts/api";
 import { MQM_BY_ID, mqmLabel } from "@cfpa/contracts/mqm";
-import { ExternalLink, Save, Send, Trash2 } from "lucide-react";
+import { ExternalLink, Save, Send, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { SeverityBadge, VerdictBadge, VERDICT_OPTIONS } from "@/components/StatusBadges.tsx";
 import { Badge } from "@/ui/Badge.tsx";
@@ -25,9 +25,10 @@ export interface DraftPanelProps {
   onChange: (draft: ReviewDraft) => void;
   onSave: () => void;
   onPublish: () => void;
+  onClose(): void;
 }
 
-export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, onSave, onPublish }: DraftPanelProps) {
+export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, onSave, onPublish, onClose }: DraftPanelProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const published = draft.publishedAt !== undefined;
@@ -47,6 +48,9 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
           <VerdictBadge verdict={draft.verdict} />
           {state}
           <span className="ml-auto font-mono text-xs text-muted">PR #{draft.prNumber}</span>
+          <Button variant="ghost" size="icon" onClick={onClose} title="关闭" aria-label="关闭">
+            <X aria-hidden="true" className="size-4" />
+          </Button>
         </header>
 
         <div className="scroll-thin min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">

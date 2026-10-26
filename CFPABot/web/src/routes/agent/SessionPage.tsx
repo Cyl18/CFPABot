@@ -27,7 +27,6 @@ import { buildTurns, formatTokens } from "@/routes/agent/turns.ts";
 import { useAgentSidebar } from "@/routes/agent/AgentLayout.tsx";
 import { Composer } from "@/routes/agent/Composer.tsx";
 import { ArtifactPanel } from "@/routes/agent/ArtifactPanel.tsx";
-import { DraftPanel } from "@/routes/agent/DraftPanel.tsx";
 import { OptionPicker, type PickerOption } from "@/routes/agent/OptionPicker.tsx";
 import { ReviewSidebar } from "@/routes/agent/ReviewSidebar.tsx";
 import { Badge } from "@/ui/Badge.tsx";
@@ -42,7 +41,7 @@ import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
 const BOTTOM_SLACK = 64;
 
-type AsideTab = "files" | "status" | "draft";
+type AsideTab = "files" | "status";
 
 function isReviewDraft(value: unknown): value is ReviewDraft {
   if (typeof value !== "object" || value === null) return false;
@@ -96,7 +95,6 @@ export function SessionPage({ id }: { id: string }) {
   const [pane, setPane] = useState<"chat" | "aside">("chat");
   const [asideTab, setAsideTab] = useState<AsideTab>("status");
   const [asideOpen, setAsideOpen] = useState(true);
-  const draftSeen = useRef(false);
   const seededId = useRef<string | null>(null);
   const idRef = useRef(id);
   const dirtyRef = useRef(false);
@@ -115,7 +113,6 @@ export function SessionPage({ id }: { id: string }) {
   useEffect(() => {
     setPane("chat");
     setAsideTab("status");
-    draftSeen.current = false;
     seededId.current = null;
     idRef.current = id;
     setText("");
@@ -135,12 +132,6 @@ export function SessionPage({ id }: { id: string }) {
   useEffect(() => {
     dirtyRef.current = dirty;
   }, [dirty]);
-
-  useEffect(() => {
-    if (draft === null || draftSeen.current) return;
-    draftSeen.current = true;
-    setAsideTab("draft");
-  }, [draft]);
 
   const mergeSubagents = useCallback((rows: readonly SubagentInfo[]) => {
     if (rows.length === 0) return;
@@ -234,23 +225,10 @@ export function SessionPage({ id }: { id: string }) {
 
   const connection = useSessionEvents(id, handleEvent);
   const turns = useMemo(() => buildTurns(items, status === "running"), [items, status]);
-  const asideTabs: readonly TabItem<AsideTab>[] =
-    draft === null
-      ? [
-          { id: "status", label: "状态" },
-          { id: "files", label: "产物" },
-        ]
-      : [
-          { id: "status", label: "状态" },
-          { id: "files", label: "产物" },
-          { id: "draft", label: `草稿（${draft.comments.length}）` },
-        ];
-
-  useEffect(() => {
-    if (asideTab === "draft" && draft === null) setAsideTab("status");
-  }, [asideTab, draft]);
-
-  const activeAsideTab: AsideTab = asideTab === "draft" && draft === null ? "status" : asideTab;
+  const asideTabs: readonly TabItem<AsideTab>[] = [
+    { id: "status", label: "状态" },
+    { id: "files", label: "产物" },
+  ];
 
   useEffect(() => {
     const node = listRef.current;
@@ -520,7 +498,7 @@ export function SessionPage({ id }: { id: string }) {
         <div className="shrink-0 border-b border-line px-3 py-2 xl:hidden">
           <Tabs
             items={[{ id: "chat", label: "对话" } as const, ...asideTabs]}
-            value={pane === "chat" ? "chat" : activeAsideTab}
+            value={pane === "chat" ? "chat" : asideTab}
             onChange={(next) => {
               if (next === "chat") {
                 setPane("chat");
@@ -638,25 +616,32 @@ export function SessionPage({ id }: { id: string }) {
             )}
           >
             <div className="flex shrink-0 items-center gap-2 border-b border-line px-2 py-1.5">
-              <Tabs items={asideTabs} value={activeAsideTab} onChange={setAsideTab} ariaLabel="右栏视图" className="min-w-0" />
+              <Tabs items={asideTabs} value={asideTab} onChange={setAsideTab} ariaLabel="右栏视图" className="min-w-0" />
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">
-              {activeAsideTab === "draft" && draft !== null ? (
-                <DraftPanel
-                  draft={draft}
-                  dirty={dirty}
-                  saving={saveDraft.isPending}
-                  publishing={publish.isPending}
-                  error={draftError}
-                  onChange={(next) => {
-                    setDraft(next);
-                    setDirty(true);
-                  }}
-                  onSave={() => saveDraft.mutate(draft)}
-                  onPublish={() => publish.mutate()}
+              {asideTab === "files" ? (
+                <ArtifactPanel
+                  key={id}
+                  id={id}
+                  live={running}
+                  {...(draft === null
+                    ? {}
+                    : {
+                        draft: {
+                          draft,
+                          dirty,
+                          saving: saveDraft.isPending,
+                          publishing: publish.isPending,
+                          error: draftError,
+                          onChange: (next: ReviewDraft) => {
+                            setDraft(next);
+                            setDirty(true);
+                          },
+                          onSave: () => saveDraft.mutate(draft),
+                          onPublish: () => publish.mutate(),
+                        },
+                      })}
                 />
-              ) : activeAsideTab === "files" ? (
-                <ArtifactPanel key={id} id={id} live={running} />
               ) : (
                 <ReviewSidebar items={items} plan={plan} prNumber={meta.prNumber} sessionId={id} infos={subagents} />
               )}
