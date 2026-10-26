@@ -14,6 +14,7 @@ const createSchema = z.object({
   message: z.string().optional(),
   model: z.string().optional(),
   prNumber: z.number().int().positive().optional(),
+  title: z.string().optional(),
   writeScope: z.enum(["off", "on"]).optional(),
   evalScope: z.enum(["off", "run"]).optional(),
 });

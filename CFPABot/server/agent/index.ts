@@ -373,6 +373,21 @@ function launch(id: string, prompt: string): boolean {
   return true;
 }
 
+/** 标题只取用户消息，摘要不占创建请求：先落首行，模型回来再改写并广播。 */
+async function summarizeTitle(id: string, message: string, model: string, prefix: string, base: string): Promise<void> {
+  try {
+    const title = await sessionTitle(message, model);
+    const record = await store.get(id);
+    // 摘要期间标题可能已被改绑 PR 换过，只在还是占位标题时回填。
+    if (!record || title === base || record.meta.title !== `${prefix}${base}`) return;
+    record.meta.title = `${prefix}${title}`;
+    await store.put(record);
+    hub.touch(id);
+  } catch (err) {
+    log.warn("标题摘要失败", { id, err });
+  }
+}
+
 async function publishOnce(id: string, by: string): Promise<{ url: string }> {
   const record = await store.get(id);
   if (!record) throw httpError("会话不存在", 404);
@@ -446,10 +461,12 @@ export const agent = {
     const workflow = generalWorkflow;
     const id = crypto.randomUUID();
     const createdAt = now();
-    const prefix = request.prNumber === undefined ? "" : `PR #${request.prNumber} · `;
+    const fixedTitle = request.title?.trim() ?? "";
+    const prefix = request.prNumber === undefined ? "" : `#${request.prNumber} · `;
+    const baseTitle = fixedTitle === "" ? fallbackTitle(message) : fixedTitle;
     const meta: SessionMeta = {
       id,
-      title: `${prefix}${await sessionTitle(message, model)}`,
+      title: `${prefix}${baseTitle}`,
       status: "idle",
       archived: false,
       createdAt,
@@ -465,6 +482,7 @@ export const agent = {
     const record: SessionRecord = { meta };
     await store.put(record);
     hub.touch(id);
+    if (fixedTitle === "") void summarizeTitle(id, message, model, prefix, baseTitle);
     if (modelError === undefined) {
       launch(id, message);
     } else {
@@ -644,13 +662,13 @@ export const agent = {
       runtimeChanged = true;
     }
     if (patch.prNumber !== undefined) {
-      const base = meta.title.replace(/^PR #\d+ · /u, "");
+      const base = meta.title.replace(/^(?:PR )?#\d+ · /u, "");
       if (patch.prNumber === null) {
         delete meta.prNumber;
         meta.title = base;
       } else {
         meta.prNumber = patch.prNumber;
-        meta.title = `PR #${patch.prNumber} · ${base}`;
+        meta.title = `#${patch.prNumber} · ${base}`;
       }
       runtimeChanged = true;
     }

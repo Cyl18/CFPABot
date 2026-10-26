@@ -629,6 +629,8 @@ export interface CreateSessionRequest {
   message?: string;
   model?: string;
   prNumber?: number;
+  /** 定死的标题尾段（有 prNumber 时前面加 `#<n> · `），给了就不调模型摘要。 */
+  title?: string;
   writeScope?: WriteScope;
   evalScope?: EvalScope;
 }
