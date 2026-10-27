@@ -16,7 +16,7 @@ import { checksOf } from "./review/checks.ts";
 import { threadsOf } from "./review/threads.ts";
 import { reviewBrief } from "./review/brief.ts";
 import { defaultRowsInclude, rowsOf, type RowsFilter, type RowsInclude, type RowsOptions } from "./review/rows.ts";
-import { termsOf } from "./review/terms.ts";
+import { termsOf, termCandidatesOf } from "./review/terms.ts";
 import { readDraftOf } from "./review/draft.ts";
 import { specialPageOf } from "./review/special.ts";
 
@@ -246,7 +246,7 @@ async function readReviewSummary(uri: PrParts): Promise<AgentToolResult<Record<s
   return jsonResult({
     built: true,
     ...packSummary(pack),
-    next: [`read pr://${n}?review=1`, `read pr://${n}/terms?changed=1`],
+    next: [`read pr://${n}?review=1`, `read pr://${n}/terms?candidates=1`, `read pr://${n}/terms?changed=1`],
   });
 }
 
@@ -291,6 +291,14 @@ export async function readPr(
 
   if (sub === "terms") {
     assertChildless(seg, uri);
+    if (flagParam(uri.query, "candidates")) {
+      return jsonResult(
+        await termCandidatesOf(n, {
+          ...(numberParam(uri.query.get("limit")) === undefined ? {} : { limit: numberParam(uri.query.get("limit")) }),
+          ...(numberParam(uri.query.get("ctx")) === undefined ? {} : { contexts: numberParam(uri.query.get("ctx")) }),
+        }),
+      );
+    }
     const queries = listParam(uri.query, "term", "q");
     return jsonResult(
       await termsOf(n, {

@@ -1,4 +1,5 @@
-import type { ReviewTermsView, TermGroup, TermVariant } from "@cfpa/contracts/api";
+import type { ReviewTermsView, TermCandidatesView, TermGroup, TermVariant } from "@cfpa/contracts/api";
+import { extractTermCandidates, termCounts } from "@cfpa/review-core/domain/term-table";
 import { lookupTerm, matchTerms, type TermIndex } from "@cfpa/review-core/domain/terms";
 import type { Pack } from "@cfpa/review-core/pack";
 import { glossaryTerms } from "../../domain/glossary.ts";
@@ -6,6 +7,7 @@ import { prdata } from "../../prdata.ts";
 import { pageOf } from "../result.ts";
 import { nextPageUri } from "../uri.ts";
 import { loadPack } from "../pack.ts";
+import { loadTermTable } from "./term-store.ts";
 
 export interface TermsOptions {
   queries: string[];
@@ -13,6 +15,38 @@ export interface TermsOptions {
   offset?: number;
   limit?: number;
   rebuild?: boolean;
+}
+
+export interface CandidatesOptions {
+  limit?: number;
+  contexts?: number;
+}
+
+/** 裁定输入：机械抽候选 + 全文上下文 + 原版命中 + 当前冻结表。 */
+export async function termCandidatesOf(n: number, options: CandidatesOptions = {}): Promise<TermCandidatesView> {
+  const pack = await loadPack(n);
+  const [index, table] = await Promise.all([glossaryTerms(), loadTermTable(n, pack.headSha)]);
+  const candidates = extractTermCandidates(pack, index, {
+    ...(options.limit === undefined ? {} : { limit: options.limit }),
+    ...(options.contexts === undefined ? {} : { contexts: options.contexts }),
+  });
+  const counts = table === null ? { lock: 0, new: 0, discard: 0 } : termCounts(table.terms);
+  return {
+    prNumber: n,
+    headSha: pack.headSha,
+    glossary: { loaded: index !== null, size: index?.all.length ?? 0 },
+    candidates,
+    table,
+    counts: { candidates: candidates.length, changedRows: pack.counts.changed, locked: counts.lock },
+    hint:
+      table === null
+        ? "术语表未冻结：逐条裁定 candidates（原版唯一命中可直接 lock，多候选查 zh_cn_cfpa），写 pr://<n>/terms。"
+        : "术语表已冻结；换 head 或要修正时重写 pr://<n>/terms，再重打 pack 下发。",
+    next:
+      table === null
+        ? [`write pr://${n}/terms {terms:[…]}`, `write pr://${n}/pack {}`]
+        : [`read pr://${n}/terms?candidates=1`, `write pr://${n}/pack {}`],
+  };
 }
 
 interface GroupBuilder {

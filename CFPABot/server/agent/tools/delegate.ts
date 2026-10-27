@@ -33,8 +33,8 @@ const MAX_RESOURCES = 12;
 
 const OPERATING_RULES = [
   "你是子代理：只做判断，一次交卷。",
-  "- 上下文里已经放好主代理打包的分片：原文、译文、原始行、机械发现、术语命中、旧线程、重复译文。不要自己去找输入。",
-  "- 除 glossary 查询外不调工具；要核实术语就用 glossary 工具，一次一个词。",
+  "- 上下文里已经放好主代理打包的分片：原文、译文、原始行、机械发现、术语表、旧线程、重复译文。不要自己去找输入。",
+  "- 不调任何工具：片里的术语表是定译，照用；缺词或锁错写 termProposals。",
   "- 不要读 pr://、repo://、gh:// 或任何文件；分片里没有的信息就是没有。",
   "- 拿不准写进 uncertain，不要硬判；没依据不判 major。",
   "- 只回结论，不回工具过程。",
@@ -248,7 +248,8 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
               factory,
               error: null,
             })),
-            ...(mcpManager === undefined ? { enableMCP: false } : { mcpManager }),
+            // tools: [] 表示完全无工具，glossary MCP 也不给；子代理只读分片。
+            ...(mcpManager === undefined || spec.agent.tools?.length === 0 ? { enableMCP: false } : { mcpManager }),
             signal: runSignal,
             onProgress: (progress) => {
               const now = Date.now();

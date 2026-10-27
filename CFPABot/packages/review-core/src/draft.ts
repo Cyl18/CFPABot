@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { DraftComment, ReviewDraft, Severity, Verdict } from "@cfpa/contracts/api";
 import { MQM_BY_ID } from "@cfpa/contracts/mqm";
 import { inHunks, patchHeadLines, patchHunks } from "./domain/diff.ts";
+import { renderTermBlock } from "./domain/term-table.ts";
 
 /** 模型给的评论：line 可省，服务端按 path+key 从 pack 定位。 */
 const draftCommentInput = z.object({
@@ -38,6 +39,17 @@ export const reviewDraftSchema = draftInputSchema.extend({
       severity: z.enum(["critical", "major", "minor", "neutral"]),
     }),
   ),
+  terms: z
+    .array(
+      z.object({
+        en: z.string(),
+        zh: z.string(),
+        bucket: z.enum(["lock", "new", "discard"]),
+        source: z.string(),
+        note: z.string().optional(),
+      }),
+    )
+    .optional(),
   updatedAt: z.string(),
   publishedAt: z.string().optional(),
   publishedUrl: z.string().optional(),
@@ -217,6 +229,9 @@ export function renderReviewBody(draft: ReviewDraft): string {
   return [
     `本批共 ${draft.comments.length} 条 inline（major ${major} / minor ${minor}），verdict：**${VERDICT_LABEL[draft.verdict]}**。`,
     draft.summary.trim(),
+    renderTermBlock(draft.terms ?? []),
     "⚠️ 本批意见由 LLM 生成，仅供参考，不代表正式审查意见。",
-  ].join("\n\n");
+  ]
+    .filter((part) => part !== "")
+    .join("\n\n");
 }

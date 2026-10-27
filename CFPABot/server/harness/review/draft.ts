@@ -13,6 +13,7 @@ import type { Pack } from "@cfpa/review-core/pack";
 import { readLocal, writeLocal } from "../../agent/local-store.ts";
 import { prdata } from "../../prdata.ts";
 import { loadPack } from "../pack.ts";
+import { loadTermTable } from "./term-store.ts";
 
 export interface PrepareResult {
   draft?: ReviewDraft;
@@ -237,6 +238,7 @@ export function draftSchema(n: number, headSha: string, notes = true): DraftSche
           "同一 path+key 只能出一条；同一模式的其余 key 放进 covers，两者可以同时给（suggestion 只替换当前行，缩进与行尾逗号要跟 head 该行一致）。",
           "非 suspected 的评论必须能拼出 suggestion：语言包给 zhNew，手册类给 suggestion（covers 不替代）；suspected 时 severity 不得高于 minor。",
           "id 可省，服务端按顺序补 c1…cN；headSha 可省，服务端按当前 head 补。",
+          "术语表不写进草稿：服务端按 pr://<n>/terms 的冻结表挂到正文折叠块；改了表先重打 pack 再保存草稿。",
           "write pr://<n>/draft 保存并校验，errors 会直接返回，不通过不落盘。",
           "发布用 write pr://<n>/review；event 可写进草稿，发布时 ?event=APPROVE|REQUEST_CHANGES 优先。",
         ]
@@ -306,10 +308,12 @@ export async function saveDraftOf(n: number, sessionId: string, content: string)
   const errors = validateDraft(prepared.draft, { patches: await patchesOf(n) });
   if (errors.length > 0) return { ok: false, errors, warnings: [], next: [] };
   const warnings = severityWarnings(prepared.draft);
-  await writeLocal(sessionId, DRAFT_FILE, serializeDraftFile(prepared.draft));
+  const table = await loadTermTable(n, pull.headSha);
+  const draft: ReviewDraft = table === null ? prepared.draft : { ...prepared.draft, terms: table.terms };
+  await writeLocal(sessionId, DRAFT_FILE, serializeDraftFile(draft));
   return {
     ok: true,
-    draft: prepared.draft,
+    draft,
     errors: [],
     warnings,
     next: [`write pr://${n}/review 发布`, `read pr://${n}/draft 复核`],

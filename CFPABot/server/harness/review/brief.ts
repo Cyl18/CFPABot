@@ -125,6 +125,7 @@ function nextOf(
     next.add(`read pr://${n}/checks`);
   } else {
     if (!hasPack) next.add(`read pr://${n}?review=1`);
+    next.add(`read pr://${n}/terms?candidates=1`);
     next.add(`read pr://${n}/terms?changed=1`);
     next.add(`read pr://${n}/draft`);
   }

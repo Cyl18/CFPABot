@@ -5,17 +5,18 @@ description: PR 校对与交付：打包、派单、合并、草稿。审查 PR 
 
 # 译后
 
-PR 校对。产出 `local://draft.json`；术语表、风格指南、格式要求可选更新，直接覆盖。
+PR 校对。产出 `local://draft.json` 与 `pr://<n>/terms`（冻结术语表）；风格指南、格式要求可选更新。
 
 ## 流程
 
-1. **读译前产物**：`local://terms.tsv`、`local://STYLE.md`、`local://format.md`。没有就跳过。`terms.tsv` 只取 changed 行里出现的词，不整表读。
-2. **打包**：`write pr://<n>/pack {}`。返回 manifest：`manifestPath`（它自己的地址）、`slices[]`（id、doc、kind、workspace、path、rows、bytes、首尾 key）、`fileFindings`、`duplicates`、`checks`、`excluded`。手册类 PR 的片 `kind=manual`，一对一片。全量行不进你的上下文。
+1. **读译前产物**：`local://STYLE.md`、`local://format.md`。没有就跳过。术语只用冻结表：`read pr://<n>/terms?candidates=1` 看当前表；没有表就回 `skill://prep` 第 4–5 步先裁。
+2. **打包**：`write pr://<n>/pack {}`。返回 manifest：`manifestPath`、`slices[]`（id、doc、kind、workspace、path、rows、bytes、首尾 key）、`fileFindings`、`duplicates`、`checks`、`excluded`、`terms`（冻结表计数）。手册类 PR 的片 `kind=manual`，一对一片。全量行不进你的上下文。冻结表会自动写进每个语言包的片头。
 3. **派单**：命令形状见「流水线」。每片一个 `review` 子代理，`resources` 只给那片的文档；跨片裁定写 `local://<manifest.dir>/shared.md` 一起递；`task` 只写片 id 与该片要特别留意的东西。
 4. **合并**：按 `(path, key)` 去重取高档；跨片同 pattern 归到首现片，其余 key 进 `covers`；同一 key 两片结论冲突时你裁决，依据写进 `body`。
-5. **裁决 uncertain**：PR 内同词多译看 `read pr://<n>/terms?changed=1`；跨模组体例用 glossary（英文正向 `mcp__glossary_query`，中文候选加 `inverse`，批量 ≤20）。能定的补成 comment 或删掉，零命中或定不了的写进 `summary` 的存疑段并标 `suspected`。
-6. **写草稿**：`read pr://<n>/draft` 拿 schema 与当前状态；`write pr://<n>/draft <JSON>` 保存并校验。`errors` 会直接返回，按字段改到 `ok: true`；不需要再跑 bash 校验脚本。
-7. **可选覆盖**：本轮确认的术语、风格、格式写回三份文件，直接覆盖。
+5. **回收术语提案**：子代理的 `termProposals` 每条都裁：`missing` 查 glossary 后补进表，`dispute` 复核后改锁或驳回（驳回理由写进 `body` 或 summary）。改完 `write pr://<n>/terms {terms:[…]}` 覆盖，再重打 pack；不改表就不用重打。
+6. **裁决 uncertain**：PR 内同词多译看 `read pr://<n>/terms?changed=1`；冻结表里查不到、又必须定的体例问题才查 glossary（英文正向 `mcp__glossary_query`，中文候选加 `inverse`，批量 ≤20）。能定的补成 comment 或删掉，零命中或定不了的写进 `summary` 的存疑段并标 `suspected`。
+7. **写草稿**：`read pr://<n>/draft` 拿 schema 与当前状态；`write pr://<n>/draft <JSON>` 保存并校验。`errors` 会直接返回，按字段改到 `ok: true`；不需要再跑 bash 校验脚本。术语表由服务端从冻结表挂到正文折叠块，不要手写。
+8. **可选覆盖**：本轮确认的风格、格式写回 `STYLE.md`、`format.md`；`terms.tsv` 只在译中要复用时从表里导出。
 
 `summary` 写文件级问题（路径、键集、JSON 语法、重复译文簇）与存疑项，不重复 inline 内容。
 
@@ -28,7 +29,7 @@ python3 "$CFPA_ROOT/skills/prep/scripts/scope.py" ./work ./scope --prefix "item.
 python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o ./review/<slug>
 ```
 
-`*-divergence.md` 只报事实：同一英文的多种译法（精确），同一骨架下变动词的多种译法（候选，需核对切分）。这两类只当线索，进 `shared.md` 让子代理核对，不直接写评论。镜像里 `python3`，Windows 上 `python`。
+`*-divergence.md` 只报事实：同一英文的多种译法（精确），同一骨架下变动词的多种译法（候选，需核对切分）。这两类只当线索：定译由你写进 `pr://<n>/terms`，`shared.md` 里只放结论；表里漏的词靠子代理的 `termProposals` 补。镜像里 `python3`，Windows 上 `python`。
 
 ## 草稿
 
@@ -90,8 +91,8 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 
 ## 子代理
 
-`review` 是裸 post：没有文件读取工具（glossary MCP 除外），只看 `resources` 递过去的那一片。片文档由 `write pr://<n>/pack` 生成，含原文、译文、`raw`、机械发现、原版术语命中、旧线程、重复译文；MQM 表在它的系统提示里。
+`review` 是裸 post：没有任何工具（glossary 也不给），只看 `resources` 递过去的那一片。片文档由 `write pr://<n>/pack` 生成，含原文、译文、`raw`、机械发现、冻结术语表、原版术语命中、旧线程、重复译文；MQM 表在它的系统提示里。
 
-派单命令、`shared.md` 内容与失败重派见「流水线」。术语分歧由你统一裁决，裁决不了的按 `uncertain` 流程处理。
+派单命令、`shared.md` 内容与失败重派见「流水线」。术语分歧由你统一裁决：子代理只提 `termProposals`，不改表、不写术语评论。
 
-`read pr://<n>` 的 `localRoot` 是 head 文件的物化目录，只读；要跑脚本先复制到 `local://work/`，脚本吃 `./work`。仓库工作树用 `$CFPA_REPO`（`grep`/`find` 可给绝对路径，`bash` 里用环境变量）。
+`read pr://<n>` 的 `localRoot` 是 head 文件的物化目录，只读；要跑脚本先复制到 `local://work/`，脚本吃 `./work`。仓库工作树用 `$CFPA_REPO`，但只用于查 key 是否存在、路径与既有译文；给词定译走 `pr://<n>/terms` 与 glossary。

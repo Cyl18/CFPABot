@@ -31,6 +31,15 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
     },
   },
   {
+    id: "pr-terms",
+    uri: "pr://<n>/terms",
+    summary: "保存本 PR 的术语表并冻结到当前 head；正文 {terms:[{en,zh,bucket,source,note}]} 或数组；只写服务端缓存，不发 GitHub",
+    match: (parts) => {
+      const seg = prSegments(parts);
+      return seg.length === 1 && seg[0] === "terms";
+    },
+  },
+  {
     id: "pr-comment",
     uri: "pr://<n>/comments",
     summary: "在 PR 下发一条评论",

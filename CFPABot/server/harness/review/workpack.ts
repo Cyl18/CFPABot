@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
-import type { Finding, ReviewHunk, ReviewRowView, SpecialPairContent } from "@cfpa/contracts/api";
+import type { Finding, ReviewHunk, ReviewRowView, SpecialPairContent, TermEntry, TermTable } from "@cfpa/contracts/api";
 import { MQM_TYPES } from "@cfpa/contracts/mqm";
+import { renderSliceTerms, termCounts } from "@cfpa/review-core/domain/term-table";
 import { workspaceKey, type Pack } from "@cfpa/review-core/pack";
 import { writeLocal } from "../../agent/local-store.ts";
 import { glossaryTerms } from "../../domain/glossary.ts";
@@ -10,6 +11,7 @@ import { loadPack } from "../pack.ts";
 import { sliceRuns } from "./slices.ts";
 import { reviewRowViews, type RowsInput, type RowsOptions } from "./rows.ts";
 import { threadsOf } from "./threads.ts";
+import { loadTermTable } from "./term-store.ts";
 
 /** 一片文档的目标大小：子代理一次读完，不靠工具翻页。 */
 const SLICE_BUDGET_BYTES = 48_000;
@@ -55,6 +57,8 @@ export interface WorkPackManifest {
   /** 工作区级机械检查；行级 findings 不在这里，别和简报的 checks 比。 */
   fileChecks: { workspace: string; findings: Finding[] }[];
   excluded: { rows: number };
+  /** 冻结术语表；子代理照抄，主代理据此生成正文折叠块。 */
+  terms?: { total: number; locked: number; created: number; updatedAt: string };
 }
 
 export interface WorkPackComposition {
@@ -123,7 +127,7 @@ interface SliceDraft {
   lastKey: string;
 }
 
-function langHeader(draft: SliceDraft, pack: Pack): string {
+function langHeader(draft: SliceDraft, pack: Pack, termLines: string[]): string {
   return [
     `# 审查分片 ${draft.id}`,
     `PR #${pack.prNumber} · head ${pack.headSha.slice(0, 7)} · workspace ${draft.workspace}`,
@@ -132,6 +136,7 @@ function langHeader(draft: SliceDraft, pack: Pack): string {
     "",
     "提交 `zhNew`（新译文本身，整行由服务端拼）；`path` 用上面「文件：」路径，`line` 可省：给了 key 就按 key 定位。",
     "",
+    ...termLines,
     "## 行",
     "",
   ].join("\n");
@@ -179,12 +184,12 @@ function manualHeader(meta: {
 }
 
 /** 行块只拼一次：切片的字节数就是这份正文，落盘直接用它。 */
-function chunk(rows: readonly ReviewRowView[], blocks: readonly string[], headSha: string, budget: number): SliceDraft[] {
+function chunk(rows: readonly ReviewRowView[], blocks: readonly string[], headSha: string, budget: number, reserve: number): SliceDraft[] {
   const entries = rows.map((row, index) => ({
     run: `${row.workspace}\u0000${row.path ?? ""}`,
     bytes: Buffer.byteLength(blocks[index]!) + 2,
   }));
-  return sliceRuns(entries, budget - SLICE_RESERVE_BYTES).map((bound, position) => ({
+  return sliceRuns(entries, budget - reserve).map((bound, position) => ({
     id: `${headSha.slice(0, 7)}-${String(position + 1).padStart(2, "0")}`,
     workspace: rows[bound.start]!.workspace,
     path: rows[bound.start]!.path ?? "",
@@ -201,16 +206,20 @@ export function composeWorkPack(
   rows: readonly ReviewRowView[],
   now = new Date(),
   budget = SLICE_BUDGET_BYTES,
+  table: TermTable | null = null,
 ): WorkPackComposition {
   const reviewable = rows.filter((row) => row.path !== null && row.line !== null);
   const near = neighborIndex(pack);
   const blocks = reviewable.map((row) => rowBlock(row, near.get(`${row.workspace}\u0000${row.key}`)));
-  const drafts = chunk(reviewable, blocks, pack.headSha, budget);
+  const terms = table?.terms ?? [];
+  const termLines = renderSliceTerms(terms, 40, pack.prNumber);
+  const reserve = SLICE_RESERVE_BYTES + Buffer.byteLength(termLines.join("\n"));
+  const drafts = chunk(reviewable, blocks, pack.headSha, budget, reserve);
   const files: WorkPackComposition["files"] = [];
   const slices: WorkPackSlice[] = [];
   let docBytes = 0;
   for (const draft of drafts) {
-    const content = [langHeader(draft, pack), draft.body, ""].join("\n");
+    const content = [langHeader(draft, pack, termLines), draft.body, ""].join("\n");
     const bytes = Buffer.byteLength(content);
     docBytes += bytes;
     const name = `pack/${pack.headSha.slice(0, 7)}/slices/${draft.id}.md`;
@@ -256,6 +265,16 @@ export function composeWorkPack(
       .filter((workspace) => workspace.checks.length > 0)
       .map((workspace) => ({ workspace: workspaceKey(workspace), findings: workspace.checks.slice(0, 10) })),
     excluded: { rows: rows.length - reviewable.length },
+    ...(table === null
+      ? {}
+      : {
+          terms: {
+            total: table.terms.length,
+            locked: termCounts(table.terms).lock,
+            created: termCounts(table.terms).new,
+            updatedAt: table.updatedAt,
+          },
+        }),
   };
   return { manifest, files };
 }
@@ -347,13 +366,17 @@ export async function persistWorkPack(sessionId: string, composed: WorkPackCompo
 /** 主代理一条命令拿到整包：文件落到会话 workspace，返回值只有 manifest。 */
 export async function writeWorkPack(n: number, sessionId: string): Promise<WorkPackManifest> {
   const pack = await loadPack(n);
-  const [threads, terms] = await Promise.all([threadsOf(n, pack.headSha), glossaryTerms()]);
+  const [threads, terms, table] = await Promise.all([
+    threadsOf(n, pack.headSha),
+    glossaryTerms(),
+    loadTermTable(n, pack.headSha),
+  ]);
   const input: RowsInput = { pack, threads, terms, patches: new Map() };
   const options: RowsOptions = {
     filter: "reviewable",
     include: { terms: true, threads: true, duplicates: true, patch: false },
   };
-  const composed = await withManualSlices(n, pack.headSha, composeWorkPack(pack, reviewRowViews(input, options)));
+  const composed = await withManualSlices(n, pack.headSha, composeWorkPack(pack, reviewRowViews(input, options), new Date(), undefined, table));
   await persistWorkPack(sessionId, composed);
   return composed.manifest;
 }

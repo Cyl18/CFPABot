@@ -329,6 +329,51 @@ export interface ReviewTermsView {
   hint: string;
 }
 
+/** lock 照用；new 是本 PR 新建；discard 明确不是术语，不进表。 */
+export type TermBucket = "lock" | "new" | "discard";
+
+export interface TermEntry {
+  en: string;
+  zh: string;
+  bucket: TermBucket;
+  /** 依据：语料命中、原版术语、本模组既有译法。必填，供人复核。 */
+  source: string;
+  /** discard 必填：为什么不是术语。 */
+  note?: string;
+}
+
+export interface TermTable {
+  prNumber: number;
+  headSha: string;
+  terms: TermEntry[];
+  updatedAt: string;
+}
+
+export interface TermCandidate {
+  en: string;
+  /** 本 PR changed 行里的出现次数。 */
+  count: number;
+  /** 本 PR 已用的译文；多值说明内部不一致，需要裁定。 */
+  inPr: TermVariant[];
+  /** 全文双侧上下文：同英文的其它条目，含未改动的行。 */
+  contexts: { key: string; en: string; zh: string }[];
+  /** 原版术语表里的完全同形条目。 */
+  vanilla?: { zh: string[] };
+  /** 服务端建议档：lock=原版唯一命中；pending=有多个候选；new=无权威命中。 */
+  suggest: "lock" | "pending" | "new";
+}
+
+export interface TermCandidatesView {
+  prNumber: number;
+  headSha: string;
+  glossary: { loaded: boolean; size: number };
+  candidates: TermCandidate[];
+  table: TermTable | null;
+  counts: { candidates: number; changedRows: number; locked: number };
+  hint: string;
+  next: string[];
+}
+
 export interface SpecialFilesPage {
   prNumber: number;
   total: number;
@@ -603,6 +648,8 @@ export interface ReviewDraft {
   verdict: Verdict;
   summary: string;
   comments: DraftComment[];
+  /** 服务端按已冻结的术语表补，不读模型输入。 */
+  terms?: TermEntry[];
   event?: ReviewEvent;
   updatedAt: string;
   publishedAt?: string;

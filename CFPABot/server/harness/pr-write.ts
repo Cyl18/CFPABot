@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ReviewDraft, ReviewEvent, ReviewThread } from "@cfpa/contracts/api";
 import { DRAFT_FILE } from "@cfpa/review-core/draft";
 import { inHunks, patchHunks } from "@cfpa/review-core/domain/diff";
+import { parseTermInput, termCounts, validateTermTable } from "@cfpa/review-core/domain/term-table";
 import { env } from "../env.ts";
 import { assertBotWrites, gh, serverGraphql } from "../github/client.ts";
 import {
@@ -20,6 +21,8 @@ import { prdata } from "../prdata.ts";
 import { errorResult, jsonResult } from "./result.ts";
 import { prepareDraft, saveDraftOf, markPublishedOf, storedDraftOf, withServerFilledFields, lineOfKey } from "./review/draft.ts";
 import { writeWorkPack } from "./review/workpack.ts";
+import { saveTermTable } from "./review/term-store.ts";
+import { loadPack } from "./pack.ts";
 import { parseThreadState } from "./thread-state.ts";
 import { invalidateThreads, threadsOf } from "./review/threads.ts";
 import type { WriteTarget } from "./write-targets.ts";
@@ -277,6 +280,25 @@ async function replaceReviewComment(uri: PrParts, content: string | undefined, c
   return jsonResult({ ok: true, url: comment.htmlUrl });
 }
 
+async function writeTerms(uri: PrParts, content: string | undefined): Promise<WriteResult> {
+  if (content === undefined || content.trim() === "") throw new Error("术语表需要正文：{terms:[…]}。");
+  const pack = await loadPack(uri.number);
+  const parsed = parseTermInput(content, uri.number, pack.headSha);
+  if (parsed.table === undefined) return errorResult({ ok: false, errors: parsed.errors });
+  const errors = validateTermTable(parsed.table, pack);
+  if (errors.length > 0) {
+    return errorResult({ ok: false, errors, next: [`按 errors 修正后重写 pr://${uri.number}/terms`] });
+  }
+  await saveTermTable(parsed.table);
+  return jsonResult({
+    ok: true,
+    saved: `pr://${uri.number}/terms`,
+    head: pack.headSha.slice(0, 7),
+    counts: termCounts(parsed.table.terms),
+    next: [`write pr://${uri.number}/pack {}`, `read pr://${uri.number}/terms?candidates=1`],
+  });
+}
+
 export type WriteResult = AgentToolResult<Record<string, unknown>>;
 
 export async function writePr(
@@ -286,13 +308,15 @@ export async function writePr(
   ctx: WriteSession,
   toolCallId: string,
 ): Promise<WriteResult> {
-  if (target.id !== "pr-draft" && target.id !== "pr-pack") {
+  if (target.id !== "pr-draft" && target.id !== "pr-pack" && target.id !== "pr-terms") {
     assertCanWrite(ctx);
     assertBotWrites();
   }
   switch (target.id) {
     case "pr-draft":
       return writeDraft(uri, content, ctx);
+    case "pr-terms":
+      return writeTerms(uri, content);
     case "pr-pack": {
       const body = content?.trim() ?? "";
       if (body !== "" && body !== "{}") {

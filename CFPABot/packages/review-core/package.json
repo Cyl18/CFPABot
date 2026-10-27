@@ -13,7 +13,8 @@
     "./domain/diff": "./src/domain/diff.ts",
     "./domain/langfile": "./src/domain/langfile.ts",
     "./domain/path": "./src/domain/path.ts",
-    "./domain/terms": "./src/domain/terms.ts"
+    "./domain/terms": "./src/domain/terms.ts",
+    "./domain/term-table": "./src/domain/term-table.ts"
   },
   "dependencies": {
     "@cfpa/contracts": "workspace:*",

@@ -7,7 +7,7 @@ description: 译前草稿：路径闸门、范围、术语表、风格指南、�
 
 审查前建依据。产出是草稿，译中或译后会直接覆盖。
 
-落点：`local://terms.tsv`、`local://STYLE.md`、`local://format.md`（可选）、`local://prep.json`。
+落点：`pr://<n>/terms`（冻结术语表，审查唯一权威）、`local://terms.tsv`（译中工作副本）、`STYLE.md`、`format.md`（可选）、`prep.json`。
 
 ## 步骤
 
@@ -22,30 +22,21 @@ description: 译前草稿：路径闸门、范围、术语表、风格指南、�
    python3 "$CFPA_ROOT/skills/prep/scripts/scope.py" ./work ./scope --prefix "item." --pattern '^block\.'
    ```
    `--prefix` 和 `--pattern` 至少给一个，否则工具退出。
-   - `<100` changed 行的轻量包可以整段跳过本步与 `local://work/` 副本：直接走第 4 步的 `terms?changed=1`，`prep.json.scope` 写全量。
-4. **术语依据**：先 `read pr://<n>/terms?changed=1`。它给本 PR 同词多译、术语缺失和原版术语命中，按 `misses` 排序；逐行命中在 rows 的 `terms` 字段里。PR 内一致性看这里；跨模组体例另查 glossary。
-   - 按包的形状判断，不按 changed 行数；`mod prep` 几秒跑完。
-
-   | 判据 | 做法 |
-   |---|---|
-   | <100 changed 行 | 先看 `pr://<n>/terms?changed=1`，术语表 10–20 行 |
-   | changed 行是名字型 | `mod prep` 提候选 |
-   | changed 行有整句/长段落 | 加 `mod mine`（纯名字包 `long_only=0`，白跑） |
-   | 新文件、且仓库有同模组其它版本译文 | 跳过 prep，直接 `terms?changed=1` + 按 key 比对既有译文 |
-   | >1000 changed 行 | 先按 key 分片，每片各自判断 |
-
+   - `<100` changed 行的轻量包可以整段跳过本步与 `local://work/` 副本：直接走第 4 步的 `terms?candidates=1`，`prep.json.scope` 写全量。
+4. **术语候选**：`read pr://<n>/terms?candidates=1`。它给机械候选（注册名 + 重复词）、本 PR 已有各译法、全文双侧上下文、原版术语命中，以及当前冻结表。
+   - 候选只从 changed 行抽，上下文含未改动的行；判断现译对不对看上下文，不看词形。
+   - `suggest` 只是建议：`lock`=原版唯一命中；`pending`=多候选，必须查语料；`new`=无权威命中。
+   - 查证只用 glossary：先 `zh_cn_cfpa`（本仓库语料，定档只看它），`zh_cn`（模组 jar）只作旁证。英文正向 `mcp__glossary_query`，中文候选加 `inverse`，成批 `mcp__glossary_query_batch`（≤20，单条上限 50）。只有 `source` 与词全等（不分大小写）才算命中，模糊结果不算；带 `^…$` 锚点的正则查询会报空匹配，别用。
+   - `termgen` 只挖 PR 内分歧，不产出定译：
    ```bash
-   python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod prep ./scope -o ./prep/<slug>
-   python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod mine ./scope en --termhood auto -o ./prep/<slug>
+   python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o ./review/<slug>
    ```
-   - 术语表只取 changed 行里出现的词：整表是整包候选，读不完也用不上。
-   - 生成表的 `role` 只是分类（`head` 是条目主体段，`mod` 是轴取值），`impact` 是覆盖键数、只用于排优先级；两列都不参与组装。
-   - 审查已有中文时优先 `mod review`：读同目录的 `en_us`/`zh_cn`，直接报同一英文的多种译法。
-   - `pr://<n>/terms` 只答 PR 内同词多译与原版术语；跨模组用法查 glossary：英文正向 `mcp__glossary_query`，中文候选加 `inverse`，成批用 `mcp__glossary_query_batch`（≤20 个，单条上限 50）。零命中按 `suspected`。
-   - 入选以 glossary、原版、本模组既有译法为准。
-   - `--termhood auto` 不依赖第三方库；`specificity` 需要 `wordfreq`。
-   - 镜像里 `python3`，Windows 上 `python`。
-5. **术语表**：每行 `en / zh / type / status / note`。`status` 只有 `draft` 和 `locked`；只锁专名、物品、生物、组织、地名，UI 词保持 `draft`。同形词逐条判，不按词形统一。
+   - 名字型包可能漏掉整句里的专名；漏了手工补进表。`--termhood auto` 不依赖第三方库；`specificity` 需要 `wordfreq`。
+5. **术语表（冻结）**：`write pr://<n>/terms {terms:[{en,zh,bucket,source,note}]}`。
+   - `bucket`：`lock` 照用；`new` 本 PR 新建；`discard` 明确不是术语，必须写 `note`。
+   - `source` 必填且可核（`zh_cn_cfpa: 12 例`、`原版术语`、`本模组既有译法: <key>`）；同形词逐条判，不按词形统一。
+   - 按 head 冻结，换 head 重裁。审查阶段子代理只读表，不再查词。
+   - `local://terms.tsv` 只是译中的工作副本，不是权威。
 6. **风格指南**：一页。命名策略（材质、物种、物品）、语气与称呼、本模组停用词。
 7. **格式要求**（可选）：只写 findings 不覆盖的引擎规则；占位符、格式码、换行、标签、键集、JSON 语法由预审负责。
 8. **prep.json**：布局、`headSha`、workspace、counts、范围规则、用了哪份术语资源、没解决的问题。
