@@ -241,6 +241,8 @@ export interface ReviewRowsPage {
 export interface DraftSchemaView {
   shape: Record<string, unknown>;
   notes: string[];
+  /** 全形 `<dim>/<type>` 词表，由 MQM_TYPES 生成；写之前先读，不必先错一次。 */
+  mqm: string[];
 }
 
 export interface ReviewDraftView {

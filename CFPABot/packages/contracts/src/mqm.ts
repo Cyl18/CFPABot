@@ -78,3 +78,8 @@ export const MQM_BY_ID: ReadonlyMap<string, MqmType> = new Map(MQM_TYPES.map((ty
 export function mqmLabel(id: string): string {
   return MQM_BY_ID.get(id)?.label ?? id;
 }
+
+/** 子代理系统提示与草稿 schema 共用这一份，词表只从 MQM_TYPES 来。 */
+export function mqmTable(): string {
+  return MQM_TYPES.map((type) => `${type.id} ${type.label} ${type.severity} — ${type.rule}`).join("\n");
+}

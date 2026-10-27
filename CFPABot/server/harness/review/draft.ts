@@ -1,5 +1,5 @@
 import type { DraftSchemaView, ReviewDraft, ReviewDraftView } from "@cfpa/contracts/api";
-import { MQM_BY_ID } from "@cfpa/contracts/mqm";
+import { MQM_BY_ID, mqmTable } from "@cfpa/contracts/mqm";
 import {
   DRAFT_FILE,
   draftInputSchema,
@@ -232,12 +232,14 @@ export function draftSchema(n: number, headSha: string, notes = true): DraftSche
         },
       ],
     },
+    mqm: mqmTable().split("\n"),
     notes: notes
       ? [
           "评论的 path 是 zh_cn 文件路径；line 可省，给了 key 就按 path+key 定位（手写的 line 会被 key 覆盖）。",
           "同一 path+key 只能出一条；同一模式的其余 key 放进 covers，两者可以同时给（suggestion 只替换当前行，缩进与行尾逗号要跟 head 该行一致）。",
           "非 suspected 的评论必须能拼出 suggestion：语言包给 zhNew，手册类给 suggestion（covers 不替代）；suspected 时 severity 不得高于 minor。",
           "id 可省，服务端按顺序补 c1…cN；headSha 可省，服务端按当前 head 补。",
+          "mqm 只取本回包 mqm 字段里的全形 id，不自编。",
           "术语表不写进草稿：服务端按 pr://<n>/terms 的冻结表挂到正文折叠块；改了表先重打 pack 再保存草稿。",
           "write pr://<n>/draft 保存并校验，errors 会直接返回，不通过不落盘。",
           "发布用 write pr://<n>/review；event 可写进草稿，发布时 ?event=APPROVE|REQUEST_CHANGES 优先。",

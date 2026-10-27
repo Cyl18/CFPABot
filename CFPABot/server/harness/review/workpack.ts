@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import type { Finding, ReviewHunk, ReviewRowView, SpecialPairContent, TermEntry, TermTable } from "@cfpa/contracts/api";
-import { MQM_TYPES } from "@cfpa/contracts/mqm";
+import { mqmTable } from "@cfpa/contracts/mqm";
 import { renderSliceTerms, termCounts } from "@cfpa/review-core/domain/term-table";
 import { workspaceKey, type Pack } from "@cfpa/review-core/pack";
 import { writeLocal } from "../../agent/local-store.ts";
@@ -66,7 +66,7 @@ export interface WorkPackComposition {
   files: { name: string; content: string }[];
 }
 
-export const MQM_TABLE = MQM_TYPES.map((type) => `${type.id} ${type.label} ${type.severity} — ${type.rule}`).join("\n");
+export const MQM_TABLE = mqmTable();
 
 function oneLine(value: string, limit: number): string {
   const flat = value.replace(/\s+/g, " ").trim();

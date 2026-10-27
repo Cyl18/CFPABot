@@ -116,7 +116,6 @@ function nextOf(
 ): string[] {
   const next = new Set<string>();
   if (rowsNext !== null) next.add(`read ${rowsNext}`);
-  if (detail.workspaces.length > 0) next.add(`write pr://${n}/pack {}`);
   if (specialTotal > 0) next.add(`read pr://${n}/special-files?include=text&limit=6`);
   if (detail.workspaces.length === 0) {
     next.add(`read pr://${n}/files`);
@@ -125,6 +124,7 @@ function nextOf(
     if (!hasPack) next.add(`read pr://${n}?review=1`);
     next.add(`read pr://${n}/terms?candidates=1`);
     next.add(`read pr://${n}/terms?changed=1`);
+    next.add(`write pr://${n}/pack {}`);
     next.add(`read pr://${n}/draft`);
   }
   if (rowsNext === null && !hasReviewData) next.add(`read pr://${n}?review=1`);
@@ -223,8 +223,8 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
     detail.workspaces.length === 0
       ? "没有可预审的语言包工作区；先看 checks 的路径问题和 special-files。"
       : plan !== undefined && !plan.fits
-        ? `共 ${plan.total} 行 / ${plan.bytes} B，超过单页预算；要派单先 write pr://${n}/pack {}，分片只作抽查（plan.slices）。`
-        : `审查从 rows 开始；一次拿全貌用 read pr://${n}?review=1。`;
+        ? `共 ${plan.total} 行 / ${plan.bytes} B，超过单页预算 ${plan.rowsBudgetBytes} B；行只用来对账，判译文先 write pr://${n}/pack {} 派单（plan.slices 只作抽查）。`
+        : `行只用来对账；判译文先 write pr://${n}/pack {} 派单。`;
   const warnings = warningsOf([...checks.findings, ...localFindings]);
   const warningsShown = warnings.slice(0, 20);
   const hint = [

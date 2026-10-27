@@ -45,7 +45,7 @@ export async function buildSystemPrompt(
     .replace(WRITE_PLACEHOLDER, writeTable)
     .replace(WORKSPACE_PLACEHOLDER, workspaceDir)
     .replaceAll(ROOT_PLACEHOLDER, repoRoot)
-    .replace(REPO_PLACEHOLDER, paths.repo)
+    .replaceAll(REPO_PLACEHOLDER, paths.repo)
     .replace(MODELS_PLACEHOLDER, modelsLine)
     .replace(PR_PLACEHOLDER, prBound);
   const fragments = await Promise.all(workflow.promptFiles.map(readPrompt));

@@ -3,23 +3,22 @@
 PR 审查：`prep` → `post`。需要补译时在中间插 `translate`。
 
 - `prep` 产出 `pr://<n>/terms`（冻结术语表）、`local://terms.tsv`（工作副本）、`STYLE.md`、`format.md`（可选）、`prep.json`。
-- `post` 消费冻结表与风格产物，产出 `local://draft.json`；回收术语提案后改表，风格更新写回文件直接覆盖。
+- `post` 消费冻结表与风格产物，产出 `local://draft.json`。
 - `translate` 只在需要新译时用，复用同一套产物。
 
 每阶段开始时先 `read` 对应 skill：`skill://prep`、`skill://post`、`skill://translate`。
 
 ## 取数
 
-开审先 `read pr://<n>?review=1`；术语、线程、checks、特殊文件入口见 system 的「数据面」。
-
-规模：<100 变更行走轻量 prep；候选漏词再跑 `mod prep`；changed 行有整句长文本才加 `mod mine`；>1000 先按 key 分片。术语先裁后审：`read pr://<n>/terms?candidates=1` → `write pr://<n>/terms`；子代理只读冻结表。
+开审先 `read pr://<n>?review=1`；术语、线程、checks、特殊文件入口见 system 的「审查入口」。
 
 取证（既有译法、中英对照、换行体例）用一个 `eval` 细胞跑完：并行 `read` 多个来源，在细胞里筛，只打印命中行。一条 `bash` 只问一个问题的串行取数，会把十几次往返花在同一件事上。长脚本先写成文件再跑，不走 heredoc（中文、引号、`$` 会被 shell 吃掉）；镜像里 `python3`，Windows 上 `python`。
 
 ## 打包与派单
 
-`write pr://<n>/pack {}` 一次拿到 manifest；字段与手册片的差异见 `skill://post` 第 2 步。全量行不进你的上下文。
+打包产物见 `skill://post` 第 2 步；全量行不进你的上下文。
 
+- `headSha` 变了就重打 pack 并重派：旧片的结论不能带进新 head。
 - `delegate` 立即返回后台 job，结果自动投递；不要轮询，被挡住时才 `wait`。`wait` 会被用户插话打断，先处理用户消息。
 - 一批互不依赖的片一次派完：
 
@@ -31,7 +30,6 @@ PR 审查：`prep` → `post`。需要补译时在中间插 `translate`。
 - `shared.md` 由你写：放行 key、已报 pattern、本轮体例。定译已进片头术语表，不重复抄。子代理没有工具，看不到的东西就是没有。
 - 子代理停止且无产出时不要原样重派：按 `###` 或 key 边界拆成两片再派；第二次仍停就写进 `summary`。
 - 手册类 PR 的片 `kind=manual`，一对一片，同样派。
-- 子代理只回 key 级 conclusions；合并、去重、裁决 `uncertain`、落盘 `pr://<n>/draft` 都是你的活。没审到的行要么重派，要么写进 summary。
 
 ## 进度
 
