@@ -4,7 +4,6 @@ import type {
   PrDetail,
   ReviewBrief,
   ReviewDraft,
-  ReviewPlan,
   WorkspaceBrief,
 } from "@cfpa/contracts/api";
 import { SEVERITY_RANK } from "@cfpa/contracts/api";
@@ -111,14 +110,13 @@ function nextOf(
   n: number,
   detail: PrDetail,
   rowsNext: string | null,
-  plan: ReviewPlan | undefined,
   hasPack: boolean,
   hasReviewData: boolean,
   specialTotal: number,
 ): string[] {
   const next = new Set<string>();
   if (rowsNext !== null) next.add(`read ${rowsNext}`);
-  if (plan !== undefined && !plan.fits) next.add(`write pr://${n}/pack {}`);
+  if (detail.workspaces.length > 0) next.add(`write pr://${n}/pack {}`);
   if (specialTotal > 0) next.add(`read pr://${n}/special-files?include=text&limit=6`);
   if (detail.workspaces.length === 0) {
     next.add(`read pr://${n}/files`);
@@ -239,7 +237,7 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
   ]
     .filter(Boolean)
     .join(" ");
-  const next = nextOf(n, detail, rows?.next ?? null, plan, pack !== null, reviewed !== undefined, detail.specialFiles.length);
+  const next = nextOf(n, detail, rows?.next ?? null, pack !== null, reviewed !== undefined, detail.specialFiles.length);
   if (warnings.length > warningsShown.length) {
     next.unshift(
       `read ${rowsUri(n, { filter: "flagged", include: { terms: false, threads: false, duplicates: false, patch: false } })}`,

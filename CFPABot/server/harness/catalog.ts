@@ -9,7 +9,7 @@ const REPO: readonly ResourceEntry[] = [
 ];
 
 const PR: readonly ResourceEntry[] = [
-  { path: "rows?slice=<id>&filter=reviewable|changed|flagged|all&workspace=&prefix=&keys=&query=&include=terms,threads,duplicates,patch&rebuild=1", comment: "审查行：预算内一次给全集；超预算返回 plan（sliceCount + 开头几片），要派单先 write pr://<n>/pack {}；不要用 offset 猜页" },
+  { path: "rows?slice=<id>&filter=reviewable|changed|flagged|all&workspace=&prefix=&keys=&query=&include=terms,threads,duplicates,patch&rebuild=1", comment: "审查行：预算内一次给全集；超预算返回 plan（sliceCount + 开头几片）。行只用来对账，判译文一律先前 `write pr://<n>/pack {}` 打包派单；不要用 offset 猜页" },
   { path: "terms?term=&changed=1&limit=&offset=", comment: "术语证据：本 PR 同词多译 + 命中 glossary 却没对上的条目（missed，带 keys）；changed=1 只给可行动组，inconsistent 置顶；offset 可翻页" },
   { path: "terms?candidates=1&limit=&ctx=", comment: "术语裁定输入：机械候选（注册名 + 重复词）、本 PR 各译法、全文双侧上下文、原版命中、当前冻结表；同一地址 write 保存冻结表（{terms:[{en,zh,bucket,source,note}]}）" },
   { path: "draft?schema=0&notes=0", comment: "草稿 schema、当前草稿与校验；write 同一地址保存并校验，不通过不落盘，回包给拼好的 suggestion；复核用 schema=0" },
