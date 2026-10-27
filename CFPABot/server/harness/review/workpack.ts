@@ -19,7 +19,7 @@ const SLICE_BUDGET_BYTES = 48_000;
 const SLICE_RESERVE_BYTES = 1_500;
 const LIST_CAP = 200;
 const THREAD_SNIPPET = 140;
-const MANIFEST_PATH = "pack/manifest.json";
+export const MANIFEST_PATH = "pack/manifest.json";
 
 export interface WorkPackSlice {
   id: string;

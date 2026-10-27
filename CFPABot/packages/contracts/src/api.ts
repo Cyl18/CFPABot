@@ -578,6 +578,8 @@ export interface SubagentInfo {
   contextWindow?: number;
   /** 后台 job id。 */
   jobId?: string;
+  /** 这份子代理拿到的审查片 id（从 resources 的 slices/<id>.md 推出），用于核对覆盖率。 */
+  slices?: string[];
   percent?: number;
   stage?: string;
   watch?: string;

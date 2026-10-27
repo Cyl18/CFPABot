@@ -30,6 +30,17 @@ const AGENT_NAME = /^[A-Za-z0-9_-]+$/;
 const PREFETCH_BYTES = 96_000;
 const PREFETCH_TOTAL_BYTES = 192_000;
 const MAX_RESOURCES = 12;
+const SLICE_RESOURCE = /\/slices\/([^/]+)\.md$/;
+
+/** 片 id 从 resources 文件名回推：pack 的 manifest 是唯一来源，这里只认它的命名。 */
+function slicesOf(resources: readonly string[]): string[] {
+  const ids = new Set<string>();
+  for (const uri of resources) {
+    const match = SLICE_RESOURCE.exec(uri);
+    if (match?.[1] !== undefined) ids.add(match[1]);
+  }
+  return [...ids];
+}
 
 const OPERATING_RULES = [
   "你是子代理：只做判断，一次交卷。",
@@ -158,6 +169,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
         await resolveModel(endpoint, thinking);
         modelOverride = [`@${roleName}`];
       }
+      const slices = slicesOf(resources);
       const base = {
         agent: agentName,
         agentId,
@@ -165,12 +177,14 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
         ...(endpoint === undefined ? {} : { endpoint }),
         ...(thinking === undefined ? {} : { thinking }),
         resources,
+        ...(slices.length === 0 ? {} : { slices }),
       };
       let lastInfo: SubagentInfo = {
         agentId,
         agent: agentName,
         status: "running",
         ...(roleName === "" ? {} : { model: roleName }),
+        ...(slices.length === 0 ? {} : { slices }),
         toolCount: 0,
         tokens: 0,
         cost: 0,

@@ -1,6 +1,6 @@
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { z } from "zod";
-import type { ReviewDraft, ReviewEvent, ReviewThread } from "@cfpa/contracts/api";
+import type { ReviewDraft, ReviewEvent, ReviewThread, Verdict } from "@cfpa/contracts/api";
 import { DRAFT_FILE } from "@cfpa/review-core/draft";
 import { inHunks, patchHunks } from "@cfpa/review-core/domain/diff";
 import { parseTermInput, termCounts, validateTermTable } from "@cfpa/review-core/domain/term-table";
@@ -19,7 +19,7 @@ import { assertCanWrite, type WriteSession } from "../agent/policy.ts";
 import { publishDraft } from "../agent/workflows/review/publish.ts";
 import { prdata } from "../prdata.ts";
 import { errorResult, jsonResult } from "./result.ts";
-import { prepareDraft, saveDraftOf, markPublishedOf, storedDraftOf, withServerFilledFields, lineOfKey } from "./review/draft.ts";
+import { prepareDraft, saveDraftOf, markPublishedOf, storedDraftOf, unreviewedSlices, withServerFilledFields, lineOfKey } from "./review/draft.ts";
 import { writeWorkPack } from "./review/workpack.ts";
 import { saveTermTable } from "./review/term-store.ts";
 import { loadPack } from "./pack.ts";
@@ -46,8 +46,15 @@ function withMarker(body: string, sessionId: string, toolCallId: string): string
   return `${body.replace(AGENT_MARKER_RE, "").trimEnd()}\n\n${markerOf(sessionId, toolCallId)}`;
 }
 
-function eventOf(uri: PrParts, fallback?: ReviewEvent): ReviewEvent {
-  const value = uri.query.get("event") ?? fallback ?? "COMMENT";
+/** 结论即动作：approve 批、changes 要求改、reject 只留评论。显式 event 仍可覆盖。 */
+const EVENT_OF_VERDICT: Record<Verdict, ReviewEvent> = {
+  approve: "APPROVE",
+  changes: "REQUEST_CHANGES",
+  reject: "COMMENT",
+};
+
+function eventOf(uri: PrParts, draft: Pick<ReviewDraft, "verdict" | "event">): ReviewEvent {
+  const value = uri.query.get("event") ?? draft.event ?? EVENT_OF_VERDICT[draft.verdict] ?? "COMMENT";
   if (value === "COMMENT" || value === "APPROVE" || value === "REQUEST_CHANGES") return value;
   throw new Error("event 只能是 COMMENT / APPROVE / REQUEST_CHANGES。");
 }
@@ -198,6 +205,15 @@ async function writeReview(uri: PrParts, content: string | undefined, ctx: Write
     });
   }
   const marker = markerOf(ctx.sessionId, toolCallId);
+  const unreviewed = await unreviewedSlices(ctx.sessionId, draft.headSha);
+  if (unreviewed !== null && unreviewed.some((id) => !draft.summary.includes(id))) {
+    const missing = unreviewed.filter((id) => !draft.summary.includes(id));
+    return errorResult({
+      ok: false,
+      errors: [`还有 ${missing.length} 片没有子代理跑过：${missing.join("、")}。`],
+      next: ["重新 delegate 这些片后重写草稿", `read pr://${n}/draft 复核`],
+    });
+  }
   const existing = (await gh.listReviews(n)).find((review) => review.body.includes(marker));
   if (existing) return jsonResult({ ok: true, deduped: true, url: existing.htmlUrl });
   const meta = await reviewMeta(serverGraphql, n);
@@ -210,7 +226,7 @@ async function writeReview(uri: PrParts, content: string | undefined, ctx: Write
   }
   let url: string;
   try {
-    ({ url } = await publishDraft(draft, { event: eventOf(uri, draft.event), marker }));
+    ({ url } = await publishDraft(draft, { event: eventOf(uri, draft), marker }));
   } catch (err) {
     return errorResult({
       ok: false,

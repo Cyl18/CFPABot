@@ -14,6 +14,8 @@ import { readLocal, writeLocal } from "../../agent/local-store.ts";
 import { prdata } from "../../prdata.ts";
 import { loadPack } from "../pack.ts";
 import { loadTermTable } from "./term-store.ts";
+import { MANIFEST_PATH, type WorkPackManifest } from "./workpack.ts";
+import { loadSubagents } from "../../agent/subagents.ts";
 
 export interface PrepareResult {
   draft?: ReviewDraft;
@@ -242,7 +244,8 @@ export function draftSchema(n: number, headSha: string, notes = true): DraftSche
           "mqm 只取本回包 mqm 字段里的全形 id，不自编。",
           "术语表不写进草稿：服务端按 pr://<n>/terms 的冻结表挂到正文折叠块；改了表先重打 pack 再保存草稿。",
           "write pr://<n>/draft 保存并校验，errors 会直接返回，不通过不落盘。",
-          "发布用 write pr://<n>/review；event 可写进草稿，发布时 ?event=APPROVE|REQUEST_CHANGES 优先。",
+          "保存和发布都会核对覆盖率：pack 里每片都要有子代理正常跑完（slices 记录在该子代理上）；漏审的片重新 delegate，确实不审就把片 id 写进 summary。",
+          "发布用 write pr://<n>/review；event 缺省按 verdict 推（approve→APPROVE、changes→REQUEST_CHANGES、reject→COMMENT），显式 event 或 ?event= 可覆盖。",
         ]
       : [],
   };
@@ -295,6 +298,24 @@ export async function readDraftOf(
   };
 }
 
+/** pack 里存在、但没有任何子代理正常跑完的片。 */
+export async function unreviewedSlices(sessionId: string, headSha: string): Promise<string[] | null> {
+  const raw = await readLocal(sessionId, MANIFEST_PATH);
+  if (raw === null) return null;
+  let manifest: WorkPackManifest;
+  try {
+    manifest = JSON.parse(raw.content) as WorkPackManifest;
+  } catch {
+    return null;
+  }
+  if (manifest.headSha !== headSha) return [];
+  const done = new Set<string>();
+  for (const info of await loadSubagents(sessionId)) {
+    if (info.status === "done") for (const id of info.slices ?? []) done.add(id);
+  }
+  return manifest.slices.map((slice) => slice.id).filter((id) => !done.has(id));
+}
+
 export async function saveDraftOf(n: number, sessionId: string, content: string): Promise<SaveResult> {
   const { pull } = await prdata.files(n);
   const prepared = prepareDraft(await withServerFilledFields(n, content), n, pull.headSha);
@@ -307,11 +328,25 @@ export async function saveDraftOf(n: number, sessionId: string, content: string)
       next: [`read pr://${n}?review=1`],
     };
   }
-  const errors = validateDraft(prepared.draft, { patches: await patchesOf(n) });
+  const pending = prepared.draft;
+  const errors = validateDraft(pending, { patches: await patchesOf(n) });
   if (errors.length > 0) return { ok: false, errors, warnings: [], next: [] };
-  const warnings = severityWarnings(prepared.draft);
+  const unreviewed = await unreviewedSlices(sessionId, pull.headSha);
+  const uncovered = (unreviewed ?? []).filter((id) => !pending.summary.includes(id));
+  if (uncovered.length > 0) {
+    return {
+      ok: false,
+      errors: [
+        `还有 ${uncovered.length} 片没有子代理跑过：${uncovered.join("、")}。`,
+        "确实不审的片，把片 id 写进 summary 再保存；其余重新 delegate。",
+      ],
+      warnings: [],
+      next: [`write pr://${n}/pack {} 复核片清单`, "重新 delegate 这些片后重写草稿"],
+    };
+  }
+  const warnings = severityWarnings(pending);
   const table = await loadTermTable(n, pull.headSha);
-  const draft: ReviewDraft = table === null ? prepared.draft : { ...prepared.draft, terms: table.terms };
+  const draft: ReviewDraft = table === null ? pending : { ...pending, terms: table.terms };
   await writeLocal(sessionId, DRAFT_FILE, serializeDraftFile(draft));
   return {
     ok: true,
