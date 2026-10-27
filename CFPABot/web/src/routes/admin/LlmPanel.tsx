@@ -15,7 +15,7 @@ import { ErrorState } from "@/ui/ErrorState.tsx";
 import { Input } from "@/ui/Input.tsx";
 import { Select } from "@/ui/Select.tsx";
 import { SkeletonText } from "@/ui/Spinner.tsx";
-import { LlmEndpointForm, type EndpointDraft } from "@/routes/admin/LlmEndpointForm.tsx";
+import { LlmEndpointForm, type EndpointDraft, type ProviderPreset } from "@/routes/admin/LlmEndpointForm.tsx";
 
 const NOTICE_MS = 2500;
 
@@ -52,6 +52,7 @@ export function LlmPanel() {
   const modelsDevLoading = modelsDev.status === "loading";
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<EndpointDraft | null>(null);
+  const [providerPreset, setProviderPreset] = useState<ProviderPreset | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [testResult, setTestResult] = useState<Record<string, TestResult>>({});
   const [pendingDelete, setPendingDelete] = useState<EndpointDraft | null>(null);
@@ -111,6 +112,13 @@ export function LlmPanel() {
   if (llm.isPending || !data) return <SkeletonText lines={6} />;
 
   const endpoints = data.endpoints;
+  // 同一 provider 共用 baseUrl/protocol/密钥（服务端有校验），按 provider 折叠展示。
+  const providerGroups = [...endpoints.reduce((map, endpoint) => {
+    const list = map.get(endpoint.provider) ?? [];
+    list.push(endpoint);
+    map.set(endpoint.provider, list);
+    return map;
+  }, new Map<string, typeof endpoints>()).entries()];
   const roleEntries = Object.entries(data.roles).sort(([a], [b]) =>
     a === "default" ? -1 : b === "default" ? 1 : a.localeCompare(b),
   );
@@ -147,6 +155,7 @@ export function LlmPanel() {
     persist({ ...base, endpoints, roles }, () => {
       setFormOpen(false);
       setEditing(null);
+      setProviderPreset(null);
     });
   };
 
@@ -250,6 +259,7 @@ export function LlmPanel() {
                 disabled={save.isPending}
                 onClick={() => {
                   setEditing(null);
+                  setProviderPreset(null);
                   setFormOpen(true);
                 }}
               >
@@ -271,60 +281,83 @@ export function LlmPanel() {
               }
             />
           ) : (
-            endpoints.map((endpoint) => {
-              const result = testResult[endpoint.id];
+            providerGroups.map(([provider, group]) => {
+              const first = group[0]!;
               return (
-                <div key={endpoint.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-line bg-elevated/40 px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <code className="truncate font-mono text-xs">{endpoint.id}</code>
-                      <Badge>{endpoint.protocol}</Badge>
-                      {endpoint.hasKey ? <Badge tone="ok">有密钥</Badge> : <Badge tone="danger">缺密钥</Badge>}
+                <div key={provider} className="flex flex-col gap-1.5 rounded-md border border-line bg-elevated/40 px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <code className="truncate font-mono text-xs font-semibold">{provider}</code>
+                        <Badge>{first.protocol}</Badge>
+                        {first.hasKey ? <Badge tone="ok">有密钥</Badge> : <Badge tone="danger">缺密钥</Badge>}
+                      </div>
+                      <div className="mt-0.5 truncate text-[11px] text-muted">{first.baseUrl}</div>
                     </div>
-                    <div className="mt-0.5 truncate text-[11px] text-muted">{endpoint.baseUrl}</div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                    {endpoint.contextWindow !== undefined && <span>in {formatLimit(endpoint.contextWindow)}</span>}
-                    {endpoint.maxOutput !== undefined && <span>out {formatLimit(endpoint.maxOutput)}</span>}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {result !== undefined && (
-                      <span className={`max-w-56 truncate text-xs ${result.ok ? "text-ok" : "text-danger"}`} title={result.text}>
-                        {result.ok ? "✓" : "✗"} {result.text}
-                      </span>
-                    )}
                     <Button
                       size="sm"
                       variant="ghost"
-                      loading={test.isPending && test.variables === endpoint.id}
-                      disabled={save.isPending}
-                      onClick={() => test.mutate(endpoint.id)}
-                    >
-                      测试
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      title="编辑"
-                      aria-label={`编辑 ${endpoint.id}`}
-                      icon={<Pencil aria-hidden="true" className="size-3.5" />}
+                      icon={<Plus aria-hidden="true" className="size-3.5" />}
                       disabled={save.isPending}
                       onClick={() => {
-                        setEditing(endpoint);
+                        setEditing(null);
+                        setProviderPreset({ provider, protocol: first.protocol, baseUrl: first.baseUrl, hasKey: first.hasKey, endpointId: first.id });
                         setFormOpen(true);
                       }}
-                    />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-danger"
-                      title="删除"
-                      aria-label={`删除 ${endpoint.id}`}
-                      icon={<Trash2 aria-hidden="true" className="size-3.5" />}
-                      disabled={save.isPending}
-                      onClick={() => setPendingDelete(endpoint)}
-                    />
+                    >
+                      添加模型
+                    </Button>
                   </div>
+                  {group.map((endpoint) => {
+                    const result = testResult[endpoint.id];
+                    return (
+                      <div key={endpoint.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-1.5">
+                        <code className="min-w-0 flex-1 truncate font-mono text-xs">{endpoint.model}</code>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                          {endpoint.contextWindow !== undefined && <span>in {formatLimit(endpoint.contextWindow)}</span>}
+                          {endpoint.maxOutput !== undefined && <span>out {formatLimit(endpoint.maxOutput)}</span>}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {result !== undefined && (
+                            <span className={`max-w-56 truncate text-xs ${result.ok ? "text-ok" : "text-danger"}`} title={result.text}>
+                              {result.ok ? "✓" : "✗"} {result.text}
+                            </span>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            loading={test.isPending && test.variables === endpoint.id}
+                            disabled={save.isPending}
+                            onClick={() => test.mutate(endpoint.id)}
+                          >
+                            测试
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="编辑"
+                            aria-label={`编辑 ${endpoint.id}`}
+                            icon={<Pencil aria-hidden="true" className="size-3.5" />}
+                            disabled={save.isPending}
+                            onClick={() => {
+                              setEditing(endpoint);
+                              setFormOpen(true);
+                            }}
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-danger"
+                            title="删除"
+                            aria-label={`删除 ${endpoint.id}`}
+                            icon={<Trash2 aria-hidden="true" className="size-3.5" />}
+                            disabled={save.isPending}
+                            onClick={() => setPendingDelete(endpoint)}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })
@@ -476,12 +509,14 @@ export function LlmPanel() {
       {formOpen && (
         <LlmEndpointForm
           initial={editing}
+          providerPreset={editing === null ? providerPreset : null}
           modelsDevIndex={modelsDevIndex}
           saving={save.isPending}
           onCancel={() => {
             if (save.isPending) return;
             setFormOpen(false);
             setEditing(null);
+            setProviderPreset(null);
           }}
           onSubmit={submitEndpoint}
         />

@@ -25,19 +25,29 @@ export interface EndpointDraft {
 
 const MODEL_LIST_LIMIT = 80;
 
+/** 从分组头进入"添加模型"时预填的 provider 信息；密钥按 provider 复用，无需重填。 */
+export interface ProviderPreset {
+  provider: string;
+  protocol: LlmProtocol;
+  baseUrl: string;
+  hasKey: boolean;
+  endpointId?: string;
+}
+
 export interface LlmEndpointFormProps {
   initial: EndpointDraft | null;
+  providerPreset: ProviderPreset | null;
   modelsDevIndex: readonly FlatModelEntry[] | null;
   saving: boolean;
   onCancel: () => void;
   onSubmit: (drafts: EndpointDraft[]) => void;
 }
 
-export function LlmEndpointForm({ initial, modelsDevIndex, saving, onCancel, onSubmit }: LlmEndpointFormProps) {
+export function LlmEndpointForm({ initial, providerPreset, modelsDevIndex, saving, onCancel, onSubmit }: LlmEndpointFormProps) {
   const editing = initial !== null;
-  const [provider, setProvider] = useState(initial?.provider ?? "");
-  const [protocol, setProtocol] = useState<LlmProtocol>(initial?.protocol ?? "openai-completions");
-  const [baseUrl, setBaseUrl] = useState(initial?.baseUrl ?? "");
+  const [provider, setProvider] = useState(initial?.provider ?? providerPreset?.provider ?? "");
+  const [protocol, setProtocol] = useState<LlmProtocol>(initial?.protocol ?? providerPreset?.protocol ?? "openai-completions");
+  const [baseUrl, setBaseUrl] = useState(initial?.baseUrl ?? providerPreset?.baseUrl ?? "");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState(initial?.model ?? "");
   const [selectedModels, setSelectedModels] = useState<readonly string[]>([]);
@@ -51,7 +61,11 @@ export function LlmEndpointForm({ initial, modelsDevIndex, saving, onCancel, onS
         baseUrl,
         protocol,
         ...(apiKey !== "" ? { apiKey } : {}),
-        ...(editing && initial !== null ? { endpointId: initial.id } : {}),
+        ...(editing && initial !== null
+          ? { endpointId: initial.id }
+          : providerPreset?.endpointId !== undefined
+            ? { endpointId: providerPreset.endpointId }
+            : {}),
       }),
   });
 
@@ -61,10 +75,13 @@ export function LlmEndpointForm({ initial, modelsDevIndex, saving, onCancel, onS
     return needle === "" ? list : list.filter((item) => item.toLowerCase().includes(needle));
   }, [probe.data, modelFilter]);
 
-  const canProbe = /^https?:\/\/.+/.test(baseUrl) && (apiKey !== "" || (editing && initial.hasKey));
   // 密钥按 provider 复用，改模型不会丢 key。
-  const providerChanged = editing && provider.trim() !== initial.provider;
-  const keyReady = apiKey !== "" || (editing && initial.hasKey && !providerChanged);
+  const inheritedKey = editing ? initial.hasKey : providerPreset?.hasKey === true;
+  const canProbe = /^https?:\/\/.+/.test(baseUrl) && (apiKey !== "" || inheritedKey);
+  const providerChanged = editing
+    ? provider.trim() !== initial.provider
+    : providerPreset !== null && provider.trim() !== providerPreset.provider;
+  const keyReady = apiKey !== "" || (inheritedKey && !providerChanged);
   const manualModels = model.trim() === "" ? [] : [model.trim()];
   const modelsToUse = editing ? manualModels : [...new Set([...selectedModels, ...manualModels])];
   const valid = provider.trim() !== "" && /^https?:\/\/.+/.test(baseUrl) && keyReady && modelsToUse.length > 0;
@@ -114,7 +131,7 @@ export function LlmEndpointForm({ initial, modelsDevIndex, saving, onCancel, onS
     <Dialog
       open
       onClose={onCancel}
-      title={editing ? `编辑端点 ${initial.id}` : "添加端点"}
+      title={editing ? `编辑端点 ${initial.id}` : providerPreset !== null ? `为 ${providerPreset.provider} 添加模型` : "添加端点"}
       description="地址会自动规范为 API 根路径；添加模式可一次加入多个模型。"
       size="lg"
       footer={
@@ -178,7 +195,7 @@ export function LlmEndpointForm({ initial, modelsDevIndex, saving, onCancel, onS
             placeholder={
               providerChanged
                 ? "已切换 provider，必须输入新密钥"
-                : editing && initial.hasKey
+                : inheritedKey
                   ? "已保存，留空保留原值；也可填 env:变量名"
                   : "sk-... 或 env:变量名"
             }
