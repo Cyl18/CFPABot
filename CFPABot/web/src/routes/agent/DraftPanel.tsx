@@ -87,8 +87,8 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
                   {mqmLabel(comment.mqm)}
                 </Badge>
                 {comment.suspected === true && <Badge tone="warn">疑似</Badge>}
-                <code className="min-w-0 truncate font-mono text-[11px] text-muted" title={`${comment.path}:${comment.line}`}>
-                  {comment.path}:{comment.line}
+                <code className="min-w-0 truncate font-mono text-[11px] text-muted" title={`${comment.path}:${comment.line ?? "文件级"}`}>
+                  {comment.path}:{comment.line ?? "文件级"}
                 </code>
                 <Button
                   size="sm"
@@ -225,7 +225,7 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
                       {mqmLabel(comment.mqm)}
                     </Badge>
                     <code className="font-mono text-xs text-muted">
-                      {comment.path}:{comment.line}
+                      {comment.path}:{comment.line ?? "文件级"}
                     </code>
                   </div>
                   <pre className="mt-1 whitespace-pre-wrap text-xs">{comment.body}</pre>

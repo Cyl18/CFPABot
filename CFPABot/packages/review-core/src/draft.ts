@@ -4,12 +4,12 @@ import { MQM_BY_ID } from "@cfpa/contracts/mqm";
 import { inHunks, patchHeadLines, patchHunks } from "./domain/diff.ts";
 import { renderTermBlock } from "./domain/term-table.ts";
 
-/** 模型给的评论：line 可省，服务端按 path+key 从 pack 定位。 */
+/** 模型给的评论：line 可省，服务端按 path+key 从 pack 定位；手册评论没有 key，省略或留空。 */
 const draftCommentInput = z.object({
   id: z.string().min(1),
   path: z.string().min(1),
   line: z.number().int().positive().optional(),
-  key: z.string(),
+  key: z.string().default(""),
   severity: z.enum(["critical", "major", "minor", "neutral"]).optional(),
   mqm: z.string(),
   en: z.string().optional(),
@@ -18,7 +18,17 @@ const draftCommentInput = z.object({
   suggestion: z.string().optional(),
   covers: z.array(z.string()).optional(),
   suspected: z.boolean().optional(),
+  fileLevel: z.boolean().optional(),
 });
+
+/** 确实不审的片：identical 需 identicalTo，服务端比对两片文档。 */
+export const draftSkipSchema = z.object({
+  slice: z.string().min(1),
+  reason: z.enum(["identical", "out-of-scope"]),
+  identicalTo: z.string().optional(),
+});
+
+export type DraftSkip = z.infer<typeof draftSkipSchema>;
 
 export const draftInputSchema = z.object({
   prNumber: z.number().int().positive(),
@@ -26,6 +36,7 @@ export const draftInputSchema = z.object({
   verdict: z.enum(["approve", "changes", "reject"]),
   summary: z.string(),
   comments: z.array(draftCommentInput),
+  skipped: z.array(draftSkipSchema).optional(),
   event: z.enum(["COMMENT", "APPROVE", "REQUEST_CHANGES"]).optional(),
 });
 
@@ -35,7 +46,6 @@ export const reviewDraftSchema = draftInputSchema.extend({
   headSha: z.string().min(1),
   comments: z.array(
     draftCommentInput.extend({
-      line: z.number().int().positive(),
       severity: z.enum(["critical", "major", "minor", "neutral"]),
     }),
   ),
@@ -112,9 +122,9 @@ export function validateDraft(
   if (!draft.headSha?.trim()) errors.push("headSha 不能为空");
   const seen = new Map<string, number>();
   draft.comments.forEach((comment, index) => {
-    const where = `${index + 1}. ${comment.path}:${comment.line}`;
+    const fileLevel = comment.fileLevel === true;
+    const where = `${index + 1}. ${comment.path}:${fileLevel ? "(文件级)" : (comment.line ?? "(无行号)")}`;
     if (!comment.path.trim()) errors.push(`${where}: path 不能为空`);
-    if (!Number.isInteger(comment.line) || comment.line <= 0) errors.push(`${where}: line 必须是正整数`);
     if (!SEVERITIES.includes(comment.severity)) errors.push(`${where}: severity 非法: ${comment.severity}`);
     if (!comment.body.trim()) errors.push(`${where}: body 不能为空`);
     if (typeof comment.mqm !== "string" || !MQM_BY_ID.has(comment.mqm)) {
@@ -123,6 +133,15 @@ export function validateDraft(
       errors.push(
         `${where}: mqm 不在词表中: ${comment.mqm}${known.length > 0 ? `（可用：${known.join("、")}）` : ""}`,
       );
+    }
+    if (fileLevel) {
+      if (comment.line !== undefined) errors.push(`${where}: 文件级评论不要给 line，line 与 fileLevel 二选一`);
+      if (comment.key.trim() !== "") errors.push(`${where}: 文件级评论不要给 key，key 与 fileLevel 二选一`);
+      if (comment.suggestion !== undefined) {
+        errors.push(`${where}: 文件级评论不支持 suggestion（整行替换必须落到具体行）`);
+      }
+    } else if (comment.line === undefined || !Number.isInteger(comment.line) || comment.line <= 0) {
+      errors.push(`${where}: 手册评论要给 line（文件行级），或标 fileLevel:true 落到整个文件`);
     }
     if (comment.key.trim() !== "") {
       const slot = `${comment.path}\u0000${comment.key}`;
@@ -133,7 +152,7 @@ export function validateDraft(
     if (comment.suspected && (comment.severity === "critical" || comment.severity === "major")) {
       errors.push(`${where}: 存疑项 severity 不能高于 minor`);
     }
-    if (!comment.suspected && !comment.suggestion?.trim()) {
+    if (!fileLevel && !comment.suspected && !comment.suggestion?.trim()) {
       errors.push(
         `${where}: 非存疑的意见必须给出 suggestion（语言包可改给 zhNew，但 path+line 必须能在 pack 里找到该行；covers 不替代）`,
       );
@@ -143,17 +162,20 @@ export function validateDraft(
       errors.push(`${where}: 该文件不在本次 PR 变更中`);
       return;
     }
+    if (fileLevel) return;
+    const line = comment.line;
+    if (line === undefined) return;
     const patch = ctx.patches.get(comment.path);
     if (patch === undefined || patch === "") {
       errors.push(`${where}: 该文件的 diff 无法取得，不能确定行号，请改用其它定位方式或不写行内评论`);
       return;
     }
-    if (!inHunks(comment.line, patchHunks(patch))) {
+    if (!inHunks(line, patchHunks(patch))) {
       errors.push(`${where}: 行号不在 diff hunk 内`);
       return;
     }
     if (comment.suggestion === undefined) return;
-    const head = headLinesOf(comment.path, patch).get(comment.line);
+    const head = headLinesOf(comment.path, patch).get(line);
     if (head === undefined) return;
     const problem = wholeLineProblem(comment.path, head, comment.suggestion);
     if (problem !== undefined) {
@@ -188,7 +210,7 @@ export function severityWarnings(draft: Pick<ReviewDraft, "comments">): string[]
     if (type === undefined || comment.suspected === true) continue;
     if (SEVERITY_RANK[comment.severity] < SEVERITY_RANK[type.severity]) {
       warnings.push(
-        `${comment.path}:${comment.line} ${comment.key}: ${type.label}默认档位 ${type.severity}，当前 ${comment.severity}；后果确实更轻才保留`,
+        `${comment.path}:${comment.line ?? "(文件级)"} ${comment.key}: ${type.label}默认档位 ${type.severity}，当前 ${comment.severity}；后果确实更轻才保留`,
       );
     }
   }
@@ -224,11 +246,16 @@ export function renderInlineBody(comment: DraftComment): string {
 }
 
 export function renderReviewBody(draft: ReviewDraft): string {
-  const major = draft.comments.filter((comment) => comment.severity === "major" || comment.severity === "critical").length;
-  const minor = draft.comments.length - major;
+  const inline = draft.comments.filter((comment) => comment.fileLevel !== true);
+  const fileLevel = draft.comments.filter((comment) => comment.fileLevel === true);
+  const major = inline.filter((comment) => comment.severity === "major" || comment.severity === "critical").length;
+  const minor = inline.length - major;
   return [
-    `本批共 ${draft.comments.length} 条 inline（major ${major} / minor ${minor}），verdict：**${VERDICT_LABEL[draft.verdict]}**。`,
+    `本批共 ${inline.length} 条 inline（major ${major} / minor ${minor}）${fileLevel.length === 0 ? "" : `、${fileLevel.length} 条文件级`}，verdict：**${VERDICT_LABEL[draft.verdict]}**。`,
     draft.summary.trim(),
+    ...(fileLevel.length === 0
+      ? []
+      : ["### 文件级意见", ...fileLevel.map((comment) => `**\`${comment.path}\`**\n\n${renderInlineBody(comment)}`)]),
     renderTermBlock(draft.terms ?? []),
     "⚠️ 本批意见由 LLM 生成，仅供参考，不代表正式审查意见。",
   ]

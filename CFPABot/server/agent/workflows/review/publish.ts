@@ -30,17 +30,25 @@ export async function publishDraft(
   const table = await loadTermTable(draft.prNumber, draft.headSha);
   const freshest: ReviewDraft = table === null ? draft : { ...draft, terms: table.terms };
   const body = opts.marker === undefined ? renderReviewBody(freshest) : `${renderReviewBody(freshest)}\n\n${opts.marker}`;
+  const inline = draft.comments.flatMap((comment) =>
+    comment.fileLevel === true || comment.line === undefined ? [] : [{ comment, line: comment.line }],
+  );
   const review = await gh.createReview(draft.prNumber, {
     commitId: pull.headSha,
     body,
     event: opts.event ?? "COMMENT",
-    comments: draft.comments.map((comment) => ({
+    comments: inline.map(({ comment, line }) => ({
       path: comment.path,
-      line: comment.line,
+      line,
       side: "RIGHT",
       body: renderInlineBody(comment),
     })),
   });
-  log.info("已发布审查", { prNumber: draft.prNumber, comments: draft.comments.length, url: review.htmlUrl });
+  log.info("已发布审查", {
+    prNumber: draft.prNumber,
+    inline: inline.length,
+    fileLevel: draft.comments.length - inline.length,
+    url: review.htmlUrl,
+  });
   return { url: review.htmlUrl, headSha: pull.headSha };
 }

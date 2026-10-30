@@ -9,13 +9,13 @@ description: PR 校对与交付：打包、派单、合并、裁决、写草稿�
 
 ## 流程
 
-1. **读译前产物**：`local://STYLE.md`、`local://format.md`，没有就跳过。术语只用 `read pr://<n>/terms?candidates=1` 的冻结表；没有表就回 `skill://prep` 第 3–4 步先裁。
-2. **打包**：`write pr://<n>/pack {}`。不论行数多少都打包派单——行只用来对账，判译文只发生在子代理。返回 manifest：`dir`、`slices[]`（id、doc、kind、workspace、path、rows、bytes、首尾 key）、`fileFindings`、`duplicates`、`fileChecks`、`excluded`、`terms`。手册类 PR 的片 `kind=manual`，一对一片。冻结表会自动写进每个语言包的片头。
+1. **读译前产物**：`local://STYLE.md`、`local://format.md`，没有就跳过。术语只用 `read pr://<n>/terms?candidates=1` 的冻结表；没有表就回 `skill://prep` 第 3–4 步先裁。预审 `checks` 的文件级结论（`key_parity`、`bad_path`、JSON 语法）直接采信，不要到仓库源码或 CONTRIBUTING 里找规则出处。
+2. **打包**：`write pr://<n>/pack {}`。不论行数多少都打包派单——行只用来对账，判译文只发生在子代理。返回 manifest：`dir`、`slices[]`（id、doc、kind、workspace、path、rows、bytes、首尾 key）、`fileFindings`、`duplicates`、`fileChecks`、`excluded`、`terms`。手册类 PR 的片 `kind=manual`，一对一片。冻结表会自动写进每个语言包的片头。机械项（键集、占位符、格式码、换行、路径、JSON 语法）已经在 manifest 与 `read pr://<n>/checks` 里，直接用，不要用 python 重算。
 3. **派单**：每片一个 `review` 子代理，`resources` 只给那片的文档；跨片裁定写 `local://<manifest.dir>/shared.md` 一起递；`task` 只写片 id 与该片要特别留意的东西。命令形状见「流水线」。
 4. **合并**：按 `(path, key)` 去重取高档；跨片同 pattern 归到首现片，其余 key 进 `covers`；同一 key 两片结论冲突时你裁决，依据写进 `body`。
 5. **回收术语提案**：`termProposals` 每条都裁——`missing` 查 glossary 后补进表，`dispute` 复核后改锁或驳回（驳回理由写进 `body` 或 summary）。改完 `write pr://<n>/terms {terms:[…]}` 覆盖，再重打 pack；不改表就不用重打。
 6. **裁决 uncertain**：PR 内同词多译看 `read pr://<n>/terms?changed=1`；冻结表里查不到、又必须定的体例问题才查 glossary（英文正向 `mcp__glossary_query`，中文候选加 `inverse`，批量 ≤20）。能定的补成 comment 或删掉，零命中或定不了的写进 `summary` 存疑段并标 `suspected`。
-7. **写草稿**：`read pr://<n>/draft` 拿当前 schema；`write pr://<n>/draft <JSON>` 保存并校验，`errors` 按字段改到 `ok: true`。不需要再跑 bash 校验脚本。
+7. **写草稿**：`read pr://<n>/draft` 拿当前 schema；`write pr://<n>/draft <JSON>` 保存并校验，`errors` 按字段改到 `ok: true`。不需要再跑 bash 校验脚本。手册评论锚点二选一：给 `path`+`line`（文件行级），或标 `fileLevel:true`（文件级，进正文不进 inline，不给 line/key/suggestion）；语言包评论给 `key`，`line` 可省。内容确与已审片相同的片，写 `skipped:[{slice,reason:"identical",identicalTo}]`，别拿 summary 文字糊弄覆盖率。
 8. **可选覆盖**：本轮确认的风格、格式写回 `STYLE.md`、`format.md`；`terms.tsv` 只在译中要复用时从表里导出。
 
 `summary` 写文件级问题（路径、键集、JSON 语法、重复译文簇）与存疑项，不重复 inline 内容。
@@ -59,6 +59,7 @@ python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o 
 5. **同一 pattern 只报一条。** 首现 key 给 suggestion，其余进 `covers`，body 写 pattern。
 6. **档位按后果定，不按词表默认。** 玩家会做错选择、崩溃、反义 → critical；错义、漏译、关键术语 → major；读得通但别扭 → minor；拿不准 → neutral 或 suspected。
 7. **文件级问题写 `summary`。** 路径、键集、JSON 语法都写进 `summary`；路径问题引用 `checks` 里的 `/mv` 提示。
+8. **只为本 PR 引入或本 PR 必须补齐的问题改 verdict。** base 就已存在、不是本 PR 引入的文件级差异（缺 key、上游笔误、既有格式问题）写进 `summary` 并注明「base 既有」，verdict 照旧；别拿它把 approve 压成 changes。
 
 ## MQM
 

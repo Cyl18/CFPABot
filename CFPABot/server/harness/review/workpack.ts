@@ -59,6 +59,13 @@ export interface WorkPackManifest {
   excluded: { rows: number };
   /** 冻结术语表；子代理照抄，主代理据此生成正文折叠块。 */
   terms?: { total: number; locked: number; created: number; updatedAt: string };
+  /** 声明不审的片；identical 已按文档比对过。 */
+  skipped?: { slice: string; reason: "identical" | "out-of-scope"; identicalTo?: string; at: string }[];
+}
+
+/** 片文档比对前先抹掉版本号与片 id，剩下逐字节相同才算内容一致。 */
+export function normalizeSliceDoc(text: string, id: string): string {
+  return text.split(id).join("<slice>").replace(/\b\d+\.\d+\b/g, "<ver>");
 }
 
 export interface WorkPackComposition {

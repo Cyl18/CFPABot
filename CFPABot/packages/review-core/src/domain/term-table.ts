@@ -186,21 +186,26 @@ export function parseTermInput(
   return { table: { prNumber: n, headSha, terms, updatedAt: new Date().toISOString() }, errors: [] };
 }
 
-/** 表是给子代理照抄的：en 必须真在包里，lock/new 必须有中文和依据。 */
-export function validateTermTable(table: TermTable, pack: Pack): string[] {
+/** 表是给子代理照抄的：en 必须真在包里（或手册正文里），lock/new 必须有中文和依据。 */
+export function validateTermTable(table: TermTable, pack: Pack, manualText = ""): string[] {
   const errors: string[] = [];
   if (table.prNumber !== pack.prNumber) errors.push(`prNumber=${table.prNumber} 与目标 PR #${pack.prNumber} 不一致。`);
   if (table.headSha !== pack.headSha) {
     errors.push(`术语表基于 ${table.headSha.slice(0, 7)}，当前 head 是 ${pack.headSha.slice(0, 7)}；重审后再写。`);
   }
   if (table.terms.length === 0) errors.push("术语表为空；至少写一条，或跳过本步。");
+  const values: string[] = [];
   const known = new Set<string>();
   for (const workspace of pack.workspaces) {
     for (const row of workspace.rows) {
-      const en = (row.headEn ?? "").trim().toLowerCase();
-      if (en !== "") known.add(en);
+      const en = (row.headEn ?? "").trim();
+      if (en === "") continue;
+      values.push(en);
+      known.add(en.toLowerCase());
     }
   }
+  // 术语常是整句里的一个词（"charges"、"empty serum"）：整句命中、子串命中、手册正文命中都算在包里。
+  const haystack = `${values.join("\n")}${manualText === "" ? "" : `\n${manualText}`}`.toLowerCase();
   const seen = new Set<string>();
   table.terms.forEach((entry, index) => {
     const where = `terms[${index}] ${entry.en || "(空)"}`;
@@ -211,7 +216,10 @@ export function validateTermTable(table: TermTable, pack: Pack): string[] {
     const id = entry.en.toLowerCase();
     if (seen.has(id)) errors.push(`${where}: en 重复`);
     seen.add(id);
-    if (!known.has(id)) errors.push(`${where}: 不在本 PR 的语言包原文里`);
+    if (!known.has(id) && !(id.length >= 2 && haystack.includes(id))) {
+      const near = nearestTerms(entry.en, values);
+      errors.push(`${where}: 不在本 PR 的语言包原文里${near.length === 0 ? "" : `（相近：${near.join("、")}）`}`);
+    }
     if (entry.bucket === "discard") {
       if (entry.note === undefined || entry.note === "") errors.push(`${where}: discard 必须写 note 说明为什么不是术语`);
       return;
@@ -220,6 +228,14 @@ export function validateTermTable(table: TermTable, pack: Pack): string[] {
     if (entry.source === "") errors.push(`${where}: 必须写 source（语料命中、原版术语或既有译法）`);
   });
   return errors;
+}
+
+/** 拒收时给最近候选：取首个实词，命中它的原文值最多三条。 */
+function nearestTerms(en: string, values: readonly string[]): string[] {
+  const word = en.toLowerCase().split(/[^a-z0-9\u4e00-\u9fff]+/).filter((part) => part.length >= 3)[0];
+  if (word === undefined) return [];
+  const hits = values.filter((value) => value.toLowerCase().includes(word));
+  return [...new Set(hits)].slice(0, 3);
 }
 
 export function termCounts(terms: readonly TermEntry[]): { lock: number; new: number; discard: number } {

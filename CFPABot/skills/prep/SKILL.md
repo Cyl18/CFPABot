@@ -23,6 +23,7 @@ description: 译前草稿：路径闸门、范围、术语表、风格指南、�
    - 候选只从 changed 行抽，上下文含未改动的行；判断现译对不对看上下文，不看词形。
    - `suggest` 只是建议：`lock`=原版唯一命中；`pending`=多候选，必须查语料；`new`=无权威命中。
    - 查证只用 glossary：先 `zh_cn_cfpa`（本仓库语料，定档只看它），`zh_cn`（模组 jar）只作旁证。英文正向 `mcp__glossary_query`，中文候选加 `inverse`，成批 `mcp__glossary_query_batch`（≤20，单条上限 50）。只有 `source` 与词全等（不分大小写）才算命中，模糊结果不算；带 `^…$` 锚点的正则查询会报空匹配，别用。
+   - 不要用 `bash`/`grep` 扫 `$CFPA_REPO` 找译法：语料里出现过只说明有这串字，权威命中只看 glossary。批量走 `mcp__glossary_query_batch`，单个词走 `read pr://<n>/terms?term=<词>`。
    - 名字型包可能漏掉整句里的专名；漏了手工补进表。分歧线索可用 `termgen`，它不产出定译：
    ```bash
    python3 "$CFPA_ROOT/skills/prep/scripts/termgen/final.py" mod review ./scope -o ./review/<slug>

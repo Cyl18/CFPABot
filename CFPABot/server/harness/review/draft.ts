@@ -8,17 +8,19 @@ import {
   serializeDraftFile,
   severityWarnings,
   validateDraft,
+  type DraftSkip,
 } from "@cfpa/review-core/draft";
 import type { Pack } from "@cfpa/review-core/pack";
 import { readLocal, writeLocal } from "../../agent/local-store.ts";
 import { prdata } from "../../prdata.ts";
 import { loadPack } from "../pack.ts";
 import { loadTermTable } from "./term-store.ts";
-import { MANIFEST_PATH, type WorkPackManifest } from "./workpack.ts";
+import { MANIFEST_PATH, normalizeSliceDoc, type WorkPackManifest } from "./workpack.ts";
 import { loadSubagents } from "../../agent/subagents.ts";
 
 export interface PrepareResult {
   draft?: ReviewDraft;
+  skipped?: DraftSkip[];
   errors: string[];
 }
 
@@ -175,19 +177,17 @@ export function prepareDraft(content: string, n: number, headSha: string): Prepa
   const input = parsed.data;
   const comments: ReviewDraft["comments"] = [];
   for (const comment of input.comments) {
-    if (comment.line === undefined) {
-      return {
-        errors: [
-          `${comment.path} ${comment.key}: 没有 line，且 path+key 在 pack 里定位不到；补 key 或给 head 行号`,
-        ],
-      };
-    }
     if (comment.severity === undefined) {
       return {
         errors: [`${comment.path} ${comment.key}: 没有 severity，且 mqm 不在词表里；补 severity 或改用词表里的 mqm`],
       };
     }
-    comments.push({ ...comment, line: comment.line, severity: comment.severity });
+    if (comment.fileLevel !== true && comment.line === undefined) {
+      return {
+        errors: [`${comment.path} ${comment.key}: 手册评论要给 line（文件行级），或标 fileLevel:true 落到整个文件`],
+      };
+    }
+    comments.push({ ...comment, severity: comment.severity });
   }
   return {
     draft: {
@@ -199,6 +199,7 @@ export function prepareDraft(content: string, n: number, headSha: string): Prepa
       ...(input.event === undefined ? {} : { event: input.event }),
       updatedAt: new Date().toISOString(),
     },
+    ...(input.skipped === undefined ? {} : { skipped: input.skipped }),
     errors: [],
   };
 }
@@ -220,8 +221,9 @@ export function draftSchema(n: number, headSha: string, notes = true): DraftSche
       comments: [
         {
           path: "projects/assets/<mod>/<版本>/<namespace>/lang/zh_cn.json",
-          line: "可省：head 行号；给了 key 就按 path+key 从 pack 定位",
-          key: "item.example",
+          line: "文件行级锚点：手册评论给 head 行号；给了 key 就按 path+key 定位",
+          key: "语言包评论必填；手册（.md）评论省略或留空",
+          fileLevel: "手册评论可选：true 表示落到整个文件，此时不给 line、key、suggestion",
           severity: "可省：按 mqm 默认档补；后果不同才显式改",
           mqm: "accuracy/mistranslation",
           body: "为什么错、后果是什么；不要重复原文/译文",
@@ -233,18 +235,21 @@ export function draftSchema(n: number, headSha: string, notes = true): DraftSche
           suspected: false,
         },
       ],
+      skipped: [{ slice: "<片 id>", reason: "identical", identicalTo: "<已审片 id>" }],
     },
     mqm: mqmTable().split("\n"),
     notes: notes
       ? [
           "评论的 path 是 zh_cn 文件路径；line 可省，给了 key 就按 path+key 定位（手写的 line 会被 key 覆盖）。",
+          "手册（.md）评论锚点二选一：给 path+line（文件行级），或标 fileLevel:true（文件级，进正文不进 inline）。",
           "同一 path+key 只能出一条；同一模式的其余 key 放进 covers，两者可以同时给（suggestion 只替换当前行，缩进与行尾逗号要跟 head 该行一致）。",
           "非 suspected 的评论必须能拼出 suggestion：语言包给 zhNew，手册类给 suggestion（covers 不替代）；suspected 时 severity 不得高于 minor。",
           "id 可省，服务端按顺序补 c1…cN；headSha 可省，服务端按当前 head 补。",
           "mqm 只取本回包 mqm 字段里的全形 id，不自编。",
           "术语表不写进草稿：服务端按 pr://<n>/terms 的冻结表挂到正文折叠块；改了表先重打 pack 再保存草稿。",
           "write pr://<n>/draft 保存并校验，errors 会直接返回，不通过不落盘。",
-          "保存和发布都会核对覆盖率：pack 里每片都要有子代理正常跑完（slices 记录在该子代理上）；漏审的片重新 delegate，确实不审就把片 id 写进 summary。",
+          "保存和发布都会核对覆盖率：pack 里每片都要有子代理正常跑完（slices 记录在该子代理上）；漏审的片重新 delegate。",
+          '内容确与已审片相同的，把该片写进 skipped：[{slice,reason:"identical",identicalTo:"<已审片 id>"}]；服务端比对两片文档（忽略版本号）后才放行。',
           "发布用 write pr://<n>/review；event 缺省按 verdict 推（approve→APPROVE、changes→REQUEST_CHANGES、reject→COMMENT），显式 event 或 ?event= 可覆盖。",
         ]
       : [],
@@ -298,22 +303,103 @@ export async function readDraftOf(
   };
 }
 
-/** pack 里存在、但没有任何子代理正常跑完的片。 */
-export async function unreviewedSlices(sessionId: string, headSha: string): Promise<string[] | null> {
+/** 当前 head 的 pack manifest；没有或换 head 返回 null。 */
+async function manifestOf(sessionId: string, headSha: string): Promise<WorkPackManifest | null> {
   const raw = await readLocal(sessionId, MANIFEST_PATH);
   if (raw === null) return null;
-  let manifest: WorkPackManifest;
   try {
-    manifest = JSON.parse(raw.content) as WorkPackManifest;
+    const manifest = JSON.parse(raw.content) as WorkPackManifest;
+    return manifest.headSha === headSha ? manifest : null;
   } catch {
     return null;
   }
-  if (manifest.headSha !== headSha) return [];
+}
+
+async function doneSliceIds(sessionId: string): Promise<Set<string>> {
   const done = new Set<string>();
   for (const info of await loadSubagents(sessionId)) {
     if (info.status === "done") for (const id of info.slices ?? []) done.add(id);
   }
-  return manifest.slices.map((slice) => slice.id).filter((id) => !done.has(id));
+  return done;
+}
+
+/** pack 里存在、但既没跑过也没声明跳过的片。 */
+export async function unreviewedSlices(sessionId: string, headSha: string): Promise<string[] | null> {
+  const manifest = await manifestOf(sessionId, headSha);
+  if (manifest === null) return null;
+  const done = await doneSliceIds(sessionId);
+  const skipped = new Set((manifest.skipped ?? []).map((item) => item.slice));
+  return manifest.slices.map((slice) => slice.id).filter((id) => !done.has(id) && !skipped.has(id));
+}
+
+interface SkipResolution {
+  errors: string[];
+  ids: Set<string>;
+  manifest?: WorkPackManifest;
+  changed: boolean;
+}
+
+/** identical 要拿到两片文档实比；out-of-scope 只记录，别拿 summary 文字当豁免。 */
+async function resolveSkips(
+  sessionId: string,
+  manifest: WorkPackManifest | null,
+  skips: readonly DraftSkip[],
+  done: ReadonlySet<string>,
+): Promise<SkipResolution> {
+  const ids = new Set<string>();
+  if (skips.length === 0) return { errors: [], ids, changed: false };
+  if (manifest === null) {
+    return { errors: ["没有可用的 pack（或 head 已变），不能声明跳过；先 write pr://<n>/pack {}。"], ids, changed: false };
+  }
+  const byId = new Map(manifest.slices.map((slice) => [slice.id, slice]));
+  const errors: string[] = [];
+  const entries: NonNullable<WorkPackManifest["skipped"]> = [];
+  for (const skip of skips) {
+    const slice = byId.get(skip.slice);
+    if (slice === undefined) {
+      errors.push(`skipped: 片 ${skip.slice} 不在本次 pack 里。`);
+      continue;
+    }
+    if (done.has(slice.id)) {
+      errors.push(`skipped: 片 ${slice.id} 已有子代理跑过，不需要跳过。`);
+      continue;
+    }
+    if (ids.has(slice.id)) {
+      errors.push(`skipped: 片 ${slice.id} 重复声明。`);
+      continue;
+    }
+    const at = new Date().toISOString();
+    if (skip.reason === "identical") {
+      const target = skip.identicalTo === undefined ? undefined : byId.get(skip.identicalTo);
+      if (target === undefined) {
+        errors.push(`skipped: ${slice.id} 标了 identical，必须给 pack 里的 identicalTo。`);
+        continue;
+      }
+      if (!done.has(target.id)) {
+        errors.push(`skipped: identicalTo 的 ${target.id} 也要有子代理跑完，否则两片都没人审。`);
+        continue;
+      }
+      const [left, right] = await Promise.all([
+        readLocal(sessionId, slice.doc.replace(/^local:\/\//, "")),
+        readLocal(sessionId, target.doc.replace(/^local:\/\//, "")),
+      ]);
+      if (left === null || right === null) {
+        errors.push(`skipped: 读不到 ${slice.id} / ${target.id} 的片文档。`);
+        continue;
+      }
+      if (normalizeSliceDoc(left.content, slice.id) !== normalizeSliceDoc(right.content, target.id)) {
+        errors.push(`skipped: ${slice.id} 与 ${target.id} 除版本号外内容不同，不能按 identical 跳过；老实 delegate。`);
+        continue;
+      }
+      entries.push({ slice: slice.id, reason: "identical", identicalTo: target.id, at });
+    } else {
+      entries.push({ slice: slice.id, reason: "out-of-scope", at });
+    }
+    ids.add(slice.id);
+  }
+  if (errors.length > 0) return { errors, ids, changed: false };
+  const merged = (manifest.skipped ?? []).filter((item) => !ids.has(item.slice));
+  return { errors: [], ids, manifest: { ...manifest, skipped: [...merged, ...entries] }, changed: entries.length > 0 };
 }
 
 export async function saveDraftOf(n: number, sessionId: string, content: string): Promise<SaveResult> {
@@ -331,14 +417,23 @@ export async function saveDraftOf(n: number, sessionId: string, content: string)
   const pending = prepared.draft;
   const errors = validateDraft(pending, { patches: await patchesOf(n) });
   if (errors.length > 0) return { ok: false, errors, warnings: [], next: [] };
-  const unreviewed = await unreviewedSlices(sessionId, pull.headSha);
-  const uncovered = (unreviewed ?? []).filter((id) => !pending.summary.includes(id));
+  const manifest = await manifestOf(sessionId, pull.headSha);
+  const done = await doneSliceIds(sessionId);
+  const skip = await resolveSkips(sessionId, manifest, prepared.skipped ?? [], done);
+  if (skip.errors.length > 0) return { ok: false, errors: skip.errors, warnings: [], next: [] };
+  if (skip.changed && skip.manifest !== undefined) {
+    await writeLocal(sessionId, MANIFEST_PATH, JSON.stringify(skip.manifest));
+  }
+  const uncovered =
+    manifest === null
+      ? []
+      : manifest.slices.map((slice) => slice.id).filter((id) => !done.has(id) && !skip.ids.has(id));
   if (uncovered.length > 0) {
     return {
       ok: false,
       errors: [
         `还有 ${uncovered.length} 片没有子代理跑过：${uncovered.join("、")}。`,
-        "确实不审的片，把片 id 写进 summary 再保存；其余重新 delegate。",
+        '内容确与已审片相同的，写 skipped:[{slice,reason:"identical",identicalTo:"<已审片 id>"}] 再保存。',
       ],
       warnings: [],
       next: [`write pr://${n}/pack {} 复核片清单`, "重新 delegate 这些片后重写草稿"],

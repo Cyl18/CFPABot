@@ -25,6 +25,7 @@ import { saveTermTable } from "./review/term-store.ts";
 import { loadPack } from "./pack.ts";
 import { parseThreadState } from "./thread-state.ts";
 import { invalidateThreads, threadsOf } from "./review/threads.ts";
+import { specialContents, specialPairs } from "../views/special.ts";
 import type { WriteTarget } from "./write-targets.ts";
 import type { PrParts } from "./uri.ts";
 
@@ -206,12 +207,14 @@ async function writeReview(uri: PrParts, content: string | undefined, ctx: Write
   }
   const marker = markerOf(ctx.sessionId, toolCallId);
   const unreviewed = await unreviewedSlices(ctx.sessionId, draft.headSha);
-  if (unreviewed !== null && unreviewed.some((id) => !draft.summary.includes(id))) {
-    const missing = unreviewed.filter((id) => !draft.summary.includes(id));
+  if (unreviewed !== null && unreviewed.length > 0) {
     return errorResult({
       ok: false,
-      errors: [`还有 ${missing.length} 片没有子代理跑过：${missing.join("、")}。`],
-      next: ["重新 delegate 这些片后重写草稿", `read pr://${n}/draft 复核`],
+      errors: [`还有 ${unreviewed.length} 片没有子代理跑过：${unreviewed.join("、")}。`],
+      next: [
+        "重新 delegate 这些片后重写草稿",
+        '内容确与已审片相同的，写 skipped:[{slice,reason:"identical",identicalTo}] 再保存',
+      ],
     });
   }
   const existing = (await gh.listReviews(n)).find((review) => review.body.includes(marker));
@@ -296,12 +299,26 @@ async function replaceReviewComment(uri: PrParts, content: string | undefined, c
   return jsonResult({ ok: true, url: comment.htmlUrl });
 }
 
+/** 手册 PR 的冻结词常出现在 md 正文里，lang 包里根本没有。 */
+async function manualTextOf(n: number): Promise<string> {
+  try {
+    const pairs = (await specialPairs(n)).filter((entry) => entry.kind === "pair");
+    if (pairs.length === 0) return "";
+    const items = await specialContents(n, pairs.map((entry) => entry.key), prdata.fileSource());
+    return items
+      .flatMap((item) => (item.kind === "pair" ? [item.en.head ?? "", item.zh.head ?? ""] : []))
+      .join("\n");
+  } catch {
+    return "";
+  }
+}
+
 async function writeTerms(uri: PrParts, content: string | undefined): Promise<WriteResult> {
   if (content === undefined || content.trim() === "") throw new Error("术语表需要正文：{terms:[…]}。");
   const pack = await loadPack(uri.number);
   const parsed = parseTermInput(content, uri.number, pack.headSha);
   if (parsed.table === undefined) return errorResult({ ok: false, errors: parsed.errors });
-  const errors = validateTermTable(parsed.table, pack);
+  const errors = validateTermTable(parsed.table, pack, await manualTextOf(uri.number));
   if (errors.length > 0) {
     return errorResult({ ok: false, errors, next: [`按 errors 修正后重写 pr://${uri.number}/terms`] });
   }

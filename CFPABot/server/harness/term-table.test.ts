@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { TermTable } from "@cfpa/contracts/api";
-import { renderReviewBody } from "@cfpa/review-core/draft";
+import { renderReviewBody, draftInputSchema, validateDraft } from "@cfpa/review-core/draft";
 import { buildTermIndex } from "@cfpa/review-core/domain/terms";
 import {
   extractTermCandidates,
@@ -10,7 +10,8 @@ import {
   validateTermTable,
 } from "@cfpa/review-core/domain/term-table";
 import type { Pack } from "@cfpa/review-core/pack";
-import { composeWorkPack } from "./review/workpack.ts";
+import { composeWorkPack, normalizeSliceDoc } from "./review/workpack.ts";
+import { prepareDraft } from "./review/draft.ts";
 
 const pack: Pack = {
   prNumber: 42,
@@ -128,6 +129,31 @@ describe("validateTermTable", () => {
     expect(errors.join("\n")).toContain("不在本 PR 的语言包原文里");
   });
 
+  test("整句里的词按子串命中放行", () => {
+    const errors = validateTermTable(
+      { ...table, terms: [{ en: "Essence", zh: "精华", bucket: "new", source: "本 PR" }] },
+      pack,
+    );
+    expect(errors).toEqual([]);
+  });
+
+  test("拒收时给最近候选", () => {
+    const errors = validateTermTable(
+      { ...table, terms: [{ en: "Life Essenses", zh: "生命源质", bucket: "new", source: "本 PR" }] },
+      pack,
+    );
+    expect(errors.join("\n")).toContain("相近：Life Essence");
+  });
+
+  test("手册正文里出现的词也放行", () => {
+    const errors = validateTermTable(
+      { ...table, terms: [{ en: "Euler Angles", zh: "欧拉角", bucket: "new", source: "本 PR" }] },
+      pack,
+      "旋转使用 Euler Angles 表示。",
+    );
+    expect(errors).toEqual([]);
+  });
+
   test("discard 必须写 note", () => {
     const errors = validateTermTable(
       { ...table, terms: [{ en: "Catalyst", zh: "", bucket: "discard", source: "不是术语" }] },
@@ -228,5 +254,100 @@ describe("注入", () => {
     expect(body).toContain("<details>");
     expect(body).toContain("| Life Essence | 生命源质 |");
     expect(body).not.toContain("Not A Term");
+  });
+});
+
+describe("片文档比对", () => {
+  test("只差版本号与片 id 视为相同", () => {
+    const a = "# 审查分片 e15d83b-02\n文件：projects/assets/dh/1.20/x.md\ncriteria page_contents ==\n";
+    const b = "# 审查分片 e15d83b-09\n文件：projects/assets/dh/1.21/x.md\ncriteria page_contents ==\n";
+    expect(normalizeSliceDoc(a, "e15d83b-02")).toBe(normalizeSliceDoc(b, "e15d83b-09"));
+  });
+
+  test("正文有差异就不算相同", () => {
+    const a = "# 审查分片 s-01\n文件：x/1.20/a.md\ncriteria page_contents ==\n";
+    const b = "# 审查分片 s-02\n文件：x/1.21/a.md\ncriteria page_contents !=\n";
+    expect(normalizeSliceDoc(a, "s-01")).not.toBe(normalizeSliceDoc(b, "s-02"));
+  });
+});
+
+describe("draftInputSchema", () => {
+  test("手册评论省略 key 时补空串", () => {
+    const parsed = draftInputSchema.safeParse({
+      prNumber: 1,
+      verdict: "changes",
+      summary: "s",
+      comments: [{ id: "c1", path: "a.md", line: 3, mqm: "style/house-style", body: "b", suggestion: "s" }],
+    });
+    expect(parsed.success && parsed.data.comments[0]?.key).toBe("");
+  });
+
+  test("skipped 收 identical", () => {
+    const parsed = draftInputSchema.safeParse({
+      prNumber: 1,
+      verdict: "approve",
+      summary: "s",
+      comments: [],
+      skipped: [{ slice: "s-09", reason: "identical", identicalTo: "s-02" }],
+    });
+    expect(parsed.success && parsed.data.skipped?.[0]?.identicalTo).toBe("s-02");
+  });
+});
+
+describe("文件级评论", () => {
+  const comment = {
+    id: "c1",
+    path: "projects/assets/x/1.21/x/doc/zh_cn/a.md",
+    key: "",
+    mqm: "accuracy/mistranslation",
+    body: "整篇的口径问题",
+    severity: "minor" as const,
+  };
+  const draft = {
+    prNumber: 1,
+    headSha: "a".repeat(40),
+    verdict: "changes" as const,
+    summary: "s",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+
+  test("fileLevel 不需要 line", () => {
+    expect(validateDraft({ ...draft, comments: [{ ...comment, fileLevel: true }] }, {})).toEqual([]);
+  });
+
+  test("fileLevel 不能带 line、key、suggestion", () => {
+    const errors = validateDraft(
+      { ...draft, comments: [{ ...comment, fileLevel: true, line: 3, suggestion: "x" }] },
+      {},
+    ).join("\n");
+    expect(errors).toContain("不要给 line");
+    expect(errors).toContain("不支持 suggestion");
+  });
+
+  test("手册行级评论必须给 line 或 fileLevel", () => {
+    expect(validateDraft({ ...draft, comments: [{ ...comment }] }, {}).join("\n")).toContain("fileLevel:true");
+  });
+
+  test("文件级评论进正文", () => {
+    const body = renderReviewBody({ ...draft, comments: [{ ...comment, fileLevel: true }] });
+    expect(body).toContain("文件级意见");
+    expect(body).toContain("1 条文件级");
+    expect(body).toContain("整篇的口径问题");
+  });
+
+  test("prepareDraft 接受不带 line 的文件级评论", () => {
+    const prepared = prepareDraft(
+      JSON.stringify({
+        prNumber: 1,
+        verdict: "changes",
+        summary: "s",
+        comments: [{ ...comment, fileLevel: true }],
+      }),
+      1,
+      "a".repeat(40),
+    );
+    expect(prepared.errors).toEqual([]);
+    expect(prepared.draft?.comments[0]?.fileLevel).toBe(true);
+    expect(prepared.draft?.comments[0]?.line).toBeUndefined();
   });
 });
