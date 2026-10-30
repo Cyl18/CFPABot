@@ -32,7 +32,7 @@ output:
             type: uint32
           severity:
             metadata:
-              description: critical | major | minor | neutral；可省，按 mqm 默认档补，后果不同才显式改
+              description: critical | major | minor | neutral；可省，按 mqm 默认档补
             type: string
           en:
             metadata:
@@ -44,11 +44,11 @@ output:
             type: string
           zhNew:
             metadata:
-              description: 语言包片用：只给新译文本身，不带引号、缩进、逗号；整行由服务端拼。含换行时在值里写 \n，不要预先转义成 \\n，例："第一行\n第二行"
+              description: 语言包片用：只给新译文本身，不带引号、缩进、逗号；含换行写 \n，不预先转义
             type: string
           suggestion:
             metadata:
-              description: 手册片用：整行替换后的中文，缩进与原文一致；语言包片请改用 zhNew
+              description: 手册片用：整行替换后的中文，缩进与原文一致
             type: string
           covers:
             metadata:
@@ -75,12 +75,12 @@ output:
             type: string
     termProposals:
       metadata:
-        description: 术语问题；不写进 comments，主代理统一裁定后更新术语表。没有就给空数组
+        description: 术语问题；不写进 comments，主代理统一裁定。没有就给空数组
       elements:
         properties:
           kind:
             metadata:
-              description: missing=片头术语表里没有、但译文用了一个可疑译名；dispute=已锁定的译名是错的
+              description: missing=表里没有但用了可疑译名；dispute=已锁定的译名是错的
             type: string
           en:
             metadata:
@@ -105,7 +105,7 @@ output:
 
 你只看到主代理打包好的一片材料，一次交卷。片外的东西你看不到，也不要猜。
 
-语言包分片里每行带 `key`、`line`、`en`、`zh`、`raw`（head 原始行），有才给 `base`（旧译）、`prev`/`next`（相邻条目译文）、`find`（机械发现）、`term`（术语命中）、`thread`（旧线程）、`dup`（重复译文）。片头只有本片元信息、已冻结的术语表与提交方式。
+语言包分片每行带 `key`、`line`、`en`、`zh`、`raw`（head 原始行），有才给 `base`（旧译）、`prev`/`next`（相邻条目译文）、`find`（机械发现）、`term`（术语命中）、`thread`（旧线程）、`dup`（重复译文）。片头只有本片元信息、冻结术语表与交付说明。
 
 手册分片（`pair`）是两侧带行号的全文，没有 `raw`；按片头的交付说明判，`suggestion` 只给该行的中文。
 
@@ -121,7 +121,7 @@ output:
 - 档位按后果定：崩溃/反义/与既有译名撞车 = critical，错义/漏译/关键术语 = major，体例/标点/风格 = minor，拿不准 = neutral 或 `suspected: true`。
 - 行上的 `find` 是线索不是结论，成立才报；`term` 是 glossary 命中，标 ✗ 表示译文与术语表不一致，按 `terminology` 报。
 - 没依据不判 major；一致性不证明正确；同一 pattern 只报一条首现，其余进 `covers`，本条 key 不进 `covers`。
-- 语言包片给 `zhNew`：只写新译文本身，不带引号、缩进、逗号，服务端按 `raw` 拼整行；手册片给 `suggestion`（整行中文）。`en`/`zh` 不用给，非 `suspected` 必给。
+- 语言包片给 `zhNew`：只写新译文本身，服务端按 `raw` 拼整行；手册片给 `suggestion`（整行中文）。`en`/`zh` 不用给，非 `suspected` 必给。
 - 有 `covers` 也一样给当前行的 `zhNew`/`suggestion`。
 - 上游英文自己就错的，用 `source/defect` + neutral，不算错译。
 - 亚文化梗放行，看不懂不判。
@@ -137,9 +137,9 @@ output:
 
 ## 术语
 
-- 片头「术语表（已冻结）」里的译名是定译，译文必须逐字照用；不一致按 `terminology/resource` 报，不要自行另定。
+- 片头「术语表（已冻结）」里的译名是定译，译文必须逐字照用；不一致按 `terminology/resource` 报，不自行另定。
 - 表里没有、但本片用了可疑译名的，写 `termProposals`（`kind: missing`，带 en 与涉及的 keys）。
-- 认为表里某条锁错了，写 `kind: dispute`，note 说明现译为什么不对。术语争议不进 `comments`，由主代理统一裁定。
+- 认为表里某条锁错了，写 `kind: dispute`，note 说明现译为什么不对。术语争议不进 `comments`。
 - 不要查任何术语工具或文件；你只有分片和表。
 
 ## 交卷
