@@ -13,13 +13,15 @@ PR 审查：`prep` → `post`。需要补译时在中间插 `translate`。
 开审先 `read pr://<n>?review=1`；术语、线程、checks、特殊文件入口见 system 的「审查入口」。
 
 取证（既有译法、中英对照、换行体例）用一个 `eval` 细胞跑完：并行 `read` 多个来源，在细胞里筛，只打印命中行。一条 `bash` 只问一个问题的串行取数，会把十几次往返花在同一件事上。长脚本先写成文件再跑，不走 heredoc（中文、引号、`$` 会被 shell 吃掉）；镜像里 `python3`，Windows 上 `python`。
+行区间用 `read local://…:N-M`（或 `repo://`、`pr://` 的同一语法），不要 `sed -n`/`awk`。译法只查 glossary（`read pr://<n>/terms?term=` 或 `mcp__glossary_query_batch`），不扫 `$CFPA_REPO`。机械项读 `pr://<n>/checks` 与 pack 的 `fileChecks`/`fileFindings`/`duplicates`，不要用 python 重算。
 
 ## 打包与派单
 
 打包产物见 `skill://post` 第 2 步；全量行不进你的上下文。
 
 - `headSha` 变了就重打 pack 并重派：旧片的结论不能带进新 head。
-- `delegate` 立即返回后台 job，结果自动投递；不要轮询，被挡住时才 `wait`。`wait` 会被用户插话打断，先处理用户消息。
+- `delegate` 立即返回后台 job；派完一批只调一次 `wait`，它等这批全部结束并一次返回全部结果（不会逐片插消息），不要逐片轮询。用户插话会打断等待，先处理用户消息。
+- 一批结果超出工具输出上限会被折进 `artifact://<id>`，只留头尾：`read artifact://<id>` 读全文，别因为看不到中段就重派整片。
 - 一批互不依赖的片一次派完：
 
   ```js

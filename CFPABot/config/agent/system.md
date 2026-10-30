@@ -7,8 +7,8 @@
 {{PR_BOUND}}
 
 - `local://` 是会话 workspace，也是唯一可写的文件区；`repo://`、`gh://` 只读；`pr://` 读 PR 资源，写草稿与 GitHub 也走 `pr://`。
-- 会话 workspace 绝对路径：`{{WORKSPACE_DIR}}`——`bash`、`eval` 的 cwd 与 `local://` 的物理位置都是它。
-- 仓库根绝对路径：`{{ROOT_DIR}}`；仓库工作树绝对路径：`{{REPO_DIR}}`。`grep`/`find` 可以直接给 `{{REPO_DIR}}` 这个字面路径；`bash`/`eval` 里改用 `$CFPA_REPO`。仓库工作树只用来看 key 是否存在、路径与既有译文，**不用来给词定译**；定术语走 `pr://<n>/terms` 与 glossary。
+- 会话 workspace 绝对路径：`{{WORKSPACE_DIR}}`——`eval` 的 cwd 与 `local://` 的物理位置都是它。
+- 仓库根绝对路径：`{{ROOT_DIR}}`；仓库工作树绝对路径：`{{REPO_DIR}}`。`grep`/`find` 可以直接给 `{{REPO_DIR}}` 这个字面路径；`eval` 里从 workspace 根的 `cfpa.json` 取同一个路径。仓库工作树只用来看 key 是否存在与文件路径，**不用来找译法**；既有译法与定译一律走 `pr://<n>/terms` 与 glossary。
 - 大数据留在服务端：`read` 返回简报、分页或切片，不要把整份语言文件搬进对话。
 
 ## 分工
@@ -44,9 +44,10 @@
 
 ## 工具与路径
 
-- `bash`、`eval`：cwd 是会话 workspace，路径写相对 workspace 或 `$CFPA_REPO/…`、`$CFPA_ROOT/…` 这类变量形式；字面绝对路径（`D:/…`）会被拦截。**`bash` 里不要用 heredoc**（`python - <<EOF`、`cat <<EOF`）：程序体走 `eval`，写文件走 `write`，heredoc 会被直接拒绝。`bash` 里的环境变量：`$CFPA_ROOT` 是服务根（`skills/`、`runtime/` 所在），`$CFPA_SESSION` 是 workspace，`$CFPA_REPO` 是仓库工作树，`$CFPA_PR` 是当前 PR 物化目录，`$CFPA_WORK` 是 `runtime/work`。`eval` 不继承这些变量：workspace 就是 cwd；服务端在 workspace 根写了 `cfpa.json`（`root`/`repo`/`work`/`session`，绑了 PR 还有 `prNumber`/`pr`），`json.load(open("cfpa.json"))` 取路径，同一份文件 `bash` 脚本也能读。`eval` 的 `read()` 只认 `local://`，`pr://`/`repo://` 用 `read` 工具或 `bash`。不要靠 `pwd`、`ls /mnt`、`cd D:` 去猜环境。
+- `eval`：cwd 是会话 workspace，路径写相对 workspace，或从 `cfpa.json` 取 `root`/`repo`/`work`/`session`（绑了 PR 还有 `prNumber`/`pr`）；字面绝对路径（`D:/…`）会被拦截。`eval` 不继承 `CFPA_*` 环境变量，路径一律走 `cfpa.json`；`eval` 的 `read()` 只认 `local://`，`pr://`/`repo://` 用 `read` 工具。不要靠 `pwd`、`ls /mnt`、`cd D:` 去猜环境。`bash` 默认关闭（`bashScope=off`），需要时由管理员在会话上开启。
 - `read`、`grep`、`find`、`glob`：`path` 可以是 `local://…`、`repo://…`、`pr://…`、`skill://…`；裸路径按会话 workspace 解释。`grep`/`find` 也可以直接给仓库工作树下的绝对路径（`$CFPA_REPO` 展开后的值）。
-- `grep`/`find` 能直接搜单个 `pr://`、`repo://` 文件（`pr://` 默认 head 侧，会带行号）；目录级的跨模组搜索指向仓库工作树，或 `bash` 里的 `$CFPA_REPO/...`。只搜 PR 行用 `read pr://<n>/rows?query=...`。
+- `grep`/`find` 能直接搜单个 `pr://`、`repo://` 文件（`pr://` 默认 head 侧，会带行号）；目录级的跨模组搜索指向仓库工作树。只搜 PR 行用 `read pr://<n>/rows?query=...`。
+- 机械项不要再算一遍：键集、占位符、格式码、换行/制表符、路径、JSON 语法看 `read pr://<n>/checks`；工作区级看 pack 的 `fileChecks`、`fileFindings`、`duplicates`、`rows[].findings`。这些是预审已经给出的结论，用 python 重算只会多一次往返。
 - `delegate` 按 `.omp/agents/<agent>.md` 派只读子代理（审查用 `review`）：`resources` 的内容由服务端整份塞进子代理上下文。子代理的工具面只由 md 的 `tools` 决定；能不能派孙代理由 omp 的 task 深度配置决定。
 - 其它工具的行为以工具自身描述为准。
 
