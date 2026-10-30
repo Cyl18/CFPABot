@@ -3,6 +3,7 @@ import type { ToolContext } from "../context.ts";
 import { logger } from "../../log.ts";
 import { bashTool } from "./bash.ts";
 import { delegateTool } from "./delegate.ts";
+import { waitTool } from "./wait.ts";
 
 const log = logger("agent-tools");
 
@@ -27,5 +28,5 @@ export function buildTools(
   availableTools: string[],
   extensions: ExtensionFactory[] = [],
 ): CustomTool[] {
-  return [logged(bashTool(ctx, availableTools)), logged(delegateTool(ctx, extensions))];
+  return [logged(bashTool(ctx, availableTools)), logged(delegateTool(ctx, extensions)), logged(waitTool(ctx))];
 }
