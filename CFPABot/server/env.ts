@@ -1,8 +1,10 @@
 import { join } from "node:path";
 import { z } from "zod";
 
-// omp 只给 Python 内核设 PYTHONIOENCODING 且过滤 spawn 环境，默认编码只能靠 sitecustomize 走 PYTHONPATH 兜住。
-process.env.PYTHONPATH = [join(import.meta.dir, "eval-boot"), process.env.PYTHONPATH].filter(Boolean).join(";");
+// 容器里 locale 就是 UTF-8，只有 Windows 缺 PYTHONUTF8 才需要这个兜底。
+if (process.platform === "win32") {
+  process.env.PYTHONPATH = [join(import.meta.dir, "eval-boot"), process.env.PYTHONPATH].filter(Boolean).join(";");
+}
 
 const optional = z
   .string()
