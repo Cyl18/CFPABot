@@ -102,8 +102,10 @@ export function execPathReason(toolName: string, input: unknown): string | undef
   if (key === undefined || input === null || typeof input !== "object") return undefined;
   const source = (input as Record<string, unknown>)[key];
   if (typeof source !== "string") return undefined;
-  if (PARENT_SEGMENT.test(source)) return "只允许会话 workspace 内的相对路径，禁止 `..`；仓库文件用 `$CFPA_ROOT/…` 或 repo:// 读。";
-  if (ABSOLUTE_PATH.test(source)) return "执行与写入只用相对路径，绝对路径一律拒绝；仓库用 `$CFPA_ROOT/…` 或 repo://，PR 文件先复制到 local://work/。";
+  const repoHint = toolName === "bash" ? "`$CFPA_ROOT/…`" : "`cfpa.json` 里的 `root`";
+  if (PARENT_SEGMENT.test(source)) return `只允许会话 workspace 内的相对路径，禁止 \`..\`；仓库文件用 ${repoHint} 或 repo:// 读。`;
+  if (ABSOLUTE_PATH.test(source))
+    return `执行与写入只用相对路径，绝对路径一律拒绝；仓库用 ${repoHint}，或先用 repo://、pr:// 读进 local://work/。`;
   if (RESERVED_REDIRECT.test(source)) return "Windows 保留设备名不能当重定向目标；丢弃输出用 /dev/null。";
   return undefined;
 }

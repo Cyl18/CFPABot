@@ -37,8 +37,8 @@
 ## 工具
 
 - `eval`：取数与数据处理都在这里，一个细胞跑完一组查询，只打印命中行；它的 `read()` 只认 `local://`，其余来源用 `read` 工具。
-- `read`、`grep`、`find`、`glob`：`path` 可给 `local://`、`repo://`、`pr://`、`skill://`、`artifact://`、`agent://`，裸路径按 workspace 解释。
-- `delegate` 按 `.omp/agents/<agent>.md` 派子代理，`resources` 整份进它的上下文；`wait` 一次回收整批后台任务。
+- `read`：`path` 可给 `local://`、`repo://`、`pr://`、`gh://`、`skill://`、`artifact://`、`agent://`，裸路径按 workspace 解释；`grep`/`find` 也能直接搜 `repo://`、`pr://` 文件。`glob` 只认真实路径（`{{REPO_DIR}}` 或 workspace 相对路径），不收 URI。
+- `delegate` 派只读子代理（审查用 `review`），`resources` 整份进它的上下文；`wait` 一次回收整批后台任务。
 - `bash` 默认关闭（`bashScope=off`），需要时由管理员在会话上开启；进度用 `todo`。
 - 其它工具的行为以工具自身描述为准。
 
