@@ -24,7 +24,7 @@ import { noteSubagent, saveYield, subagentDir } from "../subagents.ts";
 
 // 子代理的工具面由 agent md 的 tools 决定；孙代理由 omp 的 task 深度配置决定。
 
-const AGENTS_DIR = join(paths.config, "agents");
+const AGENTS_DIR = join(paths.config, "subagents");
 
 const AGENT_NAME = /^[A-Za-z0-9_-]+$/;
 const PREFETCH_BYTES = 96_000;
@@ -52,7 +52,7 @@ const OPERATING_RULES = [
 ].join("\n");
 
 const DELEGATE_PARAMS = type({
-  "agent?": type("string").describe("子代理定义名，例如 review（对应 config/agents/review.md）"),
+  "agent?": type("string").describe("子代理定义名，例如 review（对应 config/subagents/review.md）"),
   "model?": type("string").describe("可选模型别名，例如 @匿名模型a；省略时用默认模型"),
   task: type("string").describe("交给子代理的任务：分片范围、判什么、返回什么"),
   "resources?": type("string[]").describe("预取的只读资源 URI；内容会随任务一起交给子代理"),
@@ -79,9 +79,9 @@ async function loadAgent(name: string): Promise<AgentSpec> {
   if (!AGENT_NAME.test(name)) throw new Error(`子代理名只能是字母、数字、下划线和连字符：${name}`);
   const file = join(AGENTS_DIR, `${name}.md`);
   const content = await readFile(file, "utf8").catch(() => null);
-  if (content === null) throw new Error(`没有子代理定义 config/agents/${name}.md；可用子代理 ${await agentNames()}`);
+  if (content === null) throw new Error(`没有子代理定义 config/subagents/${name}.md；可用子代理 ${await agentNames()}`);
   const agent = parseAgent(file, content, "project", "fatal");
-  if (agent.output === undefined) throw new Error(`config/agents/${name}.md 缺少 output schema`);
+  if (agent.output === undefined) throw new Error(`config/subagents/${name}.md 缺少 output schema`);
   return {
     agent: {
       ...agent,
