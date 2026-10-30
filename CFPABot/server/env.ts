@@ -1,6 +1,9 @@
 import { join } from "node:path";
 import { z } from "zod";
 
+// 项目级 omp 配置跟着 config/ 走，镜像里不必再带一个 .omp 目录。
+process.env.PI_CONFIG_FILES ||= join(process.cwd(), "config", "omp.yml");
+
 // 容器里 locale 就是 UTF-8，只有 Windows 缺 PYTHONUTF8 才需要这个兜底。
 if (process.platform === "win32") {
   process.env.PYTHONPATH = [join(import.meta.dir, "eval-boot"), process.env.PYTHONPATH].filter(Boolean).join(";");

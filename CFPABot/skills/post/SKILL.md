@@ -72,7 +72,7 @@ run(f"{root}/skills/prep/scripts/termgen/final.py", "mod", "review", "./scope", 
 
 ## 子代理
 
-`review` 没有任何工具（glossary 也不给），只看 `resources` 递过去的那一片。片文档由 `write pr://<n>/pack` 生成：原文、译文、`raw`、机械发现、冻结术语表、原版术语命中、旧线程、重复译文；MQM 表与结论契约在 `.omp/agents/review.md`。
+`review` 没有任何工具（glossary 也不给），只看 `resources` 递过去的那一片。片文档由 `write pr://<n>/pack` 生成：原文、译文、`raw`、机械发现、冻结术语表、原版术语命中、旧线程、重复译文；MQM 表与结论契约在 `config/agents/review.md`。
 
 术语分歧由你统一裁决：子代理只提 `termProposals`，不改表、不写术语评论。
 
