@@ -17,7 +17,15 @@ const ABSOLUTE_PATH = /(?:^|[\s"'`(,=;|&])(?:[A-Za-z]:[\\/]|\/(?!dev\/null\b)(?!
 const RESERVED_REDIRECT = /(?:^|[\s;&|(])(?:\d|&)?>>?\s*["']?(?:nul|con|prn|aux|com[1-9]|lpt[1-9])(?:\.\w+)?["']?(?=$|[\s;&|)])/i;
 // shortcut: 只挡 shell 重定向，eval 里 open("nul") 这类直接写文件不拦；等到真出现 eval 造设备名再扩。
 const SECRET_FIELDS = ["path", "paths", "command", "code", "resources", "url"];
-const ALLOWED_READ_SCHEMES: Record<string, true> = { repo: true, pr: true, gh: true, skill: true, local: true };
+const ALLOWED_READ_SCHEMES: Record<string, true> = {
+  repo: true,
+  pr: true,
+  gh: true,
+  skill: true,
+  local: true,
+  artifact: true,
+  agent: true,
+};
 
 const SECRET_NAMES = [
   "GITHUB_PAT",
@@ -56,7 +64,7 @@ const ENV_DUMPS = [
 
 export interface SandboxOptions {
   workspace: string;
-  execAllowed: () => Promise<boolean>;
+  execAllowed: (toolName: string) => Promise<boolean>;
 }
 
 export function secretReason(input: unknown): string | undefined {
@@ -78,7 +86,7 @@ export function secretReason(input: unknown): string | undefined {
 
 export function execReason(toolName: string, allowed: boolean): string | undefined {
   if (EXEC_TOOLS[toolName] !== true || allowed) return undefined;
-  return "执行权限已关闭（evalScope=off），管理员可在会话上开启。";
+  return `执行权限已关闭（${toolName === "bash" ? "bashScope" : "evalScope"}=off），管理员可在会话上开启。`;
 }
 
 export function writeReason(toolName: string, input: unknown): string | undefined {
@@ -117,7 +125,7 @@ export function readPathReason(toolName: string, input: unknown, workspace: stri
     const scheme = /^([A-Za-z][\w+.-]*):\/\//.exec(target)?.[1]?.toLowerCase();
     if (scheme !== undefined) {
       if (ALLOWED_READ_SCHEMES[scheme] === true) continue;
-      return `只允许读 repo://、pr://、gh://、skill:// 与 local://；${target} 不在范围内。`;
+      return `只允许读 repo://、pr://、gh://、skill://、artifact://、agent:// 与 local://；${target} 不在范围内。`;
     }
     const relative = target.replace(READ_SELECTOR, "");
     const inside = [workspace, paths.root].some((base) => {
@@ -147,7 +155,12 @@ export function sandbox(options: SandboxOptions): ExtensionFactory {
     pi.on("tool_call", async (event) => {
       let reason: string | undefined;
       try {
-        reason = sandboxReason(event.toolName, event.input, options.workspace, await options.execAllowed());
+        reason = sandboxReason(
+          event.toolName,
+          event.input,
+          options.workspace,
+          await options.execAllowed(event.toolName),
+        );
       } catch (err) {
         log.error("沙箱策略执行失败", { tool: event.toolName, err });
         reason = "沙箱策略执行失败，工具调用已拒绝。";

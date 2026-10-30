@@ -1,7 +1,15 @@
 import { mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import type { EvalScope, SessionDraftSummary, SessionStatus, SessionSummary, ThinkingLevel, WriteScope } from "@cfpa/contracts/api";
+import type {
+  BashScope,
+  EvalScope,
+  SessionDraftSummary,
+  SessionStatus,
+  SessionSummary,
+  ThinkingLevel,
+  WriteScope,
+} from "@cfpa/contracts/api";
 import { paths } from "../paths.ts";
 import { readJson, withLock, writeJson } from "../store.ts";
 
@@ -19,6 +27,7 @@ export interface SessionMeta {
   model: string;
   writeScope: WriteScope;
   evalScope: EvalScope;
+  bashScope: BashScope;
   workflow: string;
   thinking?: ThinkingLevel;
   prNumber?: number;
@@ -42,6 +51,7 @@ const metaSchema = z.object({
   model: z.string(),
   writeScope: z.enum(["off", "on"]).default("off"),
   evalScope: z.enum(["off", "run"]).default("off"),
+  bashScope: z.enum(["off", "run"]).default("off"),
   workflow: z.string().optional(),
   thinking: z.enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"]).optional(),
   prNumber: z.number().int().positive().optional(),
@@ -82,6 +92,7 @@ export function summarize(
     ...(draft ? { draft } : {}),
     writeScope: meta.writeScope,
     evalScope: meta.evalScope,
+    bashScope: meta.bashScope,
     ...(meta.thinking !== undefined ? { thinking: meta.thinking } : {}),
     ...(meta.lastError ? { lastError: meta.lastError } : {}),
   };

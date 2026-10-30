@@ -4,5 +4,5 @@ export const generalWorkflow: WorkflowDefinition = {
   id: "general",
   promptFiles: ["pipeline.md"],
   skills: ["prep", "post", "translate"],
-  defaults: { writeScope: "off", evalScope: "run" },
+  defaults: { writeScope: "off", evalScope: "run", bashScope: "off" },
 };

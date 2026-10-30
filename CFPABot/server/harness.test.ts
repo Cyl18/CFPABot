@@ -7,7 +7,7 @@ import type { Pack, PackRow, PackWorkspace } from "@cfpa/review-core/pack";
 import { reviewRowsForInput } from "./harness/review/rows.ts";
 import { withServerFilledFields } from "./harness/review/draft.ts";
 import { aggregateTerms } from "./harness/review/terms.ts";
-import { execPathReason, secretReason } from "./agent/plugins/sandbox.ts";
+import { execPathReason, readPathReason, secretReason } from "./agent/plugins/sandbox.ts";
 import { heredocReason } from "./agent/tools/bash.ts";
 import { prefetch } from "./agent/tools/delegate.ts";
 import { localDir } from "./agent/local-store.ts";
@@ -271,5 +271,14 @@ describe("sandbox", () => {
     expect(execPathReason("bash", { command: "ls 2>NUL" })).toContain("保留设备名");
     expect(execPathReason("bash", { command: "make >/dev/null" })).toBeUndefined();
     expect(execPathReason("bash", { command: "node check.js" })).toBeUndefined();
+  });
+});
+
+describe("sandbox 读取 scheme", () => {
+  test("artifact/agent 放行，未知 scheme 与越界绝对路径拒绝", () => {
+    expect(readPathReason("read", { path: "artifact://12" }, "D:/ws")).toBeUndefined();
+    expect(readPathReason("read", { path: "agent://review-1/2" }, "D:/ws")).toBeUndefined();
+    expect(readPathReason("read", { path: "file:///etc/passwd" }, "D:/ws")).toContain("不在范围内");
+    expect(readPathReason("read", { path: "D:/elsewhere/a.txt" }, "D:/ws")).toContain("只读会话 workspace");
   });
 });

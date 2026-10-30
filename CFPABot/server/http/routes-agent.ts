@@ -6,7 +6,12 @@ import { stopSubagent } from "../agent/subagents.ts";
 import { requireAdmin } from "./auth.ts";
 import type { AppEnv } from "./auth.ts";
 import { notFound, parseBody } from "./errors.ts";
-import type { CreateSessionRequest, SessionEvent, SessionListEvent } from "@cfpa/contracts/api";
+import type {
+  CreateSessionRequest,
+  SetBashScopeRequest,
+  SessionEvent,
+  SessionListEvent,
+} from "@cfpa/contracts/api";
 
 export const sessionRoutes = new Hono<AppEnv>();
 
@@ -17,10 +22,12 @@ const createSchema = z.object({
   title: z.string().optional(),
   writeScope: z.enum(["off", "on"]).optional(),
   evalScope: z.enum(["off", "run"]).optional(),
+  bashScope: z.enum(["off", "run"]).optional(),
 });
 
 const writeScopeSchema = z.object({ writeScope: z.enum(["off", "on"]) });
 const evalScopeSchema = z.object({ evalScope: z.enum(["off", "run"]) });
+const bashScopeSchema = z.object({ bashScope: z.enum(["off", "run"]) });
 const configSchema = z.object({
   model: z.string().optional(),
   thinking: z.union([z.enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"]), z.null()]).optional(),
@@ -82,6 +89,12 @@ sessionRoutes.patch("/:id/eval-scope", async (c) => {
   const { evalScope } = await parseBody(c, evalScopeSchema);
   await agent.setEvalScope(c.req.param("id"), evalScope);
   return c.json({ ok: true, evalScope });
+});
+
+sessionRoutes.patch("/:id/bash-scope", async (c) => {
+  const { bashScope } = await parseBody(c, bashScopeSchema);
+  await agent.setBashScope(c.req.param("id"), bashScope);
+  return c.json({ ok: true, bashScope });
 });
 
 sessionRoutes.patch("/:id/config", async (c) => {

@@ -517,6 +517,8 @@ export type WriteScope = "off" | "on";
 
 export type EvalScope = "off" | "run";
 
+export type BashScope = "off" | "run";
+
 export interface SessionDraftSummary {
   prNumber: number;
   verdict: Verdict;
@@ -538,6 +540,7 @@ export interface SessionSummary {
   draft?: SessionDraftSummary;
   writeScope: WriteScope;
   evalScope: EvalScope;
+  bashScope: BashScope;
   thinking?: ThinkingLevel;
   lastError?: string;
 }
@@ -634,7 +637,8 @@ export type Verdict = "approve" | "changes" | "reject";
 export interface DraftComment {
   id: string;
   path: string;
-  line: number;
+  /** 文件级评论没有 line，靠 fileLevel 落到整个文件。 */
+  line?: number;
   key: string;
   severity: Severity;
   mqm: string;
@@ -644,6 +648,8 @@ export interface DraftComment {
   suggestion?: string;
   covers?: string[];
   suspected?: boolean;
+  /** 手册评论的锚点二选一：fileLevel 或 line。 */
+  fileLevel?: boolean;
 }
 
 export interface ReviewDraft {
@@ -702,6 +708,7 @@ export interface CreateSessionRequest {
   title?: string;
   writeScope?: WriteScope;
   evalScope?: EvalScope;
+  bashScope?: BashScope;
 }
 
 export interface SetWriteScopeRequest {
@@ -710,6 +717,10 @@ export interface SetWriteScopeRequest {
 
 export interface SetEvalScopeRequest {
   evalScope: EvalScope;
+}
+
+export interface SetBashScopeRequest {
+  bashScope: BashScope;
 }
 
 export interface SetSessionConfigRequest {

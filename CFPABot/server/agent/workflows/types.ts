@@ -1,4 +1,4 @@
-import type { EvalScope, WriteScope } from "@cfpa/contracts/api";
+import type { BashScope, EvalScope, WriteScope } from "@cfpa/contracts/api";
 
 export interface WorkflowDefinition {
   id: string;
@@ -7,5 +7,6 @@ export interface WorkflowDefinition {
   defaults: {
     writeScope: WriteScope;
     evalScope: EvalScope;
+    bashScope: BashScope;
   };
 }

@@ -76,10 +76,12 @@ export function sandboxEnv(env: NodeJS.ProcessEnv, cwd: string): NodeJS.ProcessE
   const pathValue = env.PATH ?? env.Path;
   if (pathValue !== undefined) out.PATH = pathValue;
   out.HOME = cwd;
-  // Windows 上子进程默认 cp936，输出被工具按 UTF-8 解码就碎成 �；python 与原生工具都靠这三个变量。
+  // Windows 上子进程默认 cp936，输出被工具按 UTF-8 解码就碎成 �；python 与原生工具都靠这些变量。
   out.LANG ??= "C.UTF-8";
   out.LC_ALL ??= "C.UTF-8";
   out.PYTHONIOENCODING ??= "utf-8";
+  // PYTHONIOENCODING 只管 stdin/stdout；open() 的默认编码要靠 UTF-8 模式，否则读 json 仍会 UnicodeDecodeError。
+  out.PYTHONUTF8 ??= "1";
   return out;
 }
 
@@ -112,7 +114,7 @@ export function bashTool(ctx: ToolContext, availableTools: string[]): CustomTool
     name: "bash",
     label: "执行 shell",
     description:
-      "在会话 workspace 执行 bash；cwd 就是 local://。仓库在 $CFPA_REPO，PR 物化目录在 $CFPA_PR，工作区根是 $CFPA_WORK。不要用 heredoc（程序体走 eval，写文件走 write），会被直接拒绝。evalScope=off 时调用会被拒绝。",
+      "在会话 workspace 执行 bash；cwd 就是 local://。仓库在 $CFPA_REPO，PR 物化目录在 $CFPA_PR，工作区根是 $CFPA_WORK。不要用 heredoc（程序体走 eval，写文件走 write），会被直接拒绝。bashScope=off（默认）时调用会被拒绝；取数与数据处理走 eval。",
     parameters: BASH_PARAMS,
     execute: async (_toolCallId, params, _onUpdate, runtime, signal) => {
       const settings = runtime.settings;

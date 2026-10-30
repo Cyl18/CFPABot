@@ -12,6 +12,7 @@ import type { Effort } from "@oh-my-pi/pi-catalog/effort";
 import { committedTodoPhases } from "@oh-my-pi/pi-coding-agent/tools/todo";
 import type { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp";
 import type {
+  BashScope,
   CreateSessionRequest,
   EvalScope,
   SessionDetail,
@@ -226,7 +227,11 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   const extensions = [
     sandbox({
       workspace: localDir(id),
-      execAllowed: async () => (await store.get(id))?.meta.evalScope === "run",
+      execAllowed: async (toolName) => {
+        const meta = (await store.get(id))?.meta;
+        if (meta === undefined) return false;
+        return (toolName === "bash" ? meta.bashScope : meta.evalScope) === "run";
+      },
     }),
   ];
   const manager = await openSessionManager(record);
@@ -251,7 +256,8 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
     sessionManager: manager,
     customTools,
     toolNames: [...new Set([...Object.keys(ALLOWED_TOOLS), ...customTools.map((tool) => tool.name)])],
-    restrictToolNames: true,
+    // 受限会话不加载调用方扩展（sandbox 会一起丢），工具面靠下面的 ALLOWED_TOOLS 白名单收窄。
+    restrictToolNames: false,
     allowRestrictedCustomTools: true,
     skills,
     extensions,
@@ -489,6 +495,7 @@ export const agent = {
       model,
       writeScope: request.writeScope ?? workflow.defaults.writeScope,
       evalScope: request.evalScope ?? workflow.defaults.evalScope,
+      bashScope: request.bashScope ?? workflow.defaults.bashScope,
       workflow: workflow.id,
       ...(request.prNumber === undefined ? {} : { prNumber: request.prNumber }),
     };
@@ -651,6 +658,15 @@ export const agent = {
     const record = await store.get(id);
     if (!record) throw httpError("会话不存在", 404);
     record.meta.evalScope = evalScope;
+    record.meta.updatedAt = now();
+    await store.put(record);
+    hub.touch(id);
+  },
+
+  async setBashScope(id: string, bashScope: BashScope): Promise<void> {
+    const record = await store.get(id);
+    if (!record) throw httpError("会话不存在", 404);
+    record.meta.bashScope = bashScope;
     record.meta.updatedAt = now();
     await store.put(record);
     hub.touch(id);
