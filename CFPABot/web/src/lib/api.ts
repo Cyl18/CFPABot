@@ -27,6 +27,7 @@ import type {
   SessionFile,
   SessionFileContent,
   SessionSummary,
+  SetBashScopeRequest,
   SetEvalScopeRequest,
   SetFileViewedRequest,
   SetSessionConfigRequest,
@@ -205,6 +206,8 @@ export const api = {
     send<{ ok: true; writeScope: string }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/write-scope`, body),
   setSessionEvalScope: (id: string, body: SetEvalScopeRequest) =>
     send<{ ok: true; evalScope: string }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/eval-scope`, body),
+  setSessionBashScope: (id: string, body: SetBashScopeRequest) =>
+    send<{ ok: true; bashScope: string }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/bash-scope`, body),
   setSessionConfig: (id: string, body: SetSessionConfigRequest) =>
     send<{ ok: true }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/config`, body),
   saveArtifact: (id: string, value: unknown) =>

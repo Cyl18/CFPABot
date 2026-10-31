@@ -1,4 +1,5 @@
 import type {
+  BashScope,
   ChatItem,
   EvalScope,
   ReviewDraft,
@@ -98,7 +99,7 @@ export function SessionPage({ id }: { id: string }) {
   const seededId = useRef<string | null>(null);
   const idRef = useRef(id);
   const dirtyRef = useRef(false);
-  const [confirmEval, setConfirmEval] = useState(false);
+  const [confirmExec, setConfirmExec] = useState<"eval" | "bash" | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [queued, setQueued] = useState<{ steering: string[]; followUp: string[] }>({ steering: [], followUp: [] });
   const [subagents, setSubagents] = useState<Record<string, SubagentInfo>>({});
@@ -262,7 +263,7 @@ export function SessionPage({ id }: { id: string }) {
   });
 
   useEffect(() => {
-    if (status !== "running" || confirmEval) return;
+    if (status !== "running" || confirmExec !== null) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       const target = event.target;
@@ -275,7 +276,7 @@ export function SessionPage({ id }: { id: string }) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [abort, confirmEval, status]);
+  }, [abort, confirmExec, status]);
 
   const archive = useMutation({
     mutationFn: () => api.archiveSession(id),
@@ -320,6 +321,15 @@ export function SessionPage({ id }: { id: string }) {
     onError: (error) => setActionError(errorMessage(error)),
   });
 
+  const setBash = useMutation({
+    mutationFn: (bashScope: BashScope) => api.setSessionBashScope(id, { bashScope }),
+    onSuccess: () => {
+      setActionError(undefined);
+      refreshSession();
+    },
+    onError: (error) => setActionError(errorMessage(error)),
+  });
+
   const setWrite = useMutation({
     mutationFn: (writeScope: WriteScope) => api.setSessionWriteScope(id, { writeScope }),
     onSuccess: () => {
@@ -356,6 +366,7 @@ export function SessionPage({ id }: { id: string }) {
   const running = status === "running";
   const archived = meta.archived;
   const evalOn = meta.evalScope === "run";
+  const bashOn = meta.bashScope === "run";
   const writeOn = meta.writeScope === "on";
 
   const modelOptions: PickerOption[] = [
@@ -595,8 +606,19 @@ export function SessionPage({ id }: { id: string }) {
                 }
                 leading={
                   <>
-                    <ToggleChip pressed={evalOn} onClick={() => (evalOn ? setEval.mutate("off") : setConfirmEval(true))} title="允许 Agent 执行 bash 与 eval">
-                      执行 {evalOn ? "开" : "关"}
+                    <ToggleChip
+                      pressed={evalOn}
+                      onClick={() => (evalOn ? setEval.mutate("off") : setConfirmExec("eval"))}
+                      title="允许 Agent 运行 eval 单元格（Python / JS）"
+                    >
+                      eval {evalOn ? "开" : "关"}
+                    </ToggleChip>
+                    <ToggleChip
+                      pressed={bashOn}
+                      onClick={() => (bashOn ? setBash.mutate("off") : setConfirmExec("bash"))}
+                      title="允许 Agent 执行 shell 命令"
+                    >
+                      bash {bashOn ? "开" : "关"}
                     </ToggleChip>
                     <ToggleChip pressed={writeOn} onClick={() => setWrite.mutate(writeOn ? "off" : "on")} title="允许 Agent 向 GitHub 写入">
                       GitHub 写 {writeOn ? "开" : "关"}
@@ -651,19 +673,25 @@ export function SessionPage({ id }: { id: string }) {
       </div>
 
       <Dialog
-        open={confirmEval}
-        onClose={() => setConfirmEval(false)}
-        title="开启执行权限"
-        description="开启后 Agent 可以在这台服务器上执行任意 shell 命令和脚本。"
+        open={confirmExec !== null}
+        onClose={() => setConfirmExec(null)}
+        title={confirmExec === "bash" ? "开启 bash 权限" : "开启 eval 权限"}
+        description={
+          confirmExec === "bash"
+            ? "开启后 Agent 可以在这台服务器上执行任意 shell 命令。"
+            : "开启后 Agent 可以在这台服务器上运行 Python / JS 单元格。"
+        }
         size="sm"
         footer={
           <>
-            <Button onClick={() => setConfirmEval(false)}>取消</Button>
+            <Button onClick={() => setConfirmExec(null)}>取消</Button>
             <Button
               variant="danger"
               onClick={() => {
-                setConfirmEval(false);
-                setEval.mutate("run");
+                const scope = confirmExec;
+                setConfirmExec(null);
+                if (scope === "bash") setBash.mutate("run");
+                else setEval.mutate("run");
               }}
             >
               确认开启
@@ -671,7 +699,7 @@ export function SessionPage({ id }: { id: string }) {
           </>
         }
       >
-        <p className="text-xs text-muted">只在明确需要跑命令或脚本时开启；关闭后新的 bash / eval 调用会被拒绝。</p>
+        <p className="text-xs text-muted">只在明确需要时开启；关闭后新的 {confirmExec === "bash" ? "bash" : "eval"} 调用会被拒绝。</p>
       </Dialog>
     </div>
   );
