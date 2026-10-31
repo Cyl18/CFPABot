@@ -304,7 +304,7 @@ async function manualTextOf(n: number): Promise<string> {
   try {
     const pairs = (await specialPairs(n)).filter((entry) => entry.kind === "pair");
     if (pairs.length === 0) return "";
-    const items = await specialContents(n, pairs.map((entry) => entry.key), prdata.fileSource());
+    const items = await specialContents(n, pairs.map((entry) => entry.key), prdata.fileSource(n));
     return items
       .flatMap((item) => (item.kind === "pair" ? [item.en.head ?? "", item.zh.head ?? ""] : []))
       .join("\n");

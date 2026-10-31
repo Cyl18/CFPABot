@@ -269,6 +269,7 @@ export const mods = {
           name: dep.name,
           url: curseforgeUrl(dep, dep.slug),
           ...(iconUrl ? { iconUrl } : {}),
+          ...(dep.links?.sourceUrl ? { sourceUrl: dep.links.sourceUrl } : {}),
         },
       ];
     });

@@ -159,6 +159,7 @@ export async function runCommands(input: CommandRunInput): Promise<void> {
             if (!ws) throw new CommandError(NO_WORKSPACE);
             const slug = line.args[0];
             const version = line.args[1];
+            const namespace = line.args[2];
             if (slug === undefined || version === undefined) throw new CommandError("应该有两个参数。");
             const format = langFormatFor(version);
             const info = await mods.resolve(slug);
@@ -166,13 +167,22 @@ export async function runCommands(input: CommandRunInput): Promise<void> {
             if (!info || !modFile) throw new CommandError(`⚠ 找不到模组: ${slug}-${version}。`);
             const jar = await mods.readJar(modFile);
             if (!jar) throw new CommandError(`ℹ 获取 ${slug} 模组语言文件失败。`);
-            const candidates = jar.lang.filter((entry) => entry.locale === "en_us" && entry.format === format);
+            const candidates = jar.lang.filter(
+              (entry) => entry.locale === "en_us" && entry.format === format && (namespace === undefined || entry.domain === namespace),
+            );
             if (candidates.length === 0) {
               replies.push("⚠ 更新失败：未找到对应的英文语言文件。");
               break;
             }
             if (candidates.length > 1) {
-              replies.push("⚠ 更新失败：找到了多个语言文件。");
+              if (namespace === undefined) {
+                const domains = [...new Set(jar.lang.filter((entry) => entry.locale === "en_us").map((entry) => entry.domain))];
+                replies.push(
+                  `⚠ 更新失败：找到了多个语言文件。可用 Domain：${domains.join("、")}。使用 \`/update-en ${slug} ${version} [DOMAIN]\` 指定。`,
+                );
+              } else {
+                replies.push("⚠ 更新失败：找到了多个语言文件。");
+              }
               break;
             }
             const source = candidates[0];

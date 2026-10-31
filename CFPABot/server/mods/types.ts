@@ -6,6 +6,7 @@ export interface ModDep {
   name: string;
   url: string;
   iconUrl?: string;
+  sourceUrl?: string;
 }
 
 export interface ModInfo {

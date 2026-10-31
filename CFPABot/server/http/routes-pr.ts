@@ -235,7 +235,7 @@ prRoutes.get("/prs/:n/refresh/status", (c) => c.json({ running: isRefreshing(prN
 prRoutes.get("/prs/:n/compare", async (c) => {
   const key = parseQuery(c, workspaceQuery);
   const n = prNumber(c);
-  return c.json(await withPull(() => compareWorkspace(n, key, prdata.fileSource())));
+  return c.json(await withPull(() => compareWorkspace(n, key, prdata.fileSource(n))));
 });
 
 prRoutes.get("/prs/:n/special-files", async (c) => {
@@ -264,7 +264,7 @@ prRoutes.get("/prs/:n/special", async (c) => c.json(await withPull(() => special
 
 prRoutes.get("/prs/:n/special/content", async (c) => {
   const { key } = parseQuery(c, specialQuery);
-  const content = await withPull(() => specialPairContent(prNumber(c), key, prdata.fileSource()));
+  const content = await withPull(() => specialPairContent(prNumber(c), key, prdata.fileSource(prNumber(c))));
   if (content === null) throw notFound("特殊文件不存在");
   return c.json(content);
 });
@@ -275,7 +275,7 @@ prRoutes.get("/versions/:slug/keys", async (c) => {
     await crossVersionKeys(
       c.req.param("slug"),
       { namespace, pr, versions: versionSelection(versions) },
-      prdata.fileSource(),
+      prdata.fileSource(pr),
     ),
   );
 });
@@ -339,13 +339,22 @@ prRoutes.get("/BakaXL/ModList", async (c) => {
       );
       const first = rows[0];
       if (first === undefined) continue;
+      const latest = rows.reduce((best, row) => (compareMc(row.version, best.version) > 0 ? row : best), first);
+      const versions: BakaXlVersion[] = [];
+      const seen = new Set<string>();
+      for (const { version, loader, repoLink } of rows) {
+        const key = `${version}\u0000${loader}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        versions.push({ version, loader, repoLink });
+      }
       const cfMatched = mod.cfSlug !== undefined && mod.cfSlug === mod.slug;
       modlist.push({
         modSlug: mod.slug,
         modName: cfMatched ? (mod.name ?? null) : null,
-        modDomain: first.domain,
+        modDomain: latest.domain,
         curseForgeLink: cfMatched ? (mod.cfUrl ?? null) : null,
-        versions: rows.map(({ version, loader, repoLink }) => ({ version, loader, repoLink })),
+        versions,
       });
     }
     return { modlist, lastUpdate: list.updatedAt ?? new Date().toISOString() };

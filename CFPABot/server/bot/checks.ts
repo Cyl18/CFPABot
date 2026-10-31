@@ -35,7 +35,6 @@ export interface ChecksResult {
 interface ModTarget {
   slug: string;
   version: string;
-  namespace: string;
   data: WorkspaceData;
   all: WorkspaceData[];
 }
@@ -114,7 +113,7 @@ async function autoDomainItems(ctx: PrContext): Promise<Finding[]> {
     const info = await mods.resolve(slug).catch(() => null);
     const modFile = info ? await mods.pickFile(info, version).catch(() => null) : null;
     const jar = modFile ? await mods.readJar(modFile).catch(() => null) : null;
-    const domain = jar?.domains[0];
+    const domain = jar?.langDirs[0] ?? jar?.domains[0];
     if (!domain) {
       items.push({
         code: "bad_path_domain",
@@ -144,14 +143,14 @@ function modTargets(data: WorkspaceData[]): ModTarget[] {
   const out: ModTarget[] = [];
   const byKey = new Map<string, ModTarget>();
   for (const item of data) {
-    const { slug, version, namespace } = item.workspace;
+    const { slug, version } = item.workspace;
     const key = `${slug}@${version}`;
     const existing = byKey.get(key);
     if (existing !== undefined) {
       existing.all.push(item);
       continue;
     }
-    const target: ModTarget = { slug, version, namespace, data: item, all: [item] };
+    const target: ModTarget = { slug, version, data: item, all: [item] };
     byKey.set(key, target);
     out.push(target);
   }
@@ -224,21 +223,22 @@ function unavailableRows(target: ModTarget, note: string): ModFileCheck[] {
   }));
 }
 
-function modEnItems(target: ModTarget, jar: JarInfo): Finding[] {
-  const unit = unitOf(target);
-  const label = `${target.namespace}-${target.version}`;
-  if (!target.data.headEn) {
+function modEnItems(item: WorkspaceData, jar: JarInfo): Finding[] {
+  const { slug, version, namespace } = item.workspace;
+  const unit = unitOf(item.workspace);
+  const label = `${namespace}-${version}`;
+  if (!item.headEn) {
     return [
       {
         code: "mod_en_missing",
         severity: "major",
         source: "program",
         unit,
-        detail: `获取 PR 中 ${label} 英文语言文件失败。你可能没有提交此模组的英文语言文件。使用命令 \`/update-en ${target.slug} ${target.version}\` 来获取模组语言文件。`,
+        detail: `获取 PR 中 ${label} 英文语言文件失败。你可能没有提交此模组的英文语言文件。使用命令 \`/update-en ${slug} ${version}\` 来获取模组语言文件。`,
       },
     ];
   }
-  const files: JarLang[] = jar.lang.filter((entry) => entry.locale === "en_us" && entry.domain === target.namespace);
+  const files: JarLang[] = jar.lang.filter((entry) => entry.locale === "en_us" && entry.domain === namespace);
   if (files.length === 0) {
     return [
       {
@@ -263,7 +263,7 @@ function modEnItems(target: ModTarget, jar: JarInfo): Finding[] {
   }
   const modFile = files[0];
   if (!modFile) return [];
-  const prKeys = keysOf(target.data.headEn, target.data.format === "json");
+  const prKeys = keysOf(item.headEn, item.format === "json");
   const modKeys = keysOf(parseLang(modFile.content, modFile.format), modFile.format === "json");
   if (sameKeySet(prKeys, modKeys)) return [];
   const fileName = modFile.path.split("/").pop() ?? modFile.path;
@@ -273,14 +273,14 @@ function modEnItems(target: ModTarget, jar: JarInfo): Finding[] {
       severity: "major",
       source: "program",
       unit,
-      detail: `PR 中 ${label} 英文文件与最新模组 \`${fileName}\` 文件不对应。自动获取只能反映多数情况，可能并不需要更新。如果你认为确实需要更新到上面的版本，使用命令 \`/update-en ${target.slug} ${target.version}\`。`,
+      detail: `PR 中 ${label} 英文文件与最新模组 \`${fileName}\` 文件不对应。自动获取只能反映多数情况，可能并不需要更新。如果你认为确实需要更新到上面的版本，使用命令 \`/update-en ${slug} ${version}\`。`,
     },
   ];
 }
 
 async function targetItems(target: ModTarget): Promise<{ findings: Finding[]; mcreator: boolean; modFiles: ModFileCheck[] }> {
   const findings: Finding[] = [];
-  const unit = unitOf(target);
+  const unit = unitOf(target.data.workspace);
   if (target.slug === "1UNKNOWN" || target.slug === "0-modrinth-mod") {
     return { findings, mcreator: false, modFiles: unavailableRows(target, "未找到 Mod 下载信息") };
   }
@@ -308,16 +308,19 @@ async function targetItems(target: ModTarget): Promise<{ findings: Finding[]; mc
   const file = await mods.pickFile(info, target.version).catch(() => null);
   const jar = file === null ? null : await mods.readJar(file).catch(() => null);
   if (file === null || jar === null) {
-    findings.push({
-      code: "mod_domain_unknown",
-      severity: "neutral",
-      source: "program",
-      unit,
-      detail:
-        info.allowDistribution === false
-          ? `${target.namespace} 的作者不允许此模组自动下载，Bot 无法自动获取 Mod Domain。`
-          : `无法找到 \`${target.namespace}\` 的 Mod Domain。这不一定代表需要更改。`,
-    });
+    for (const item of target.all) {
+      const { namespace } = item.workspace;
+      findings.push({
+        code: "mod_domain_unknown",
+        severity: "neutral",
+        source: "program",
+        unit: unitOf(item.workspace),
+        detail:
+          info.allowDistribution === false
+            ? `${namespace} 的作者不允许此模组自动下载，Bot 无法自动获取 Mod Domain。`
+            : `无法找到 \`${namespace}\` 的 Mod Domain。这不一定代表需要更改。`,
+      });
+    }
     const note =
       file === null
         ? `未找到适用于 ${target.version} 的发布文件`
@@ -326,24 +329,28 @@ async function targetItems(target: ModTarget): Promise<{ findings: Finding[]; mc
           : "无法下载或解析该 Mod 文件";
     return { findings, mcreator: info.isMCreator, modFiles: unavailableRows(target, note) };
   }
-  if (!jar.domains.includes(target.namespace)) {
-    const replacement = jar.domains.length === 1 && jar.domains[0] ? jar.domains[0] : "{MOD_DOMAIN}";
-    findings.push({
-      code: "mod_domain",
-      severity: "major",
-      source: "program",
-      unit,
-      detail: `Domain 验证不通过。文件 Domain 为 \`${jar.domains.join("/")}\`；而 PR 所提供的 Domain 为 \`${target.namespace}\`。`,
-    });
-    findings.push({
-      code: "mod_domain",
-      severity: "major",
-      source: "program",
-      unit,
-      detail: `可以使用命令 \`/mv "projects/assets/${target.slug}/${target.version}/${target.namespace}/" "projects/assets/${target.slug}/${target.version}/${replacement}/"\` 来移动目录。`,
-    });
+  for (const item of target.all) {
+    const { slug, version, namespace } = item.workspace;
+    const itemUnit = unitOf(item.workspace);
+    if (!jar.domains.includes(namespace)) {
+      const replacement = jar.domains.length === 1 && jar.domains[0] ? jar.domains[0] : "{MOD_DOMAIN}";
+      findings.push({
+        code: "mod_domain",
+        severity: "major",
+        source: "program",
+        unit: itemUnit,
+        detail: `Domain 验证不通过。文件 Domain 为 \`${jar.domains.join("/")}\`；而 PR 所提供的 Domain 为 \`${namespace}\`。`,
+      });
+      findings.push({
+        code: "mod_domain",
+        severity: "major",
+        source: "program",
+        unit: itemUnit,
+        detail: `可以使用命令 \`/mv "projects/assets/${slug}/${version}/${namespace}/" "projects/assets/${slug}/${version}/${replacement}/"\` 来移动目录。`,
+      });
+    }
+    findings.push(...modEnItems(item, jar));
   }
-  findings.push(...modEnItems(target, jar));
   return { findings, mcreator: info.isMCreator, modFiles: target.all.map((item) => modFileRow(item, file, jar)) };
 }
 

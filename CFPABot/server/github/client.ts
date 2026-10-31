@@ -112,6 +112,30 @@ if (!botWritesEnabled()) log.info("当前不是机器人身份，评论 / 标签
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const fileCache = ttlCache<string>(6 * 60 * 60 * 1000, 200);
+const mergeBaseCache = ttlCache<string>(6 * 60 * 60 * 1000, 200);
+
+/** PR 的 base 分支会前进，用 merge base 读 base 侧才不会读到别的改动。 */
+async function mergeBaseOf(baseSha: string, headSha: string): Promise<string> {
+  if (baseSha === headSha) return baseSha;
+  const key = `${baseSha}\u0000${headSha}`;
+  const cached = mergeBaseCache.get(key);
+  if (cached !== undefined) return cached;
+  try {
+    const r = await octokit.rest.repos.compareCommits({
+      owner: repo.owner,
+      repo: repo.name,
+      base: baseSha,
+      head: headSha,
+      per_page: 1,
+    });
+    const sha = r.data.merge_base_commit?.sha ?? baseSha;
+    mergeBaseCache.set(key, sha);
+    return sha;
+  } catch (err) {
+    log.warn("merge base 查询失败，回退 baseSha", { baseSha, headSha, err });
+    return baseSha;
+  }
+}
 
 async function fetchFileText(path: string, ref: string): Promise<string | null> {
   let data: unknown;
@@ -141,8 +165,9 @@ async function fetchFileText(path: string, ref: string): Promise<string | null> 
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
-export const gh: GitHubClient = {
+export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): Promise<string> } = {
   mode,
+  mergeBase: mergeBaseOf,
 
   async getPull(n) {
     const r = await octokit.rest.pulls.get({ owner: repo.owner, repo: repo.name, pull_number: n });

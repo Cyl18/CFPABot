@@ -19,6 +19,12 @@ export const utilsRoutes = new Hono<AppEnv>();
 const TEXT = { "Content-Type": "text/plain; charset=utf-8" } as const;
 const USER_AGENT = "CFPAAgent2 (github.com/CFPAOrg)";
 
+interface LangLink {
+  namespace: string;
+  en: string | null;
+  zh: string | null;
+}
+
 function prId(c: AppContext, name: string): number {
   const n = Number(c.req.param(name));
   if (!Number.isInteger(n) || n <= 0) throw new HttpError(400, "PR 编号无效", "invalid_pr");
@@ -58,9 +64,12 @@ const modIdQuery = z.object({ slug: z.string().min(1), versionString: z.string()
 
 utilsRoutes.get("/Utils/ModID", async (c) => {
   const { slug, versionString } = parseQuery(c, modIdQuery);
+  if (commentVersionDir(versionString) === null) throw invalidVersionError(versionString);
+  if (slug.startsWith("modrinth-")) {
+    return c.text(await mods.modrinthLangDomain(slug.slice("modrinth-".length), versionString), 200, TEXT);
+  }
   const addon = await mods.resolveByMapping(slug);
   if (addon === null) throw new Error(`找不到 ${slug} 的 CurseForge 映射`);
-  if (commentVersionDir(versionString) === null) throw invalidVersionError(versionString);
   return c.text(await mods.cfLangDomain(addon.raw, versionString), 200, TEXT);
 });
 
@@ -97,6 +106,7 @@ utilsRoutes.get("/Utils/AddMapping/:id", async (c) => {
     const addon = await cf.getMod(numeric);
     if (addon === null) throw new Error(`找不到 CurseForge 模组 ${id}`);
     await mods.mappings.set(addon.slug, numeric);
+    mods.invalidate(addon.slug);
     return c.text(`成功添加 Mapping：${addon.slug} => ${id}`, 200, TEXT);
   } catch (err) {
     return c.text(`失败：${err instanceof Error ? err.message : String(err)}`, 200, TEXT);
@@ -153,14 +163,11 @@ utilsRoutes.get("/CFPATools/PRRelation/:prid", async (c) => {
   const { pull, files } = await prdata.files(n);
   if (pull.state !== "open") return c.body(null, 418);
 
-  const domains = new Map<string, string>();
   const ownVersions = new Map<string, Set<string>>();
   const ownSlugs: string[] = [];
   for (const file of files) {
     const parsed = parseLangPath(file.path);
     if (parsed === null || parsed.locale === null) continue;
-    const key = `${parsed.slug}\u0000${parsed.version}`;
-    if (!domains.has(key)) domains.set(key, parsed.namespace);
     const versions = ownVersions.get(parsed.slug) ?? new Set<string>();
     versions.add(parsed.version);
     ownVersions.set(parsed.slug, versions);
@@ -183,14 +190,25 @@ utilsRoutes.get("/CFPATools/PRRelation/:prid", async (c) => {
     fileCache.set(num, entry);
     return entry;
   };
-  const linksOf = async (num: number, slug: string, version: string): Promise<{ en: string | null; zh: string | null }> => {
+
+  // 同一版本可能有多个 namespace：按 namespace 分组，不然只会拿到字典序靠前的那份。
+  const linksOf = async (num: number, slug: string, version: string): Promise<LangLink[]> => {
     const { headSha, files: prFiles } = await filesOf(num);
-    const matching = prFiles.filter((file) => file.path.includes(`/${version}/`) && file.path.includes(`/${slug}/`));
-    const zh = matching.find((file) => file.path.includes("zh_cn"));
-    const en = matching.find((file) => file.path.includes("en_us"));
-    if (zh === undefined || en === undefined) return { en: null, zh: null };
     const base = `https://github.com/${repo.fullName}/raw/${headSha}/`;
-    return { en: `${base}${encodeURIComponent(en.path)}`, zh: `${base}${encodeURIComponent(zh.path)}` };
+    const grouped = new Map<string, { en?: string; zh?: string }>();
+    for (const file of prFiles) {
+      const parsed = parseLangPath(file.path);
+      if (parsed === null || parsed.locale === null || parsed.slug !== slug || parsed.version !== version) continue;
+      const slot = grouped.get(parsed.namespace) ?? {};
+      if (parsed.locale === "en_us") slot.en ??= file.path;
+      else slot.zh ??= file.path;
+      grouped.set(parsed.namespace, slot);
+    }
+    return [...grouped].map(([namespace, slot]) => ({
+      namespace,
+      en: slot.en === undefined ? null : `${base}${encodeURIComponent(slot.en)}`,
+      zh: slot.zh === undefined ? null : `${base}${encodeURIComponent(slot.zh)}`,
+    }));
   };
 
   const modList: {
@@ -205,24 +223,27 @@ utilsRoutes.get("/CFPATools/PRRelation/:prid", async (c) => {
   for (const slug of ownSlugs) {
     const versions = ownVersions.get(slug) ?? new Set<string>();
     const others = relatedBySlug.get(slug) ?? [];
-    const other = await Promise.all(
-      others.flatMap((item) =>
-        item.versions.map(async (version) => {
-          const links = await linksOf(item.number, slug, version);
-          return { number: item.number, enlink: links.en, zhlink: links.zh, version };
-        }),
-      ),
-    );
-    const tuples = [
-      ...[...versions].map((version) => ({ number: n, version })),
-      ...others.flatMap((item) => item.versions.map((version) => ({ number: item.number, version }))),
-    ];
-    for (const tuple of tuples) {
-      if (!versions.has(tuple.version)) continue;
-      const domain = domains.get(`${slug}\u0000${tuple.version}`);
-      if (domain === undefined) continue;
-      const links = await linksOf(n, slug, tuple.version);
-      modList.push({ type: "curseforge", id: slug, modid: domain, enlink: links.en, zhlink: links.zh, version: tuple.version, other });
+    const related = (
+      await Promise.all(
+        others.map(async (item) =>
+          (
+            await Promise.all(
+              item.versions.map(async (version) =>
+                (await linksOf(item.number, slug, version)).map((link) => ({ number: item.number, version, ...link })),
+              ),
+            )
+          ).flat(),
+        ),
+      )
+    ).flat();
+
+    for (const version of versions) {
+      for (const link of await linksOf(n, slug, version)) {
+        const other = related
+          .filter((entry) => entry.namespace === link.namespace)
+          .map((entry) => ({ number: entry.number, enlink: entry.en, zhlink: entry.zh, version: entry.version }));
+        modList.push({ type: "curseforge", id: slug, modid: link.namespace, enlink: link.en, zhlink: link.zh, version, other });
+      }
     }
   }
 

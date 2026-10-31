@@ -169,7 +169,10 @@ function ZhText({ lane, cell, before }: { lane: DiffLane; cell: DiffCell | null;
   const [mode] = useDiffMode();
   if (lane.zhFile === false) return <span className="text-xs italic text-muted" title="这个来源整份中文文件都不存在">无中文文件</span>;
   if (lane.whole !== undefined) return <Inline {...wholeEdge(lane.whole, cell?.zh ?? null)} />;
-  if (cell === null) return <span className="text-muted">—</span>;
+  if (cell === null) {
+    if (typeof before === "string" && before !== "" && mode !== "off") return <del className={DELETE}>{expandNewlines(before)}</del>;
+    return <span className="text-muted">—</span>;
+  }
   if (cell.zh === null) {
     return (
       <>
@@ -482,6 +485,7 @@ function GridRow({
   runs,
   columns,
   compare,
+  anchor,
   action,
 }: {
   entry: DiffEntry;
@@ -489,6 +493,7 @@ function GridRow({
   runs: readonly DiffLane[][];
   columns: readonly DiffLane[][];
   compare: boolean;
+  anchor?: (side: "en" | "zh") => ReactNode;
   action?: ReactNode;
 }) {
   const [mode] = useDiffMode();
@@ -590,7 +595,23 @@ function GridRow({
   }
   return (
     <article className={cn(GRID_ROW, BORDER[toneOf(facts, compare)])}>
-      <KeyColumn entry={entry} facts={facts} compare={compare} action={action} className={cn(GRID_KEY, BORDER[toneOf(facts, compare)])} />
+      <KeyColumn
+        entry={entry}
+        facts={facts}
+        compare={compare}
+        action={
+          anchor === undefined ? (
+            action
+          ) : (
+            <span className="flex shrink-0 items-center gap-1">
+              {anchor("en")}
+              {anchor("zh")}
+              {action}
+            </span>
+          )
+        }
+        className={cn(GRID_KEY, BORDER[toneOf(facts, compare)])}
+      />
       {columns.map((run) => nodes.get(run[0]!.id))}
     </article>
   );
@@ -608,6 +629,7 @@ function LaneCard({
   lanes,
   display,
   compare,
+  anchor,
   action,
 }: {
   entry: DiffEntry;
@@ -615,6 +637,7 @@ function LaneCard({
   lanes: readonly DiffLane[];
   display: readonly DiffLane[];
   compare: boolean;
+  anchor?: (side: "en" | "zh") => ReactNode;
   action?: ReactNode;
 }) {
   const [mode] = useDiffMode();
@@ -662,7 +685,13 @@ function LaneCard({
           {entry.key}
         </code>
         <FactBadges facts={facts} compare={compare} touched={entry.touched === true} />
-        {action !== undefined && <span className="ml-auto">{action}</span>}
+        {anchor !== undefined && (
+          <span className="ml-auto flex items-center gap-1">
+            {anchor("en")}
+            {anchor("zh")}
+          </span>
+        )}
+        {action !== undefined && <span className={anchor === undefined ? "ml-auto" : undefined}>{action}</span>}
       </div>
       {sameEn && (
         <p className="flex gap-2 text-sm">
@@ -923,7 +952,10 @@ export function DiffViewer({
     [entries, activeLanes],
   );
   const inScope = useMemo(() => (scope === undefined ? all : all.filter((row) => scope(row.entry))), [all, scope]);
-  const outside = useMemo(() => (scope === undefined ? 0 : all.filter((row) => !scope(row.entry) && row.facts.differs).length), [all, scope]);
+  const outside = useMemo(
+    () => (scope === undefined ? 0 : all.filter((row) => !scope(row.entry) && (row.facts.differs || row.facts.missing !== null)).length),
+    [all, scope],
+  );
   const scoped = useMemo(() => {
     const rows = inScope.filter((row) => matchesQuery(row.entry, activeLanes, needle));
     if (sortTouchedFirst) rows.sort((a, b) => Number(b.entry.touched === true) - Number(a.entry.touched === true));
@@ -1198,9 +1230,25 @@ export function DiffViewer({
                       onShowLanes={() => setLayout("lanes")}
                     />
                   ) : layout === "grid" ? (
-                    <GridRow entry={row.entry} facts={row.facts} runs={runs} columns={columns} compare={compare} action={action} />
+                    <GridRow
+                      entry={row.entry}
+                      facts={row.facts}
+                      runs={runs}
+                      columns={columns}
+                      compare={compare}
+                      anchor={rowAnchor === undefined ? undefined : (side) => rowAnchor(row.entry, side)}
+                      action={action}
+                    />
                   ) : (
-                    <LaneCard entry={row.entry} facts={row.facts} lanes={activeLanes} display={display} compare={compare} action={action} />
+                    <LaneCard
+                      entry={row.entry}
+                      facts={row.facts}
+                      lanes={activeLanes}
+                      display={display}
+                      compare={compare}
+                      anchor={rowAnchor === undefined ? undefined : (side) => rowAnchor(row.entry, side)}
+                      action={action}
+                    />
                   )}
                   {footer != null && (
                     <div className={cn("px-3 pb-3 empty:hidden", layout === "merge" && "md:pl-58", layout === "grid" && "sticky left-0 max-w-3xl")}>{footer}</div>

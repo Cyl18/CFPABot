@@ -215,8 +215,9 @@ export function specialStatusOf(
   moved: ReadonlySet<string>,
 ): SpecialSide["status"] {
   if (side.file !== null) return side.file.status;
+  if (moved.has(side.path)) return "removed";
   if (!existing.has(side.path)) return "missing";
-  return moved.has(side.path) ? "removed" : "unchanged";
+  return "unchanged";
 }
 
 export function planAtHead(plan: SpecialPlan, existing: ReadonlySet<string>, moved: ReadonlySet<string>): boolean {

@@ -102,7 +102,7 @@ async function readFiles(uri: PrParts): Promise<AgentToolResult<Record<string, u
   }
   // 行范围写在查询之前时（`…zh_cn.json:85-125?side=head`）omp 剥不掉，这里自己剥。
   const { path: requested, range } = splitLineSuffix(seg.slice(1).join("/"));
-  const { pull, files } = await prdata.files(n);
+  const { files } = await prdata.files(n);
   const file = files.find((entry) => entry.path === requested || entry.previousPath === requested);
   if (file === undefined) throw new Error(`PR #${n} 没有变更文件：${requested}`);
   if (uri.query.get("format") === "patch") {
@@ -114,7 +114,7 @@ async function readFiles(uri: PrParts): Promise<AgentToolResult<Record<string, u
   const side = uri.query.get("side") === "base" ? "base" : "head";
   const sidePath = sidePaths(file)[side];
   if (sidePath === null) throw new Error(`该文件在 ${side} 侧不存在。`);
-  const text = await gh.getFile(sidePath, side === "base" ? pull.baseSha : pull.headSha);
+  const text = await prdata.fileSource(n).read(sidePath, side);
   if (text === null) throw new Error(`文件不存在：${sidePath}`);
   const body = range === null ? text : sliceLines(text, range);
   return textResult(
@@ -151,7 +151,7 @@ async function readSpecial(uri: PrParts): Promise<AgentToolResult<Record<string,
 }
 
 async function specialContentOrThrow(n: number, key: string) {
-  const content = await specialPairContent(n, key, prdata.fileSource());
+  const content = await specialPairContent(n, key, prdata.fileSource(n));
   if (content === null) {
     throw new Error(`特殊文件不存在：${key}。key 必须与 pr://${n}/special-files 返回的 key 完全一致。`);
   }
@@ -207,7 +207,7 @@ async function readCompare(uri: PrParts): Promise<AgentToolResult<Record<string,
   if (!slug || !version || !namespace) throw new Error("pr://<n>/compare 需要 ?slug=&version=&namespace=");
   const includeReview = flagParam(uri.query, "review");
   const reviewKeys = includeReview ? pageOf(undefined, numberParam(uri.query.get("reviewKeys")), 1000, 100).limit : 0;
-  const result = await compareWorkspace(n, { slug, version, namespace }, prdata.fileSource(), reviewKeys);
+  const result = await compareWorkspace(n, { slug, version, namespace }, prdata.fileSource(n), reviewKeys);
   const { review, reviewEn, ...rest } = result;
   const page = pageOf(numberParam(uri.query.get("offset")), numberParam(uri.query.get("limit")), 500, 100);
   const shown: typeof result.rows = [];

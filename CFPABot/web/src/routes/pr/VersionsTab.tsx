@@ -27,7 +27,7 @@ export function VersionsTab({
         <div role="group" aria-label="模组" className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted">模组</span>
           {slugs.map((item) => (
-            <ToggleChip key={item} mono pressed={item === selected} onClick={() => onSearchChange({ slug: item, ns: undefined })}>
+            <ToggleChip key={item} mono pressed={item === selected} onClick={() => onSearchChange({ slug: item, ns: undefined, versions: undefined })}>
               {item}
             </ToggleChip>
           ))}
@@ -40,7 +40,7 @@ export function VersionsTab({
         pr={n}
         state={crossVersionQuery(search, n)}
         onStateChange={(patch) => onSearchChange(crossVersionPatch(patch, n))}
-        onNamespaceChange={(next) => onSearchChange({ ns: next })}
+        onNamespaceChange={(next) => onSearchChange({ ns: next, versions: undefined })}
       />
     </div>
   );

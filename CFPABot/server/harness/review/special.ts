@@ -27,7 +27,7 @@ export async function specialPageOf(n: number, options: SpecialOptions): Promise
       await specialContents(
         n,
         slice.map((pair) => pair.key),
-        prdata.fileSource(),
+        prdata.fileSource(n),
       )
     ).map(clipSpecialContent);
     const kept: SpecialFilesPage["items"] = [];

@@ -193,12 +193,13 @@ export function typoCheck(
   const reported = new Set<string>();
   for (const entry of lines) {
     for (const rule of rules) {
-      if (reported.has(rule.term)) continue;
+      const key = `${entry.path}\u0000${rule.term}`;
+      if (reported.has(key)) continue;
       if (!entry.text.includes(rule.term)) continue;
       if (rule.unless?.some((token) => entry.text.includes(token))) continue;
       if (rule.minVersion !== undefined && compareMc(entry.version, rule.minVersion) < 0) continue;
       if (rule.skipLegacy && entry.version === "1.12.2") continue;
-      reported.add(rule.term);
+      reported.add(key);
       const example = shortenLine(entry.text, rule.term, entry.version);
       const prefix = rule.level === "error" ? "可能错误译名" : "可能争议译名";
       findings.push({
@@ -206,6 +207,7 @@ export function typoCheck(
         severity: rule.level === "error" ? "major" : "minor",
         source: "program",
         path: entry.path,
+        line: entry.line,
         detail: `${prefix}：\`${rule.term}\`，${rule.message}。例如 \`${example}\`。`,
       });
     }

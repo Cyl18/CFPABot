@@ -430,7 +430,8 @@ export async function createReviewComment(
   if (file === undefined || file.status === "removed") throw new HttpError(422, NOT_IN_DIFF, "not_in_diff");
   const headText =
     file.patch === undefined && file.status === "added" ? await gh.getFile(input.path, pull.headSha) : null;
-  if (!inHunks(input.line, commentableHunks(file, headText))) {
+  const hunks = commentableHunks(file, headText);
+  if (hunks === null || !inHunks(input.line, hunks)) {
     throw new HttpError(422, NOT_IN_DIFF, "not_in_diff");
   }
 

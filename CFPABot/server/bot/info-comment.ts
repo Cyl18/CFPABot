@@ -225,7 +225,7 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
   }
 
   const diffs = await safeSegment(
-    () => buildDiffComment(ctx.pull, ctx.files, env.PUBLIC_URL),
+    () => buildDiffComment(ctx.pull, ctx.files, env.PUBLIC_URL, ctx.source),
     () => `${DIFF_EXCEPTION}\n`,
   );
 

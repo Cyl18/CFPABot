@@ -12,6 +12,7 @@ import type { GhFile, GhPull } from "../github/client.ts";
 import { botWritesEnabled, gh } from "../github/client.ts";
 import { logger } from "../log.ts";
 import { prdata } from "../prdata.ts";
+import type { FileSide, FileSource } from "../domain/pr.ts";
 import { collapseBlankRuns, DIFF_EXCEPTION, Lines, messageOf } from "./render.ts";
 
 export const MAX_CHECK_FILES = 1000;
@@ -25,6 +26,7 @@ export interface PrContext {
   pull: GhPull;
   files: GhFile[];
   workspaces: Workspace[];
+  source: FileSource;
 }
 
 export interface WorkspaceData {
@@ -39,13 +41,11 @@ export interface WorkspaceData {
 
 export async function loadPrContext(n: number): Promise<PrContext> {
   const { pull, files } = await prdata.files(n);
-  return { pull, files, workspaces: workspacesOf(files) };
+  return { pull, files, workspaces: workspacesOf(files), source: prdata.fileSource(n) };
 }
 
 async function loadOneWorkspace(ctx: PrContext, workspace: Workspace): Promise<WorkspaceData | null> {
-  const loaded = await loadWorkspaceTexts(workspace, ctx.files, (path, ref) =>
-    gh.getFile(path, ref === "base" ? ctx.pull.baseSha : ctx.pull.headSha),
-  );
+  const loaded = await loadWorkspaceTexts(workspace, ctx.files, (path, ref) => ctx.source.read(path, ref));
   if (loaded === null) return null;
   return {
     workspace,
@@ -91,20 +91,20 @@ function parseRef(text: string, format: LangFormat): Map<string, string> {
   return out;
 }
 
-async function fetchText(path: string, ref: string): Promise<string | null> {
+async function fetchText(source: FileSource, path: string, side: FileSide): Promise<string | null> {
   try {
-    return await gh.getFile(path, ref);
+    return await source.read(path, side);
   } catch (err) {
     log.warn("下载语言文件失败", { path, err });
     return null;
   }
 }
 
-async function fetchLangAt(rev: string, base: string, lang: string, ext: string): Promise<string | null> {
-  const first = await fetchText(`${base}/${lang}.${ext}`, rev);
+async function fetchLangAt(source: FileSource, side: FileSide, base: string, lang: string, ext: string): Promise<string | null> {
+  const first = await fetchText(source, `${base}/${lang}.${ext}`, side);
   if (first !== null) return first;
   const [head, tail] = lang.split("_");
-  return fetchText(`${base}/${head}_${(tail ?? "").toUpperCase()}.${ext}`, rev);
+  return fetchText(source, `${base}/${head}_${(tail ?? "").toUpperCase()}.${ext}`, side);
 }
 
 function isWs(value: string | null): boolean {
@@ -145,13 +145,13 @@ function diffRows(maps: DiffMaps): DiffRow5[] {
   const headZh = maps.headZh;
   if (headZh === null) throw new Error("Object reference not set to an instance of an object.");
   const rows: DiffRow5[] = [];
-  for (const [key, currentCn] of headZh) {
+  for (const key of new Set([...headZh.keys(), ...(maps.baseZh?.keys() ?? [])])) {
     rows.push([
       key,
       maps.baseEn?.get(key) ?? null,
       maps.headEn?.get(key) ?? null,
       maps.baseZh?.get(key) ?? null,
-      currentCn,
+      headZh.get(key) ?? null,
     ]);
   }
   const processed = rows.map(([key, sourceEn, currentEn, sourceCn, currentCn]): DiffRow5 => [
@@ -168,7 +168,7 @@ function diffRows(maps: DiffMaps): DiffRow5[] {
   return [...kept.filter(([, , currentEn, , currentCn]) => currentEn !== currentCn), ...kept.filter(([, , currentEn, , currentCn]) => currentEn === currentCn)];
 }
 
-export async function buildDiffComment(pull: GhPull, files: PrFile[], publicUrl: string): Promise<string> {
+export async function buildDiffComment(pull: GhPull, files: PrFile[], publicUrl: string, source: FileSource): Promise<string> {
   let result: string;
   try {
     const modPaths = diffModPathsOf(files.filter((file) => file.status !== "removed").map((file) => file.path));
@@ -182,14 +182,16 @@ export async function buildDiffComment(pull: GhPull, files: PrFile[], publicUrl:
 
     for (const modPath of modPaths) {
       const ext = modPath.dir === "1.12.2" ? "lang" : "json";
-      const base = `projects/assets/${modPath.slug}/${modPath.dir}/${modPath.domain}/lang`;
+      const base = modPath.legacy
+        ? `projects/${modPath.dir}/assets/${modPath.slug}/${modPath.domain}/lang`
+        : `projects/assets/${modPath.slug}/${modPath.dir}/${modPath.domain}/lang`;
       let maps: DiffMaps;
       try {
         const [baseEnText, baseZhText, headEnText, headZhText] = await Promise.all([
-          fetchLangAt(pull.baseSha, base, "en_us", ext),
-          fetchLangAt(pull.baseSha, base, "zh_cn", ext),
-          fetchLangAt(pull.headSha, base, "en_us", ext),
-          fetchLangAt(pull.headSha, base, "zh_cn", ext),
+          fetchLangAt(source, "base", base, "en_us", ext),
+          fetchLangAt(source, "base", base, "zh_cn", ext),
+          fetchLangAt(source, "head", base, "en_us", ext),
+          fetchLangAt(source, "head", base, "zh_cn", ext),
         ]);
         const format: LangFormat = ext === "lang" ? "lang" : "json";
         maps = {
@@ -204,7 +206,7 @@ export async function buildDiffComment(pull: GhPull, files: PrFile[], publicUrl:
         continue;
       }
       const ordered = diffRows(maps);
-      const label = `${modPath.slug}/${modPath.dir}`;
+      const label = `${modPath.slug}/${modPath.dir}/${modPath.domain}`;
 
       sb.line(`<details><summary>${label}</summary>\n`);
       sb.line("| 英文 | 中文 |");

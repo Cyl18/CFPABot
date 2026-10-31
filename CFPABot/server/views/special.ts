@@ -3,7 +3,7 @@ import { parseFlatten, specialFormat } from "../domain/flatten.ts";
 import type { FlattenParsed } from "../domain/flatten.ts";
 import { isSpecialPath, planAtHead, planSpecial, resolveDerived, resolveSpecial, specialStatusOf } from "../domain/special.ts";
 import type { PlannedSide, SpecialPlan } from "../domain/special.ts";
-import type { GhFile, GhPull } from "../github/client.ts";
+import type { GhFile } from "../github/client.ts";
 import { mirror } from "../mirror.ts";
 import { prdata } from "../prdata.ts";
 import { commentableHunks } from "../review.ts";
@@ -21,11 +21,12 @@ function cap(text: string | null): Capped {
   if (text === null) return { text: null, truncated: false };
   const bytes = Buffer.from(text, "utf8");
   if (bytes.length <= SPECIAL_MAX_BYTES) return { text, truncated: false };
-  return { text: bytes.subarray(0, SPECIAL_MAX_BYTES).toString("utf8"), truncated: true };
+  // stream 解码不 flush，末尾被切一半的多字节字符直接丢掉，不会变成替换符。
+  const cut = new TextDecoder("utf-8").decode(bytes.subarray(0, SPECIAL_MAX_BYTES), { stream: true });
+  return { text: cut, truncated: true };
 }
 
 interface SpecialPlanData {
-  pull: GhPull;
   files: GhFile[];
   plans: SpecialPlan[];
   existing: ReadonlySet<string>;
@@ -37,7 +38,7 @@ const planCache = new Map<string, Promise<SpecialPlanData>>();
 async function specialPlanFor(n: number): Promise<SpecialPlanData> {
   const { pull, files } = await prdata.files(n);
   const rev = (await mirror.headSha()) ?? "HEAD";
-  const cacheKey = `${n}@${pull.headSha}@${rev}`;
+  const cacheKey = `${n}@${pull.baseSha}@${pull.headSha}@${rev}`;
   const cached = planCache.get(cacheKey);
   if (cached !== undefined) return cached;
   const pending = (async (): Promise<SpecialPlanData> => {
@@ -61,7 +62,7 @@ async function specialPlanFor(n: number): Promise<SpecialPlanData> {
         : await mirror.existing(rev, derived).catch(() => new Set<string>());
     const resolved = resolveDerived(plans, existing);
     // 两侧都不在 head 的组不产出：删除记录留在文件页。
-    return { pull, files, plans: resolved.filter((plan) => planAtHead(plan, existing, moved)), existing, moved };
+    return { files, plans: resolved.filter((plan) => planAtHead(plan, existing, moved)), existing, moved };
   })();
   planCache.set(cacheKey, pending);
   void pending.catch(() => planCache.delete(cacheKey));
@@ -81,16 +82,20 @@ const AGENT_TEXT_BYTES = 12_000;
 
 function clippedText(text: string | null): string | null {
   if (text === null || Buffer.byteLength(text) <= AGENT_TEXT_BYTES) return text;
-  return `${Buffer.from(text).subarray(0, AGENT_TEXT_BYTES).toString("utf8")}\n…[已截断，read 对应文件路径取全文]`;
+  const cut = new TextDecoder("utf-8").decode(Buffer.from(text).subarray(0, AGENT_TEXT_BYTES), { stream: true });
+  return `${cut}\n…[已截断，read 对应文件路径取全文]`;
 }
 
 function clipSide(side: SpecialText, base: string | null, head: string | null): SpecialText {
+  const shown = side.hunks === null ? null : side.hunks.slice(0, 50);
+  const omitted = side.hunks === null || shown === null ? 0 : side.hunks.length - shown.length;
   return {
     ...side,
     base,
     head,
     truncated: side.truncated || base !== side.base || head !== side.head,
-    hunks: side.hunks === null ? null : side.hunks.slice(0, 50),
+    hunks: shown,
+    ...(omitted === 0 ? {} : { hunksOmitted: omitted }),
   };
 }
 
@@ -130,7 +135,6 @@ function specialParsedOf(format: string, en: SpecialText, zh: SpecialText): Spec
 
 async function contentFrom(
   entry: SpecialPlan,
-  pull: GhPull,
   files: GhFile[],
   existing: ReadonlySet<string>,
   moved: ReadonlySet<string>,
@@ -142,14 +146,14 @@ async function contentFrom(
     let headText: string | null;
     if (file === null) {
       if (existing.has(side.path)) {
-        [baseText, headText] = await Promise.all([read(side.path, pull.baseSha), read(side.path, pull.headSha)]);
+        [baseText, headText] = await Promise.all([read(side.path, "base"), read(side.path, "head")]);
       } else {
         baseText = null;
         headText = null;
       }
     } else {
       const paths = sidePaths(file);
-      [baseText, headText] = await Promise.all([read(paths.base, pull.baseSha), read(paths.head, pull.headSha)]);
+      [baseText, headText] = await Promise.all([read(paths.base, "base"), read(paths.head, "head")]);
     }
     const base = cap(baseText);
     const head = cap(headText);
@@ -175,10 +179,10 @@ async function contentFrom(
 }
 
 export async function specialPairContent(n: number, key: string, source: FileSource): Promise<SpecialPairContent | null> {
-  const { pull, files, plans, existing, moved } = await specialPlanFor(n);
+  const { files, plans, existing, moved } = await specialPlanFor(n);
   const entry = plans.find((plan) => plan.key === key);
   if (entry === undefined) return null;
-  return contentFrom(entry, pull, files, existing, moved, source.read);
+  return contentFrom(entry, files, existing, moved, source.read);
 }
 
 function sidePathsOf(entry: SpecialPlan, existing: ReadonlySet<string>): { base: string[]; head: string[] } {
@@ -206,7 +210,7 @@ export async function specialContents(
   keys: readonly string[],
   source: FileSource,
 ): Promise<SpecialPairContent[]> {
-  const { pull, files, plans, existing, moved } = await specialPlanFor(n);
+  const { files, plans, existing, moved } = await specialPlanFor(n);
   const wanted = new Set(keys);
   const entries = plans.filter((plan) => wanted.has(plan.key));
   if (entries.length === 0) return [];
@@ -218,15 +222,13 @@ export async function specialContents(
     for (const path of paths.head) headPaths.add(path);
   }
   const [baseTexts, headTexts] = await Promise.all([
-    basePaths.size === 0 ? new Map<string, string>() : source.readMany([...basePaths], pull.baseSha),
-    headPaths.size === 0 ? new Map<string, string>() : source.readMany([...headPaths], pull.headSha),
+    basePaths.size === 0 ? new Map<string, string>() : source.readMany([...basePaths], "base"),
+    headPaths.size === 0 ? new Map<string, string>() : source.readMany([...headPaths], "head"),
   ]);
-  const read: FileSource["read"] = (path, ref) => {
+  const read: FileSource["read"] = (path, side) => {
     if (path === null) return Promise.resolve(null);
-    return ref === pull.baseSha
-      ? Promise.resolve(baseTexts.get(path) ?? null)
-      : Promise.resolve(headTexts.get(path) ?? null);
+    return Promise.resolve((side === "base" ? baseTexts : headTexts).get(path) ?? null);
   };
-  return Promise.all(entries.map((entry) => contentFrom(entry, pull, files, existing, moved, read)));
+  return Promise.all(entries.map((entry) => contentFrom(entry, files, existing, moved, read)));
 }
 

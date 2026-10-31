@@ -116,6 +116,7 @@ export function alignKeys(input: readonly CrossVersionInput[]): CrossVersionKeyR
   const keys = new Set<string>();
   for (const entry of entries) {
     for (const key of entry.en?.keys() ?? []) keys.add(key);
+    for (const key of entry.zh?.keys() ?? []) keys.add(key);
   }
 
   return [...keys].sort().map((key) => {
@@ -123,9 +124,9 @@ export function alignKeys(input: readonly CrossVersionInput[]): CrossVersionKeyR
     let touched = false;
     for (const entry of entries) {
       const en = entry.en?.get(key);
-      if (en === undefined || en === "") continue;
       const zh = entry.zh?.get(key);
-      cells.push({ version: entry.version, en, zh: zh === undefined || zh === "" ? null : zh });
+      if (en === undefined && zh === undefined) continue;
+      cells.push({ version: entry.version, en: en ?? "", zh: zh === undefined || zh === "" ? null : zh });
       if (entry.touched?.has(key) === true) touched = true;
     }
     return { key, touched, cells };

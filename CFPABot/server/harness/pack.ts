@@ -1,7 +1,6 @@
 import { buildPack, findingHistogram, workspaceKey, type Pack } from "@cfpa/review-core/pack";
 import type { PackSummary } from "@cfpa/contracts/api";
 import { glossaryTerms } from "../domain/glossary.ts";
-import { gh } from "../github/client.ts";
 import { prdata } from "../prdata.ts";
 import { ttlCache } from "../ttl.ts";
 
@@ -12,16 +11,19 @@ const packs = ttlCache<Pack>(6 * 60 * 60 * 1000, 8);
 /** 机械预审结果按 PR + head SHA 缓存，Web 与 Agent 共用同一份。 */
 export async function loadPack(n: number, rebuild = false): Promise<Pack> {
   const { pull, files } = await prdata.files(n);
+  const source = prdata.fileSource(n);
+  const baseSha = await source.ref("base");
   const key = `${n}@${pull.headSha}`;
-  if (rebuild) packs.delete(key);
+  const cached = packs.get(key);
+  if (rebuild || (cached !== undefined && cached.baseSha !== baseSha)) packs.delete(key);
   const terms = await glossaryTerms();
   const build = () =>
     buildPack({
       prNumber: n,
-      baseSha: pull.baseSha,
+      baseSha,
       headSha: pull.headSha,
       files,
-      read: (path, ref) => gh.getFile(path, ref === "base" ? pull.baseSha : pull.headSha),
+      read: source.read,
       terms,
     });
   return terms === null ? build() : packs.wrap(key, build);

@@ -1,3 +1,5 @@
+import type { RowStatus } from "./api.ts";
+
 export type DiffLaneRole = "ref" | "real";
 
 export interface DiffLane {
@@ -22,6 +24,8 @@ export interface DiffEntry {
   key: string;
   touched?: boolean;
   cells: Record<string, DiffCell | null>;
+  /** 对比模式每侧文件的 key 增删；跨版本模式没有这个信息。 */
+  status?: { en: RowStatus; zh: RowStatus };
 }
 
 export type DiffFacet = "changed" | "en" | "zhAny" | "add" | "remove" | "partial" | "untranslated" | "comments";
@@ -52,7 +56,7 @@ export interface DiffFacts {
 export function diffFacts(entry: DiffEntry, lanes: readonly DiffLane[]): DiffFacts {
   const present = lanes.filter((lane) => entry.cells[lane.id] != null);
   const first = lanes[0];
-  const missing =
+  const laneMissing =
     first === undefined || present.length === 0 || present.length === lanes.length
       ? null
       : first.role === "ref"
@@ -60,6 +64,11 @@ export function diffFacts(entry: DiffEntry, lanes: readonly DiffLane[]): DiffFac
           ? "remove"
           : "add"
         : "partial";
+  const status = entry.status;
+  const added = status !== undefined && (status.en === "add" || status.zh === "add");
+  const removed = status !== undefined && (status.en === "remove" || status.zh === "remove");
+  // 单侧文件删了 key 时两侧单元格都还在，光看存在性只会判成「改了」。
+  const missing = added !== removed ? (added ? "add" : "remove") : laneMissing;
 
   const en = new Set(present.map((lane) => entry.cells[lane.id]!.en)).size > 1;
   const zhLanes = present.filter((lane) => lane.skipZh !== true);
@@ -96,7 +105,7 @@ export function diffFacts(entry: DiffEntry, lanes: readonly DiffLane[]): DiffFac
 }
 
 export const FACET_MATCH: Record<DiffFactFacet, (facts: DiffFacts) => boolean> = {
-  changed: (facts) => facts.differs || facts.missing === "add" || facts.missing === "remove",
+  changed: (facts) => facts.differs || facts.missing !== null,
   en: (facts) => facts.en,
   zhAny: (facts) => facts.zhAny,
   add: (facts) => facts.missing === "add",

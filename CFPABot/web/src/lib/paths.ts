@@ -1,5 +1,5 @@
 import type { Workspace } from "@cfpa/contracts/api";
-import { parseLangPath, type Locale } from "@cfpa/review-core/domain/path";
+import { langFormatFor, parseLangPath, type Locale, type LangPath } from "@cfpa/review-core/domain/path";
 
 export function workspaceParam(slug: string, version: string, namespace: string): string {
   return `${slug}/${version}/${namespace}`;
@@ -7,22 +7,31 @@ export function workspaceParam(slug: string, version: string, namespace: string)
 
 export type { Locale };
 
-/** 每个 locale 只有一份文件进比较视图，canonical 文件名优先；规则来自 review-core，与服务端同源。 */
+/** 每个 locale 只有一份文件进比较视图，规则与服务端 pickLocale 相同。 */
 export function pickCompareFiles(files: readonly { path: string }[], workspace: Workspace): Partial<Record<Locale, string>> {
+  const expected = (locale: Locale) => `${locale}.${langFormatFor(workspace.version)}`;
   const picked: Partial<Record<Locale, string>> = {};
-  const fallback: Partial<Record<Locale, string>> = {};
-  for (const file of files) {
-    const parsed = parseLangPath(file.path);
-    if (parsed === null || parsed.locale === null) continue;
-    if (parsed.slug !== workspace.slug || parsed.version !== workspace.version || parsed.namespace !== workspace.namespace) continue;
-    const base = parsed.fileName.slice(0, parsed.fileName.lastIndexOf(".")).toLowerCase();
-    if (base === parsed.locale) {
-      picked[parsed.locale] ??= file.path;
-    } else {
-      fallback[parsed.locale] ??= file.path;
-    }
+  for (const locale of ["en_us", "zh_cn"] as const) {
+    const candidates = files
+      .map((file) => parseLangPath(file.path))
+      .filter(
+        (entry): entry is LangPath =>
+          entry !== null &&
+          entry.locale === locale &&
+          entry.slug === workspace.slug &&
+          entry.version === workspace.version &&
+          entry.namespace === workspace.namespace,
+      );
+    const rank = (entry: LangPath): number => {
+      const want = expected(locale);
+      if (entry.fileName === want) return 0;
+      if (entry.fileName.toLowerCase() === want) return 1;
+      return entry.format === langFormatFor(workspace.version) ? 2 : 3;
+    };
+    const best = [...candidates].sort((a, b) => rank(a) - rank(b) || a.path.localeCompare(b.path))[0];
+    if (best !== undefined) picked[locale] = best.path;
   }
-  return { ...fallback, ...picked };
+  return picked;
 }
 
 export interface NamespaceGroup {

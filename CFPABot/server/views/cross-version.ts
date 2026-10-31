@@ -51,6 +51,9 @@ function changedKeys(base: Map<string, string> | undefined, head: Map<string, st
   for (const [key, value] of head ?? []) {
     if (base?.get(key) !== value) keys.add(key);
   }
+  for (const key of base?.keys() ?? []) {
+    if (head?.has(key) !== true) keys.add(key);
+  }
   return keys;
 }
 
@@ -66,6 +69,7 @@ interface CrossVersionBuild {
   prVersions: string[];
   zhVersions: string[];
   entries: CrossVersionInput[];
+  filterIgnored: boolean;
   prNumber?: number;
 }
 
@@ -120,7 +124,7 @@ async function buildCrossVersion(
     .map((parsed) => parsed.path);
   const [baseTexts, prTexts] = await Promise.all([
     mirror.readMany(head ?? "HEAD", basePaths),
-    prData === null ? null : source.readMany(prPaths, prData.pull.headSha),
+    prData === null ? null : source.readMany(prPaths, "head"),
   ]);
 
   const overlay = new Map<string, { en?: OverlayText; zh?: OverlayText }>();
@@ -148,8 +152,9 @@ async function buildCrossVersion(
     const en = patch?.en ? parseLang(patch.en.text, patch.en.format).entries : baseEn;
     const zh = patch?.zh ? parseLang(patch.zh.text, patch.zh.format).entries : baseZh;
     if (!patch) return { version, en, zh };
-    const touched = changedKeys(baseEn, patch.en ? en : undefined);
-    for (const key of changedKeys(baseZh, patch.zh ? zh : undefined)) touched.add(key);
+    // en/zh 没被 PR 覆盖时就是 base 自己，双向比对不会把整份文件误判成改动。
+    const touched = changedKeys(baseEn, en);
+    for (const key of changedKeys(baseZh, zh)) touched.add(key);
     return { version, en, zh, touched };
   });
 
@@ -160,8 +165,11 @@ async function buildCrossVersion(
     versions,
     activeVersions,
     prVersions: [...new Set(prLangs.filter((parsed) => parsed.namespace === namespace).map((parsed) => parsed.version))].sort(compareMc),
-    zhVersions: versions.filter((version) => byVersion.get(version)?.zh !== undefined),
+    zhVersions: versions.filter(
+      (version) => byVersion.get(version)?.zh !== undefined || overlay.get(version)?.zh !== undefined,
+    ),
     entries,
+    filterIgnored: wanted !== null && kept.length === 0,
     ...(prNumber === undefined ? {} : { prNumber }),
   };
 }
@@ -195,6 +203,7 @@ export async function crossVersionKeys(
     activeVersions: build.activeVersions,
     prVersions: build.prVersions,
     zhVersions: build.zhVersions,
+    ...(build.filterIgnored ? { filterIgnored: true } : {}),
     rows: alignKeys(build.entries),
   };
 }

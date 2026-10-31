@@ -78,7 +78,7 @@ export async function readGh(uri: ResourceParts): Promise<AgentToolResult<Record
         ...(pr === undefined ? {} : { pr }),
         ...(versions === undefined || versions.length === 0 ? {} : { versions }),
       },
-      prdata.fileSource(),
+      prdata.fileSource(pr),
     );
     const prefix = uri.query.get("prefix");
     const rows = prefix === null ? result.rows : result.rows.filter((row) => row.key.startsWith(prefix));

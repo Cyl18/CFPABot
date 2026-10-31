@@ -2,10 +2,14 @@ import type { PrFile, PrState, PrSummary } from "@cfpa/contracts/api";
 import { parseLangPath } from "@cfpa/review-core/domain/path";
 import type { GhFile, GhPull } from "../github/types.ts";
 
+export type FileSide = "base" | "head";
+
 /** 视图层需要的文件文本来源；实现由数据层注入，视图不直接碰 GitHub。 */
 export interface FileSource {
-  read(path: string | null, ref: string): Promise<string | null>;
-  readMany(paths: readonly string[], ref: string): Promise<Map<string, string>>;
+  /** 该侧的提交 SHA：base 解析成 merge base，head 就是 headSha。 */
+  ref(side: FileSide): Promise<string>;
+  read(path: string | null, side: FileSide): Promise<string | null>;
+  readMany(paths: readonly string[], side: FileSide): Promise<Map<string, string>>;
 }
 
 export interface LangEntry {

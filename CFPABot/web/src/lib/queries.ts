@@ -173,8 +173,18 @@ export function useRefreshStatus(n: number, enabled = true) {
   const running = query.data?.running === true;
   const wasRunning = useRef(false);
   useEffect(() => {
-    if (wasRunning.current && !running) void client.invalidateQueries({ queryKey: qk.checks(n) });
-    wasRunning.current = running;
+    if (!wasRunning.current || running) {
+      wasRunning.current = running;
+      return;
+    }
+    wasRunning.current = false;
+    void client.invalidateQueries({ queryKey: qk.checks(n) });
+    void client.invalidateQueries({ queryKey: qk.pr(n) });
+    void client.invalidateQueries({ queryKey: qk.review(n) });
+    void client.invalidateQueries({ queryKey: qk.special(n) });
+    void client.invalidateQueries({ queryKey: ["special-content", n] });
+    void client.invalidateQueries({ queryKey: ["compare", n] });
+    void client.invalidateQueries({ queryKey: ["versions-keys"] });
   }, [client, n, running]);
   return query;
 }
@@ -183,7 +193,10 @@ export function useRefreshPr(n: number) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: () => api.refreshPr(n),
-    onSuccess: () => client.invalidateQueries({ queryKey: qk.refreshStatus(n) }),
+    onSuccess: () => {
+      client.setQueryData(qk.refreshStatus(n), { running: true });
+      void client.invalidateQueries({ queryKey: qk.refreshStatus(n) });
+    },
   });
 }
 

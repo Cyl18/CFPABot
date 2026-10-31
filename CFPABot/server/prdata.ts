@@ -1,8 +1,9 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import pMap from "p-map";
 import { z } from "zod";
 import { compareMc } from "@cfpa/review-core/domain/path";
-import { langEntriesOf, summarizePr, type FileSource } from "./domain/pr.ts";
+import { langEntriesOf, summarizePr, type FileSide, type FileSource } from "./domain/pr.ts";
 import { gh, isRateLimited, type GhFile, type GhPull } from "./github/client.ts";
 import { logger } from "./log.ts";
 import { paths } from "./paths.ts";
@@ -13,10 +14,13 @@ import type { PrState, PrSummary, RelatedPr } from "@cfpa/contracts/api";
 const log = logger("prdata");
 const INDEX_PATH = join(paths.cache, "prs.json");
 const PR_DIR = join(paths.cache, "pr");
+const CLOSED_SLUGS_PATH = join(paths.state, "closed-slugs.json");
 const DRIP_DELAY_MS = 300;
 const FILE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const FILE_CACHE_MAX = 30;
 const CLOSED_TTL_MS = 5 * 60 * 1000;
+const CLOSED_FILL_MAX = 8;
+const CLOSED_FILL_CONCURRENCY = 4;
 
 const pullSchema = z.object({
   number: z.number(),
@@ -76,6 +80,8 @@ const indexSchema = z.object({
   pulls: z.array(summarySchema),
 });
 
+const closedSlugsSchema = z.record(z.string(), z.array(z.string()));
+
 type PrFileCache = z.infer<typeof cacheSchema>;
 type PrMeta = Pick<PrFileCache, "headSha" | "slugs" | "entries">;
 
@@ -86,6 +92,11 @@ const fileCaches = ttlCache<PrFileCache>(FILE_CACHE_TTL_MS, FILE_CACHE_MAX);
 const inflight = new Map<number, Promise<PrFileCache>>();
 const lastChecked = new Map<number, number>();
 const closedList = ttlCache<PrSummary[]>(CLOSED_TTL_MS, 4);
+let closedGeneration = 0;
+const closedSlugs = new Map<number, string[]>();
+const closedTried = new Set<number>();
+let closedSlugsLoaded = false;
+let fillingClosed: Promise<void> | null = null;
 let listed = new Map<number, GhPull>();
 let listedAt = 0;
 let dripping: Promise<void> | null = null;
@@ -121,10 +132,14 @@ async function storePull(pull: GhPull, files: GhFile[]): Promise<PrFileCache> {
   return cache;
 }
 
-/** head 没变时文件列表不用重拉，但 pull 快照必须跟着刷新，否则标题、标签、baseSha 永远停在旧值。 */
+/** head 没变时文件列表不用重拉，但 pull 快照必须跟着刷新；base 前进后 patch 也变了，得重拉文件。 */
 async function touchPull(pull: GhPull): Promise<void> {
   const cached = fileCaches.get(String(pull.number)) ?? (await readJson(prPath(pull.number), cacheSchema));
   if (!cached || cached.headSha !== pull.headSha) return;
+  if (cached.pull.baseSha !== pull.baseSha) {
+    await storePull(pull, await gh.listPullFiles(pull.number));
+    return;
+  }
   if (JSON.stringify(cached.pull) === JSON.stringify(pull)) return;
   await storePull(pull, cached.files);
 }
@@ -146,7 +161,58 @@ async function persistIndex(): Promise<void> {
   await writeJson(INDEX_PATH, { updatedAt: refreshedAt, pulls: [...openIndex.values()] });
 }
 
+async function persistClosedSlugs(): Promise<void> {
+  await writeJson(CLOSED_SLUGS_PATH, Object.fromEntries(closedSlugs));
+}
+
+async function loadClosedSlugs(): Promise<void> {
+  if (closedSlugsLoaded) return;
+  closedSlugsLoaded = true;
+  const stored = await readJson(CLOSED_SLUGS_PATH, closedSlugsSchema);
+  if (stored === null) return;
+  for (const [key, slugs] of Object.entries(stored)) closedSlugs.set(Number(key), slugs);
+}
+
+function slugsOf(n: number): string[] {
+  return meta.get(n)?.slugs ?? fileCaches.get(String(n))?.slugs ?? openIndex.get(n)?.slugs ?? closedSlugs.get(n) ?? [];
+}
+
+/** 关闭的 PR 拿不到文件列表时按批补 slugs；一次最多 8 个，不阻塞列表返回。 */
+function fillClosedSlugs(numbers: readonly number[]): void {
+  if (numbers.length === 0 || fillingClosed !== null) return;
+  const todo = numbers.slice(0, CLOSED_FILL_MAX);
+  for (const n of todo) closedTried.add(n);
+  fillingClosed = (async () => {
+    let added = false;
+    await pMap(
+      todo,
+      async (n) => {
+        try {
+          closedSlugs.set(n, langEntriesOf(await gh.listPullFiles(n)).slugs);
+          added = true;
+        } catch (err) {
+          if (isRateLimited(err)) throw err;
+          log.warn("关闭 PR 的模组列表补齐失败", { pr: n, err });
+        }
+      },
+      { concurrency: CLOSED_FILL_CONCURRENCY, stopOnError: true },
+    ).catch((err: unknown) => log.warn("关闭 PR 的模组列表补齐中断", { err }));
+    if (!added) return;
+    await persistClosedSlugs();
+    closedGeneration += 1;
+  })()
+    .catch((err: unknown) => log.warn("关闭 PR 的模组列表补齐失败", { err }))
+    .finally(() => {
+      fillingClosed = null;
+    });
+}
+
 async function drop(n: number): Promise<void> {
+  const slugs = meta.get(n)?.slugs ?? fileCaches.get(String(n))?.slugs ?? openIndex.get(n)?.slugs;
+  if (slugs !== undefined) {
+    closedSlugs.set(n, slugs);
+    await persistClosedSlugs();
+  }
   meta.delete(n);
   fileCaches.delete(String(n));
   lastChecked.delete(n);
@@ -156,6 +222,7 @@ async function drop(n: number): Promise<void> {
 
 async function loadMetaFromDisk(): Promise<void> {
   const names = await readdir(PR_DIR).catch(() => [] as string[]);
+  let recorded = false;
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
     const cached = await readJson(join(PR_DIR, name), cacheSchema);
@@ -163,9 +230,12 @@ async function loadMetaFromDisk(): Promise<void> {
       meta.set(cached.pull.number, { headSha: cached.headSha, slugs: cached.slugs, entries: cached.entries });
       if (!openIndex.has(cached.pull.number)) openIndex.set(cached.pull.number, summarizePr(cached.pull, cached.slugs));
     } else if (cached !== null) {
+      closedSlugs.set(cached.pull.number, cached.slugs);
+      recorded = true;
       await removeFile(join(PR_DIR, name));
     }
   }
+  if (recorded) await persistClosedSlugs();
 }
 
 async function refreshList(): Promise<void> {
@@ -184,7 +254,7 @@ async function refreshList(): Promise<void> {
     rebuildRelation();
     refreshedAt = new Date().toISOString();
     await persistIndex();
-    closedList.delete("closed");
+    closedGeneration += 1;
   });
 }
 
@@ -271,6 +341,7 @@ export const prdata = {
       for (const pull of index.pulls) openIndex.set(pull.number, pull);
       refreshedAt = index.updatedAt;
     }
+    await loadClosedSlugs();
     await loadMetaFromDisk();
     loaded = true;
     void refreshList()
@@ -308,10 +379,14 @@ export const prdata = {
 
   async list(state: PrState | "all"): Promise<PrSummary[]> {
     if (state === "open") return byUpdatedDesc([...openIndex.values()]);
-    const closed = await closedList.wrap("closed", async () => {
+    const closed = await closedList.wrap(`closed:${closedGeneration}`, async () => {
       const pulls = await gh.listPulls("closed");
-      return pulls.map((pull) => summarizePr(pull, []));
+      return pulls.map((pull) => summarizePr(pull, slugsOf(pull.number)));
     });
+    // 必须在 wrap 返回之后再动缓存：fetch 进行中删除条目会让 lru-cache 以 "deleted" 失败整个请求。
+    fillClosedSlugs(
+      closed.filter((pull) => pull.slugs.length === 0 && !closedSlugs.has(pull.number) && !closedTried.has(pull.number)).map((pull) => pull.number),
+    );
     if (state === "closed") return byUpdatedDesc(closed.filter((pull) => pull.state === "closed"));
     if (state === "merged") return byUpdatedDesc(closed.filter((pull) => pull.state === "merged"));
     return byUpdatedDesc([...openIndex.values(), ...closed]);
@@ -332,21 +407,33 @@ export const prdata = {
     return run;
   },
 
-  /** 同一次请求内重复读同一文件只发一次；gh.getFile 只缓存结果，不合并并发。 */
-  fileSource(): FileSource {
+  /** 同一次请求内重复读同一文件只发一次；base 侧在这里统一解析成 merge base。 */
+  fileSource(n?: number): FileSource {
     const reads = new Map<string, Promise<string | null>>();
+    let pullOf: Promise<GhPull> | null = null;
+    const pull = () => {
+      if (n === undefined) return Promise.reject(new Error("文件来源需要 PR 编号"));
+      pullOf ??= prdata.files(n).then((cache) => cache.pull);
+      return pullOf;
+    };
+    const ref = async (side: FileSide) => {
+      const value = await pull();
+      return side === "base" ? gh.mergeBase(value.baseSha, value.headSha) : value.headSha;
+    };
     return {
-      read(path, ref) {
-        if (path === null) return Promise.resolve(null);
-        const key = `${ref}\u0000${path}`;
+      ref,
+      read: async (path, side) => {
+        if (path === null) return null;
+        const at = await ref(side);
+        const key = `${at}\u0000${path}`;
         let pending = reads.get(key);
         if (pending === undefined) {
-          pending = gh.getFile(path, ref);
+          pending = gh.getFile(path, at);
           reads.set(key, pending);
         }
         return pending;
       },
-      readMany: (paths, ref) => gh.getFiles(paths, ref),
+      readMany: async (paths, side) => gh.getFiles(paths, await ref(side)),
     };
   },
 

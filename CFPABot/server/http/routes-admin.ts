@@ -89,7 +89,10 @@ adminRoutes.post("/cache/:what", (c) => {
   };
   if (what === "prs") background("PR 缓存", () => prdata.refreshAll());
   else if (what === "mirror") background("镜像", () => mirror.sync());
-  else if (what === "mappings") background("映射", () => mods.mappings.scan());
+  else if (what === "mappings")
+    background("映射", async () => {
+      for (const slug of await mods.mappings.scan()) mods.invalidate(slug);
+    });
   else if (what === "glossary") background("术语表", () => syncGlossary());
   else throw new HttpError(400, "未知的缓存类型", "invalid_cache");
   return c.json({ ok: true });

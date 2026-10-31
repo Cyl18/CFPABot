@@ -355,7 +355,7 @@ export async function withManualSlices(
   const pairs = await specialPairs(n);
   const keys = pairs.filter((entry) => entry.kind === "pair").map((entry) => entry.key);
   if (keys.length === 0) return composed;
-  const manual = composeManualSlices(n, headSha, await specialContents(n, keys, prdata.fileSource()));
+  const manual = composeManualSlices(n, headSha, await specialContents(n, keys, prdata.fileSource(n)));
   composed.files.push(...manual.files);
   composed.manifest.slices.push(...manual.slices);
   composed.manifest.counts.slices = composed.manifest.slices.length;

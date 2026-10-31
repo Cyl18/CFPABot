@@ -52,7 +52,7 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
   if (isPending || !pr) return <SkeletonTable rows={8} columns={4} />;
 
   return (
-    <ReviewProvider n={n}>
+    <ReviewProvider key={n} n={n}>
       <PageHeader
         back={{ to: "/", label: "返回 PR 列表" }}
         title={

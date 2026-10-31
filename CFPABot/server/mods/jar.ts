@@ -42,8 +42,6 @@ export async function readJar(file: ModFile): Promise<JarInfo | null> {
   const domains = new Set<string>();
   const assetDirs: string[] = [];
   const assetSeen = new Set<string>();
-  const langDirs: string[] = [];
-  const langSeen = new Set<string>();
   const lang: JarLang[] = [];
   const langLoose: JarLangLoose[] = [];
   for (const [name, data] of Object.entries(entries)) {
@@ -62,21 +60,15 @@ export async function readJar(file: ModFile): Promise<JarInfo | null> {
     }
     if (!name.startsWith("assets")) continue;
     const first = segments[1];
-    if (first !== undefined && first !== "" && first !== "minecraft") {
-      if (!assetSeen.has(first)) {
-        assetSeen.add(first);
-        assetDirs.push(first);
-      }
-      if (name.includes("lang") && first !== "icon.png" && !langSeen.has(first)) {
-        langSeen.add(first);
-        langDirs.push(first);
-      }
+    if (first !== undefined && first !== "" && first !== "minecraft" && !assetSeen.has(first)) {
+      assetSeen.add(first);
+      assetDirs.push(first);
     }
     const match = LANG_ENTRY.exec(name);
-    const domain = match?.[1] ?? first;
-    if (!domain) continue;
+    const domain = match?.[1];
+    if (domain === undefined) continue;
     if (domain !== "minecraft") domains.add(domain);
-    if (!match || looseLocale === undefined) continue;
+    if (looseLocale === undefined) continue;
     lang.push({
       path: name,
       domain,
@@ -85,5 +77,5 @@ export async function readJar(file: ModFile): Promise<JarInfo | null> {
       content: decoder.decode(data),
     });
   }
-  return { file, fetchedAt: cached.fetchedAt, domains: [...domains].sort(), assetDirs, langDirs, lang, langLoose };
+  return { file, fetchedAt: cached.fetchedAt, domains: [...domains].sort(), assetDirs, langDirs: [...domains].sort(), lang, langLoose };
 }

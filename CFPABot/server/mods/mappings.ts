@@ -63,13 +63,13 @@ export const mappings = {
     return (await load()).updatedAt;
   },
 
-  async scan(maxIds = DEFAULT_MAX_IDS): Promise<number> {
-    if (!env.CURSEFORGE_API_KEY) return 0;
+  async scan(maxIds = DEFAULT_MAX_IDS): Promise<string[]> {
+    if (!env.CURSEFORGE_API_KEY) return [];
     return withLock("mappings", async () => {
       const file = await load();
       let cursor = Math.max(file.lastScannedId, maxMappedId(file));
       const end = cursor + maxIds;
-      let added = 0;
+      const changed: string[] = [];
       while (cursor < end) {
         const ids: number[] = [];
         for (let offset = 1; offset <= BATCH_SIZE && cursor + offset <= end; offset++) ids.push(cursor + offset);
@@ -90,7 +90,7 @@ export const mappings = {
           const existing = file.mappings[slug];
           if (existing?.source === "manual") continue;
           if (existing?.id === mod.id) continue;
-          if (!existing) added++;
+          changed.push(slug);
           dirty = true;
           file.mappings[slug] = { id: mod.id, source: "resolved" };
         }
@@ -98,7 +98,7 @@ export const mappings = {
         file.lastScannedId = cursor;
         await save(file, dirty);
       }
-      return added;
+      return changed;
     });
   },
 };

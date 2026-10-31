@@ -124,7 +124,7 @@ export function compareMc(a: string, b: string): number {
 export function workspacesOf(files: readonly Pick<PrFile, "path" | "status">[]): Workspace[] {
   const byKey = new Map<string, Workspace>();
   for (const file of files) {
-    if (file.status === "removed") continue;
+    // 删除的文件也要占位：只有删除的 PR 同样需要有工作区才能对比 base/head。
     const raw = file.path;
     const parsed = parseLangPath(raw);
     if (!parsed || parsed.locale === null) continue;
@@ -196,8 +196,9 @@ export interface CommentModPath {
 export function commentModPathOf(path: string): CommentModPath | null {
   const parts = path.split("/");
   if (parts.length < 7 || parts[0] !== "projects") return null;
-  const slug = parts[2] as string;
-  const versionString = parts[3] as string;
+  const standard = parts[1] === "assets";
+  const slug = (standard ? parts[2] : parts[3]) as string;
+  const versionString = (standard ? parts[3] : parts[1]) as string;
   const domain = parts[4] as string;
   if (commentVersionDir(versionString) === null) throw invalidVersionError(versionString);
   return { slug, versionString, domain };
@@ -221,6 +222,7 @@ export interface DiffModPath {
   slug: string;
   dir: string;
   domain: string;
+  legacy: boolean;
 }
 
 export function diffModPathOf(path: string): DiffModPath | null {
@@ -231,7 +233,7 @@ export function diffModPathOf(path: string): DiffModPath | null {
   const slug = (standard ? parts[2] : parts[3]) as string;
   const domain = parts[4] as string;
   if (commentVersionDir(dir) === null) throw invalidVersionError(dir);
-  return { slug, dir, domain };
+  return { slug, dir, domain, legacy: !standard };
 }
 
 export function diffModPathsOf(paths: readonly string[]): DiffModPath[] {

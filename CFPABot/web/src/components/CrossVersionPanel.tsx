@@ -67,6 +67,14 @@ export function CrossVersionPanel({ slug, namespace, pr, state, onStateChange, o
 
   const leading = data === undefined ? undefined : (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      {data.filterIgnored === true && (
+        <p className="w-full rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
+          所选版本在该模组里不存在，已显示全部版本。
+          <button type="button" className="ml-2 underline" onClick={() => onStateChange({ versions: null })}>
+            清除版本筛选
+          </button>
+        </p>
+      )}
       {data.namespaces.length > 1 && (
         <div role="group" aria-label="命名空间" className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted">命名空间</span>

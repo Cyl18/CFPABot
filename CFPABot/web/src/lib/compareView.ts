@@ -40,5 +40,6 @@ export function compareEntries(rows: readonly CompareRow[]): DiffEntry[] {
       base: cellOf(row.baseEn, row.baseZh),
       head: cellOf(row.headEn, row.headZh),
     },
+    status: { en: row.enStatus, zh: row.zhStatus },
   }));
 }

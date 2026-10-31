@@ -139,8 +139,9 @@ export async function collectMods(files: PrFile[], prNumber: number, publicUrl: 
       });
       for (const dep of deps) {
         const depName = dep.name.replaceAll("[", "\\[").replaceAll("]", "\\]");
+        const depSource = dep.sourceUrl ? `[:mag: 源代码](${dep.sourceUrl})&nbsp;&nbsp;` : ":mag:无源代码";
         table.line(
-          `|  ${thumbnailCell(dep.iconUrl)} | 依赖-[*${depName}*](${dep.url}) | ${source} \\| [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20${urlEncodeDotNet(dep.name)}) \\| &nbsp;&nbsp;* | * |`,
+          `|  ${thumbnailCell(dep.iconUrl)} | 依赖-[*${depName}*](${dep.url}) | ${depSource} \\| [🟩 MCMOD](https://cn.bing.com/search?q=site:mcmod.cn%20${urlEncodeDotNet(dep.name)}) \\| &nbsp;&nbsp;* | * |`,
         );
         modCount++;
       }

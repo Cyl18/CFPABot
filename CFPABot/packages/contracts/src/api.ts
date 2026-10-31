@@ -421,6 +421,8 @@ export interface CompareReview {
   path: string;
   keys: Record<string, { line: number; raw: string }>;
   keysOmitted?: number;
+  /** GitHub 没给 patch（文件过大等）或文件已被删除，无从判断可评论行。 */
+  unavailable?: "no_patch" | "removed";
 }
 
 export type SpecialStatus = PrFile["status"] | "unchanged" | "missing";
@@ -457,6 +459,7 @@ export interface SpecialText extends SpecialSide {
   head: string | null;
   truncated: boolean;
   hunks: ReviewHunk[] | null;
+  hunksOmitted?: number;
 }
 
 export type SpecialPairContent =
@@ -483,6 +486,8 @@ export interface CrossVersionKeysResult {
   activeVersions: string[];
   prVersions: string[];
   zhVersions: string[];
+  /** 请求的版本筛选一个都没命中，已回退成全部版本。 */
+  filterIgnored?: boolean;
   rows: CrossVersionKeyRow[];
 }
 

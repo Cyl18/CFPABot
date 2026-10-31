@@ -151,8 +151,16 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
       <span className="text-xs text-muted" title="GitHub 只允许在本 PR 改动过的行上评论">
         中文文件未改动，不能行内评论
       </span>
+    ) : target.unavailable === "removed" ? (
+      <span className="text-xs text-muted" title="文件已删除，GitHub 没有可评论的行">
+        文件已删除，无法行内评论
+      </span>
+    ) : target.unavailable !== undefined ? (
+      <span className="text-xs text-muted" title="GitHub 对过大的文件不返回 diff">
+        文件过大，GitHub 未提供 diff，无法行内评论
+      </span>
     ) : (
-      <span className="text-xs text-muted" title="点英文、中文列之间的加号评论；只有 PR 改动过的行 GitHub 才允许评论">
+      <span className="text-xs text-muted" title="点行内加号评论；只有 PR 改动过的行 GitHub 才允许评论">
         中文 {Object.keys(target.keys).length} 个 key 可评论
         {enTarget !== null && ` · 英文 ${Object.keys(enTarget.keys).length} 个`}
       </span>

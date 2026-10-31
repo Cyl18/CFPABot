@@ -52,7 +52,13 @@ export function startCron(): () => void {
     { name: "webhook-marker-prune", intervalMs: DAY, run: () => pruneDeliveries() },
   ];
   if (env.CURSEFORGE_API_KEY) {
-    tasks.push({ name: "mappings-scan", intervalMs: DAY, run: () => mods.mappings.scan() });
+    tasks.push({
+      name: "mappings-scan",
+      intervalMs: DAY,
+      run: async () => {
+        for (const slug of await mods.mappings.scan()) mods.invalidate(slug);
+      },
+    });
   }
 
   const stops: Array<() => void> = [];
