@@ -1,12 +1,41 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/cn.ts";
-import { inlineDiff } from "@/lib/diff.ts";
+import { inlineDiff, type DiffSegment } from "@/lib/diff.ts";
 import { useDiffMode } from "@/lib/diffMode.ts";
 import { expandNewlines } from "@/lib/format.ts";
 
+export const INSERT = "rounded-sm bg-ok/20 px-0.5 text-ok no-underline";
+export const DELETE = "rounded-sm bg-danger/20 px-0.5 text-danger line-through decoration-danger/60";
+export const CHANGE = "rounded-sm bg-warn/20 px-0.5 text-warn";
+
+export function InlineRuns({ segments }: { segments: readonly DiffSegment[] }) {
+  return (
+    <>
+      {segments.map((segment, index) =>
+        segment.type === "insert" ? (
+          <ins key={index} className={INSERT}>
+            {segment.text}
+          </ins>
+        ) : segment.type === "delete" ? (
+          <del key={index} className={DELETE}>
+            {segment.text}
+          </del>
+        ) : segment.type === "change" ? (
+          <span key={index} className={CHANGE}>
+            {segment.text}
+          </span>
+        ) : (
+          <span key={index}>{segment.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 export interface InlineTextDiffProps {
-  before?: string;
-  after?: string;
+  /** undefined 表示没有可比来源，原样显示 after；null 表示这一侧是空的。 */
+  before?: string | null;
+  after?: string | null;
   className?: string;
 }
 
@@ -16,37 +45,14 @@ export function InlineTextDiff({ before, after, className }: InlineTextDiffProps
   const right = expandNewlines(after ?? "");
   const segments = useMemo(() => inlineDiff(left, right, mode), [left, right, mode]);
 
-  if (left === "" && right === "") return <span className="text-muted">-</span>;
-
-  if (mode === "off") {
-    return <span className={cn("whitespace-pre-wrap break-words", className)}>{right === "" ? left : right}</span>;
-  }
-
-  if (left === "") {
-    return <span className={cn("whitespace-pre-wrap break-words rounded-sm bg-ok/20 px-0.5 text-ok", className)}>{right}</span>;
-  }
-
-  if (right === "") {
-    return <span className={cn("whitespace-pre-wrap break-words rounded-sm bg-danger/20 px-0.5 text-danger", className)}>{left}</span>;
-  }
-
+  if (before === undefined) return <span className={className}>{right}</span>;
+  if (left === "" && right === "") return <span className="text-muted">—</span>;
+  if (mode === "off" || left === right) return <span className={className}>{right === "" ? left : right}</span>;
+  if (left === "") return <ins className={cn(INSERT, className)}>{right}</ins>;
+  if (right === "") return <del className={cn(DELETE, className)}>{left}</del>;
   return (
-    <span className={cn("whitespace-pre-wrap break-words", className)}>
-      {segments.map((segment, index) => {
-        if (segment.type === "equal") return <span key={index}>{segment.text}</span>;
-        return (
-          <span
-            key={index}
-            className={cn(
-              "rounded-sm px-0.5",
-              segment.type === "delete" ? "bg-danger/20 text-danger" : segment.type === "change" ? "bg-warn/20 text-warn" : "bg-ok/20 text-ok",
-              segment.block && "mr-0.5 inline-block",
-            )}
-          >
-            {segment.text}
-          </span>
-        );
-      })}
+    <span className={className}>
+      <InlineRuns segments={segments} />
     </span>
   );
 }

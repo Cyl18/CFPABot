@@ -10,7 +10,7 @@ import { OptionPicker, type PickerOption } from "@/routes/agent/OptionPicker.tsx
 import { Button } from "@/ui/Button.tsx";
 
 export function NewSessionPage() {
-  const llm = useLlmConfig(true);
+  const llm = useLlmConfig();
   const prs = usePrs("open");
   const navigate = useNavigate();
   const client = useQueryClient();

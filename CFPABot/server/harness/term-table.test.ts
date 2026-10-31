@@ -229,8 +229,6 @@ describe("注入", () => {
           findings: [],
         },
       ],
-      new Date("2026-01-01T00:00:00.000Z"),
-      undefined,
       table,
     );
     const doc = composed.files.find((file) => file.name.endsWith(".md"))?.content ?? "";

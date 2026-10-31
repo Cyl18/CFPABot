@@ -1,6 +1,5 @@
 import { chmod, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { z } from "zod";
 import {
   createAgentSession,
   loadSkillsFromDir,
@@ -12,9 +11,8 @@ import type { Effort } from "@oh-my-pi/pi-catalog/effort";
 import { committedTodoPhases } from "@oh-my-pi/pi-coding-agent/tools/todo";
 import type { MCPManager } from "@oh-my-pi/pi-coding-agent/mcp";
 import type {
-  BashScope,
   CreateSessionRequest,
-  EvalScope,
+  Scope,
   SessionDetail,
   SessionEvent,
   SessionFile,
@@ -23,13 +21,13 @@ import type {
   SessionSummary,
   SubagentTranscript,
   ThinkingLevel,
-  WriteScope,
 } from "@cfpa/contracts/api";
 import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
+import { HttpError } from "../errors.ts";
 import { type ToolContext } from "./context.ts";
 import { agentMcpManager, closeAgentMcp } from "./mcp.ts";
-import { DRAFT_FILE, draftInputSchema, parseDraftFile } from "./draft.ts";
+import { DRAFT_FILE, draftInputSchema, parseDraftFile } from "@cfpa/review-core/draft";
 import { markPublishedOf, saveDraftOf } from "../harness/review/draft.ts";
 import { SessionHub, statusEventOf } from "./events.ts";
 import { applySearchEnv, loadConfig, llm, resolveModel } from "./llm.ts";
@@ -45,10 +43,7 @@ import { SessionStore, summarize, type SessionMeta, type SessionRecord } from ".
 import { registerSchemes } from "./schemes.ts";
 import { subagentTranscript, loadSubagents } from "./subagents.ts";
 import { buildTools } from "./tools/index.ts";
-import { publishDraft } from "./workflows/review/publish.ts";
-import { generalWorkflow } from "./workflows/general.ts";
-import { resolveWorkflow } from "./workflows/index.ts";
-import type { WorkflowDefinition } from "./workflows/types.ts";
+import { publishDraft } from "../harness/review/publish.ts";
 
 export { llm };
 
@@ -102,10 +97,6 @@ const ALLOWED_TOOLS: Record<string, true> = {
   eval: true,
 };
 
-function httpError(message: string, status: number, code?: string): Error {
-  return Object.assign(new Error(message), { status, ...(code === undefined ? {} : { code }) });
-}
-
 function now(): string {
   return new Date().toISOString();
 }
@@ -135,15 +126,14 @@ function allSkills(): Promise<Skill[]> {
   return skillsPromise;
 }
 
-async function agentSkills(workflow: WorkflowDefinition): Promise<Skill[]> {
-  if (workflow.skills.length === 0) return [];
+const AGENT_SKILLS = ["prep", "post", "translate"];
+
+async function agentSkills(): Promise<Skill[]> {
   const skills = await allSkills();
-  const wanted = new Set(workflow.skills);
+  const wanted = new Set(AGENT_SKILLS);
   const selected = skills.filter((skill) => wanted.has(skill.name));
-  for (const name of workflow.skills) {
-    if (!selected.some((skill) => skill.name === name)) {
-      log.warn("工作流技能未找到", { workflow: workflow.id, name });
-    }
+  for (const name of AGENT_SKILLS) {
+    if (!selected.some((skill) => skill.name === name)) log.warn("技能未找到", { name });
   }
   return selected;
 }
@@ -175,8 +165,6 @@ async function detailOf(record: SessionRecord): Promise<SessionDetail> {
     ...(draft !== null ? { artifact: draft, artifactFile: DRAFT_FILE } : {}),
   };
 }
-
-const draftInput = draftInputSchema.omit({ event: true }).extend({ headSha: z.string().min(1) });
 
 function toolContext(
   record: SessionRecord,
@@ -213,12 +201,11 @@ async function disposeRuntime(id: string): Promise<void> {
 async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
   const id = record.meta.id;
   if (slot.runtime) return slot.runtime;
-  const workflow = resolveWorkflow(record.meta.workflow);
   const config = await loadConfig();
   applySearchEnv(config.search);
   const aliases = Object.keys(config.roles).filter((role) => role !== "default");
-  const systemPrompt = await buildSystemPrompt(workflow, localDir(id), paths.root, record.meta.prNumber, aliases);
-  const skills = await agentSkills(workflow);
+  const systemPrompt = await buildSystemPrompt(localDir(id), paths.root, record.meta.prNumber, aliases);
+  const skills = await agentSkills();
   const configured = record.meta.thinking;
   const { model, thinking } = await resolveModel(record.meta.model, configured);
   const authStorage = await openAuthStorage(config.endpoints);
@@ -230,7 +217,7 @@ async function getRuntime(record: SessionRecord, slot: Live): Promise<Runtime> {
       execAllowed: async (toolName) => {
         const meta = (await store.get(id))?.meta;
         if (meta === undefined) return false;
-        return (toolName === "bash" ? meta.bashScope : meta.evalScope) === "run";
+        return (toolName === "bash" ? meta.bashScope : meta.evalScope) === "on";
       },
     }),
   ];
@@ -409,12 +396,12 @@ async function summarizeTitle(id: string, message: string, model: string, prefix
 
 async function publishOnce(id: string, by: string): Promise<{ url: string }> {
   const record = await store.get(id);
-  if (!record) throw httpError("会话不存在", 404);
+  if (!record) throw new HttpError(404, "会话不存在");
   const raw = await readLocal(id, DRAFT_FILE);
   const draft = raw === null ? null : parseDraftFile(raw.content);
-  if (draft === null) throw httpError("没有可发布的草稿", 400);
+  if (draft === null) throw new HttpError(400, "没有可发布的草稿");
   if (record.meta.prNumber !== undefined && record.meta.prNumber !== draft.prNumber) {
-    throw httpError(`会话绑定 PR #${record.meta.prNumber}，草稿属于 PR #${draft.prNumber}`, 400);
+    throw new HttpError(400, `会话绑定 PR #${record.meta.prNumber}，草稿属于 PR #${draft.prNumber}`);
   }
   const { url } = await publishDraft(draft);
   const value = await markPublishedOf(draft.prNumber, id, draft, url);
@@ -470,14 +457,13 @@ export const agent = {
 
   async create(request: CreateSessionRequest & { createdBy: string; source: "web" | "github" }): Promise<SessionDetail> {
     const message = request.message?.trim();
-    if (!message) throw httpError("需要提供 message", 400);
+    if (!message) throw new HttpError(400, "需要提供 message");
     const config = await loadConfig();
     const model = request.model?.trim() || parseRoleSelector(config.roles.default ?? "").endpoint;
     const modelError = await resolveModel(model === "" ? undefined : model).then(
       () => undefined,
       (err: unknown) => (err instanceof Error ? err.message : String(err)),
     );
-    const workflow = generalWorkflow;
     const id = crypto.randomUUID();
     const createdAt = now();
     const fixedTitle = request.title?.trim() ?? "";
@@ -493,10 +479,9 @@ export const agent = {
       createdBy: request.createdBy,
       source: request.source,
       model,
-      writeScope: request.writeScope ?? workflow.defaults.writeScope,
-      evalScope: request.evalScope ?? workflow.defaults.evalScope,
-      bashScope: request.bashScope ?? workflow.defaults.bashScope,
-      workflow: workflow.id,
+      writeScope: request.writeScope ?? "off",
+      evalScope: request.evalScope ?? "on",
+      bashScope: request.bashScope ?? "off",
       ...(request.prNumber === undefined ? {} : { prNumber: request.prNumber }),
     };
     const record: SessionRecord = { meta };
@@ -524,11 +509,11 @@ export const agent = {
 
   async send(id: string, text: string): Promise<void> {
     const message = text.trim();
-    if (!message) throw httpError("消息不能为空", 400);
+    if (!message) throw new HttpError(400, "消息不能为空");
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const current = await store.get(id);
-      if (!current) throw httpError("会话不存在", 404);
-      if (current.meta.archived) throw httpError("会话已归档", 400);
+      if (!current) throw new HttpError(404, "会话不存在");
+      if (current.meta.archived) throw new HttpError(400, "会话已归档");
       const slot = live.get(id);
       const session = slot?.runtime?.session;
       // 流式中立刻排队：omp 在下一个步边界注入，而不是等一下个 step 事件再发。
@@ -543,7 +528,7 @@ export const agent = {
       // runtime 还在建立：等 omp 受理，受理之后 isStreaming 才反映这一轮。
       await (slot.admitted ?? slot.turn);
     }
-    throw httpError("会话持续忙碌，消息未受理", 409, "session_busy");
+    throw new HttpError(409, "会话持续忙碌，消息未受理", "session_busy");
   },
 
   async abort(id: string): Promise<void> {
@@ -556,13 +541,13 @@ export const agent = {
 
   async subagent(id: string, agentId: string, offset: number): Promise<SubagentTranscript> {
     const record = await store.get(id);
-    if (!record) throw httpError("会话不存在", 404, "not_found");
+    if (!record) throw new HttpError(404, "会话不存在", "not_found");
     return subagentTranscript(id, agentId, offset);
   },
 
   async archive(id: string): Promise<void> {
     const record = await store.get(id);
-    if (!record) throw httpError("会话不存在", 404);
+    if (!record) throw new HttpError(404, "会话不存在");
     const slot = live.get(id);
     const busy = slot?.turn !== undefined || slot?.runtime?.session.isStreaming === true;
     if (busy && slot !== undefined) {
@@ -593,38 +578,38 @@ export const agent = {
 
   async listFiles(id: string): Promise<SessionFile[]> {
     const record = await store.get(id);
-    if (!record) throw httpError("会话不存在", 404);
+    if (!record) throw new HttpError(404, "会话不存在");
     return listLocal(id);
   },
 
   async readFile(id: string, name: string): Promise<SessionFileContent> {
     const record = await store.get(id);
-    if (!record) throw httpError("会话不存在", 404);
-    if (!isLocalPath(name)) throw httpError("文件路径不合法", 400);
+    if (!record) throw new HttpError(404, "会话不存在");
+    if (!isLocalPath(name)) throw new HttpError(400, "文件路径不合法");
     const entry = await readLocal(id, name);
-    if (entry === null) throw httpError("文件不存在", 404);
+    if (entry === null) throw new HttpError(404, "文件不存在");
     return { name, content: entry.content, size: Buffer.byteLength(entry.content), updatedAt: entry.updatedAt };
   },
 
   async readArtifact(id: string): Promise<unknown> {
     const record = await store.get(id);
-    if (!record) throw httpError("会话不存在", 404);
+    if (!record) throw new HttpError(404, "会话不存在");
     const raw = await readLocal(id, DRAFT_FILE);
     const draft = raw === null ? null : parseDraftFile(raw.content);
-    if (draft === null) throw httpError("草稿不存在或格式不合法", 404);
+    if (draft === null) throw new HttpError(404, "草稿不存在或格式不合法");
     return draft;
   },
 
   async saveArtifact(id: string, input: unknown): Promise<unknown> {
     const record = await store.get(id);
-    if (!record) throw httpError("会话不存在", 404);
-    const parsed = draftInput.safeParse(input);
-    if (!parsed.success) throw httpError(parsed.error.issues.map((issue) => issue.message).join("；"), 400);
+    if (!record) throw new HttpError(404, "会话不存在");
+    const parsed = draftInputSchema.safeParse(input);
+    if (!parsed.success) throw new HttpError(400, parsed.error.issues.map((issue) => issue.message).join("；"));
     if (record.meta.prNumber !== undefined && record.meta.prNumber !== parsed.data.prNumber) {
-      throw httpError(`会话绑定 PR #${record.meta.prNumber}，不能保存 PR #${parsed.data.prNumber} 的草稿`, 400);
+      throw new HttpError(400, `会话绑定 PR #${record.meta.prNumber}，不能保存 PR #${parsed.data.prNumber} 的草稿`);
     }
     const saved = await saveDraftOf(parsed.data.prNumber, id, JSON.stringify(parsed.data));
-    if (!saved.ok || saved.draft === undefined) throw httpError(saved.errors.join("；"), 400);
+    if (!saved.ok || saved.draft === undefined) throw new HttpError(400, saved.errors.join("；"));
     record.meta.updatedAt = now();
     await store.put(record);
     hub.emit(id, { type: "artifact", artifact: saved.draft });
@@ -642,9 +627,9 @@ export const agent = {
     return run;
   },
 
-  async setWriteScope(id: string, writeScope: WriteScope): Promise<void> {
+  async setWriteScope(id: string, writeScope: Scope): Promise<void> {
     const record = await store.get(id);
-    if (!record) throw httpError("会话不存在", 404);
+    if (!record) throw new HttpError(404, "会话不存在");
     record.meta.writeScope = writeScope;
     record.meta.updatedAt = now();
     await store.put(record);
@@ -654,19 +639,10 @@ export const agent = {
     else await disposeRuntime(id);
   },
 
-  async setEvalScope(id: string, evalScope: EvalScope): Promise<void> {
+  async setExecScope(id: string, key: "evalScope" | "bashScope", value: Scope): Promise<void> {
     const record = await store.get(id);
-    if (!record) throw httpError("会话不存在", 404);
-    record.meta.evalScope = evalScope;
-    record.meta.updatedAt = now();
-    await store.put(record);
-    hub.touch(id);
-  },
-
-  async setBashScope(id: string, bashScope: BashScope): Promise<void> {
-    const record = await store.get(id);
-    if (!record) throw httpError("会话不存在", 404);
-    record.meta.bashScope = bashScope;
+    if (!record) throw new HttpError(404, "会话不存在");
+    record.meta[key] = value;
     record.meta.updatedAt = now();
     await store.put(record);
     hub.touch(id);
@@ -677,7 +653,7 @@ export const agent = {
     patch: { model?: string; thinking?: ThinkingLevel | null; prNumber?: number | null },
   ): Promise<void> {
     const record = await store.get(id);
-    if (!record) throw httpError("会话不存在", 404);
+    if (!record) throw new HttpError(404, "会话不存在");
     const meta = record.meta;
     let runtimeChanged = false;
 

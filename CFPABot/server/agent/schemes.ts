@@ -6,10 +6,11 @@ import {
   type SchemeSpec,
 } from "@oh-my-pi/pi-coding-agent/internal-urls";
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import type { ReviewDraft, WriteScope } from "@cfpa/contracts/api";
+import type { ReviewDraft } from "@cfpa/contracts/api";
 import { logger } from "../log.ts";
 import { readGh } from "../harness/gh-read.ts";
 import { readPr } from "../harness/pr-read.ts";
+import { type HarnessSession } from "../harness/types.ts";
 import { writePr } from "../harness/pr-write.ts";
 import { readRepo } from "../harness/repo-read.ts";
 import { partsOf, prPartsOf } from "../harness/uri.ts";
@@ -17,14 +18,9 @@ import { findWriteTarget, unsupportedWrite } from "../harness/write-targets.ts";
 
 const log = logger("schemes");
 
-export interface SessionRef {
-  sessionId: string;
-  writeScope: WriteScope;
-}
-
 export interface SchemeDeps {
   /** 由 omp 会话文件或本站会话 ID 反查；读草稿与写 GitHub 都要用。 */
-  sessionOf(ref: string | undefined): SessionRef | undefined;
+  sessionOf(ref: string | undefined): HarnessSession | undefined;
   /** 草稿落盘后把面板与列表一起刷新。 */
   onDraftSaved?(sessionId: string, draft: ReviewDraft): void | Promise<void>;
 }
@@ -105,9 +101,7 @@ export function registerSchemes(deps: SchemeDeps): () => void {
         content,
         {
           ...session,
-          ...(deps.onDraftSaved === undefined
-            ? {}
-            : { onDraftSaved: (draft: ReviewDraft) => deps.onDraftSaved?.(session.sessionId, draft) }),
+          onDraftSaved: (draft: ReviewDraft) => deps.onDraftSaved?.(session.sessionId, draft),
         },
         context?.toolCall?.id ?? "manual",
       );

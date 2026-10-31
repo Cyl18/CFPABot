@@ -37,8 +37,8 @@ export function usePublicEnv() {
   return useQuery<PublicEnv>({ queryKey: qk.env, queryFn: ({ signal }) => api.env(signal), staleTime: 5 * 60_000, retry: 0 });
 }
 
-export function useStatus(enabled = true) {
-  return useQuery<SystemStatus>({ queryKey: qk.status, queryFn: ({ signal }) => api.status(signal), enabled, retry: 0 });
+export function useStatus() {
+  return useQuery<SystemStatus>({ queryKey: qk.status, queryFn: ({ signal }) => api.status(signal), retry: 0 });
 }
 
 export function usePrs(state: PrState | "all") {
@@ -54,20 +54,18 @@ export function usePr(n: number) {
   });
 }
 
-export function useChecks(n: number, enabled = true) {
+export function useChecks(n: number) {
   return useQuery<CheckReport | null>({
     queryKey: qk.checks(n),
     queryFn: ({ signal }) => api.checks(n, signal),
-    enabled,
     staleTime: 60_000,
   });
 }
 
-export function usePack(n: number, enabled = true) {
+export function usePack(n: number) {
   return useQuery<PackSummary>({
     queryKey: qk.pack(n),
     queryFn: ({ signal }) => api.pack(n, signal),
-    enabled,
     staleTime: 5 * 60_000,
   });
 }
@@ -81,8 +79,8 @@ export function useCompare(n: number, key: CompareKey | null) {
   });
 }
 
-export function useSpecial(n: number, enabled = true) {
-  return useQuery<SpecialPair[]>({ queryKey: qk.special(n), queryFn: ({ signal }) => api.special(n, signal), enabled });
+export function useSpecial(n: number) {
+  return useQuery<SpecialPair[]>({ queryKey: qk.special(n), queryFn: ({ signal }) => api.special(n, signal) });
 }
 
 export function useSpecialContent(n: number, key: string | null) {
@@ -105,24 +103,24 @@ export function useMods(q: string) {
   return useQuery<ModList>({ queryKey: qk.mods(q), queryFn: ({ signal }) => api.mods(q, signal), placeholderData: (previous) => previous });
 }
 
-export function useSessions(enabled = true) {
-  return useQuery<SessionSummary[]>({ queryKey: qk.sessions, queryFn: ({ signal }) => api.sessions(signal), enabled, retry: 0 });
+export function useSessions() {
+  return useQuery<SessionSummary[]>({ queryKey: qk.sessions, queryFn: ({ signal }) => api.sessions(signal), retry: 0 });
 }
 
-export function useSession(id: string | undefined, enabled = true) {
+export function useSession(id: string | undefined) {
   return useQuery<SessionDetail>({
     queryKey: qk.session(id ?? ""),
     queryFn: ({ signal }) => api.session(id as string, signal),
-    enabled: enabled && id !== undefined && id.length > 0,
+    enabled: id !== undefined && id.length > 0,
     retry: 0,
   });
 }
 
-export function useSessionFiles(id: string | undefined, enabled = true, refetchInterval: number | false = 3_000) {
+export function useSessionFiles(id: string | undefined, refetchInterval: number | false = 3_000) {
   return useQuery<SessionFile[]>({
     queryKey: qk.sessionFiles(id ?? ""),
     queryFn: ({ signal }) => api.sessionFiles(id as string, signal),
-    enabled: enabled && id !== undefined && id.length > 0,
+    enabled: id !== undefined && id.length > 0,
     refetchInterval,
     retry: 0,
   });
@@ -131,20 +129,19 @@ export function useSessionFiles(id: string | undefined, enabled = true, refetchI
 export function useSessionFile(
   id: string | undefined,
   path: string | null,
-  enabled = true,
   refetchInterval: number | false = false,
 ) {
   return useQuery<SessionFileContent>({
     queryKey: qk.sessionFile(id ?? "", path ?? ""),
     queryFn: ({ signal }) => api.sessionFile(id as string, path as string, signal),
-    enabled: enabled && id !== undefined && path !== null,
+    enabled: id !== undefined && path !== null,
     refetchInterval,
     retry: 0,
   });
 }
 
-export function useLlmConfig(enabled = true) {
-  return useQuery<LlmConfigView>({ queryKey: qk.llm, queryFn: ({ signal }) => api.llm(signal), enabled, retry: 0 });
+export function useLlmConfig() {
+  return useQuery<LlmConfigView>({ queryKey: qk.llm, queryFn: ({ signal }) => api.llm(signal), retry: 0 });
 }
 
 export function useLogs(level: LogLevel | "all", autoRefresh: boolean) {

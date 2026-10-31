@@ -16,8 +16,8 @@ import {
   submitPendingReview,
 } from "../github/review.ts";
 import { readLocal } from "../agent/local-store.ts";
-import { assertCanWrite, type WriteSession } from "../agent/policy.ts";
-import { publishDraft } from "../agent/workflows/review/publish.ts";
+import { assertCanWrite } from "../agent/policy.ts";
+import { publishDraft } from "./review/publish.ts";
 import { prdata } from "../prdata.ts";
 import { errorResult, jsonResult } from "./result.ts";
 import { prepareDraft, saveDraftOf, markPublishedOf, storedDraftOf, unreviewedSlices, withServerFilledFields, lineOfKey } from "./review/draft.ts";
@@ -28,6 +28,7 @@ import { parseThreadState } from "./thread-state.ts";
 import { invalidateThreads, threadsOf } from "./review/threads.ts";
 import { specialContents, specialPairs } from "../views/special.ts";
 import type { WriteTarget } from "./write-targets.ts";
+import type { HarnessSession } from "./types.ts";
 import type { PrParts } from "./uri.ts";
 
 const AGENT_MARKER_PREFIX = "<!--CFPA-AGENT:";
@@ -51,7 +52,7 @@ function parseSubmit(content: string | undefined): SubmitInput {
   return submitSchema.parse(JSON.parse(content) as unknown);
 }
 
-async function writeDraft(uri: PrParts, content: string | undefined, ctx: WriteSession): Promise<AgentToolResult<Record<string, unknown>>> {
+async function writeDraft(uri: PrParts, content: string | undefined, ctx: HarnessSession): Promise<AgentToolResult<Record<string, unknown>>> {
   // 空正文 = 复用 local://draft.json：可以先 edit 几行，再整份校验落盘。
   let body = content ?? "";
   let reused = false;
@@ -88,7 +89,7 @@ async function writeDraft(uri: PrParts, content: string | undefined, ctx: WriteS
   });
 }
 
-async function writeComment(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
+async function writeComment(uri: PrParts, content: string | undefined, ctx: HarnessSession, toolCallId: string) {
   if (content === undefined || content.trim() === "") throw new Error("评论需要正文。");
   const marker = markerOf(ctx.sessionId, toolCallId);
   const existing = (await gh.listComments(uri.number)).find((comment) => comment.body.includes(marker));
@@ -97,7 +98,7 @@ async function writeComment(uri: PrParts, content: string | undefined, ctx: Writ
   return jsonResult({ ok: true, id: comment.id, url: comment.htmlUrl });
 }
 
-async function writeInlineComment(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
+async function writeInlineComment(uri: PrParts, content: string | undefined, ctx: HarnessSession, toolCallId: string) {
   if (content === undefined || content.trim() === "") throw new Error("行内评论需要正文。");
   const seg = uri.path.split("/").filter(Boolean);
   const path = seg.slice(1, -1).join("/");
@@ -148,7 +149,7 @@ async function writeThreadState(uri: PrParts, content: string | undefined) {
   return jsonResult({ ok: true, threadId, resolved });
 }
 
-async function writeThreadReply(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
+async function writeThreadReply(uri: PrParts, content: string | undefined, ctx: HarnessSession, toolCallId: string) {
   if (content === undefined || content.trim() === "") throw new Error("线程回复需要正文。");
   const seg = uri.path.split("/").filter(Boolean);
   const threadId = seg[1] ?? "";
@@ -166,7 +167,7 @@ async function writeThreadReply(uri: PrParts, content: string | undefined, ctx: 
   return jsonResult({ ok: true, comment });
 }
 
-async function writeReview(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
+async function writeReview(uri: PrParts, content: string | undefined, ctx: HarnessSession, toolCallId: string) {
   const n = uri.number;
   let draft: ReviewDraft;
   if (content !== undefined && content.trim() !== "") {
@@ -215,7 +216,7 @@ async function writeReview(uri: PrParts, content: string | undefined, ctx: Write
   }
   let url: string;
   try {
-    ({ url } = await publishDraft(draft, { marker }));
+    ({ url } = await publishDraft(draft, marker));
   } catch (err) {
     return errorResult({
       ok: false,
@@ -229,7 +230,7 @@ async function writeReview(uri: PrParts, content: string | undefined, ctx: Write
   return jsonResult({ ok: true, url, comments: saved.comments.length, next: [`read pr://${n}/draft 复核已发布状态`] });
 }
 
-async function writeReviewSubmit(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
+async function writeReviewSubmit(uri: PrParts, content: string | undefined, ctx: HarnessSession, toolCallId: string) {
   const n = uri.number;
   let input: SubmitInput;
   try {
@@ -260,7 +261,7 @@ async function writeReviewSubmit(uri: PrParts, content: string | undefined, ctx:
   return jsonResult({ ok: true, url });
 }
 
-async function replaceComment(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
+async function replaceComment(uri: PrParts, content: string | undefined, ctx: HarnessSession, toolCallId: string) {
   const seg = uri.path.split("/").filter(Boolean);
   const id = Number(seg[1]);
   if (!Number.isInteger(id) || id <= 0) throw new Error("评论编号无效。");
@@ -272,7 +273,7 @@ async function replaceComment(uri: PrParts, content: string | undefined, ctx: Wr
   return jsonResult({ ok: true, url: comment.htmlUrl });
 }
 
-async function replaceReviewComment(uri: PrParts, content: string | undefined, ctx: WriteSession, toolCallId: string) {
+async function replaceReviewComment(uri: PrParts, content: string | undefined, ctx: HarnessSession, toolCallId: string) {
   const seg = uri.path.split("/").filter(Boolean);
   const id = Number(seg[1]);
   if (!Number.isInteger(id) || id <= 0) throw new Error("行内评论编号无效。");
@@ -324,7 +325,7 @@ export async function writePr(
   uri: PrParts,
   target: WriteTarget,
   content: string | undefined,
-  ctx: WriteSession,
+  ctx: HarnessSession,
   toolCallId: string,
 ): Promise<WriteResult> {
   if (target.id !== "pr-draft" && target.id !== "pr-pack" && target.id !== "pr-terms") {

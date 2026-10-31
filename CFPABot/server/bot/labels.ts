@@ -15,8 +15,9 @@ export const LABEL_CHECK_NAME = "标签检查器";
 const log = logger("bot/labels");
 
 export function sizeLabel(changes: number): string | null {
-  for (const label of SIZE_LABELS) {
-    if (label.min <= changes && changes < label.max) return label.name;
+  for (const [index, label] of SIZE_LABELS.entries()) {
+    const max = SIZE_LABELS[index + 1]?.min ?? Number.POSITIVE_INFINITY;
+    if (label.min <= changes && changes < max) return label.name;
   }
   return null;
 }

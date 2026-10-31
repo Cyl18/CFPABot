@@ -1,14 +1,7 @@
 import type { LlmProtocol } from "@cfpa/contracts/api";
-import { LLM_PROVIDER_PRESETS } from "@cfpa/contracts/api";
+import { LLM_PROTOCOLS } from "@cfpa/contracts/api";
 
-export const PROVIDER_PRESETS = LLM_PROVIDER_PRESETS;
-
-export const PROTOCOLS: readonly { value: LlmProtocol; label: string }[] = [
-  { value: "openai-completions", label: "openai-completions" },
-  { value: "openai-responses", label: "openai-responses" },
-  { value: "anthropic-messages", label: "anthropic-messages" },
-  { value: "google-generative-ai", label: "google-generative-ai" },
-];
+export const PROTOCOLS = LLM_PROTOCOLS.map((value) => ({ value, label: value }));
 
 const TRAILING_SUFFIXES = ["/chat/completions", "/completions", "/messages", "/responses", "/models"];
 

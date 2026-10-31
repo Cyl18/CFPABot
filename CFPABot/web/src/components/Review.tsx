@@ -1,4 +1,5 @@
 import type { ReviewComment, ReviewEvent, ReviewThread } from "@cfpa/contracts/api";
+import { REVIEW_EVENTS, REVIEW_EVENT_META } from "@cfpa/contracts/api";
 import { AlertTriangle, CheckCheck, CornerDownRight, Diff, ExternalLink, LoaderCircle, MessageSquare, MessageSquarePlus, RotateCcw, Trash2, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -15,11 +16,7 @@ import { Textarea } from "@/ui/Input.tsx";
 import { Popover } from "@/ui/Popover.tsx";
 import { ToggleChip } from "@/ui/ToggleChip.tsx";
 
-const EVENTS: readonly { id: ReviewEvent; label: string; hint: string }[] = [
-  { id: "COMMENT", label: "仅评论", hint: "只发出评论，不表态" },
-  { id: "APPROVE", label: "批准", hint: "同意合并" },
-  { id: "REQUEST_CHANGES", label: "要求修改", hint: "需要改完才能合并" },
-];
+const EVENTS = REVIEW_EVENTS.map((id) => ({ id, ...REVIEW_EVENT_META[id] }));
 
 export const CARDS_KEY = "cfpa-review-cards";
 
@@ -445,10 +442,10 @@ function OutgoingCard({ item }: { item: OutgoingComment }) {
             <AlertTriangle aria-hidden="true" className="size-3.5 text-danger" />
             <span className="text-danger">没发出去：{item.error}</span>
             <span className="ml-auto flex gap-1">
-              <Button variant="ghost" size="sm" className="h-6 px-1.5" icon={<RotateCcw aria-hidden="true" className="size-3.5" />} onClick={() => review.retryComment(item.id)}>
+              <Button variant="ghost" size="xs" icon={<RotateCcw aria-hidden="true" className="size-3.5" />} onClick={() => review.retryComment(item.id)}>
                 重试
               </Button>
-              <Button variant="ghost" size="sm" className="h-6 px-1.5" icon={<X aria-hidden="true" className="size-3.5" />} onClick={() => review.discardComment(item.id)}>
+              <Button variant="ghost" size="xs" icon={<X aria-hidden="true" className="size-3.5" />} onClick={() => review.discardComment(item.id)}>
                 丢弃
               </Button>
             </span>

@@ -1,20 +1,17 @@
 import type { DraftComment, ReviewDraft, ReviewEvent, Severity } from "@cfpa/contracts/api";
+import { REVIEW_EVENTS, REVIEW_EVENT_META, SEVERITIES, SEVERITY_META } from "@cfpa/contracts/api";
 import { MQM_BY_ID, mqmLabel } from "@cfpa/contracts/mqm";
 import { ExternalLink, Save, Send, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { EventBadge, EVENT_OPTIONS, SeverityBadge } from "@/components/StatusBadges.tsx";
+import { EventBadge, SeverityBadge } from "@/components/StatusBadges.tsx";
 import { Badge } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
 import { Dialog } from "@/ui/Dialog.tsx";
 import { Textarea } from "@/ui/Input.tsx";
 import { Select } from "@/ui/Select.tsx";
 
-const SEVERITY_OPTIONS: readonly { value: Severity; label: string }[] = [
-  { value: "critical", label: "严重" },
-  { value: "major", label: "主要" },
-  { value: "minor", label: "次要" },
-  { value: "neutral", label: "中性" },
-];
+const EVENT_OPTIONS = REVIEW_EVENTS.map((value) => ({ value, label: `${REVIEW_EVENT_META[value].label}（${value}）` }));
+const SEVERITY_OPTIONS = SEVERITIES.map((value) => ({ value, label: SEVERITY_META[value].label }));
 
 export interface DraftPanelProps {
   draft: ReviewDraft;
@@ -58,7 +55,7 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
 
           <Select
             label="结论"
-            options={EVENT_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+            options={EVENT_OPTIONS}
             value={draft.event}
             disabled={readonly}
             onChange={(event) => onChange({ ...draft, event: event.target.value as ReviewEvent })}
@@ -142,7 +139,7 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
               <Select
                 wrapperClassName="mt-2 w-28"
                 aria-label="严重程度"
-                options={SEVERITY_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+                options={SEVERITY_OPTIONS}
                 value={comment.severity}
                 disabled={readonly}
                 onChange={(event) => updateComment(index, { severity: event.target.value as Severity })}

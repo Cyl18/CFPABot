@@ -12,7 +12,8 @@
     "build": "bun run --cwd web build && bun build server/main.ts --outdir dist --target bun --external omp-legacy-pi-modules && bun scripts/copy-natives.ts",
     "start": "bun dist/main.js",
     "typecheck": "tsc --noEmit -p . && bun run --cwd web typecheck",
-    "test": "bun test server"
+    "test": "bun test server",
+    "migrate:exec-scope": "bun scripts/migrate-exec-scope.ts"
   },
   "dependencies": {
     "@cfpa/contracts": "workspace:*",

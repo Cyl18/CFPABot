@@ -1,5 +1,5 @@
 import type { PrFile } from "@cfpa/contracts/api";
-import { modInfosOf } from "@cfpa/review-core/domain/path";
+import { modPathsOf } from "@cfpa/review-core/domain/path";
 import { repo } from "../env.ts";
 import { logger } from "../log.ts";
 import { mirror } from "../mirror.ts";
@@ -46,7 +46,7 @@ export async function collectMods(files: PrFile[], prNumber: number, publicUrl: 
   const sb = new Lines();
   const table = new Lines();
   try {
-    const modInfos = modInfosOf(files.map((file) => file.path));
+    const modInfos = modPathsOf(files.map((file) => file.path));
     const modids = [...new Set(modInfos.map((info) => info.slug))];
     if (modids.length > MAX_MODS) {
       sb.line(TOO_MANY_MODS);

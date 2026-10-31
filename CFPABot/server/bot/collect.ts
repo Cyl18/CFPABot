@@ -2,7 +2,7 @@ import pMap from "p-map";
 import type { CompareRow, PrFile, Workspace } from "@cfpa/contracts/api";
 import { compareLang } from "@cfpa/review-core/domain/diff";
 import { parseLang, type ParsedLang } from "@cfpa/review-core/domain/langfile";
-import { diffModPathsOf, workspacesOf, type LangFormat } from "@cfpa/review-core/domain/path";
+import { modPathsOf, workspacesOf, type LangFormat } from "@cfpa/review-core/domain/path";
 import { loadWorkspaceTexts } from "@cfpa/review-core/domain/workspace-files";
 import { MAX_WORKSPACES } from "@cfpa/review-core/pack";
 import { glossaryTerms } from "../domain/glossary.ts";
@@ -171,7 +171,7 @@ function diffRows(maps: DiffMaps): DiffRow5[] {
 export async function buildDiffComment(pull: GhPull, files: PrFile[], publicUrl: string, source: FileSource): Promise<string> {
   let result: string;
   try {
-    const modPaths = diffModPathsOf(files.filter((file) => file.status !== "removed").map((file) => file.path));
+    const modPaths = modPathsOf(files.filter((file) => file.status !== "removed").map((file) => file.path));
     const sb = new Lines();
     const exceptions: string[] = [];
     const terms = await glossaryTerms();

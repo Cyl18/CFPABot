@@ -23,7 +23,7 @@ export function ArtifactPanel({
   draft?: Omit<DraftPanelProps, "onClose">;
 }) {
   const interval = live ? 3_000 : false;
-  const files = useSessionFiles(id, true, interval);
+  const files = useSessionFiles(id, interval);
   const [open, setOpen] = useState<string | null>(null);
   const list = files.data ?? [];
 

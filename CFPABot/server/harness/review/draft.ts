@@ -5,7 +5,6 @@ import {
   draftInputSchema,
   normalizeDraftJson,
   parseDraftFile,
-  serializeDraftFile,
   severityWarnings,
   validateDraft,
   type DraftSkip,
@@ -441,7 +440,7 @@ export async function saveDraftOf(n: number, sessionId: string, content: string)
   const warnings = severityWarnings(pending);
   const table = await loadTermTable(n, pull.headSha);
   const draft: ReviewDraft = table === null ? pending : { ...pending, terms: table.terms };
-  await writeLocal(sessionId, DRAFT_FILE, serializeDraftFile(draft));
+  await writeLocal(sessionId, DRAFT_FILE, JSON.stringify(draft));
   return {
     ok: true,
     draft,
@@ -458,6 +457,6 @@ export async function markPublishedOf(
   url: string,
 ): Promise<ReviewDraft> {
   const value: ReviewDraft = { ...draft, publishedAt: new Date().toISOString(), publishedUrl: url };
-  await writeLocal(sessionId, DRAFT_FILE, serializeDraftFile(value));
+  await writeLocal(sessionId, DRAFT_FILE, JSON.stringify(value));
   return value;
 }

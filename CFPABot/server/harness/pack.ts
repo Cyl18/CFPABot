@@ -1,4 +1,4 @@
-import { buildPack, findingHistogram, workspaceKey, type Pack } from "@cfpa/review-core/pack";
+import { buildPack, workspaceBrief, type Pack } from "@cfpa/review-core/pack";
 import type { PackSummary } from "@cfpa/contracts/api";
 import { glossaryTerms } from "../domain/glossary.ts";
 import { prdata } from "../prdata.ts";
@@ -38,13 +38,7 @@ export function packSummary(pack: Pack): PackSummary {
   const workspaces = pack.workspaces.map((workspace) => {
     if (workspace.duplicates.length > 5 || workspace.fileFindings.length > 5) truncated = true;
     return {
-      workspace: workspaceKey(workspace),
-      format: workspace.format,
-      enPath: workspace.enPath,
-      zhPath: workspace.zhPath,
-      counts: workspace.counts,
-      histogram: findingHistogram(workspace),
-      duplicates: workspace.duplicates.slice(0, 5),
+      ...workspaceBrief(workspace),
       files: workspace.fileFindings.slice(0, 5),
     };
   });

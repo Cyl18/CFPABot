@@ -72,7 +72,7 @@ export function ComparePage() {
     {
       id: "diff",
       header: <span className="block truncate">{`${left.name} → ${right.name}`}</span>,
-      cell: (row) => <InlineTextDiff before={row.left} after={row.right} />,
+      cell: (row) => <InlineTextDiff before={row.left ?? ""} after={row.right ?? ""} />,
     },
   ];
 

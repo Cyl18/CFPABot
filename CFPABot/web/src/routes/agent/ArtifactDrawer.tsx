@@ -84,7 +84,7 @@ export function ArtifactDrawer({
   onClose(): void;
 }) {
   const interval = live ? 3_000 : false;
-  const file = useSessionFile(sessionId, name, true, interval);
+  const file = useSessionFile(sessionId, name, interval);
   const extension = name.split(".").pop()?.toLowerCase() ?? "";
   const content = file.data?.content;
 

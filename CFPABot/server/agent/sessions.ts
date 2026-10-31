@@ -1,14 +1,13 @@
 import { mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { SCOPES } from "@cfpa/contracts/api";
 import type {
-  BashScope,
-  EvalScope,
+  Scope,
   SessionDraftSummary,
   SessionStatus,
   SessionSummary,
   ThinkingLevel,
-  WriteScope,
 } from "@cfpa/contracts/api";
 import { paths } from "../paths.ts";
 import { readJson, withLock, writeJson } from "../store.ts";
@@ -25,10 +24,9 @@ export interface SessionMeta {
   createdBy: string;
   source: "web" | "github";
   model: string;
-  writeScope: WriteScope;
-  evalScope: EvalScope;
-  bashScope: BashScope;
-  workflow: string;
+  writeScope: Scope;
+  evalScope: Scope;
+  bashScope: Scope;
   thinking?: ThinkingLevel;
   prNumber?: number;
   lastError?: string;
@@ -49,10 +47,9 @@ const metaSchema = z.object({
   createdBy: z.string(),
   source: z.enum(["web", "github"]),
   model: z.string(),
-  writeScope: z.enum(["off", "on"]).default("off"),
-  evalScope: z.enum(["off", "run"]).default("off"),
-  bashScope: z.enum(["off", "run"]).default("off"),
-  workflow: z.string().optional(),
+  writeScope: z.enum(SCOPES).default("off"),
+  evalScope: z.enum(SCOPES).default("off"),
+  bashScope: z.enum(SCOPES).default("off"),
   thinking: z.enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"]).optional(),
   prNumber: z.number().int().positive().optional(),
   lastError: z.string().optional(),
@@ -64,9 +61,7 @@ const recordSchema = z.object({
 });
 
 function toRecord(parsed: z.infer<typeof recordSchema>): SessionRecord {
-  const record: SessionRecord = {
-    meta: { ...parsed.meta, workflow: parsed.meta.workflow || "general" },
-  };
+  const record: SessionRecord = { meta: parsed.meta };
   if (parsed.sessionFile) record.sessionFile = parsed.sessionFile;
   return record;
 }
@@ -86,7 +81,6 @@ export function summarize(
     updatedAt: meta.updatedAt,
     createdBy: meta.createdBy,
     model: meta.model,
-    workflow: meta.workflow,
     ...(meta.prNumber !== undefined ? { prNumber: meta.prNumber } : {}),
     hasArtifact,
     ...(draft ? { draft } : {}),

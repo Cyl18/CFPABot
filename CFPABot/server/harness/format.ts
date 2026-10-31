@@ -1,7 +1,5 @@
 import { isMainBot } from "../bot/render.ts";
 
-export { isMainBot };
-
 const BODY_LIMIT = 2000;
 
 export function trimBody(body: string, limit = BODY_LIMIT): string {

@@ -17,7 +17,6 @@ export interface OutgoingComment {
 export interface ReviewApi {
   n: number;
   state: PrReviewState | undefined;
-  error: unknown;
   access: ReviewAccess;
   syncing: boolean;
   failure: string | null;
@@ -275,7 +274,6 @@ export function ReviewProvider({ n, children }: { n: number; children: ReactNode
   const value: ReviewApi = {
     n,
     state,
-    error: query.error,
     access,
     syncing,
     failure,

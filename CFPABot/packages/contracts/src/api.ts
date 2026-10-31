@@ -109,14 +109,21 @@ export interface CheckReport {
   modFiles: ModFileCheck[];
 }
 
-export interface PackWorkspaceSummary {
+export interface WorkspaceBrief {
   workspace: string;
   format: "json" | "lang";
   enPath: string | null;
   zhPath: string | null;
+  /** pack 未构建时缺失。 */
+  counts?: { total: number; changed: number; flagged: number };
+  histogram?: Record<string, number>;
+  duplicates?: number;
+}
+
+export interface PackWorkspaceSummary extends WorkspaceBrief {
   counts: { total: number; changed: number; flagged: number };
   histogram: Record<string, number>;
-  duplicates: { zh: string; keys: string[] }[];
+  duplicates: number;
   files: { path: string; findings: Finding[] }[];
 }
 
@@ -296,7 +303,7 @@ export interface ReviewBrief {
     write: string;
     publish: string;
   };
-  capabilities: { writeScope: WriteScope; publish: boolean };
+  capabilities: { writeScope: Scope; publish: boolean };
   rows?: ReviewRowsPage;
   next: string[];
   hint: string;
@@ -518,11 +525,9 @@ export interface ModList {
 
 export type SessionStatus = "idle" | "running";
 
-export type WriteScope = "off" | "on";
-
-export type EvalScope = "off" | "run";
-
-export type BashScope = "off" | "run";
+export const SCOPES = ["off", "on"] as const;
+/** 会话的三个权限开关（写仓库、eval、bash）共用这一档。 */
+export type Scope = (typeof SCOPES)[number];
 
 export interface SessionDraftSummary {
   prNumber: number;
@@ -539,13 +544,12 @@ export interface SessionSummary {
   updatedAt: string;
   createdBy: string;
   model: string;
-  workflow: string;
   prNumber?: number;
   hasArtifact: boolean;
   draft?: SessionDraftSummary;
-  writeScope: WriteScope;
-  evalScope: EvalScope;
-  bashScope: BashScope;
+  writeScope: Scope;
+  evalScope: Scope;
+  bashScope: Scope;
   thinking?: ThinkingLevel;
   lastError?: string;
 }
@@ -633,10 +637,18 @@ export type ChatItem =
     }
   | { id: string; kind: "tool"; tool: ToolCallView; at: string };
 
-export type Severity = "critical" | "major" | "minor" | "neutral";
+export const SEVERITIES = ["critical", "major", "minor", "neutral"] as const;
+export type Severity = (typeof SEVERITIES)[number];
 
 /** 严重度从高到低 */
 export const SEVERITY_RANK: Record<Severity, number> = { critical: 0, major: 1, minor: 2, neutral: 3 };
+
+export const SEVERITY_META: Record<Severity, { label: string; tone: "danger" | "warn" | "info" | "neutral" }> = {
+  critical: { label: "严重", tone: "danger" },
+  major: { label: "主要", tone: "warn" },
+  minor: { label: "次要", tone: "info" },
+  neutral: { label: "中性", tone: "neutral" },
+};
 export interface DraftComment {
   id: string;
   path: string;
@@ -708,21 +720,9 @@ export interface CreateSessionRequest {
   prNumber?: number;
   /** 定死的标题尾段（有 prNumber 时前面加 `#<n> · `），给了就不调模型摘要。 */
   title?: string;
-  writeScope?: WriteScope;
-  evalScope?: EvalScope;
-  bashScope?: BashScope;
-}
-
-export interface SetWriteScopeRequest {
-  writeScope: WriteScope;
-}
-
-export interface SetEvalScopeRequest {
-  evalScope: EvalScope;
-}
-
-export interface SetBashScopeRequest {
-  bashScope: BashScope;
+  writeScope?: Scope;
+  evalScope?: Scope;
+  bashScope?: Scope;
 }
 
 export interface SetSessionConfigRequest {
@@ -748,7 +748,8 @@ export type SessionEvent =
 
 export type SessionListEvent = { type: "changed" } | { type: "ping" };
 
-export type LlmProtocol = "openai-completions" | "openai-responses" | "anthropic-messages" | "google-generative-ai";
+export const LLM_PROTOCOLS = ["openai-completions", "openai-responses", "anthropic-messages", "google-generative-ai"] as const;
+export type LlmProtocol = (typeof LLM_PROTOCOLS)[number];
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
 export const THINKING_LEVELS: readonly ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
@@ -945,6 +946,12 @@ export interface MappingEntry {
 
 export const REVIEW_EVENTS = ["COMMENT", "APPROVE", "REQUEST_CHANGES"] as const;
 export type ReviewEvent = (typeof REVIEW_EVENTS)[number];
+
+export const REVIEW_EVENT_META: Record<ReviewEvent, { label: string; tone: "ok" | "info" | "warn"; hint: string }> = {
+  COMMENT: { label: "仅评论", tone: "info", hint: "只留评论，不表态合并" },
+  APPROVE: { label: "批准", tone: "ok", hint: "同意合并" },
+  REQUEST_CHANGES: { label: "要求修改", tone: "warn", hint: "问题太大，改完才能合" },
+};
 
 export type FileViewedState = "VIEWED" | "UNVIEWED" | "DISMISSED";
 

@@ -1,11 +1,12 @@
 import type { LlmProtocol } from "@cfpa/contracts/api";
+import { LLM_PROVIDER_PRESETS } from "@cfpa/contracts/api";
 import { useMutation } from "@tanstack/react-query";
 import { Download, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/cn.ts";
 import { api, errorMessage } from "@/lib/api.ts";
 import { pickModelLimits, type FlatModelEntry } from "@/lib/models-dev.ts";
-import { endpointId, inferProtocolFromUrl, normalizeLlmBaseUrl, PROTOCOLS, PROVIDER_PRESETS } from "@/lib/presets.ts";
+import { endpointId, inferProtocolFromUrl, normalizeLlmBaseUrl, PROTOCOLS } from "@/lib/presets.ts";
 import { Button } from "@/ui/Button.tsx";
 import { Dialog } from "@/ui/Dialog.tsx";
 import { Checkbox, Input } from "@/ui/Input.tsx";
@@ -149,11 +150,11 @@ export function LlmEndpointForm({ initial, providerPreset, modelsDevIndex, savin
         <div className="grid gap-3 sm:grid-cols-2">
           <Select
             label="预设"
-            options={[{ value: "", label: "自定义" }, ...PROVIDER_PRESETS.map((preset) => ({ value: preset.slug, label: preset.label }))]}
-            value={PROVIDER_PRESETS.some((preset) => preset.slug === provider) ? provider : ""}
+            options={[{ value: "", label: "自定义" }, ...LLM_PROVIDER_PRESETS.map((preset) => ({ value: preset.slug, label: preset.label }))]}
+            value={LLM_PROVIDER_PRESETS.some((preset) => preset.slug === provider) ? provider : ""}
             disabled={saving}
             onChange={(event) => {
-              const preset = PROVIDER_PRESETS.find((item) => item.slug === event.target.value);
+              const preset = LLM_PROVIDER_PRESETS.find((item) => item.slug === event.target.value);
               if (!preset) return;
               setProvider(preset.slug);
               setBaseUrl(preset.baseUrl);

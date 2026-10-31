@@ -187,61 +187,32 @@ export function standardVersionOf(dir: string): string {
   return dir === "1.12.2" ? "1.12.2" : dir.replace(/-fabric$/, "");
 }
 
-export interface CommentModPath {
-  slug: string;
-  versionString: string;
-  domain: string;
-}
-
-export function commentModPathOf(path: string): CommentModPath | null {
-  const parts = path.split("/");
-  if (parts.length < 7 || parts[0] !== "projects") return null;
-  const standard = parts[1] === "assets";
-  const slug = (standard ? parts[2] : parts[3]) as string;
-  const versionString = (standard ? parts[3] : parts[1]) as string;
-  const domain = parts[4] as string;
-  if (commentVersionDir(versionString) === null) throw invalidVersionError(versionString);
-  return { slug, versionString, domain };
-}
-
-export function modInfosOf(paths: readonly string[]): CommentModPath[] {
-  const seen = new Set<string>();
-  const infos: CommentModPath[] = [];
-  for (const path of paths) {
-    const info = commentModPathOf(path);
-    if (info === null || info.slug === "1UNKNOWN") continue;
-    const key = `${info.domain}\u0000${info.slug}\u0000${info.versionString}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    infos.push(info);
-  }
-  return infos;
-}
-
-export interface DiffModPath {
+export interface ModPath {
   slug: string;
   dir: string;
   domain: string;
+  /** 旧布局：版本目录在 slug 前面。 */
   legacy: boolean;
 }
 
-export function diffModPathOf(path: string): DiffModPath | null {
+export function modPathOf(path: string): ModPath | null {
   const parts = path.split("/");
   if (parts.length < 7 || parts[0] !== "projects") return null;
   const standard = parts[1] === "assets";
-  const dir = (standard ? parts[3] : parts[1]) as string;
   const slug = (standard ? parts[2] : parts[3]) as string;
+  const dir = (standard ? parts[3] : parts[1]) as string;
   const domain = parts[4] as string;
   if (commentVersionDir(dir) === null) throw invalidVersionError(dir);
   return { slug, dir, domain, legacy: !standard };
 }
 
-export function diffModPathsOf(paths: readonly string[]): DiffModPath[] {
+/** 1UNKNOWN 是未知模组的占位 slug，不参与任何按模组的汇总。 */
+export function modPathsOf(paths: readonly string[]): ModPath[] {
   const seen = new Set<string>();
-  const out: DiffModPath[] = [];
+  const out: ModPath[] = [];
   for (const path of paths) {
-    const parsed = diffModPathOf(path);
-    if (parsed === null) continue;
+    const parsed = modPathOf(path);
+    if (parsed === null || parsed.slug === "1UNKNOWN") continue;
     const key = `${parsed.dir}\u0000${parsed.slug}\u0000${parsed.domain}`;
     if (seen.has(key)) continue;
     seen.add(key);

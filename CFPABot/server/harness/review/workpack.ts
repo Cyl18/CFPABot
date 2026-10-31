@@ -211,8 +211,6 @@ function chunk(rows: readonly ReviewRowView[], blocks: readonly string[], headSh
 export function composeWorkPack(
   pack: Pack,
   rows: readonly ReviewRowView[],
-  now = new Date(),
-  budget = SLICE_BUDGET_BYTES,
   table: TermTable | null = null,
 ): WorkPackComposition {
   const reviewable = rows.filter((row) => row.path !== null && row.line !== null);
@@ -221,7 +219,7 @@ export function composeWorkPack(
   const terms = table?.terms ?? [];
   const termLines = renderSliceTerms(terms, 40, pack.prNumber);
   const reserve = SLICE_RESERVE_BYTES + Buffer.byteLength(termLines.join("\n"));
-  const drafts = chunk(reviewable, blocks, pack.headSha, budget, reserve);
+  const drafts = chunk(reviewable, blocks, pack.headSha, SLICE_BUDGET_BYTES, reserve);
   const files: WorkPackComposition["files"] = [];
   const slices: WorkPackSlice[] = [];
   let docBytes = 0;
@@ -246,10 +244,10 @@ export function composeWorkPack(
   const manifest: WorkPackManifest = {
     prNumber: pack.prNumber,
     headSha: pack.headSha,
-    generatedAt: now.toISOString(),
+    generatedAt: new Date().toISOString(),
     dir: `pack/${pack.headSha.slice(0, 7)}`,
     manifestPath: `local://${MANIFEST_PATH}`,
-    sliceBudgetBytes: budget,
+    sliceBudgetBytes: SLICE_BUDGET_BYTES,
     counts: { reviewable: reviewable.length, slices: slices.length, manualPairs: 0, docBytes },
     workspaces: pack.workspaces.map((workspace) => ({
       workspace: workspaceKey(workspace),
@@ -383,7 +381,7 @@ export async function writeWorkPack(n: number, sessionId: string): Promise<WorkP
     filter: "reviewable",
     include: { terms: true, threads: true, duplicates: true, patch: false },
   };
-  const composed = await withManualSlices(n, pack.headSha, composeWorkPack(pack, reviewRowViews(input, options), new Date(), undefined, table));
+  const composed = await withManualSlices(n, pack.headSha, composeWorkPack(pack, reviewRowViews(input, options), table));
   await persistWorkPack(sessionId, composed);
   return composed.manifest;
 }

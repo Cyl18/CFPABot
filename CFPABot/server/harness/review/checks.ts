@@ -1,4 +1,5 @@
 import type { ChecksSummary, Finding, ModFileCheck } from "@cfpa/contracts/api";
+import { SEVERITY_RANK } from "@cfpa/contracts/api";
 import { getCheckStatus, isRefreshing } from "../../bot/index.ts";
 import { isMainBot } from "../../bot/render.ts";
 import { gh, type GhComment } from "../../github/client.ts";
@@ -17,8 +18,6 @@ export interface ChecksView {
   error?: string;
   hint?: string;
 }
-
-const RANK = { critical: 0, major: 1, minor: 2, neutral: 3 } as const;
 
 /** 信息评论里的报告链接带着检查时的 SHA，是评论里唯一机器可读的检查凭据。 */
 export function commentCheckedSha(n: number, comments: readonly GhComment[]): string | null {
@@ -102,7 +101,7 @@ export function checksSummary(view: ChecksView): ChecksSummary {
     builtAt: view.builtAt,
     unitCount: view.units.length,
     counts: view.counts,
-    top: [...view.findings].sort((a, b) => RANK[a.severity] - RANK[b.severity]).slice(0, 10),
+    top: [...view.findings].sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]).slice(0, 10),
     topTotal: view.findings.length,
     modFiles: view.modFiles,
     ...(view.error === undefined ? {} : { error: view.error }),

@@ -4,6 +4,7 @@ import { elementScroll, observeElementOffset, observeElementRect, useWindowVirtu
 import { AlignRight, ArrowLeftRight, Check, Info, Search, X } from "lucide-react";
 import { Fragment, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { DiffModePicker } from "@/components/DiffModePicker.tsx";
+import { CHANGE, DELETE, INSERT, InlineRuns, InlineTextDiff } from "@/components/InlineTextDiff.tsx";
 import { cn } from "@/lib/cn.ts";
 import { consensusOf } from "@/lib/consensus.ts";
 import { inlineDiff, type DiffMode, type DiffSegment } from "@/lib/diff.ts";
@@ -56,10 +57,6 @@ const COMBINES: readonly { id: DiffCombine; label: string; hint: string }[] = [
 
 // 只有这几个开关值得反过来筛。
 const NEGATABLE: readonly DiffFacet[] = ["changed", "en", "zhAny"];
-
-const INSERT = "rounded-sm bg-ok/20 px-0.5 text-ok no-underline";
-const DELETE = "rounded-sm bg-danger/20 px-0.5 text-danger line-through decoration-danger/60";
-const CHANGE = "rounded-sm bg-warn/20 px-0.5 text-warn";
 
 type Tone = "ok" | "danger" | "warn" | "accent" | "info" | "line" | "none";
 
@@ -119,43 +116,6 @@ function useLayout(fallback: DiffLayout): [DiffLayout, (next: DiffLayout) => voi
   ];
 }
 
-function Runs({ segments }: { segments: readonly DiffSegment[] }) {
-  return (
-    <>
-      {segments.map((segment, index) =>
-        segment.type === "insert" ? (
-          <ins key={index} className={INSERT}>
-            {segment.text}
-          </ins>
-        ) : segment.type === "delete" ? (
-          <del key={index} className={DELETE}>
-            {segment.text}
-          </del>
-        ) : segment.type === "change" ? (
-          <span key={index} className={CHANGE}>
-            {segment.text}
-          </span>
-        ) : (
-          <span key={index}>{segment.text}</span>
-        ),
-      )}
-    </>
-  );
-}
-
-function Inline({ before, after }: { before?: string | null; after: string | null }) {
-  const [mode] = useDiffMode();
-  // before 为 undefined 表示没有可比的来源，原样显示，不要整段标成新增。
-  if (before === undefined) return <span>{expandNewlines(after ?? "")}</span>;
-  const left = before ?? "";
-  const right = after ?? "";
-  if (left === "" && right === "") return <span className="text-muted">—</span>;
-  if (mode === "off" || left === right) return <span>{expandNewlines(right === "" ? left : right)}</span>;
-  if (left === "") return <ins className={INSERT}>{expandNewlines(right)}</ins>;
-  if (right === "") return <del className={DELETE}>{expandNewlines(left)}</del>;
-  return <Runs segments={inlineDiff(expandNewlines(left), expandNewlines(right), mode)} />;
-}
-
 function wholeEdge(direction: "insert" | "delete", value: string | null): { before: string | null; after: string | null } {
   return direction === "insert" ? { before: null, after: value } : { before: value, after: null };
 }
@@ -168,7 +128,7 @@ function zhReference(lane: DiffLane | null, cell: DiffCell | null): string | nul
 function ZhText({ lane, cell, before }: { lane: DiffLane; cell: DiffCell | null; before?: string | null }) {
   const [mode] = useDiffMode();
   if (lane.zhFile === false) return <span className="text-xs italic text-muted" title="这个来源整份中文文件都不存在">无中文文件</span>;
-  if (lane.whole !== undefined) return <Inline {...wholeEdge(lane.whole, cell?.zh ?? null)} />;
+  if (lane.whole !== undefined) return <InlineTextDiff {...wholeEdge(lane.whole, cell?.zh ?? null)} />;
   if (cell === null) {
     if (typeof before === "string" && before !== "" && mode !== "off") return <del className={DELETE}>{expandNewlines(before)}</del>;
     return <span className="text-muted">—</span>;
@@ -182,7 +142,7 @@ function ZhText({ lane, cell, before }: { lane: DiffLane; cell: DiffCell | null;
       </>
     );
   }
-  return <Inline before={before} after={cell.zh} />;
+  return <InlineTextDiff before={before} after={cell.zh} />;
 }
 
 // 行内差异按侧拆开：删除段落只画在含这段文字的旧一侧，插入段落只画在新一侧。
@@ -462,9 +422,9 @@ function MergeRow({
         {anchor !== undefined && !enRight && <span className="flex w-7 shrink-0 justify-center">{anchor("en")}</span>}
         <div className={cn(CELL, enRight && "md:text-right")}>
           {whole === null ? (
-            <Inline before={fromCell?.en ?? null} after={toCell?.en ?? null} />
+            <InlineTextDiff before={fromCell?.en ?? null} after={toCell?.en ?? null} />
           ) : (
-            <Inline {...wholeEdge(whole, wholeCell?.en ?? null)} />
+            <InlineTextDiff {...wholeEdge(whole, wholeCell?.en ?? null)} />
           )}
         </div>
         {anchor !== undefined && enRight && <span className="flex w-7 shrink-0 justify-center">{anchor("en")}</span>}
@@ -546,11 +506,11 @@ function GridRow({
       <div key={lane.id} className={cn(CELL, "md:py-2.5", same && "opacity-55")}>
         {chips}
         {lane.whole !== undefined ? (
-          <Inline {...wholeEdge(lane.whole, cell?.en ?? null)} />
+          <InlineTextDiff {...wholeEdge(lane.whole, cell?.en ?? null)} />
         ) : cell === null ? (
           <span className="text-muted">—</span>
         ) : base?.en != null ? (
-          <Runs segments={inlineDiff(base.en, side.en, mode)} />
+          <InlineRuns segments={inlineDiff(base.en, side.en, mode)} />
         ) : (
           <Marked text={side.en} marks={marks?.en[at] ?? null} />
         )}
@@ -560,13 +520,13 @@ function GridRow({
               无中文文件
             </span>
           ) : lane.whole !== undefined ? (
-            <Inline {...wholeEdge(lane.whole, cell?.zh ?? null)} />
+            <InlineTextDiff {...wholeEdge(lane.whole, cell?.zh ?? null)} />
           ) : cell === null ? (
             <span className="text-muted">—</span>
           ) : cell.zh === null ? (
             <span className="text-xs italic text-muted">未翻译</span>
           ) : base?.zh != null && side.zh !== null ? (
-            <Runs segments={inlineDiff(base.zh, side.zh, mode)} />
+            <InlineRuns segments={inlineDiff(base.zh, side.zh, mode)} />
           ) : (
             <Marked text={side.zh ?? ""} marks={marks?.zh[at] ?? null} />
           )}
@@ -745,9 +705,9 @@ function LaneCard({
                     <span className="w-7 shrink-0 text-xs leading-5 text-muted">英文</span>
                     <span className="min-w-0 whitespace-pre-wrap break-words">
                       {direction !== null ? (
-                        <Inline {...wholeEdge(direction, group.cell.en)} />
+                        <InlineTextDiff {...wholeEdge(direction, group.cell.en)} />
                       ) : base?.en != null ? (
-                        <Runs segments={inlineDiff(base.en, side.en, mode)} />
+                        <InlineRuns segments={inlineDiff(base.en, side.en, mode)} />
                       ) : (
                         <Marked text={side.en} marks={marks?.en[at] ?? null} />
                       )}
@@ -760,11 +720,11 @@ function LaneCard({
                     {group.wild ? (
                       <span className="text-xs italic text-muted">无中文文件</span>
                     ) : direction !== null ? (
-                      <Inline {...wholeEdge(direction, group.cell.zh)} />
+                      <InlineTextDiff {...wholeEdge(direction, group.cell.zh)} />
                     ) : group.cell.zh === null ? (
                       <span className="text-xs italic text-muted">未翻译</span>
                     ) : base?.zh != null && side.zh !== null ? (
-                      <Runs segments={inlineDiff(base.zh, side.zh, mode)} />
+                      <InlineRuns segments={inlineDiff(base.zh, side.zh, mode)} />
                     ) : (
                       <Marked text={side.zh ?? ""} marks={marks?.zh[at] ?? null} />
                     )}
@@ -853,7 +813,6 @@ export interface DiffViewerProps {
   pending?: boolean;
   error?: unknown;
   onRetry?: () => void;
-  empty?: ReactNode;
   scope?: (entry: DiffEntry) => boolean;
   /** 有评论的 key 集合；传了才出现「有评论」开关。 */
   commented?: ReadonlySet<string>;
@@ -880,7 +839,6 @@ export function DiffViewer({
   pending = false,
   error = null,
   onRetry,
-  empty,
   scope,
   commented,
   noDiff,
@@ -1116,7 +1074,7 @@ export function DiffViewer({
       ) : pending ? (
         <SkeletonTable rows={8} columns={3} />
       ) : entries.length === 0 ? (
-        (empty ?? <EmptyState title="没有可比较的内容" description="这个范围里没有找到可以对照的语言文件。" />)
+        <EmptyState title="没有可比较的内容" description="这个范围里没有找到可以对照的语言文件。" />
       ) : activeLanes.length < 2 ? (
         <EmptyState
           title="只有一个版本，无从比较"
@@ -1126,7 +1084,7 @@ export function DiffViewer({
         scope !== undefined && inScope.length === 0 && all.length > 0 ? (
           (noDiff?.(outside) ?? <EmptyState title="没有范围内的 key" description="当前的筛选范围里没有任何 key。" />)
         ) : needle === "" ? (
-          (empty ?? <EmptyState title="没有可显示的 key" description="当前条件下没有任何 key。" />)
+          <EmptyState title="没有可显示的 key" description="当前条件下没有任何 key。" />
         ) : (
           <EmptyState
             title="没有匹配的 key"

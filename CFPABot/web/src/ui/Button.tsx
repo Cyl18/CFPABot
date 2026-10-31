@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/cn.ts";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
-type Size = "sm" | "md" | "icon";
+type Size = "xs" | "sm" | "md" | "icon";
 
 const VARIANTS: Record<Variant, string> = {
   primary: "border border-transparent bg-brand text-brand-fg hover:bg-brand-hover",
@@ -13,6 +13,7 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 const SIZES: Record<Size, string> = {
+  xs: "h-6 gap-1 px-1.5 text-xs",
   sm: "h-7 gap-1.5 px-2.5 text-xs",
   md: "h-9 gap-2 px-3.5 text-sm",
   icon: "h-8 w-8 justify-center",

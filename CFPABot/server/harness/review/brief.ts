@@ -243,6 +243,7 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
       `read ${rowsUri(n, { filter: "flagged", include: { terms: false, threads: false, duplicates: false, patch: false } })}`,
     );
   }
+  const writeScope = options.session?.writeScope ?? "off";
   const brief: ReviewBrief = {
     next,
     hint,
@@ -294,8 +295,8 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
     discussions: discussion.brief,
     draft,
     capabilities: {
-      writeScope: options.session?.writeScope ?? "off",
-      publish: (options.session?.writeScope ?? "off") === "on",
+      writeScope,
+      publish: writeScope === "on",
     },
     ...(rows === undefined ? {} : { rows }),
   };

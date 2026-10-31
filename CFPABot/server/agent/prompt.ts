@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { paths } from "../paths.ts";
 import { resourceTree } from "../harness/catalog.ts";
 import { WRITE_TARGETS } from "../harness/write-targets.ts";
-import type { WorkflowDefinition } from "./workflows/types.ts";
 
+const PROMPT_FILES = ["pipeline.md"];
 const AGENT_DIR = join(paths.config, "agent");
 const TREE_PLACEHOLDER = "{{RESOURCE_TREE}}";
 const WRITE_PLACEHOLDER = "{{WRITE_TARGETS}}";
@@ -23,7 +23,6 @@ async function readPrompt(file: string): Promise<string> {
 }
 
 export async function buildSystemPrompt(
-  workflow: WorkflowDefinition,
   workspaceDir: string,
   repoRoot: string,
   prNumber?: number,
@@ -48,6 +47,6 @@ export async function buildSystemPrompt(
     .replaceAll(REPO_PLACEHOLDER, paths.repo)
     .replace(MODELS_PLACEHOLDER, modelsLine)
     .replace(PR_PLACEHOLDER, prBound);
-  const fragments = await Promise.all(workflow.promptFiles.map(readPrompt));
+  const fragments = await Promise.all(PROMPT_FILES.map(readPrompt));
   return [system, ...fragments].filter(Boolean).join("\n\n");
 }

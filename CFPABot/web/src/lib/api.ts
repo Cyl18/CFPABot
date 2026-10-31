@@ -27,12 +27,9 @@ import type {
   SessionFile,
   SessionFileContent,
   SessionSummary,
-  SetBashScopeRequest,
-  SetEvalScopeRequest,
   SetFileViewedRequest,
   SetSessionConfigRequest,
   SetThreadResolvedRequest,
-  SetWriteScopeRequest,
   SpecialPair,
   SpecialPairContent,
   SubmitReviewRequest,
@@ -40,6 +37,7 @@ import type {
   SystemStatus,
   TextCompareRequest,
   TextCompareResult,
+  Scope,
 } from "@cfpa/contracts/api";
 
 const TIMEOUT_MS = 30_000;
@@ -202,12 +200,12 @@ export const api = {
       `/api/sessions/${encodeURIComponent(id)}/subagents/${encodeURIComponent(agentId)}/abort`,
     ),
   archiveSession: (id: string) => send<{ ok: true }>("POST", `/api/sessions/${encodeURIComponent(id)}/archive`),
-  setSessionWriteScope: (id: string, body: SetWriteScopeRequest) =>
-    send<{ ok: true; writeScope: string }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/write-scope`, body),
-  setSessionEvalScope: (id: string, body: SetEvalScopeRequest) =>
-    send<{ ok: true; evalScope: string }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/eval-scope`, body),
-  setSessionBashScope: (id: string, body: SetBashScopeRequest) =>
-    send<{ ok: true; bashScope: string }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/bash-scope`, body),
+  setSessionWriteScope: (id: string, body: { writeScope: Scope }) =>
+    send<{ ok: true }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/write-scope`, body),
+  setSessionEvalScope: (id: string, body: { evalScope: Scope }) =>
+    send<{ ok: true }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/eval-scope`, body),
+  setSessionBashScope: (id: string, body: { bashScope: Scope }) =>
+    send<{ ok: true }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/bash-scope`, body),
   setSessionConfig: (id: string, body: SetSessionConfigRequest) =>
     send<{ ok: true }>("PATCH", `/api/sessions/${encodeURIComponent(id)}/config`, body),
   saveArtifact: (id: string, value: unknown) =>

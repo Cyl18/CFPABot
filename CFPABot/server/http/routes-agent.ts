@@ -6,12 +6,7 @@ import { stopSubagent } from "../agent/subagents.ts";
 import { requireAdmin } from "./auth.ts";
 import type { AppEnv } from "./auth.ts";
 import { notFound, parseBody } from "./errors.ts";
-import type {
-  CreateSessionRequest,
-  SetBashScopeRequest,
-  SessionEvent,
-  SessionListEvent,
-} from "@cfpa/contracts/api";
+import { SCOPES, type CreateSessionRequest, type SessionEvent, type SessionListEvent } from "@cfpa/contracts/api";
 
 export const sessionRoutes = new Hono<AppEnv>();
 
@@ -20,14 +15,14 @@ const createSchema = z.object({
   model: z.string().optional(),
   prNumber: z.number().int().positive().optional(),
   title: z.string().optional(),
-  writeScope: z.enum(["off", "on"]).optional(),
-  evalScope: z.enum(["off", "run"]).optional(),
-  bashScope: z.enum(["off", "run"]).optional(),
+  writeScope: z.enum(SCOPES).optional(),
+  evalScope: z.enum(SCOPES).optional(),
+  bashScope: z.enum(SCOPES).optional(),
 });
 
-const writeScopeSchema = z.object({ writeScope: z.enum(["off", "on"]) });
-const evalScopeSchema = z.object({ evalScope: z.enum(["off", "run"]) });
-const bashScopeSchema = z.object({ bashScope: z.enum(["off", "run"]) });
+const writeScopeSchema = z.object({ writeScope: z.enum(SCOPES) });
+const evalScopeSchema = z.object({ evalScope: z.enum(SCOPES) });
+const bashScopeSchema = z.object({ bashScope: z.enum(SCOPES) });
 const configSchema = z.object({
   model: z.string().optional(),
   thinking: z.union([z.enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"]), z.null()]).optional(),
@@ -82,19 +77,19 @@ sessionRoutes.get("/:id/file", async (c) => c.json(await agent.readFile(c.req.pa
 sessionRoutes.patch("/:id/write-scope", async (c) => {
   const { writeScope } = await parseBody(c, writeScopeSchema);
   await agent.setWriteScope(c.req.param("id"), writeScope);
-  return c.json({ ok: true, writeScope });
+  return c.json({ ok: true });
 });
 
 sessionRoutes.patch("/:id/eval-scope", async (c) => {
   const { evalScope } = await parseBody(c, evalScopeSchema);
-  await agent.setEvalScope(c.req.param("id"), evalScope);
-  return c.json({ ok: true, evalScope });
+  await agent.setExecScope(c.req.param("id"), "evalScope", evalScope);
+  return c.json({ ok: true });
 });
 
 sessionRoutes.patch("/:id/bash-scope", async (c) => {
   const { bashScope } = await parseBody(c, bashScopeSchema);
-  await agent.setBashScope(c.req.param("id"), bashScope);
-  return c.json({ ok: true, bashScope });
+  await agent.setExecScope(c.req.param("id"), "bashScope", bashScope);
+  return c.json({ ok: true });
 });
 
 sessionRoutes.patch("/:id/config", async (c) => {

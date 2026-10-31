@@ -10,8 +10,6 @@ const MAX_KEYS = 30;
 const PLACEHOLDER = /[%{}<>\\$\\]/;
 
 export interface CandidateOptions {
-  /** 非注册名 key 至少重复几次才进候选。 */
-  minCount?: number;
   /** 每个候选带几条全文上下文。 */
   contexts?: number;
   limit?: number;
@@ -46,7 +44,6 @@ export function extractTermCandidates(
   index: TermIndex | null,
   options: CandidateOptions = {},
 ): TermCandidate[] {
-  const minCount = options.minCount ?? 2;
   const contextLimit = options.contexts ?? 6;
   const limit = options.limit ?? 80;
   const drafts = new Map<string, Draft>();
@@ -65,7 +62,7 @@ export function extractTermCandidates(
     }
   }
   for (const draft of drafts.values()) {
-    if (draft.registration || draft.count >= minCount) continue;
+    if (draft.registration || draft.count >= 2) continue;
     drafts.delete(draft.en.toLowerCase());
   }
   for (const workspace of pack.workspaces) {

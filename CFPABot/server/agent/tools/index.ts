@@ -26,7 +26,7 @@ function logged<T extends CustomTool>(tool: T): T {
 export function buildTools(
   ctx: ToolContext,
   availableTools: string[],
-  extensions: ExtensionFactory[] = [],
+  extensions: ExtensionFactory[],
 ): CustomTool[] {
   return [logged(bashTool(ctx, availableTools)), logged(delegateTool(ctx, extensions)), logged(waitTool(ctx))];
 }

@@ -1,20 +1,13 @@
 import type { ReviewDraft } from "@cfpa/contracts/api";
-import { assertBotWrites, gh } from "../../../github/client.ts";
-import { logger } from "../../../log.ts";
-import { prdata } from "../../../prdata.ts";
-import { loadTermTable } from "../../../harness/review/term-store.ts";
-import { renderInlineBody, renderReviewBody, validateDraft } from "../../draft.ts";
+import { assertBotWrites, gh } from "../../github/client.ts";
+import { logger } from "../../log.ts";
+import { prdata } from "../../prdata.ts";
+import { loadTermTable } from "./term-store.ts";
+import { renderInlineBody, renderReviewBody, validateDraft } from "@cfpa/review-core/draft";
 
 const log = logger("agent-publish");
 
-export interface PublishOptions {
-  marker?: string;
-}
-
-export async function publishDraft(
-  draft: ReviewDraft,
-  opts: PublishOptions = {},
-): Promise<{ url: string; headSha: string }> {
+export async function publishDraft(draft: ReviewDraft, marker?: string): Promise<{ url: string }> {
   assertBotWrites();
   await prdata.refresh(draft.prNumber);
   const { pull, files } = await prdata.files(draft.prNumber);
@@ -28,7 +21,7 @@ export async function publishDraft(
   if (errors.length > 0) throw new Error(`草稿校验失败：${errors.join("；")}`);
   const table = await loadTermTable(draft.prNumber, draft.headSha);
   const freshest: ReviewDraft = table === null ? draft : { ...draft, terms: table.terms };
-  const body = opts.marker === undefined ? renderReviewBody(freshest) : `${renderReviewBody(freshest)}\n\n${opts.marker}`;
+  const body = marker === undefined ? renderReviewBody(freshest) : `${renderReviewBody(freshest)}\n\n${marker}`;
   const inline = draft.comments.flatMap((comment) =>
     comment.fileLevel === true || comment.line === undefined ? [] : [{ comment, line: comment.line }],
   );
@@ -49,5 +42,5 @@ export async function publishDraft(
     fileLevel: draft.comments.length - inline.length,
     url: review.htmlUrl,
   });
-  return { url: review.htmlUrl, headSha: pull.headSha };
+  return { url: review.htmlUrl };
 }

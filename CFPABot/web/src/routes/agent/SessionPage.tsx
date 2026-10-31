@@ -1,7 +1,6 @@
 import type {
-  BashScope,
   ChatItem,
-  EvalScope,
+  Scope,
   ReviewDraft,
   SessionEvent,
   SessionStatus,
@@ -9,7 +8,6 @@ import type {
   SubagentInfo,
   ThinkingLevel,
   TodoPhase,
-  WriteScope,
 } from "@cfpa/contracts/api";
 import { parseModelSelector } from "@cfpa/contracts/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -78,6 +76,24 @@ function latestContextTokens(items: readonly ChatItem[]): number | undefined {
   return undefined;
 }
 
+const SCOPE_CONFIRM = {
+  eval: {
+    title: "开启 eval 权限",
+    description: "开启后 Agent 可以在这台服务器上运行 Python / JS 单元格。",
+    note: "关闭后新的 eval 调用会被拒绝。",
+  },
+  bash: {
+    title: "开启 bash 权限",
+    description: "开启后 Agent 可以在这台服务器上执行任意 shell 命令。",
+    note: "关闭后新的 bash 调用会被拒绝。",
+  },
+  write: {
+    title: "开启 GitHub 写权限",
+    description: "开启后 Agent 可以在 PR 上发表评论、提交审查、修改标签。",
+    note: "关闭后新的写入会被拒绝。",
+  },
+} as const;
+
 export function SessionPage({ id }: { id: string }) {
   const detail = useSession(id);
   const client = useQueryClient();
@@ -99,14 +115,14 @@ export function SessionPage({ id }: { id: string }) {
   const seededId = useRef<string | null>(null);
   const idRef = useRef(id);
   const dirtyRef = useRef(false);
-  const [confirmExec, setConfirmExec] = useState<"eval" | "bash" | null>(null);
+  const [confirmExec, setConfirmExec] = useState<"eval" | "bash" | "write" | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [queued, setQueued] = useState<{ steering: string[]; followUp: string[] }>({ steering: [], followUp: [] });
   const [subagents, setSubagents] = useState<Record<string, SubagentInfo>>({});
   const [plan, setPlan] = useState<TodoPhase[] | undefined>(undefined);
   const [activeTurn, setActiveTurn] = useState(0);
   const jumpRef = useRef<((index: number) => void) | null>(null);
-  const llm = useLlmConfig(true);
+  const llm = useLlmConfig();
   const modelsDev = useModelsDevIndex();
   const modelsDevIndex = modelsDev.index;
   const prs = usePrs("open");
@@ -313,7 +329,7 @@ export function SessionPage({ id }: { id: string }) {
   };
 
   const setEval = useMutation({
-    mutationFn: (evalScope: EvalScope) => api.setSessionEvalScope(id, { evalScope }),
+    mutationFn: (evalScope: Scope) => api.setSessionEvalScope(id, { evalScope }),
     onSuccess: () => {
       setActionError(undefined);
       refreshSession();
@@ -322,7 +338,7 @@ export function SessionPage({ id }: { id: string }) {
   });
 
   const setBash = useMutation({
-    mutationFn: (bashScope: BashScope) => api.setSessionBashScope(id, { bashScope }),
+    mutationFn: (bashScope: Scope) => api.setSessionBashScope(id, { bashScope }),
     onSuccess: () => {
       setActionError(undefined);
       refreshSession();
@@ -331,7 +347,7 @@ export function SessionPage({ id }: { id: string }) {
   });
 
   const setWrite = useMutation({
-    mutationFn: (writeScope: WriteScope) => api.setSessionWriteScope(id, { writeScope }),
+    mutationFn: (writeScope: Scope) => api.setSessionWriteScope(id, { writeScope }),
     onSuccess: () => {
       setActionError(undefined);
       refreshSession();
@@ -365,9 +381,10 @@ export function SessionPage({ id }: { id: string }) {
   const meta = detail.data;
   const running = status === "running";
   const archived = meta.archived;
-  const evalOn = meta.evalScope === "run";
-  const bashOn = meta.bashScope === "run";
+  const evalOn = meta.evalScope === "on";
+  const bashOn = meta.bashScope === "on";
   const writeOn = meta.writeScope === "on";
+  const confirmScope = confirmExec === null ? null : SCOPE_CONFIRM[confirmExec];
 
   const modelOptions: PickerOption[] = [
     { value: "", label: "默认模型" },
@@ -620,7 +637,11 @@ export function SessionPage({ id }: { id: string }) {
                     >
                       bash {bashOn ? "开" : "关"}
                     </ToggleChip>
-                    <ToggleChip pressed={writeOn} onClick={() => setWrite.mutate(writeOn ? "off" : "on")} title="允许 Agent 向 GitHub 写入">
+                    <ToggleChip
+                      pressed={writeOn}
+                      onClick={() => (writeOn ? setWrite.mutate("off") : setConfirmExec("write"))}
+                      title="允许 Agent 向 GitHub 写入"
+                    >
                       GitHub 写 {writeOn ? "开" : "关"}
                     </ToggleChip>
                   </>
@@ -675,12 +696,8 @@ export function SessionPage({ id }: { id: string }) {
       <Dialog
         open={confirmExec !== null}
         onClose={() => setConfirmExec(null)}
-        title={confirmExec === "bash" ? "开启 bash 权限" : "开启 eval 权限"}
-        description={
-          confirmExec === "bash"
-            ? "开启后 Agent 可以在这台服务器上执行任意 shell 命令。"
-            : "开启后 Agent 可以在这台服务器上运行 Python / JS 单元格。"
-        }
+        title={confirmScope?.title ?? ""}
+        description={confirmScope?.description ?? ""}
         size="sm"
         footer={
           <>
@@ -690,8 +707,9 @@ export function SessionPage({ id }: { id: string }) {
               onClick={() => {
                 const scope = confirmExec;
                 setConfirmExec(null);
-                if (scope === "bash") setBash.mutate("run");
-                else setEval.mutate("run");
+                if (scope === "bash") setBash.mutate("on");
+                else if (scope === "eval") setEval.mutate("on");
+                else if (scope === "write") setWrite.mutate("on");
               }}
             >
               确认开启
@@ -699,7 +717,7 @@ export function SessionPage({ id }: { id: string }) {
           </>
         }
       >
-        <p className="text-xs text-muted">只在明确需要时开启；关闭后新的 {confirmExec === "bash" ? "bash" : "eval"} 调用会被拒绝。</p>
+        <p className="text-xs text-muted">只在明确需要时开启；{confirmScope?.note}</p>
       </Dialog>
     </div>
   );

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { DraftComment, ReviewDraft, ReviewEvent, Severity } from "@cfpa/contracts/api";
-import { REVIEW_EVENTS } from "@cfpa/contracts/api";
+import type { DraftComment, ReviewDraft } from "@cfpa/contracts/api";
+import { REVIEW_EVENTS, REVIEW_EVENT_META, SEVERITIES, SEVERITY_RANK } from "@cfpa/contracts/api";
 import { MQM_BY_ID } from "@cfpa/contracts/mqm";
 import { inHunks, patchHeadLines, patchHunks } from "./domain/diff.ts";
 import { renderTermBlock } from "./domain/term-table.ts";
@@ -11,7 +11,7 @@ const draftCommentInput = z.object({
   path: z.string().min(1),
   line: z.number().int().positive().optional(),
   key: z.string().default(""),
-  severity: z.enum(["critical", "major", "minor", "neutral"]).optional(),
+  severity: z.enum(SEVERITIES).optional(),
   mqm: z.string(),
   en: z.string().optional(),
   zh: z.string().optional(),
@@ -46,7 +46,7 @@ export const reviewDraftSchema = draftInputSchema.extend({
   headSha: z.string().min(1),
   comments: z.array(
     draftCommentInput.extend({
-      severity: z.enum(["critical", "major", "minor", "neutral"]),
+      severity: z.enum(SEVERITIES),
     }),
   ),
   terms: z
@@ -91,17 +91,10 @@ export function parseDraftFile(content: string | undefined): ReviewDraft | null 
   }
 }
 
-export function serializeDraftFile(draft: ReviewDraft): string {
-  return JSON.stringify(draft);
-}
-
 export interface DraftContext {
   /** 省略时只校验草稿自身；发布路径必须提供，用于核对行号落在 diff hunk 内。 */
   patches?: Map<string, string | undefined>;
 }
-
-const SEVERITIES: Severity[] = ["critical", "major", "minor", "neutral"];
-const EVENT_LABEL: Record<ReviewEvent, string> = { APPROVE: "可以合", COMMENT: "不能合，按评论改", REQUEST_CHANGES: "不能合，问题太大" };
 
 export function validateDraft(
   draft: Omit<ReviewDraft, "updatedAt" | "publishedAt" | "publishedUrl">,
@@ -116,7 +109,6 @@ export function validateDraft(
     headLines.set(path, lines);
     return lines;
   };
-  if (!EVENT_LABEL[draft.event]) errors.push(`event 非法: ${draft.event}`);
   if (!draft.summary.trim()) errors.push("summary 不能为空");
   if (!Number.isInteger(draft.prNumber) || draft.prNumber <= 0) errors.push("prNumber 非法");
   if (!draft.headSha?.trim()) errors.push("headSha 不能为空");
@@ -125,7 +117,6 @@ export function validateDraft(
     const fileLevel = comment.fileLevel === true;
     const where = `${index + 1}. ${comment.path}:${fileLevel ? "(文件级)" : (comment.line ?? "(无行号)")}`;
     if (!comment.path.trim()) errors.push(`${where}: path 不能为空`);
-    if (!SEVERITIES.includes(comment.severity)) errors.push(`${where}: severity 非法: ${comment.severity}`);
     if (!comment.body.trim()) errors.push(`${where}: body 不能为空`);
     if (typeof comment.mqm !== "string" || !MQM_BY_ID.has(comment.mqm)) {
       const [dim = "", leaf = ""] = typeof comment.mqm === "string" ? comment.mqm.split("/") : [];
@@ -200,15 +191,13 @@ function wholeLineProblem(path: string, head: string, suggestion: string): strin
   }
 }
 
-const SEVERITY_RANK: Record<Severity, number> = { critical: 4, major: 3, minor: 2, neutral: 1 };
-
 /** 档位低于词表默认值的条目，只提示不拦。 */
 export function severityWarnings(draft: Pick<ReviewDraft, "comments">): string[] {
   const warnings: string[] = [];
   for (const comment of draft.comments) {
     const type = MQM_BY_ID.get(comment.mqm);
     if (type === undefined || comment.suspected === true) continue;
-    if (SEVERITY_RANK[comment.severity] < SEVERITY_RANK[type.severity]) {
+    if (SEVERITY_RANK[comment.severity] > SEVERITY_RANK[type.severity]) {
       warnings.push(
         `${comment.path}:${comment.line ?? "(文件级)"} ${comment.key}: ${type.label}默认档位 ${type.severity}，当前 ${comment.severity}；后果确实更轻才保留`,
       );
@@ -251,7 +240,7 @@ export function renderReviewBody(draft: ReviewDraft): string {
   const major = inline.filter((comment) => comment.severity === "major" || comment.severity === "critical").length;
   const minor = inline.length - major;
   return [
-    `本批共 ${inline.length} 条 inline（major ${major} / minor ${minor}）${fileLevel.length === 0 ? "" : `、${fileLevel.length} 条文件级`}，结论：**${EVENT_LABEL[draft.event]}**。`,
+    `本批共 ${inline.length} 条 inline（major ${major} / minor ${minor}）${fileLevel.length === 0 ? "" : `、${fileLevel.length} 条文件级`}，结论：**${REVIEW_EVENT_META[draft.event].label}**。`,
     draft.summary.trim(),
     ...(fileLevel.length === 0
       ? []

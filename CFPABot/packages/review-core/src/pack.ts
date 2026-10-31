@@ -72,7 +72,7 @@ export function findingHistogram(workspace: PackWorkspace): Record<string, numbe
 }
 
 /** 共用工作区描述 */
-export function workspaceBrief(workspace: PackWorkspace): WorkspaceBrief {
+export function workspaceBrief(workspace: PackWorkspace): Required<WorkspaceBrief> {
   return {
     workspace: workspaceKey(workspace),
     format: workspace.format,

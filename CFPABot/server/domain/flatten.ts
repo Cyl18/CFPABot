@@ -5,13 +5,8 @@ export interface FlattenParsed {
   lines: Map<string, number>;
 }
 
-const FORMAT_BY_SUFFIX: Record<string, string> = { ".flatten.json5": "flatten" };
-
 export function specialFormat(path: string): string | null {
-  for (const [suffix, format] of Object.entries(FORMAT_BY_SUFFIX)) {
-    if (path.endsWith(suffix)) return format;
-  }
-  return null;
+  return path.endsWith(".flatten.json5") ? "flatten" : null;
 }
 
 const FAIL = Symbol("json5-fail");
