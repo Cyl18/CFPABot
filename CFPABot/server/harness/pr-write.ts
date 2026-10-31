@@ -1,6 +1,7 @@
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { z } from "zod";
-import type { ReviewDraft, ReviewEvent, ReviewThread, Verdict } from "@cfpa/contracts/api";
+import type { ReviewDraft, ReviewThread } from "@cfpa/contracts/api";
+import { REVIEW_EVENTS } from "@cfpa/contracts/api";
 import { DRAFT_FILE } from "@cfpa/review-core/draft";
 import { inHunks, patchHunks } from "@cfpa/review-core/domain/diff";
 import { parseTermInput, termCounts, validateTermTable } from "@cfpa/review-core/domain/term-table";
@@ -31,8 +32,6 @@ import type { PrParts } from "./uri.ts";
 
 const AGENT_MARKER_PREFIX = "<!--CFPA-AGENT:";
 const AGENT_MARKER_RE = /<!--CFPA-AGENT:[\s\S]*?-->/g;
-const REVIEW_EVENTS = ["COMMENT", "APPROVE", "REQUEST_CHANGES"] as const;
-
 const submitSchema = z.object({
   event: z.enum(REVIEW_EVENTS),
   body: z.string(),
@@ -47,20 +46,7 @@ function withMarker(body: string, sessionId: string, toolCallId: string): string
   return `${body.replace(AGENT_MARKER_RE, "").trimEnd()}\n\n${markerOf(sessionId, toolCallId)}`;
 }
 
-/** 结论即动作：approve 批、changes 要求改、reject 只留评论。显式 event 仍可覆盖。 */
-const EVENT_OF_VERDICT: Record<Verdict, ReviewEvent> = {
-  approve: "APPROVE",
-  changes: "REQUEST_CHANGES",
-  reject: "COMMENT",
-};
-
-function eventOf(uri: PrParts, draft: Pick<ReviewDraft, "verdict" | "event">): ReviewEvent {
-  const value = uri.query.get("event") ?? draft.event ?? EVENT_OF_VERDICT[draft.verdict] ?? "COMMENT";
-  if (value === "COMMENT" || value === "APPROVE" || value === "REQUEST_CHANGES") return value;
-  throw new Error("event 只能是 COMMENT / APPROVE / REQUEST_CHANGES。");
-}
-
-function parseSubmit(content: string | undefined): { event: "COMMENT" | "APPROVE" | "REQUEST_CHANGES"; body: string } {
+function parseSubmit(content: string | undefined): SubmitInput {
   if (content === undefined || content.trim().length === 0) return { event: "COMMENT", body: "" };
   return submitSchema.parse(JSON.parse(content) as unknown);
 }
@@ -229,7 +215,7 @@ async function writeReview(uri: PrParts, content: string | undefined, ctx: Write
   }
   let url: string;
   try {
-    ({ url } = await publishDraft(draft, { event: eventOf(uri, draft), marker }));
+    ({ url } = await publishDraft(draft, { marker }));
   } catch (err) {
     return errorResult({
       ok: false,

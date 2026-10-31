@@ -51,7 +51,13 @@ run(f"{root}/skills/prep/scripts/termgen/final.py", "mod", "review", "./scope", 
 
 坏：body 只写 `不太自然`，或 suggestion 只给改动的词、不给整行。
 
-`verdict`：有必改项用 `changes`，整体方向错才 `reject`，没有必改项才 `approve`。`write pr://<n>/review` 会先重验 `headSha` 和行号；草稿过期会被打回重审，且只在人明确要求时写。
+`event` 是态度，不是评分表；只有 `APPROVE` 表示可以合，另两档都是不能合：
+
+- `APPROVE`：可以合。没问题，或只有 minor；评论里提的可改可不改。
+- `COMMENT`：不能合，按评论改。正常校对回报：逐条指出问题，改完再看。
+- `REQUEST_CHANGES`：不能合，问题太大。错译成片，或错在最不该错的地方（机制、数值、关键术语）。
+
+不确定用哪档就给 `COMMENT`。`write pr://<n>/review` 会先重验 `headSha` 和行号；草稿过期会被打回重审，且只在人明确要求时写。
 
 ## 裁定
 
@@ -62,7 +68,7 @@ run(f"{root}/skills/prep/scripts/termgen/final.py", "mod", "review", "./scope", 
 5. **同一 pattern 只报一条。** 首现 key 给 suggestion，其余进 `covers`，body 写 pattern。
 6. **档位按后果定，不按词表默认。** 玩家会做错选择、崩溃、反义 → critical；错义、漏译、关键术语 → major；读得通但别扭 → minor；拿不准 → neutral 或 suspected。
 7. **文件级问题写 `summary`。** 路径、键集、JSON 语法都写进 `summary`；路径问题引用 `checks` 里的 `/mv` 提示。
-8. **只为本 PR 引入或本 PR 必须补齐的问题改 verdict。** base 就存在、不是本 PR 引入的文件级差异（缺 key、上游笔误、既有格式问题）写进 `summary` 并注明「base 既有」，verdict 照旧。
+8. **只为本 PR 引入或本 PR 必须补齐的问题改 event。** base 就存在、不是本 PR 引入的文件级差异（缺 key、上游笔误、既有格式问题）写进 `summary` 并注明「base 既有」，event 照旧。
 
 ## MQM
 

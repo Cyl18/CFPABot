@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { DraftComment, ReviewDraft, Severity, Verdict } from "@cfpa/contracts/api";
+import type { DraftComment, ReviewDraft, ReviewEvent, Severity } from "@cfpa/contracts/api";
+import { REVIEW_EVENTS } from "@cfpa/contracts/api";
 import { MQM_BY_ID } from "@cfpa/contracts/mqm";
 import { inHunks, patchHeadLines, patchHunks } from "./domain/diff.ts";
 import { renderTermBlock } from "./domain/term-table.ts";
@@ -33,11 +34,10 @@ export type DraftSkip = z.infer<typeof draftSkipSchema>;
 export const draftInputSchema = z.object({
   prNumber: z.number().int().positive(),
   headSha: z.string().min(1).optional(),
-  verdict: z.enum(["approve", "changes", "reject"]),
+  event: z.enum(REVIEW_EVENTS),
   summary: z.string(),
   comments: z.array(draftCommentInput),
   skipped: z.array(draftSkipSchema).optional(),
-  event: z.enum(["COMMENT", "APPROVE", "REQUEST_CHANGES"]).optional(),
 });
 
 export const DRAFT_FILE = "draft.json";
@@ -101,7 +101,7 @@ export interface DraftContext {
 }
 
 const SEVERITIES: Severity[] = ["critical", "major", "minor", "neutral"];
-const VERDICT_LABEL: Record<Verdict, string> = { approve: "可合", changes: "需改后合", reject: "退回" };
+const EVENT_LABEL: Record<ReviewEvent, string> = { APPROVE: "可以合", COMMENT: "不能合，按评论改", REQUEST_CHANGES: "不能合，问题太大" };
 
 export function validateDraft(
   draft: Omit<ReviewDraft, "updatedAt" | "publishedAt" | "publishedUrl">,
@@ -116,7 +116,7 @@ export function validateDraft(
     headLines.set(path, lines);
     return lines;
   };
-  if (!VERDICT_LABEL[draft.verdict]) errors.push(`verdict 非法: ${draft.verdict}`);
+  if (!EVENT_LABEL[draft.event]) errors.push(`event 非法: ${draft.event}`);
   if (!draft.summary.trim()) errors.push("summary 不能为空");
   if (!Number.isInteger(draft.prNumber) || draft.prNumber <= 0) errors.push("prNumber 非法");
   if (!draft.headSha?.trim()) errors.push("headSha 不能为空");
@@ -251,7 +251,7 @@ export function renderReviewBody(draft: ReviewDraft): string {
   const major = inline.filter((comment) => comment.severity === "major" || comment.severity === "critical").length;
   const minor = inline.length - major;
   return [
-    `本批共 ${inline.length} 条 inline（major ${major} / minor ${minor}）${fileLevel.length === 0 ? "" : `、${fileLevel.length} 条文件级`}，verdict：**${VERDICT_LABEL[draft.verdict]}**。`,
+    `本批共 ${inline.length} 条 inline（major ${major} / minor ${minor}）${fileLevel.length === 0 ? "" : `、${fileLevel.length} 条文件级`}，结论：**${EVENT_LABEL[draft.event]}**。`,
     draft.summary.trim(),
     ...(fileLevel.length === 0
       ? []

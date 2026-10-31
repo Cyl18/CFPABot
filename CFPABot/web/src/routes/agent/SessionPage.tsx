@@ -46,7 +46,7 @@ type AsideTab = "files" | "status";
 
 function isReviewDraft(value: unknown): value is ReviewDraft {
   if (typeof value !== "object" || value === null) return false;
-  return "verdict" in value && "comments" in value && Array.isArray(value.comments);
+  return "event" in value && "comments" in value && Array.isArray(value.comments);
 }
 
 function QueuedSteers({ steering, followUp }: { steering: readonly string[]; followUp: readonly string[] }) {

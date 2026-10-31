@@ -8,7 +8,6 @@ import { renderInlineBody, renderReviewBody, validateDraft } from "../../draft.t
 const log = logger("agent-publish");
 
 export interface PublishOptions {
-  event?: "COMMENT" | "APPROVE" | "REQUEST_CHANGES";
   marker?: string;
 }
 
@@ -36,7 +35,7 @@ export async function publishDraft(
   const review = await gh.createReview(draft.prNumber, {
     commitId: pull.headSha,
     body,
-    event: opts.event ?? "COMMENT",
+    event: draft.event,
     comments: inline.map(({ comment, line }) => ({
       path: comment.path,
       line,

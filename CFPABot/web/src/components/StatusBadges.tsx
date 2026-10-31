@@ -1,4 +1,4 @@
-import type { PrState, SessionStatus, Severity, Verdict } from "@cfpa/contracts/api";
+import type { PrState, ReviewEvent, SessionStatus, Severity } from "@cfpa/contracts/api";
 import { Badge } from "@/ui/Badge.tsx";
 
 export const MERGE_SOON_LABEL = "即将合并";
@@ -37,21 +37,21 @@ export function SeverityBadge({ severity }: { severity: Severity }) {
   return <Badge tone={meta.tone}>{meta.label}</Badge>;
 }
 
-const VERDICT: Record<Verdict, { label: string; tone: "ok" | "warn" | "danger" }> = {
-  approve: { label: "通过", tone: "ok" },
-  changes: { label: "需要修改", tone: "warn" },
-  reject: { label: "拒绝", tone: "danger" },
+const EVENT: Record<ReviewEvent, { label: string; tone: "ok" | "info" | "warn" }> = {
+  APPROVE: { label: "可以合", tone: "ok" },
+  COMMENT: { label: "要改", tone: "info" },
+  REQUEST_CHANGES: { label: "大改", tone: "warn" },
 };
 
-export function VerdictBadge({ verdict }: { verdict: Verdict }) {
-  const meta = VERDICT[verdict];
+export function EventBadge({ event }: { event: ReviewEvent }) {
+  const meta = EVENT[event];
   return <Badge tone={meta.tone}>{meta.label}</Badge>;
 }
 
-export const VERDICT_OPTIONS = [
-  { value: "approve", label: "通过（approve）" },
-  { value: "changes", label: "需要修改（changes）" },
-  { value: "reject", label: "拒绝（reject）" },
+export const EVENT_OPTIONS = [
+  { value: "APPROVE", label: "可以合（APPROVE）" },
+  { value: "COMMENT", label: "不能合，按评论改（COMMENT）" },
+  { value: "REQUEST_CHANGES", label: "不能合，问题太大（REQUEST_CHANGES）" },
 ] as const;
 
 export function SessionStatusBadge({ status }: { status: SessionStatus }) {

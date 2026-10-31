@@ -163,7 +163,7 @@ describe("draft 回填", () => {
     const payload = JSON.stringify({
       prNumber: 7,
       headSha: "head",
-      verdict: "changes",
+      event: "REQUEST_CHANGES",
       summary: "一处错译",
       comments: [
         {
@@ -189,7 +189,7 @@ describe("draft 回填", () => {
     const payload = JSON.stringify({
       prNumber: 7,
       headSha: "head",
-      verdict: "changes",
+      event: "REQUEST_CHANGES",
       summary: "两处",
       comments: [
         { id: "c1", path: ZH, key: "a", severity: "major", mqm: "accuracy/mistranslation", body: "错", zhNew: "丙" },

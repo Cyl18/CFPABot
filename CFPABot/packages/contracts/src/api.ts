@@ -526,7 +526,7 @@ export type BashScope = "off" | "run";
 
 export interface SessionDraftSummary {
   prNumber: number;
-  verdict: Verdict;
+  event: ReviewEvent;
   comments: number;
 }
 
@@ -637,8 +637,6 @@ export type Severity = "critical" | "major" | "minor" | "neutral";
 
 /** 严重度从高到低 */
 export const SEVERITY_RANK: Record<Severity, number> = { critical: 0, major: 1, minor: 2, neutral: 3 };
-export type Verdict = "approve" | "changes" | "reject";
-
 export interface DraftComment {
   id: string;
   path: string;
@@ -660,12 +658,11 @@ export interface DraftComment {
 export interface ReviewDraft {
   prNumber: number;
   headSha: string;
-  verdict: Verdict;
+  event: ReviewEvent;
   summary: string;
   comments: DraftComment[];
   /** 服务端按已冻结的术语表补，不读模型输入。 */
   terms?: TermEntry[];
-  event?: ReviewEvent;
   updatedAt: string;
   publishedAt?: string;
   publishedUrl?: string;
@@ -946,7 +943,8 @@ export interface MappingEntry {
   source: "manual" | "resolved";
 }
 
-export type ReviewEvent = "COMMENT" | "APPROVE" | "REQUEST_CHANGES";
+export const REVIEW_EVENTS = ["COMMENT", "APPROVE", "REQUEST_CHANGES"] as const;
+export type ReviewEvent = (typeof REVIEW_EVENTS)[number];
 
 export type FileViewedState = "VIEWED" | "UNVIEWED" | "DISMISSED";
 

@@ -167,7 +167,7 @@ async function detailOf(record: SessionRecord): Promise<SessionDetail> {
     ...summarize(
       record,
       draft !== null,
-      draft ? { prNumber: draft.prNumber, verdict: draft.verdict, comments: draft.comments.length } : undefined,
+      draft ? { prNumber: draft.prNumber, event: draft.event, comments: draft.comments.length } : undefined,
     ),
     items,
     ...(subagents.length === 0 ? {} : { subagents }),
@@ -456,7 +456,7 @@ export const agent = {
         return summarize(
           record,
           raw !== null,
-          draft ? { prNumber: draft.prNumber, verdict: draft.verdict, comments: draft.comments.length } : undefined,
+          draft ? { prNumber: draft.prNumber, event: draft.event, comments: draft.comments.length } : undefined,
         );
       }),
     );

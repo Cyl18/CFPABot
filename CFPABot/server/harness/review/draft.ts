@@ -193,10 +193,9 @@ export function prepareDraft(content: string, n: number, headSha: string): Prepa
     draft: {
       prNumber: input.prNumber,
       headSha: input.headSha ?? headSha,
-      verdict: input.verdict,
+      event: input.event,
       summary: input.summary,
       comments,
-      ...(input.event === undefined ? {} : { event: input.event }),
       updatedAt: new Date().toISOString(),
     },
     ...(input.skipped === undefined ? {} : { skipped: input.skipped }),
@@ -216,7 +215,7 @@ export function draftSchema(n: number, headSha: string, notes = true): DraftSche
     shape: {
       prNumber: n,
       headSha,
-      verdict: "approve | changes | reject",
+      event: "COMMENT | APPROVE | REQUEST_CHANGES",
       summary: "一两句总结；不要写统计、档位标题或免责声明，服务端会拼",
       comments: [
         {
@@ -250,7 +249,7 @@ export function draftSchema(n: number, headSha: string, notes = true): DraftSche
           "write pr://<n>/draft 保存并校验，errors 会直接返回，不通过不落盘。",
           "保存和发布都会核对覆盖率：pack 里每片都要有子代理正常跑完（slices 记录在该子代理上）；漏审的片重新 delegate。",
           '内容确与已审片相同的，把该片写进 skipped：[{slice,reason:"identical",identicalTo:"<已审片 id>"}]；服务端比对两片文档（忽略版本号）后才放行。',
-          "发布用 write pr://<n>/review；event 缺省按 verdict 推（approve→APPROVE、changes→REQUEST_CHANGES、reject→COMMENT），显式 event 或 ?event= 可覆盖。",
+          "发布用 write pr://<n>/review；event 直接决定 GitHub 上的 Review 动作，不再另行推导。",
         ]
       : [],
   };

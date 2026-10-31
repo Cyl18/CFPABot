@@ -1,8 +1,8 @@
-import type { DraftComment, ReviewDraft, Severity, Verdict } from "@cfpa/contracts/api";
+import type { DraftComment, ReviewDraft, ReviewEvent, Severity } from "@cfpa/contracts/api";
 import { MQM_BY_ID, mqmLabel } from "@cfpa/contracts/mqm";
 import { ExternalLink, Save, Send, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { SeverityBadge, VerdictBadge, VERDICT_OPTIONS } from "@/components/StatusBadges.tsx";
+import { EventBadge, EVENT_OPTIONS, SeverityBadge } from "@/components/StatusBadges.tsx";
 import { Badge } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
 import { Dialog } from "@/ui/Dialog.tsx";
@@ -45,7 +45,7 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
       <div className="flex h-full min-h-0 flex-col">
         <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-2.5">
           <span className="text-sm font-semibold">审查草稿</span>
-          <VerdictBadge verdict={draft.verdict} />
+          <EventBadge event={draft.event} />
           {state}
           <span className="ml-auto font-mono text-xs text-muted">PR #{draft.prNumber}</span>
           <Button variant="ghost" size="icon" onClick={onClose} title="关闭" aria-label="关闭">
@@ -58,10 +58,10 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
 
           <Select
             label="结论"
-            options={VERDICT_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
-            value={draft.verdict}
+            options={EVENT_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+            value={draft.event}
             disabled={readonly}
-            onChange={(event) => onChange({ ...draft, verdict: event.target.value as Verdict })}
+            onChange={(event) => onChange({ ...draft, event: event.target.value as ReviewEvent })}
           />
 
           <Textarea
@@ -207,7 +207,7 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
           <div>
             <div className="text-xs text-muted">结论</div>
             <div className="mt-1">
-              <VerdictBadge verdict={draft.verdict} />
+              <EventBadge event={draft.event} />
             </div>
           </div>
           <div>

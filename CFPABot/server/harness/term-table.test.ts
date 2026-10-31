@@ -245,7 +245,7 @@ describe("注入", () => {
     const body = renderReviewBody({
       prNumber: 42,
       headSha: "a".repeat(40),
-      verdict: "approve",
+      event: "APPROVE",
       summary: "无问题。",
       comments: [],
       terms: table.terms,
@@ -275,7 +275,7 @@ describe("draftInputSchema", () => {
   test("手册评论省略 key 时补空串", () => {
     const parsed = draftInputSchema.safeParse({
       prNumber: 1,
-      verdict: "changes",
+      event: "REQUEST_CHANGES",
       summary: "s",
       comments: [{ id: "c1", path: "a.md", line: 3, mqm: "style/house-style", body: "b", suggestion: "s" }],
     });
@@ -285,7 +285,7 @@ describe("draftInputSchema", () => {
   test("skipped 收 identical", () => {
     const parsed = draftInputSchema.safeParse({
       prNumber: 1,
-      verdict: "approve",
+      event: "APPROVE",
       summary: "s",
       comments: [],
       skipped: [{ slice: "s-09", reason: "identical", identicalTo: "s-02" }],
@@ -306,7 +306,7 @@ describe("文件级评论", () => {
   const draft = {
     prNumber: 1,
     headSha: "a".repeat(40),
-    verdict: "changes" as const,
+    event: "REQUEST_CHANGES" as const,
     summary: "s",
     updatedAt: "2026-01-01T00:00:00.000Z",
   };
@@ -339,7 +339,7 @@ describe("文件级评论", () => {
     const prepared = prepareDraft(
       JSON.stringify({
         prNumber: 1,
-        verdict: "changes",
+        event: "REQUEST_CHANGES",
         summary: "s",
         comments: [{ ...comment, fileLevel: true }],
       }),

@@ -4,7 +4,7 @@ import { Bot } from "lucide-react";
 import { formatRelative } from "@/lib/format.ts";
 import { usePack, useSessions } from "@/lib/queries.ts";
 import { RequireAdmin } from "@/components/RequireAdmin.tsx";
-import { SessionStatusBadge, VerdictBadge } from "@/components/StatusBadges.tsx";
+import { EventBadge, SessionStatusBadge } from "@/components/StatusBadges.tsx";
 import { Badge } from "@/ui/Badge.tsx";
 import { buttonClass } from "@/ui/Button.tsx";
 import { Card, CardBody, CardHeader } from "@/ui/Card.tsx";
@@ -86,7 +86,7 @@ function SessionsTable({ n }: { n: number }) {
       cell: (row) =>
         row.draft ? (
           <span className="flex items-center gap-1.5">
-            <VerdictBadge verdict={row.draft.verdict} />
+            <EventBadge event={row.draft.event} />
             <span className="text-xs text-muted">{row.draft.comments} 条</span>
           </span>
         ) : (
