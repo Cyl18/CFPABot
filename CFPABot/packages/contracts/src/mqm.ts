@@ -39,13 +39,7 @@ export const MQM_TYPES = [
 
   { id: "terminology/wrong-term", dim: "terminology", label: "错术语", severity: "major", rule: "用了别的词指同一个概念" },
   { id: "terminology/inconsistent", dim: "terminology", label: "术语不一致", severity: "major", rule: "同一概念全库多种译法" },
-  {
-    id: "terminology/inappropriate",
-    dim: "terminology",
-    label: "术语误用",
-    severity: "major",
-    rule: "术语放进不适用的语境",
-  },
+  { id: "terminology/inappropriate", dim: "terminology", label: "术语误用", severity: "major", rule: "术语放进不适用的语境" },
   { id: "terminology/resource", dim: "terminology", label: "违反术语资源", severity: "minor", rule: "与词典、原版或术语表不符" },
 
   { id: "fluency/punctuation", dim: "fluency", label: "标点", severity: "minor", rule: "中英标点混用、句末标点缺失或叠加" },
