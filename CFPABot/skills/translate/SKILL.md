@@ -5,7 +5,7 @@ description: 可选：补译或新译时的分片、派单与合并。PR 审查�
 
 # 译中
 
-只在需要补译、新译时用。复用译前的 `terms.tsv`、`STYLE.md`、`format.md`；没有就先跑 `skill://prep`。审查用的定译以 `pr://<n>/terms` 的冻结表为准，`terms.tsv` 只是工作副本。
+审查流程不走本 skill，正文暂作占位：校对确认的译法经验记在这里，需要补译、新译时再按下面走。复用译前的 `terms.tsv`、`STYLE.md`、`format.md`；没有就先跑 `skill://prep`。审查用的定译以 `pr://<n>/terms` 的冻结表为准，`terms.tsv` 只是工作副本。
 
 译文合并在 `local://` 完成，产物由人取走落到仓库。
 

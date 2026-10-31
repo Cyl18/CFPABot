@@ -122,6 +122,7 @@ output:
 - 行上的 `find` 是线索不是结论，成立才报；`term` 是 glossary 命中，标 ✗ 表示译文与术语表不一致，按 `terminology` 报。
 - 没依据不判 major；一致性不证明正确；同一 pattern 只报一条首现，其余进 `covers`，本条 key 不进 `covers`。
 - 语言包片给 `zhNew`：只写新译文本身，服务端按 `raw` 拼整行；手册片给 `suggestion`（整行中文）。`en`/`zh` 不用给，非 `suspected` 必给。
+- 必要时允许重译：如有必要，`zhNew` 可以给重译后的整句。措辞、标点、长度等小问题，请给最小改法，别整句推倒。重译照样逐字用冻结表，认为表错了走 `termProposals`。
 - 有 `covers` 也一样给当前行的 `zhNew`/`suggestion`。
 - 上游英文自己就错的，用 `source/defect` + neutral，不算错译。
 - 亚文化梗放行，看不懂不判。

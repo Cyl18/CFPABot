@@ -1,6 +1,6 @@
 # 流水线
 
-PR 审查：`prep` → `post`，需要补译时中间插 `translate`。每阶段先 `read` 对应 skill。
+PR 审查：`prep` → `post`。每阶段先 `read` 对应 skill。
 
 - `prep` 产出 `pr://<n>/terms`（冻结术语表，审查唯一权威）、`local://STYLE.md`、`format.md`（可选）、`prep.json`。
 - `post` 消费冻结表与风格产物，产出 `local://draft.json` 与 `pr://<n>/draft`。
