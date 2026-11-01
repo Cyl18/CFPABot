@@ -72,6 +72,7 @@ export function usePack(n: number) {
 
 export function useCompare(n: number, key: CompareKey | null) {
   const id = key ? `${key.slug}/${key.version}/${key.namespace}` : "";
+
   return useQuery<CompareResult>({
     queryKey: qk.compare(n, id),
     queryFn: ({ signal }) => api.compare(n, key as CompareKey, signal),
@@ -172,8 +173,10 @@ export function useRefreshStatus(n: number, enabled = true) {
   useEffect(() => {
     if (!wasRunning.current || running) {
       wasRunning.current = running;
+
       return;
     }
+
     wasRunning.current = false;
     void client.invalidateQueries({ queryKey: qk.checks(n) });
     void client.invalidateQueries({ queryKey: qk.pr(n) });
@@ -183,11 +186,13 @@ export function useRefreshStatus(n: number, enabled = true) {
     void client.invalidateQueries({ queryKey: ["compare", n] });
     void client.invalidateQueries({ queryKey: ["versions-keys"] });
   }, [client, n, running]);
+
   return query;
 }
 
 export function useRefreshPr(n: number) {
   const client = useQueryClient();
+
   return useMutation({
     mutationFn: () => api.refreshPr(n),
     onSuccess: () => {
@@ -199,6 +204,7 @@ export function useRefreshPr(n: number) {
 
 export function useRefreshCache() {
   const client = useQueryClient();
+
   return useMutation({
     mutationFn: (what: "prs" | "mirror" | "mappings" | "glossary") => api.refreshCache(what),
     onSuccess: () => {

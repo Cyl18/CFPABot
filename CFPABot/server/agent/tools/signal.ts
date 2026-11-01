@@ -2,5 +2,6 @@
 export function onAbortSignal(signal: AbortSignal | undefined, listener: () => void): () => void {
   if (typeof signal?.addEventListener !== "function") return () => {};
   signal.addEventListener("abort", listener, { once: true });
+
   return () => signal.removeEventListener("abort", listener);
 }

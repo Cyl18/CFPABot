@@ -66,12 +66,14 @@ adminRoutes.use("*", async (c, next) => {
 
 adminRoutes.get("/logs", (c) => {
   const { level, limit } = parseQuery(c, logsQuery);
+
   return c.json(recentLogs(limit, level));
 });
 
 adminRoutes.get("/mappings", async (c) => {
   const [list, mappings] = await Promise.all([mirror.modList(), mods.mappings.list()]);
   const known = new Set(mappings.map((entry) => entry.slug));
+
   return c.json({ mappings, unmapped: list.mods.map((mod) => mod.slug).filter((slug) => !known.has(slug)) });
 });
 
@@ -79,6 +81,7 @@ adminRoutes.put("/mappings", async (c) => {
   const { slug, curseforgeId } = await parseBody(c, mappingSchema);
   await mods.mappings.set(slug, curseforgeId);
   mods.invalidate(slug);
+
   return c.json({ ok: true });
 });
 
@@ -87,6 +90,7 @@ adminRoutes.post("/cache/:what", (c) => {
   const background = (name: string, task: () => Promise<unknown>): void => {
     void task().catch((err: unknown) => log.error(`${name} 刷新失败`, { err }));
   };
+
   if (what === "prs") background("PR 缓存", () => prdata.refreshAll());
   else if (what === "mirror") background("镜像", () => mirror.sync());
   else if (what === "mappings")
@@ -95,6 +99,7 @@ adminRoutes.post("/cache/:what", (c) => {
     });
   else if (what === "glossary") background("术语表", () => syncGlossary());
   else throw new HttpError(400, "未知的缓存类型", "invalid_cache");
+
   return c.json({ ok: true });
 });
 
@@ -102,15 +107,18 @@ adminRoutes.get("/llm", async (c) => c.json(await llm.view()));
 
 adminRoutes.put("/llm", async (c) => {
   const update = await parseBody<LlmConfigUpdate>(c, llmUpdateSchema);
+
   return c.json(await llm.update(update));
 });
 
 adminRoutes.post("/llm/test", async (c) => {
   const { endpointId } = await parseBody(c, llmTestSchema);
+
   return c.json(await llm.test(endpointId));
 });
 
 adminRoutes.post("/llm/probe", async (c) => {
   const request = await parseBody<ProbeModelsRequest>(c, probeSchema);
+
   return c.json({ models: await llm.probe(request) });
 });

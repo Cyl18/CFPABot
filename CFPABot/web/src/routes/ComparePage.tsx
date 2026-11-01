@@ -40,6 +40,7 @@ export function ComparePage() {
     if (!file) return;
     const content = await file.text();
     const next = { name: file.name, content };
+
     if (target === "left") setLeft(next);
     else setRight(next);
   }
@@ -66,6 +67,7 @@ export function ComparePage() {
       width: 72,
       cell: (row) => {
         const meta = STATUS_META[row.status] ?? { label: row.status, tone: "neutral" as BadgeTone };
+
         return <Badge tone={meta.tone}>{meta.label}</Badge>;
       },
     },
@@ -84,6 +86,7 @@ export function ComparePage() {
         {(["left", "right"] as const).map((side) => {
           const file = side === "left" ? left : right;
           const ref = side === "left" ? leftFile : rightFile;
+
           return (
             <Card key={side}>
               <CardHeader

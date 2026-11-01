@@ -40,21 +40,26 @@ export async function isAdminLogin(login: string): Promise<boolean> {
     return await adminCache.wrap(login, () => gh.isCollaborator(login));
   } catch (err) {
     logger("auth").warn("协作者校验失败", { login, err });
+
     return false;
   }
 }
 
 function sessionKey(): Buffer {
   const file = join(paths.config, "secret.key");
+
   try {
     const hex = readFileSync(file, "utf8").trim();
+
     if (/^[0-9a-f]{64}$/i.test(hex)) return Buffer.from(hex, "hex");
   } catch {
     // 首次运行或文件损坏时重新生成
   }
+
   const hex = randomBytes(32).toString("hex");
   mkdirSync(paths.config, { recursive: true });
   writeFileSync(file, `${hex}\n`, { encoding: "utf8", mode: 0o600 });
+
   return Buffer.from(hex, "hex");
 }
 
@@ -62,6 +67,7 @@ let cachedKey: Buffer | null = null;
 
 function key(): Buffer {
   cachedKey ??= sessionKey();
+
   return cachedKey;
 }
 
@@ -69,12 +75,14 @@ export function encryptSession(data: SessionData): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key(), iv);
   const ciphertext = Buffer.concat([cipher.update(JSON.stringify(data), "utf8"), cipher.final()]);
+
   return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString("hex");
 }
 
 export function decryptSession(value: string): SessionData | null {
   try {
     const raw = Buffer.from(value, "hex");
+
     if (raw.length < 29) return null;
     const iv = raw.subarray(0, 12);
     const tag = raw.subarray(12, 28);
@@ -83,6 +91,7 @@ export function decryptSession(value: string): SessionData | null {
     decipher.setAuthTag(tag);
     const text = Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
     const parsed = sessionSchema.safeParse(JSON.parse(text) as unknown);
+
     return parsed.success ? parsed.data : null;
   } catch {
     return null;
@@ -117,13 +126,17 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (isDev && env.DEV_LOGIN) {
     c.set("user", devUser(env.DEV_LOGIN));
     c.set("token", env.DEV_GITHUB_TOKEN ?? null);
+
     return next();
   }
+
   const raw = getCookie(c, SESSION_COOKIE);
   const session = raw ? decryptSession(raw) : null;
+
   if (!session) {
     c.set("user", null);
     c.set("token", null);
+
     return next();
   }
   c.set("user", {
@@ -133,6 +146,7 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     isAdmin: await isAdminLogin(session.login),
   });
   c.set("token", session.token ?? null);
+
   return next();
 };
 
@@ -142,14 +156,19 @@ export function currentUser(c: AppContext): Me | null {
 
 export async function requireAdmin(c: AppContext): Promise<Me> {
   const user = currentUser(c);
+
   if (!user) throw new HttpError(401, "未登录", "unauthorized");
+
   if (!user.isAdmin) throw new HttpError(403, "需要仓库权限", "forbidden");
+
   return user;
 }
 
 export function requireUserToken(c: AppContext): string {
   if (!currentUser(c)) throw new HttpError(401, "未登录", "unauthorized");
   const token = c.get("token");
+
   if (!token) throw new HttpError(401, "需要重新登录 GitHub 授权评论权限", "reauth");
+
   return token;
 }

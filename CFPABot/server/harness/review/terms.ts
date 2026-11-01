@@ -31,6 +31,7 @@ export async function termCandidatesOf(n: number, options: CandidatesOptions = {
     ...(options.contexts === undefined ? {} : { contexts: options.contexts }),
   });
   const counts = table === null ? { lock: 0, new: 0, discard: 0 } : termCounts(table.terms);
+
   return {
     prNumber: n,
     headSha: pack.headSha,
@@ -62,28 +63,35 @@ export function aggregateTerms(pack: Pack, index: TermIndex | null, options: Ter
   const builders = new Map<string, GroupBuilder>();
   let changedRows = 0;
   let missRows = 0;
+
   for (const workspace of pack.workspaces) {
     for (const row of workspace.rows) {
       if (!row.changed) continue;
       changedRows += 1;
       const en = row.headEn?.trim() ?? "";
+
       if (en === "") continue;
       const builder = builders.get(en) ?? { en, translations: new Map(), missed: new Map(), rows: 0, misses: 0 };
       builder.rows += 1;
       const zh = row.headZh?.trim() ?? "";
+
       if (zh !== "") {
         const keys = builder.translations.get(zh) ?? new Set<string>();
         keys.add(row.key);
         builder.translations.set(zh, keys);
       }
+
       if (index !== null) {
         const hits = matchTerms(index, row.key, row.headEn ?? "", row.headZh ?? "", workspace.version);
         const failed = hits.filter((entry) => !entry.ok);
+
         if (failed.length > 0) {
           builder.misses += 1;
           missRows += 1;
+
           for (const entry of failed) {
             const existing = builder.missed.get(entry.en);
+
             if (existing === undefined) {
               builder.missed.set(entry.en, {
                 en: entry.en,
@@ -97,11 +105,13 @@ export function aggregateTerms(pack: Pack, index: TermIndex | null, options: Ter
           }
         }
       }
+
       builders.set(en, builder);
     }
   }
 
   const groups: TermGroup[] = [];
+
   for (const builder of builders.values()) {
     if (builder.translations.size <= 1 && builder.misses === 0) continue;
     const inPr: TermVariant[] = [...builder.translations.entries()]
@@ -127,18 +137,24 @@ export function aggregateTerms(pack: Pack, index: TermIndex | null, options: Ter
   let shown = groups.slice(page.offset, page.offset + page.limit);
   let bytes = 0;
   let kept = 0;
+
   for (const group of shown) {
     const size = Buffer.byteLength(JSON.stringify(group));
+
     if (kept > 0 && bytes + size > 20_000) break;
     bytes += size;
     kept += 1;
   }
+
   shown = shown.slice(0, kept);
   const nextOffset = page.offset + shown.length < groups.length ? page.offset + shown.length : null;
   const params = new URLSearchParams();
+
   for (const term of options.queries) params.append("term", term);
+
   if (options.changed) params.set("changed", "1");
   params.set("limit", String(page.limit));
+
   return {
     prNumber: pack.prNumber,
     headSha: pack.headSha,
@@ -172,8 +188,10 @@ export function aggregateTerms(pack: Pack, index: TermIndex | null, options: Ter
 
 export async function termsOf(n: number, options: TermsOptions): Promise<ReviewTermsView> {
   const index = await glossaryTerms();
+
   if (!options.changed && options.queries.length > 0) {
     const { pull } = await prdata.files(n);
+
     return {
       prNumber: n,
       headSha: pull.headSha,
@@ -191,6 +209,8 @@ export async function termsOf(n: number, options: TermsOptions): Promise<ReviewT
       hint: "只查了 glossary；要看本 PR 的同词多译，加 changed=1。",
     };
   }
+
   const pack = await loadPack(n, options.rebuild === true);
+
   return aggregateTerms(pack, index, options);
 }

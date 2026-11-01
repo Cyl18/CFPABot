@@ -15,6 +15,7 @@ import { loadTermTable } from "./term-store.ts";
 
 /** 一片文档的目标大小：子代理一次读完，不靠工具翻页。 */
 const SLICE_BUDGET_BYTES = 48_000;
+
 /** 片头（元信息 + 一条提交说明）的预留字节；规则与 MQM 表已搬进子代理系统提示。 */
 const SLICE_RESERVE_BYTES = 1_500;
 const LIST_CAP = 200;
@@ -31,6 +32,7 @@ export interface WorkPackSlice {
   bytes: number;
   firstKey: string;
   lastKey: string;
+
   /** 手册片的 pair 名 */
   pair?: string;
 }
@@ -41,6 +43,7 @@ export interface WorkPackManifest {
   generatedAt: string;
   dir: string;
   manifestPath: string;
+
   /** 单片 markdown 的预算；rows 的 plan 预算另算。 */
   sliceBudgetBytes: number;
   counts: { reviewable: number; slices: number; manualPairs: number; docBytes: number };
@@ -54,11 +57,14 @@ export interface WorkPackManifest {
   slices: WorkPackSlice[];
   fileFindings: { path: string; findings: Finding[] }[];
   duplicates: { workspace: string; zh: string; keys: string[] }[];
+
   /** 工作区级机械检查；行级 findings 不在这里，别和简报的 checks 比。 */
   fileChecks: { workspace: string; findings: Finding[] }[];
   excluded: { rows: number };
+
   /** 冻结术语表；子代理照抄，主代理据此生成正文折叠块。 */
   terms?: { total: number; locked: number; created: number; updatedAt: string };
+
   /** 声明不审的片；identical 已按文档比对过。 */
   skipped?: { slice: string; reason: "identical" | "out-of-scope"; identicalTo?: string; at: string }[];
 }
@@ -77,6 +83,7 @@ export const MQM_TABLE = mqmTable();
 
 function oneLine(value: string, limit: number): string {
   const flat = value.replace(/\s+/g, " ").trim();
+
   return flat.length > limit ? `${flat.slice(0, limit)}…` : flat;
 }
 
@@ -88,39 +95,53 @@ function threadLine(thread: NonNullable<ReviewRowView["threads"]>[number]): stri
   const state = [thread.resolved ? "resolved" : "open", thread.outdated ? "outdated" : ""].filter(Boolean).join(" ");
   const first = thread.comments[0];
   const said = first === undefined ? "" : ` @${first.author}: ${oneLine(first.body, THREAD_SNIPPET)}`;
+
   return `${thread.id} ${state}${said}`;
 }
 
 /** 相邻两条的译文，回填时不用自己找邻近 key。 */
 function neighborIndex(pack: Pack): Map<string, { prev?: string; next?: string }> {
   const index = new Map<string, { prev?: string; next?: string }>();
+
   for (const workspace of pack.workspaces) {
     const where = workspaceKey(workspace);
     workspace.rows.forEach((row, position) => {
       const prev = workspace.rows[position - 1];
       const next = workspace.rows[position + 1];
       const near: { prev?: string; next?: string } = {};
+
       if (prev !== undefined) near.prev = `${prev.key} = ${prev.headZh ?? "(无译文)"}`;
+
       if (next !== undefined) near.next = `${next.key} = ${next.headZh ?? "(无译文)"}`;
       index.set(`${where}\u0000${row.key}`, near);
     });
   }
+
   return index;
 }
 
 /** 一行一条记录：字段固定、能省就省，子代理不用解析 JSON。 */
 function rowBlock(row: ReviewRowView, near?: { prev?: string; next?: string }): string {
   const lines = [`### ${row.key}`, `line: ${row.line ?? ""}`, `en: ${row.en ?? ""}`, `zh: ${row.zh ?? ""}`];
+
   if (row.raw !== undefined) lines.push(`raw: ${row.raw}`);
+
   if (row.baseZh !== undefined && row.baseZh !== row.zh) lines.push(`base: ${row.baseZh}`);
+
   if (near?.prev !== undefined) lines.push(`prev: ${near.prev}`);
+
   if (near?.next !== undefined) lines.push(`next: ${near.next}`);
+
   for (const finding of row.findings) lines.push(`find: ${findingLine(finding)}`);
+
   for (const term of row.terms ?? []) {
     lines.push(`term: ${term.en} → ${term.zh}${term.ok ? " glossary✓" : ` glossary✗ ${term.reason ?? "与术语表不一致"}`}`);
   }
+
   for (const thread of row.threads ?? []) lines.push(`thread: ${threadLine(thread)}`);
+
   if (row.duplicate !== undefined) lines.push(`dup: ${row.duplicate.keys.join("、")}`);
+
   return lines.join("\n");
 }
 
@@ -158,6 +179,7 @@ function numbered(text: string): string {
 
 function hunkText(label: string, hunks: readonly ReviewHunk[] | null): string {
   if (hunks === null || hunks.length === 0) return `${label}：未取到变更行`;
+
   return `${label}：${hunks.map((hunk) => `${hunk.start}-${hunk.end}`).join("、")}`;
 }
 
@@ -196,6 +218,7 @@ function chunk(rows: readonly ReviewRowView[], blocks: readonly string[], headSh
     run: `${row.workspace}\u0000${row.path ?? ""}`,
     bytes: Buffer.byteLength(blocks[index]!) + 2,
   }));
+
   return sliceRuns(entries, budget - reserve).map((bound, position) => ({
     id: `${headSha.slice(0, 7)}-${String(position + 1).padStart(2, "0")}`,
     workspace: rows[bound.start]!.workspace,
@@ -223,6 +246,7 @@ export function composeWorkPack(
   const files: WorkPackComposition["files"] = [];
   const slices: WorkPackSlice[] = [];
   let docBytes = 0;
+
   for (const draft of drafts) {
     const content = [langHeader(draft, pack, termLines), draft.body, ""].join("\n");
     const bytes = Buffer.byteLength(content);
@@ -281,6 +305,7 @@ export function composeWorkPack(
           },
         }),
   };
+
   return { manifest, files };
 }
 
@@ -300,6 +325,7 @@ export function composeManualSlices(
   const slices: WorkPackSlice[] = [];
   let docBytes = 0;
   let index = 0;
+
   for (const item of items) {
     if (item.kind !== "pair" || item.zh.head === null) continue;
     index += 1;
@@ -341,6 +367,7 @@ export function composeManualSlices(
       pair: item.key,
     });
   }
+
   return { files, slices, docBytes };
 }
 
@@ -352,6 +379,7 @@ export async function withManualSlices(
 ): Promise<WorkPackComposition> {
   const pairs = await specialPairs(n);
   const keys = pairs.filter((entry) => entry.kind === "pair").map((entry) => entry.key);
+
   if (keys.length === 0) return composed;
   const manual = composeManualSlices(n, headSha, await specialContents(n, keys, prdata.fileSource(n)));
   composed.files.push(...manual.files);
@@ -359,6 +387,7 @@ export async function withManualSlices(
   composed.manifest.counts.slices = composed.manifest.slices.length;
   composed.manifest.counts.manualPairs = manual.slices.length;
   composed.manifest.counts.docBytes += manual.docBytes;
+
   return composed;
 }
 
@@ -381,7 +410,9 @@ export async function writeWorkPack(n: number, sessionId: string): Promise<WorkP
     filter: "reviewable",
     include: { terms: true, threads: true, duplicates: true, patch: false },
   };
+
   const composed = await withManualSlices(n, pack.headSha, composeWorkPack(pack, reviewRowViews(input, options), table));
   await persistWorkPack(sessionId, composed);
+
   return composed.manifest;
 }

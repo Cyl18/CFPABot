@@ -22,6 +22,7 @@ export const CARDS_KEY = "cfpa-review-cards";
 
 export function CommentsToggle() {
   const [on, setOn] = useStoredFlag(CARDS_KEY);
+
   return (
     <ToggleChip pressed={on} onClick={() => setOn(!on)} title="显示或隐藏行内的评论卡片；key 旁的气泡不受影响">
       评论卡片
@@ -31,6 +32,7 @@ export function CommentsToggle() {
 
 function Avatar({ url }: { url: string }) {
   if (url === "") return <span aria-hidden="true" className="size-5 shrink-0 rounded-full bg-elevated" />;
+
   return <img src={url} alt="" className="size-5 shrink-0 rounded-full" loading="lazy" />;
 }
 
@@ -38,6 +40,7 @@ export function CommentButton({ path, line, label, peek = false }: { path: strin
   const review = useReview();
   const count = review.threadsAt(path, line).length + review.outgoingAt(path, line).length;
   const open = review.isOpen(path, line);
+
   return (
     <button
       type="button"
@@ -61,11 +64,13 @@ export function LineComments({ path, line }: { path: string; line: number }) {
   const review = useReview();
   const threads = review.threadsAt(path, line);
   const outgoing = review.outgoingAt(path, line);
+
   if (threads.length === 0 && outgoing.length === 0) return null;
   const open = threads.filter((thread) => !thread.resolved);
   const done = threads.filter((thread) => thread.resolved);
   const name = path.slice(path.lastIndexOf("/") + 1);
   const count = threads.length + outgoing.length;
+
   return (
     <Popover
       label={`${name} 第 ${line} 行的评论`}
@@ -136,7 +141,9 @@ export function CommentAnchor({ path, line, label, active }: { path: string; lin
     window.clearTimeout(timer.current);
     setPeek(null);
   };
+
   const title = count === 0 ? `评论${label}这一行` : open > 0 ? `${label}有 ${open} 条未解决对话` : `${label}的对话都已解决`;
+
   return (
     <>
       <button
@@ -175,10 +182,14 @@ function ThreadPeek({ path, line, left, top }: { path: string; line: number; lef
   const open = threads.filter((thread) => !thread.resolved);
   const done = threads.filter((thread) => thread.resolved);
   const first = open[0] ?? done[0];
+
   if (first === undefined) return null;
   const more: string[] = [];
+
   if (open.length > 1) more.push(`${open.length - 1} 条未解决`);
+
   if (done.length > 0) more.push(`${done.length} 条已解决`);
+
   return (
     <div
       style={{ left, top, width: 320 }}
@@ -224,6 +235,7 @@ function PeekThread({ thread, raw }: { thread: ReviewThread; raw?: string }) {
   const html = useThreadHtml(thread.id, thread.comments.map((comment) => comment.id), true);
   const send = () => {
     const body = text.trim();
+
     if (body === "") return;
     setBusy(true);
     review.replyToThread(thread.id, body).then(
@@ -235,6 +247,7 @@ function PeekThread({ thread, raw }: { thread: ReviewThread; raw?: string }) {
       () => setBusy(false),
     );
   };
+
   return (
     <div className={cn("overflow-hidden rounded-md border", thread.resolved ? "border-line/70 bg-elevated/30" : "border-line bg-surface")}>
       <ul className={cn("flex flex-col divide-y divide-line/60", thread.resolved && "opacity-70")}>
@@ -306,6 +319,7 @@ function PeekThread({ thread, raw }: { thread: ReviewThread; raw?: string }) {
 function ResolveButton({ thread }: { thread: ReviewThread }) {
   const review = useReview();
   const ready = review.access === "ready";
+
   return (
     <Button
       variant="ghost"
@@ -333,9 +347,11 @@ export function LineThreads({ path, line, raw, className }: { path: string; line
   const outgoing = review.outgoingAt(path, line);
   const open = review.isOpen(path, line);
   const [showDone, setShowDone] = useState(false);
+
   if (threads.length === 0 && outgoing.length === 0 && !open) return null;
   const pending = threads.filter((thread) => !thread.resolved);
   const done = threads.filter((thread) => thread.resolved);
+
   return (
     <div className={cn("flex flex-col gap-2 font-sans text-sm", className)}>
       {pending.map((thread) => (
@@ -379,6 +395,7 @@ function ThreadBlock({ thread, raw }: { thread: ReviewThread; raw?: string }) {
 export function ThreadCard({ thread, location }: { thread: ReviewThread; location?: string }) {
   const [open, setOpen] = useState(() => !thread.resolved);
   const html = useThreadHtml(thread.id, thread.comments.map((comment) => comment.id), open);
+
   return (
     <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)} className="group rounded-md border border-line bg-surface">
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1.5 border-b border-line/60 px-2.5 py-1.5 text-xs text-muted group-[:not([open])]:border-b-0">
@@ -400,6 +417,7 @@ export function ThreadCard({ thread, location }: { thread: ReviewThread; locatio
 
 function CommentItem({ comment, html }: { comment: ReviewComment; html?: string }) {
   const review = useReview();
+
   return (
     <li className="flex flex-col gap-1 px-2.5 py-2">
       <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
@@ -434,6 +452,7 @@ function CommentItem({ comment, html }: { comment: ReviewComment; html?: string 
 function OutgoingCard({ item }: { item: OutgoingComment }) {
   const review = useReview();
   const failed = item.error !== null;
+
   return (
     <div className={cn("flex flex-col gap-1 rounded-md border px-2.5 py-2", failed ? "border-danger/40 bg-danger/5" : "border-line bg-surface opacity-80")}>
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
@@ -469,6 +488,7 @@ function Composer({ path, line, raw, divided = false }: { path: string; line: nu
     setText(next);
     review.setDraft(path, line, next);
   };
+
   const close = () => review.setOpen(path, line, false);
   const commit = () => {
     if (text.trim() === "") return;
@@ -537,6 +557,7 @@ function Composer({ path, line, raw, divided = false }: { path: string; line: nu
 
 export function LooseThreads({ title, threads, locate }: { title: string; threads: readonly ReviewThread[]; locate: (thread: ReviewThread) => string }) {
   if (threads.length === 0) return null;
+
   return (
     <details className="rounded-lg border border-line bg-elevated/40 px-3 py-2 text-xs">
       <summary className="cursor-pointer text-muted">
@@ -563,6 +584,7 @@ export function ViewedToggle({ path, compact = false }: { path: string; compact?
       : viewed
         ? "已在 GitHub 上标记为已看，点一下取消"
         : "在 GitHub 上标记为已看";
+
   return (
     <label
       title={title}
@@ -597,17 +619,21 @@ interface PendingItem {
 function PendingList() {
   const review = useReview();
   const items: PendingItem[] = [];
+
   for (const thread of review.state?.threads ?? []) {
     for (const comment of thread.comments) {
       if (!comment.pending || !comment.mine || review.deleting.has(comment.id)) continue;
       items.push({ key: comment.id, path: thread.path, line: thread.line, body: comment.body, saving: false });
     }
   }
+
   for (const item of review.outgoing) {
     if (item.error === null) items.push({ key: item.id, path: item.path, line: item.line, body: item.body, saving: true });
   }
+
   if (items.length === 0) return null;
   items.sort((a, b) => a.path.localeCompare(b.path) || (a.line ?? 0) - (b.line ?? 0));
+
   return (
     <section className="flex flex-col gap-2 rounded-md border border-line bg-elevated/40 p-2">
       <h3 className="text-xs font-medium text-muted">
@@ -638,7 +664,9 @@ function PendingList() {
 
 export function ReviewFailure() {
   const review = useReview();
+
   if (review.failure === null) return null;
+
   return (
     <div role="alert" className="mb-4 flex items-start gap-2 rounded-lg border border-danger/40 bg-danger/10 px-4 py-2.5 text-xs text-danger">
       <span className="min-w-0 flex-1">{review.failure}</span>
@@ -677,11 +705,13 @@ export function ReviewSubmit({ author }: { author: string }) {
   const close = () => {
     setOpen(false);
     setError(null);
+
     if (done !== null) {
       setDone(null);
       setBody("");
       setEvent("COMMENT");
     }
+
   };
   const submit = () => {
     setBusy(true);
@@ -748,6 +778,7 @@ export function ReviewSubmit({ author }: { author: string }) {
               <legend className="mb-1 text-xs font-medium text-muted">结论</legend>
               {EVENTS.map((item) => {
                 const blocked = own && item.id !== "COMMENT";
+
                 return (
                   <label key={item.id} className={cn("flex items-center gap-2 text-sm", blocked && "opacity-50")} title={blocked ? "GitHub 不允许批准或驳回自己的 PR" : undefined}>
                     <input type="radio" name="review-event" className="accent-[var(--brand)]" checked={event === item.id} disabled={blocked} onChange={() => setEvent(item.id)} />

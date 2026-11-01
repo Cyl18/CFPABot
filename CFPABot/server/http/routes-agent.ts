@@ -59,12 +59,15 @@ sessionRoutes.get("/events", (c) =>
 sessionRoutes.post("/", async (c) => {
   const user = await requireAdmin(c);
   const body = await parseBody<CreateSessionRequest>(c, createSchema);
+
   return c.json(await agent.create({ ...body, createdBy: user.login, source: "web" }));
 });
 
 sessionRoutes.get("/:id", async (c) => {
   const session = await agent.get(c.req.param("id"));
+
   if (!session) throw notFound("会话不存在");
+
   return c.json(session);
 });
 
@@ -77,41 +80,48 @@ sessionRoutes.get("/:id/file", async (c) => c.json(await agent.readFile(c.req.pa
 sessionRoutes.patch("/:id/write-scope", async (c) => {
   const { writeScope } = await parseBody(c, writeScopeSchema);
   await agent.setWriteScope(c.req.param("id"), writeScope);
+
   return c.json({ ok: true });
 });
 
 sessionRoutes.patch("/:id/eval-scope", async (c) => {
   const { evalScope } = await parseBody(c, evalScopeSchema);
   await agent.setExecScope(c.req.param("id"), "evalScope", evalScope);
+
   return c.json({ ok: true });
 });
 
 sessionRoutes.patch("/:id/bash-scope", async (c) => {
   const { bashScope } = await parseBody(c, bashScopeSchema);
   await agent.setExecScope(c.req.param("id"), "bashScope", bashScope);
+
   return c.json({ ok: true });
 });
 
 sessionRoutes.patch("/:id/config", async (c) => {
   const patch = await parseBody(c, configSchema);
   await agent.setConfig(c.req.param("id"), patch);
+
   return c.json({ ok: true });
 });
 
 sessionRoutes.post("/:id/messages", async (c) => {
   const { text } = await parseBody(c, messageSchema);
   await agent.send(c.req.param("id"), text);
+
   return c.json({ ok: true });
 });
 
 sessionRoutes.post("/:id/abort", async (c) => {
   await agent.abort(c.req.param("id"));
+
   return c.json({ ok: true });
 });
 
 sessionRoutes.get("/:id/subagents/:agentId", async (c) => {
   const raw = Number(c.req.query("offset") ?? "0");
   const offset = Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 0;
+
   return c.json(await agent.subagent(c.req.param("id"), c.req.param("agentId"), offset));
 });
 
@@ -121,23 +131,28 @@ sessionRoutes.post("/:id/subagents/:agentId/abort", (c) =>
 
 sessionRoutes.post("/:id/archive", async (c) => {
   await agent.archive(c.req.param("id"));
+
   return c.json({ ok: true });
 });
 
 sessionRoutes.put("/:id/artifact", async (c) => {
   const input = await parseBody(c, z.unknown());
+
   return c.json(await agent.saveArtifact(c.req.param("id"), input));
 });
 
 sessionRoutes.post("/:id/publish", async (c) => {
   const user = await requireAdmin(c);
+
   return c.json(await agent.publishArtifact(c.req.param("id"), user.login));
 });
 
 sessionRoutes.get("/:id/events", async (c) => {
   const id = c.req.param("id");
   const session = await agent.get(id);
+
   if (!session) throw notFound("会话不存在");
+
   return streamSSE(c, async (stream) => {
     const unsubscribe = agent.subscribe(id, (event: SessionEvent) => {
       void stream.writeSSE({ data: JSON.stringify(event) }).catch(() => undefined);

@@ -60,19 +60,23 @@ export function Popover({ trigger, label, children, className, panelClassName }:
     };
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target instanceof Node ? event.target : null;
+
       if (target && (triggerRef.current?.contains(target) || panelRef.current?.contains(target))) return;
       close();
     };
+
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", close);
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("pointerdown", onPointerDown);
+
     return () => {
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", close);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown);
     };
+
   }, [open]);
 
   const onClick = (event: MouseEvent<HTMLButtonElement>) => {

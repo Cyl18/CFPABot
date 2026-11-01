@@ -97,6 +97,7 @@ async function safeSegment(fn: () => Promise<string>, fallback: (err: unknown) =
     return await fn();
   } catch (err) {
     log.error("段更新失败", { error: err });
+
     return fallback(err);
   }
 }
@@ -104,6 +105,7 @@ async function safeSegment(fn: () => Promise<string>, fallback: (err: unknown) =
 export async function getCheckReport(prNumber: number): Promise<CheckReport | null> {
   const state = await readJson(statePath(prNumber), stateSchema);
   const parsed = checkReportSchema.safeParse(state?.report);
+
   return parsed.success ? parsed.data : null;
 }
 
@@ -111,6 +113,7 @@ export async function getCheckReport(prNumber: number): Promise<CheckReport | nu
 export async function getCheckStatus(prNumber: number): Promise<{ report: CheckReport | null; error: string | null }> {
   const state = await readJson(statePath(prNumber), stateSchema);
   const parsed = checkReportSchema.safeParse(state?.report);
+
   return { report: parsed.success ? parsed.data : null, error: state?.checksError ?? null };
 }
 
@@ -123,12 +126,15 @@ export function refreshInfoComment(
   opts?: { force?: boolean; refreshPacker?: boolean },
 ): Promise<void> {
   if (opts?.force) forced.add(prNumber);
+
   if (opts?.refreshPacker) packerWanted.add(prNumber);
   dirty.add(prNumber);
   const current = running.get(prNumber);
+
   if (current) return current;
   const task = runLoop(prNumber);
   running.set(prNumber, task);
+
   return task;
 }
 
@@ -137,14 +143,18 @@ async function runLoop(prNumber: number): Promise<void> {
     dirty.delete(prNumber);
     const force = forced.delete(prNumber);
     const refreshPacker = packerWanted.delete(prNumber);
+
     try {
       await updateOnce(prNumber, { force, refreshPacker });
     } catch (err) {
       log.error("刷新信息评论失败", { pr: prNumber, error: err });
     }
+
     if (!dirty.has(prNumber)) break;
   }
+
   running.delete(prNumber);
+
   if (dirty.has(prNumber)) void refreshInfoComment(prNumber);
 }
 
@@ -152,6 +162,7 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
   const ctx = await loadPrContext(prNumber);
   const state = (await readJson(statePath(prNumber), stateSchema)) ?? emptyState(prNumber);
   const hasProjectFiles = ctx.files.some((file) => file.path.startsWith("projects/"));
+
   if (!opts.force && state.packer === "" && !hasProjectFiles) return;
 
   if (opts.force) await rm(checkReportPath(prNumber, ctx.pull.headSha), { force: true });
@@ -159,16 +170,21 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
   const canWrite = botWritesEnabled();
   const comments = await gh.listComments(prNumber);
   const botComments = comments.filter((comment) => isMainBot(comment.author, comment.body));
+
   if (canWrite && botComments.length > 1) {
     for (const comment of botComments) await gh.updateComment(comment.id, CRITICAL_FAILURE);
     log.warn("发现多个 Bot 评论，已全部标记", { pr: prNumber, count: botComments.length });
+
     return;
   }
+
   let commentId = botComments[0]?.id ?? state.commentId;
+
   if (canWrite && commentId === null) {
     const created = await gh.createComment(prNumber, `${CYBOT_MARKER}\n正在更新数据...`);
     commentId = created.id;
   }
+
   if (canWrite && commentId !== null) {
     try {
       await gh.updateComment(commentId, assembleComment(sectionsOf(state), "preview", env.PUBLIC_URL));
@@ -199,6 +215,7 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
     previousReport !== null &&
     previousReport.prNumber === prNumber &&
     previousReport.headSha === ctx.pull.headSha;
+
   if (skipChecks) {
     checks = state.checks;
     report = previousReport;
@@ -207,8 +224,10 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
     const items = await collectChecks(prNumber, ctx, data).catch((err: unknown) => {
       log.error("检查项收集失败", { pr: prNumber, error: err });
       checksError = messageOf(err);
+
       return null;
     });
+
     if (canWrite && items !== null) for (const label of items.extraLabels) await gh.addLabels(prNumber, [label]);
     const nextReport = items === null ? null : items.report;
     report = nextReport;
@@ -240,10 +259,12 @@ async function updateOnce(prNumber: number, opts: { force: boolean; refreshPacke
     report,
     ...(nextError === undefined ? {} : { checksError: nextError }),
   };
+
   await writeJson(statePath(prNumber), next);
 
   if (canWrite && commentId !== null) {
     const final = assembleComment(sectionsOf(next), "final", env.PUBLIC_URL);
+
     try {
       await gh.updateComment(commentId, final);
     } catch (err) {

@@ -19,6 +19,7 @@ const JAR_MAX_AGE_MS = 14 * DAY;
 interface CronTask {
   name: string;
   intervalMs: number;
+
   /** false 表示启动后不立刻跑，等第一个周期（启动阶段已单独处理）。 */
   immediate?: boolean;
   run: () => Promise<unknown>;
@@ -27,8 +28,10 @@ interface CronTask {
 function pruneJars(): number {
   const cutoff = Date.now() - JAR_MAX_AGE_MS;
   let removed = 0;
+
   for (const name of readdirSync(paths.jars)) {
     const full = join(paths.jars, name);
+
     try {
       if (statSync(full).mtimeMs < cutoff) {
         rmSync(full, { recursive: true, force: true });
@@ -38,7 +41,9 @@ function pruneJars(): number {
       log.warn("清理 jar 缓存失败", { path: full, err });
     }
   }
+
   if (removed > 0) log.info("已清理过期 jar 缓存", { removed });
+
   return removed;
 }
 
@@ -51,6 +56,7 @@ export function startCron(): () => void {
     { name: "jar-cache-prune", intervalMs: DAY, run: () => Promise.resolve(pruneJars()) },
     { name: "webhook-marker-prune", intervalMs: DAY, run: () => pruneDeliveries() },
   ];
+
   if (env.CURSEFORGE_API_KEY) {
     tasks.push({
       name: "mappings-scan",
@@ -68,6 +74,7 @@ export function startCron(): () => void {
     const tick = async (): Promise<void> => {
       if (running.has(task.name)) return;
       running.add(task.name);
+
       try {
         await task.run();
       } catch (err) {
@@ -75,6 +82,7 @@ export function startCron(): () => void {
       } finally {
         running.delete(task.name);
       }
+
     };
     const initial = setTimeout(
       () => {

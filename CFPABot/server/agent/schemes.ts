@@ -21,6 +21,7 @@ const log = logger("schemes");
 export interface SchemeDeps {
   /** 由 omp 会话文件或本站会话 ID 反查；读草稿与写 GitHub 都要用。 */
   sessionOf(ref: string | undefined): HarnessSession | undefined;
+
   /** 草稿落盘后把面板与列表一起刷新。 */
   onDraftSaved?(sessionId: string, draft: ReviewDraft): void | Promise<void>;
 }
@@ -63,6 +64,7 @@ export function registerSchemes(deps: SchemeDeps): () => void {
     spec: REPO_SPEC,
     resolve: async (url): Promise<InternalResource> => {
       const { text, isDirectory } = await readRepo(partsOf(url));
+
       return { url: url.href, content: text, contentType: "text/plain", ...(isDirectory ? { isDirectory } : {}) };
     },
   };
@@ -82,6 +84,7 @@ export function registerSchemes(deps: SchemeDeps): () => void {
     spec: PR_SPEC,
     resolve: async (url, context) => {
       const session = deps.sessionOf(context?.sessionFile) ?? deps.sessionOf(context?.sessionId);
+
       return {
         url: url.href,
         content: textOf(await readPr(prPartsOf(url), session)),
@@ -91,9 +94,11 @@ export function registerSchemes(deps: SchemeDeps): () => void {
     write: async (url, content, context): Promise<InternalWriteResult> => {
       const ref = context?.session?.getSessionFile?.() ?? context?.session?.getSessionId?.() ?? undefined;
       const session = deps.sessionOf(ref);
+
       if (session === undefined) throw new Error("无法确定写入会话，请重开会话后重试。");
       const parts = prPartsOf(url);
       const target = findWriteTarget(parts);
+
       if (target === undefined) throw unsupportedWrite();
       const result = await writePr(
         parts,
@@ -105,12 +110,14 @@ export function registerSchemes(deps: SchemeDeps): () => void {
         },
         context?.toolCall?.id ?? "manual",
       );
+
       return { content: result.content, ...(result.isError === true ? { isError: true } : {}) };
     },
   };
 
   // omp 的 pr:// 是 gh CLI 浏览语义；本站的 pr:// 承载 PR 审查资源与写入，必须接管。
   router.unregister("pr");
+
   for (const handler of [repo, gh, pr]) router.register(handler);
   log.info("已注册资源 scheme", { schemes: [repo.scheme, gh.scheme, pr.scheme] });
 

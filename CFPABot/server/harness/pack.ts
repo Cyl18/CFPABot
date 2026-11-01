@@ -15,6 +15,7 @@ export async function loadPack(n: number, rebuild = false): Promise<Pack> {
   const baseSha = await source.ref("base");
   const key = `${n}@${pull.headSha}`;
   const cached = packs.get(key);
+
   if (rebuild || (cached !== undefined && cached.baseSha !== baseSha)) packs.delete(key);
   const terms = await glossaryTerms();
   const build = () =>
@@ -26,6 +27,7 @@ export async function loadPack(n: number, rebuild = false): Promise<Pack> {
       read: source.read,
       terms,
     });
+
   return terms === null ? build() : packs.wrap(key, build);
 }
 
@@ -37,11 +39,14 @@ export function packSummary(pack: Pack): PackSummary {
   let truncated = pack.workspacesTruncated === true;
   const workspaces = pack.workspaces.map((workspace) => {
     if (workspace.duplicates.length > 5 || workspace.fileFindings.length > 5) truncated = true;
+
     return {
       ...workspaceBrief(workspace),
       files: workspace.fileFindings.slice(0, 5),
     };
+
   });
+
   return {
     prNumber: pack.prNumber,
     headSha: pack.headSha,

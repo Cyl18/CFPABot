@@ -40,10 +40,13 @@ export type Env = z.infer<typeof schema>;
 
 function load(): Env {
   const parsed = schema.safeParse(process.env);
+
   if (!parsed.success) {
     const lines = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`);
+
     throw new Error(`环境变量无效:\n${lines.join("\n")}`);
   }
+
   return parsed.data;
 }
 

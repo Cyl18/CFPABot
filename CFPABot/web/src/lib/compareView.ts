@@ -10,6 +10,7 @@ export function compareLanes(rows: readonly CompareRow[], n: number): DiffLane[]
   const base = rows.some((row) => row.baseEn !== undefined || row.baseZh !== undefined);
   const head = rows.some((row) => row.headEn !== undefined || row.headZh !== undefined);
   const whole = base === head ? null : head ? ("insert" as const) : ("delete" as const);
+
   return [
     {
       id: "base",

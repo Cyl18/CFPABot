@@ -79,6 +79,7 @@ function versionSelection(raw: string | undefined): string[] | undefined {
     .split(",")
     .map((item) => item.trim())
     .filter((item) => item !== "");
+
   return list.length === 0 ? undefined : list;
 }
 
@@ -92,7 +93,9 @@ const packQuery = z.object({ rebuild: z.enum(["1"]).optional() });
 export function prNumber(c: AppContext): number {
   const raw = c.req.param("n");
   const n = Number(raw);
+
   if (!Number.isInteger(n) || n <= 0) throw new HttpError(400, "PR 编号无效", "invalid_pr");
+
   return n;
 }
 
@@ -101,6 +104,7 @@ export async function withPull<T>(fn: () => Promise<T>): Promise<T> {
     return await fn();
   } catch (err) {
     if (isUpstreamNotFound(err)) throw notFound("PR 不存在");
+
     throw err;
   }
 }
@@ -111,6 +115,7 @@ prRoutes.get("/env", (c) => c.json({ github: gh.mode } satisfies PublicEnv));
 
 async function rateLimitOrNull(): Promise<{ remaining: number; limit: number; resetAt: string } | null> {
   const timeout = Bun.sleep(5000).then(() => null);
+
   return Promise.race([gh.rateLimit().catch(() => null), timeout]);
 }
 
@@ -135,6 +140,7 @@ prRoutes.get("/status", async (c) => {
     modList: { updatedAt: modList?.updatedAt ?? null, count: modList?.mods.length ?? 0 },
     mappings: { count: mappings.length, updatedAt: mappingsUpdatedAt() },
   };
+
   return c.json(status);
 });
 
@@ -148,6 +154,7 @@ function mappingsUpdatedAt(): string | null {
 
 prRoutes.get("/prs", async (c) => {
   const { state } = parseQuery(c, stateQuery);
+
   return c.json(await prdata.list(state));
 });
 
@@ -159,6 +166,7 @@ prRoutes.get("/prs/:n/pack", async (c) => {
   await requireAdmin(c);
   const { rebuild } = parseQuery(c, packQuery);
   const n = prNumber(c);
+
   return c.json(await withPull(async () => packSummary(await loadPack(n, rebuild === "1"))));
 });
 
@@ -169,6 +177,7 @@ function rowsOptionsOf(data: z.infer<typeof rowsQuery>): RowsOptions {
     .filter(Boolean);
   const include = new Set((data.include ?? "terms,threads,duplicates").split(",").map((name) => name.trim()));
   const all = include.has("all");
+
   return {
     filter: data.filter ?? "reviewable",
     ...(data.workspace === undefined ? {} : { workspace: data.workspace }),
@@ -189,6 +198,7 @@ function rowsOptionsOf(data: z.infer<typeof rowsQuery>): RowsOptions {
 prRoutes.get("/prs/:n/brief", async (c) => {
   const data = parseQuery(c, briefQuery);
   const n = prNumber(c);
+
   return c.json(
     await withPull(() =>
       reviewBrief(n, {
@@ -203,6 +213,7 @@ prRoutes.get("/prs/:n/rows", async (c) => {
   const data = parseQuery(c, rowsQuery);
   const n = prNumber(c);
   const options = rowsOptionsOf(data);
+
   return c.json(await withPull(() => rowsOf(n, options)));
 });
 
@@ -210,6 +221,7 @@ prRoutes.get("/prs/:n/terms", async (c) => {
   const data = parseQuery(c, termsQuery);
   const n = prNumber(c);
   const queries = [...(c.req.queries("term") ?? []), ...(data.q === undefined ? [] : [data.q])];
+
   return c.json(
     await withPull(() =>
       termsOf(n, {
@@ -227,6 +239,7 @@ prRoutes.post("/prs/:n/refresh", async (c) => {
   await requireAdmin(c);
   const n = prNumber(c);
   track(`pr:${n}`, () => refreshInfoComment(n, { force: true, refreshPacker: true }));
+
   return c.json({ ok: true }, 202);
 });
 
@@ -235,6 +248,7 @@ prRoutes.get("/prs/:n/refresh/status", (c) => c.json({ running: isRefreshing(prN
 prRoutes.get("/prs/:n/compare", async (c) => {
   const key = parseQuery(c, workspaceQuery);
   const n = prNumber(c);
+
   return c.json(await withPull(() => compareWorkspace(n, key, prdata.fileSource(n))));
 });
 
@@ -248,6 +262,7 @@ prRoutes.get("/prs/:n/special-files", async (c) => {
   ]
     .map((key) => key.trim())
     .filter(Boolean);
+
   return c.json(
     await withPull(() =>
       specialPageOf(n, {
@@ -265,12 +280,15 @@ prRoutes.get("/prs/:n/special", async (c) => c.json(await withPull(() => special
 prRoutes.get("/prs/:n/special/content", async (c) => {
   const { key } = parseQuery(c, specialQuery);
   const content = await withPull(() => specialPairContent(prNumber(c), key, prdata.fileSource(prNumber(c))));
+
   if (content === null) throw notFound("特殊文件不存在");
+
   return c.json(content);
 });
 
 prRoutes.get("/versions/:slug/keys", async (c) => {
   const { namespace, pr, versions } = parseQuery(c, versionsQuery);
+
   return c.json(
     await crossVersionKeys(
       c.req.param("slug"),
@@ -282,14 +300,17 @@ prRoutes.get("/versions/:slug/keys", async (c) => {
 
 prRoutes.post("/compare/text", async (c) => {
   const body = await parseBody<TextCompareRequest>(c, textCompareSchema);
+
   return c.json(textCompare(body));
 });
 
 prRoutes.get("/mods", async (c) => {
   const { q } = parseQuery(c, modsQuery);
   const list = await mirror.modList();
+
   if (!q) return c.json(list);
   const needle = q.trim().toLowerCase();
+
   return c.json({
     ...list,
     mods: list.mods.filter((mod) => mod.slug.toLowerCase().includes(needle) || (mod.name ?? "").toLowerCase().includes(needle)),
@@ -316,12 +337,16 @@ prRoutes.get("/BakaXL/ModList", async (c) => {
   const payload = await bakaXlCache.wrap("modlist", async () => {
     const list = await mirror.modList();
     const modlist: BakaXlMod[] = [];
+
     for (const mod of list.mods) {
       if (mod.slug === "1UNKNOWN" || mod.slug.startsWith("0-")) continue;
       const rows: (BakaXlVersion & { domain: string })[] = [];
+
       for (const entry of mod.versions) {
         const dir = commentVersionDir(entry.version);
+
         if (dir === null) continue;
+
         for (const domain of entry.zhDomains ?? []) {
           rows.push({
             version: dir.mc,
@@ -338,16 +363,20 @@ prRoutes.get("/BakaXL/ModList", async (c) => {
           a.domain.localeCompare(b.domain),
       );
       const first = rows[0];
+
       if (first === undefined) continue;
       const latest = rows.reduce((best, row) => (compareMc(row.version, best.version) > 0 ? row : best), first);
       const versions: BakaXlVersion[] = [];
       const seen = new Set<string>();
+
       for (const { version, loader, repoLink } of rows) {
         const key = `${version}\u0000${loader}`;
+
         if (seen.has(key)) continue;
         seen.add(key);
         versions.push({ version, loader, repoLink });
       }
+
       const cfMatched = mod.cfSlug !== undefined && mod.cfSlug === mod.slug;
       modlist.push({
         modSlug: mod.slug,
@@ -357,8 +386,10 @@ prRoutes.get("/BakaXL/ModList", async (c) => {
         versions,
       });
     }
+
     return { modlist, lastUpdate: list.updatedAt ?? new Date().toISOString() };
   });
+
   return c.json(payload);
 });
 

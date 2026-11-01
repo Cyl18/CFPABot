@@ -25,9 +25,11 @@ function thumbnailCell(iconUrl: string | undefined): string {
 
 async function repoLinkCell(slug: string): Promise<string> {
   const parts = ["<details> <summary>语言文件链接</summary>"];
+
   try {
     for (const version of await mirror.modVersions(slug)) {
       const label = version.version === "1.12.2" ? "1.12" : version.version;
+
       for (const domain of version.namespaces) {
         parts.push(
           `[${label}](https://github.com/${repo.owner}/${repo.name}/tree/${repo.defaultBranch}/projects/assets/${slug}/${version.version}/${domain}/lang/) <br/>`,
@@ -38,43 +40,55 @@ async function repoLinkCell(slug: string): Promise<string> {
     parts.push(`❌ ${messageOf(err)}`);
     log.error("GetModRepoLinkText", { slug, err });
   }
+
   parts.push("</details>");
+
   return parts.join("");
 }
 
 export async function collectMods(files: PrFile[], prNumber: number, publicUrl: string): Promise<string> {
   const sb = new Lines();
   const table = new Lines();
+
   try {
     const modInfos = modPathsOf(files.map((file) => file.path));
     const modids = [...new Set(modInfos.map((info) => info.slug))];
+
     if (modids.length > MAX_MODS) {
       sb.line(TOO_MANY_MODS);
+
       return sb.text();
     }
 
     const addons: CfAddon[] = [];
+
     for (const slug of modids) {
       if (slug === "1UNKNOWN" || slug === "0-modrinth-mod" || slug.startsWith("modrinth-")) continue;
       const resolved = await mods.resolveByMapping(slug);
+
       if (resolved === null) {
         sb.line(mappingMissingMessage(slug));
         continue;
       }
+
       addons.push(resolved);
     }
 
     const modrinthList: { name: string; url: string; iconUrl?: string }[] = [];
     const modrinthErrors = new Lines();
+
     for (const slug of modids) {
       if (!slug.startsWith("modrinth-")) continue;
       const project = await mods.modrinthProject(slug.slice("modrinth-".length));
+
       if (project === null) {
         modrinthErrors.line(`Modrinth 检索遇到问题：找不到 Modrinth 项目 ${slug.slice("modrinth-".length)}`);
         continue;
       }
+
       modrinthList.push(project);
     }
+
     if (modrinthErrors.text().trim() !== "") {
       sb.line();
       sb.raw(modrinthErrors.text());
@@ -83,17 +97,21 @@ export async function collectMods(files: PrFile[], prNumber: number, publicUrl: 
 
     const modDomains = [...new Set(modInfos.filter((info) => info.slug === "0-modrinth-mod").map((info) => info.domain))];
     let flag1 = false;
+
     for (const namespace of modDomains) {
       const project = await mods.modrinthProject(namespace);
+
       if (project !== null) {
         sb.line(`- 找到 Modrinth 模组：[${project.name}](${project.url})`);
         flag1 = true;
         continue;
       }
+
       try {
         const hits = await mods.searchModrinth(namespace, 3);
         sb.line();
         sb.line(`- ${namespace} 的 Modrinth 搜索结果：`);
+
         for (const hit of hits) sb.line(`  - [${hit.title}](${hit.url})`);
         sb.line();
         flag1 = true;
@@ -101,6 +119,7 @@ export async function collectMods(files: PrFile[], prNumber: number, publicUrl: 
         log.warn("Modrinth 搜索失败", { namespace, err });
       }
     }
+
     if (flag1) {
       sb.line();
       sb.line(MODRINTH_NOTE);
@@ -111,6 +130,7 @@ export async function collectMods(files: PrFile[], prNumber: number, publicUrl: 
 
     if (addons.length === 0 && modrinthList.length === 0) {
       sb.line(NO_MODS);
+
       return sb.text();
     }
 
@@ -135,8 +155,10 @@ export async function collectMods(files: PrFile[], prNumber: number, publicUrl: 
       modCount++;
       const deps = await mods.commentDependencies(addon.raw).catch((err: unknown) => {
         log.error("获取依赖失败", { slug: addon.raw.slug, err });
+
         return [];
       });
+
       for (const dep of deps) {
         const depName = dep.name.replaceAll("[", "\\[").replaceAll("]", "\\]");
         const depSource = dep.sourceUrl ? `[:mag: 源代码](${dep.sourceUrl})&nbsp;&nbsp;` : ":mag:无源代码";
@@ -152,12 +174,14 @@ export async function collectMods(files: PrFile[], prNumber: number, publicUrl: 
     } else {
       sb.line(table.text());
     }
+
     return sb.text();
   } catch (err) {
     log.error("更新 mod 列表出错", { error: err });
     sb.line(table.text());
     sb.line();
     sb.line(`⚠ 更新模组列表出错: ${messageOf(err)}`);
+
     return sb.text();
   }
 }

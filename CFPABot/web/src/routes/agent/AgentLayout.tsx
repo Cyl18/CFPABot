@@ -29,7 +29,9 @@ function initialOpen(): boolean {
 
 function statusDot(session: SessionSummary): string {
   if (session.status === "running") return "animate-pulse bg-warn";
+
   if (session.lastError !== undefined) return "bg-danger";
+
   return "bg-muted/50";
 }
 
@@ -39,7 +41,9 @@ const AgentSidebarContext = createContext<AgentSidebarValue | null>(null);
 
 export function useAgentSidebar(): AgentSidebarValue {
   const value = useContext(AgentSidebarContext);
+
   if (value === null) throw new Error("useAgentSidebar must be used inside AgentLayout");
+
   return value;
 }
 
@@ -101,9 +105,11 @@ export function AgentLayout() {
   const toggle = () => {
     setOpen((value) => {
       const next = !value;
+
       try {
         localStorage.setItem(OPEN_KEY, next ? "open" : "closed");
       } catch {}
+
       return next;
     });
   };

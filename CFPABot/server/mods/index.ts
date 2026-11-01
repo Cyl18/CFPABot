@@ -32,16 +32,21 @@ async function curseforgeDependencies(mod: cf.CfMod): Promise<ModDep[]> {
   const requiredIds = [
     ...new Set((newest?.dependencies ?? []).filter((d) => d.relationType === REQUIRED_DEPENDENCY).map((d) => d.modId)),
   ];
+
   if (requiredIds.length === 0) return [];
   let found: cf.CfMod[];
+
   try {
     found = await cf.getModsByIds(requiredIds);
   } catch (err) {
     log.warn("获取 CurseForge 依赖失败", { mod: mod.slug, err });
+
     return [];
   }
+
   return found.map((dep) => {
     const iconUrl = thumbnail(dep);
+
     return {
       id: String(dep.id),
       slug: dep.slug,
@@ -49,6 +54,7 @@ async function curseforgeDependencies(mod: cf.CfMod): Promise<ModDep[]> {
       url: curseforgeUrl(dep, dep.slug),
       ...(iconUrl ? { iconUrl } : {}),
     };
+
   });
 }
 
@@ -57,12 +63,15 @@ async function curseforgeInfo(slug: string): Promise<ModInfo | null> {
   const mappedId = await mappings.get(slug);
   let mod = mappedId === undefined ? null : await cf.getMod(mappedId);
   mod ??= await cf.searchBySlug(slug);
+
   if (!mod) return null;
+
   return { ...cfInfoFromMod(mod, slug), dependencies: await curseforgeDependencies(mod) };
 }
 
 function cfInfoFromMod(mod: cf.CfMod, fallbackSlug: string): Omit<ModInfo, "dependencies"> {
   const iconUrl = thumbnail(mod);
+
   return {
     provider: "curseforge",
     id: String(mod.id),
@@ -78,8 +87,10 @@ function cfInfoFromMod(mod: cf.CfMod, fallbackSlug: string): Omit<ModInfo, "depe
 
 async function modrinthInfo(slug: string): Promise<ModInfo | null> {
   const project = await mr.getProject(slug);
+
   if (!project) return null;
   const realSlug = project.slug || slug;
+
   return {
     provider: "modrinth",
     id: project.id,
@@ -96,13 +107,18 @@ async function modrinthInfo(slug: string): Promise<ModInfo | null> {
 
 async function pickModrinthFile(mod: ModInfo, mc: string, loaders: string[]): Promise<ModFile | null> {
   let versions = await mr.getVersions(mod.slug, { loaders, gameVersions: [mc] });
+
   if (versions.length === 0) versions = await mr.getVersions(mod.slug, { loaders });
+
   if (versions.length === 0) versions = await mr.getVersions(mod.slug, {});
   const exact = versions.filter((version) => version.game_versions.some((gv) => mcMatches(mc, gv)));
   const version = exact.sort((a, b) => b.date_published.localeCompare(a.date_published))[0];
+
   if (!version) return null;
   const file = version.files.find((f) => f.primary) ?? version.files[0];
+
   if (!file) return null;
+
   return {
     provider: "modrinth",
     id: file.hashes?.sha1 || version.id,
@@ -116,13 +132,16 @@ async function pickModrinthFile(mod: ModInfo, mc: string, loaders: string[]): Pr
 
 async function pickCurseforgeFile(mod: ModInfo, mc: string, loaders: string[]): Promise<ModFile | null> {
   const modId = Number(mod.id);
+
   if (!Number.isInteger(modId)) return null;
   const files = await cf.getAllFiles(modId);
   const matched = files.filter((file) => file.gameVersions.some((gv) => mcMatches(mc, gv)));
   const byLoader = matched.filter((file) => file.gameVersions.some((gv) => loaders.includes(gv.toLowerCase())));
   const candidates = (byLoader.length > 0 ? byLoader : matched).sort((a, b) => b.fileDate.localeCompare(a.fileDate));
   const file = candidates[0];
+
   if (file === undefined) return null;
+
   return {
     provider: "curseforge",
     id: String(file.id),
@@ -137,7 +156,9 @@ async function pickCurseforgeFile(mod: ModInfo, mc: string, loaders: string[]): 
 export const mods = {
   async resolve(slug: string): Promise<ModInfo | null> {
     const ref = modRefOf(slug);
+
     if (ref.provider === "none") return null;
+
     return resolveCache.wrap(`${ref.provider}:${ref.slug}`, () =>
       ref.provider === "modrinth" ? modrinthInfo(ref.slug) : curseforgeInfo(ref.slug),
     );
@@ -150,8 +171,10 @@ export const mods = {
 
   async pickFile(mod: ModInfo, versionDir: string): Promise<ModFile | null> {
     const parsed = parseVersionDir(versionDir);
+
     if (!parsed) return null;
     const loaders = parsed.loader === "fabric" ? ["fabric", "quilt"] : ["forge", "neoforge"];
+
     return mod.provider === "modrinth"
       ? pickModrinthFile(mod, parsed.mc, loaders)
       : pickCurseforgeFile(mod, parsed.mc, loaders);
@@ -164,16 +187,21 @@ export const mods = {
       fabric ? (file.gameVersions.includes("Fabric") ? 0 : 1) : file.gameVersions.includes("Fabric") ? 1 : 0;
     const select = (files: cf.CfFile[]): cf.CfFile | null => {
       const sorted = [...files];
+
       if (mode === "moden") sorted.sort((a, b) => b.id - a.id || rank(a) - rank(b));
       else if (mode === "domain") sorted.sort((a, b) => rank(a) - rank(b));
+
       return (
         sorted.find((file) =>
           (file.gameVersions.find((version) => version.includes(".")) ?? "x").startsWith(standard),
         ) ?? null
       );
     };
+
     const file = select(raw.latestFiles) ?? select(await cf.getAllFiles(raw.id));
+
     if (file === null) return null;
+
     return {
       provider: "curseforge",
       id: String(file.id),
@@ -190,9 +218,12 @@ export const mods = {
     const fabric = versionString.endsWith("-fabric");
     const versions = await mr.getVersions(mod.slug, { loaders: [fabric ? "fabric" : "forge"] });
     const version = versions.find((entry) => entry.game_versions.some((gv) => gv.startsWith(standard)));
+
     if (version === undefined) return null;
     const file = (fabric ? version.files.find((f) => f.filename.toLowerCase().includes("fabric")) : undefined) ?? version.files[0];
+
     if (file === undefined) return null;
+
     return {
       provider: "modrinth",
       id: file.hashes?.sha1 ?? version.id,
@@ -206,10 +237,13 @@ export const mods = {
 
   async resolveByMapping(slug: string): Promise<{ raw: cf.CfMod; name: string; url: string; iconUrl?: string; sourceUrl?: string; allowDistribution: boolean } | null> {
     const mappedId = await mappings.get(slug);
+
     if (mappedId === undefined) return null;
     const raw = await cf.getMod(mappedId);
+
     if (raw === null) throw new Error(`找不到 CurseForge 模组 ${mappedId}`);
     const info = cfInfoFromMod(raw, slug);
+
     return {
       raw,
       name: info.name,
@@ -223,8 +257,10 @@ export const mods = {
   async cfLangDomain(raw: cf.CfMod, versionString: string): Promise<string> {
     try {
       const file = await mods.pickCheckCfFile(raw, versionString, "lang");
+
       if (file === null) return "未知";
       const jar = await readJar(file);
+
       return jar?.langDirs[0] ?? "未知";
     } catch {
       return "未知";
@@ -234,8 +270,10 @@ export const mods = {
   async modrinthLangDomain(slug: string, versionString: string): Promise<string> {
     try {
       const file = await mods.pickCheckModrinthFile({ slug }, versionString);
+
       if (file === null) return "未知";
       const jar = await readJar(file);
+
       return jar?.langDirs[0] ?? "未知";
     } catch {
       return "未知";
@@ -255,13 +293,17 @@ export const mods = {
         (newest?.dependencies ?? []).filter((dep) => dep.relationType === REQUIRED_DEPENDENCY).map((dep) => dep.modId),
       ),
     ];
+
     if (ids.length === 0) return [];
     const found = await cf.getModsByIds(ids);
     const byId = new Map(found.map((mod) => [mod.id, mod]));
+
     return ids.flatMap((id) => {
       const dep = byId.get(id);
+
       if (dep === undefined) return [];
       const iconUrl = thumbnail(dep);
+
       return [
         {
           id: String(dep.id),

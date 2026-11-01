@@ -16,6 +16,7 @@ export const TONES: Record<BadgeTone, string> = {
 
 export function sizeLabelRank(label: string): number {
   const index = SIZE_LABELS.findIndex((entry) => entry.name === label);
+
   return index === -1 ? SIZE_LABELS.length : index;
 }
 
@@ -71,6 +72,7 @@ export function TagList({ items, label, className }: TagListProps) {
     const host = hostRef.current;
     const probe = probeRef.current;
     const counter = counterRef.current;
+
     if (!host || !probe || !counter) return;
     const measure = () => {
       const avail = host.clientWidth;
@@ -78,23 +80,32 @@ export function TagList({ items, label, className }: TagListProps) {
       const gap = parseFloat(getComputedStyle(probe).columnGap) || FALLBACK_GAP;
       const prefix: number[] = [];
       let acc = 0;
+
       for (const [index, width] of widths.entries()) {
         acc += width + (index === 0 ? 0 : gap);
         prefix.push(acc);
       }
+
       let count = 0;
+
       while (count < widths.length && (prefix[count] ?? 0) <= avail) count += 1;
+
       if (count === 0 && widths.length > 0) count = 1;
+
       while (count > 1) {
         counter.textContent = `+${widths.length - count}`;
+
         if ((prefix[count - 1] ?? 0) + gap + counter.getBoundingClientRect().width <= avail) break;
         count -= 1;
       }
+
       setShown(count);
     };
+
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(host);
+
     return () => observer.disconnect();
   }, [items]);
 

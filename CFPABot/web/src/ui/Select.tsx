@@ -16,6 +16,7 @@ export function Select({ label, hint, error, wrapperClassName, className, option
   const generated = useId();
   const fieldId = id ?? generated;
   const describedBy = error !== undefined ? `${fieldId}-error` : hint !== undefined ? `${fieldId}-hint` : undefined;
+
   return (
     <div className={cn("flex flex-col gap-1", wrapperClassName)}>
       {label !== undefined && (

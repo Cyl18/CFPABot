@@ -243,6 +243,7 @@ export interface ReviewMeta {
 
 function mapComment(comment: CommentNode, viewer: string | null): ReviewComment {
   const login = comment.author?.login ?? null;
+
   return {
     id: comment.id,
     author: login ?? "ghost",
@@ -274,11 +275,13 @@ interface ThreadCommentsData {
 export async function reviewMeta(octokit: GhOctokit, n: number): Promise<ReviewMeta | null> {
   const data: MetaData = await octokit.graphql(META_QUERY, { owner: repo.owner, name: repo.name, number: n });
   const pull = data.repository.pullRequest;
+
   if (pull === null) return null;
   const viewer = data.viewer?.login ?? null;
   const pending = (pull.reviews?.nodes ?? []).find(
     (review) => viewer !== null && review.author?.login === viewer,
   );
+
   return {
     viewer,
     pullRequestId: pull.id,
@@ -294,14 +297,17 @@ async function fetchThreadComments(
 ): Promise<CommentNode[]> {
   const comments: CommentNode[] = [];
   let after = cursor;
+
   for (;;) {
     const data: ThreadCommentsData = await octokit.graphql(THREAD_COMMENTS_QUERY, {
       threadId,
       cursor: after,
     });
     const connection = data.node?.comments;
+
     if (connection === undefined) return comments;
     comments.push(...connection.nodes);
+
     if (!connection.pageInfo.hasNextPage || connection.pageInfo.endCursor === null) return comments;
     after = connection.pageInfo.endCursor;
   }
@@ -315,6 +321,7 @@ async function fetchThreads(
   const threads: ReviewThread[] = [];
   let cursor: string | null = null;
   let headSha = "";
+
   for (;;) {
     const data: ThreadsData = await octokit.graphql(THREADS_QUERY, {
       owner: repo.owner,
@@ -323,24 +330,31 @@ async function fetchThreads(
       cursor,
     });
     const pull = data.repository.pullRequest;
+
     if (pull === null) return null;
     headSha = pull.headRefOid;
+
     for (const node of pull.reviewThreads.nodes) {
       const comments = [...node.comments.nodes];
+
       if (node.comments.pageInfo.hasNextPage) {
         comments.push(...(await fetchThreadComments(octokit, node.id, node.comments.pageInfo.endCursor)));
       }
+
       threads.push(mapThread(node, comments, viewer));
     }
+
     if (!pull.reviewThreads.pageInfo.hasNextPage || pull.reviewThreads.pageInfo.endCursor === null) break;
     cursor = pull.reviewThreads.pageInfo.endCursor;
   }
+
   return { headSha, threads };
 }
 
 async function fetchViewed(octokit: GhOctokit, n: number): Promise<Record<string, FileViewedState>> {
   const viewed: Record<string, FileViewedState> = {};
   let cursor: string | null = null;
+
   for (;;) {
     const data: FilesData = await octokit.graphql(FILES_QUERY, {
       owner: repo.owner,
@@ -349,19 +363,26 @@ async function fetchViewed(octokit: GhOctokit, n: number): Promise<Record<string
       cursor,
     });
     const connection = data.repository.pullRequest?.files;
+
     if (connection === undefined) return viewed;
+
     for (const file of connection.nodes) viewed[file.path] = file.viewerViewedState;
+
     if (!connection.pageInfo.hasNextPage || connection.pageInfo.endCursor === null) break;
     cursor = connection.pageInfo.endCursor;
   }
+
   return viewed;
 }
 
 export async function userReviewState(octokit: GhOctokit, n: number): Promise<PrReviewState | null> {
   const meta = await reviewMeta(octokit, n);
+
   if (meta === null) return null;
   const [threads, viewed] = await Promise.all([fetchThreads(octokit, n, meta.viewer), fetchViewed(octokit, n)]);
+
   if (threads === null) return null;
+
   return {
     viewer: meta.viewer,
     headSha: meta.headSha,
@@ -373,7 +394,9 @@ export async function userReviewState(octokit: GhOctokit, n: number): Promise<Pr
 
 export async function anonymousReviewState(octokit: GhOctokit, n: number): Promise<PrReviewState | null> {
   const result = await fetchThreads(octokit, n, null);
+
   if (result === null) return null;
+
   return { viewer: null, headSha: result.headSha, pendingReviewId: null, threads: result.threads, viewed: {} };
 }
 
@@ -388,7 +411,9 @@ export async function createPendingReview(
     request: { retries: 0 },
   });
   const id = data.addPullRequestReview.pullRequestReview?.id;
+
   if (id === undefined) throw new Error("GitHub 未返回待提交审查 id");
+
   return id;
 }
 
@@ -405,6 +430,7 @@ export async function addReviewThread(
     request: { retries: 0 },
   });
   const thread = data.addPullRequestReviewThread.thread;
+
   return mapThread(thread, thread.comments.nodes, viewer);
 }
 
@@ -416,35 +442,45 @@ export async function createReviewComment(
   input: { path: string; line: number; body: string },
 ): Promise<ReviewThread | null> {
   const meta = await reviewMeta(octokit, n);
+
   if (meta === null) return null;
   let data = await prdata.files(n);
+
   if (data.pull.headSha !== meta.headSha) {
     await prdata.refresh(n);
     data = await prdata.files(n);
   }
+
   const { pull, files } = data;
+
   if (pull.headSha !== meta.headSha) {
     throw new HttpError(409, "PR head 正在更新，请重新读取后再评论", "head_moved");
   }
+
   const file = files.find((entry) => entry.path === input.path);
+
   if (file === undefined || file.status === "removed") throw new HttpError(422, NOT_IN_DIFF, "not_in_diff");
   const headText =
     file.patch === undefined && file.status === "added" ? await gh.getFile(input.path, pull.headSha) : null;
   const hunks = commentableHunks(file, headText);
+
   if (hunks === null || !inHunks(input.line, hunks)) {
     throw new HttpError(422, NOT_IN_DIFF, "not_in_diff");
   }
 
   let reviewId = meta.pendingReviewId;
+
   if (reviewId === null) {
     try {
       reviewId = await createPendingReview(octokit, meta.pullRequestId, meta.headSha);
     } catch (err) {
       const retry = await reviewMeta(octokit, n);
       reviewId = retry?.pendingReviewId ?? null;
+
       if (reviewId === null) throw err;
     }
   }
+
   return addReviewThread(octokit, { reviewId, path: input.path, line: input.line, body: input.body }, meta.viewer);
 }
 
@@ -455,9 +491,11 @@ export async function deleteReviewComment(octokit: GhOctokit, commentId: string)
 export async function renderComments(octokit: GhOctokit, ids: readonly string[]): Promise<Record<string, string>> {
   const data: { nodes: RenderNode[] } = await octokit.graphql(RENDER_COMMENTS, { ids });
   const html: Record<string, string> = {};
+
   for (const node of data.nodes) {
     if (node.bodyHTML !== undefined) html[node.id] = node.bodyHTML;
   }
+
   return html;
 }
 
@@ -472,6 +510,7 @@ export async function replyToReviewThread(
   viewer: string | null,
 ): Promise<ReviewComment> {
   const data: ReplyData = await octokit.graphql(ADD_REPLY, { threadId, body, request: { retries: 0 } });
+
   return mapComment(data.addPullRequestReviewThreadReply.comment, viewer);
 }
 
@@ -501,7 +540,9 @@ export async function submitPendingReview(
     request: { retries: 0 },
   });
   const url = data.submitPullRequestReview.pullRequestReview?.url;
+
   if (url === undefined) throw new Error("GitHub 未返回审查链接");
+
   return url;
 }
 
@@ -520,6 +561,8 @@ export async function createSubmittedReview(
     request: { retries: 0 },
   });
   const url = data.addPullRequestReview.pullRequestReview?.url;
+
   if (url === undefined) throw new Error("GitHub 未返回审查链接");
+
   return url;
 }

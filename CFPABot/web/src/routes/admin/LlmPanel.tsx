@@ -109,14 +109,17 @@ export function LlmPanel() {
   });
 
   if (llm.error !== null) return <ErrorState error={llm.error} onRetry={() => void llm.refetch()} />;
+
   if (llm.isPending || !data) return <SkeletonText lines={6} />;
 
   const endpoints = data.endpoints;
+
   // 同一 provider 共用 baseUrl/protocol/密钥（服务端有校验），按 provider 折叠展示。
   const providerGroups = [...endpoints.reduce((map, endpoint) => {
     const list = map.get(endpoint.provider) ?? [];
     list.push(endpoint);
     map.set(endpoint.provider, list);
+
     return map;
   }, new Map<string, typeof endpoints>()).entries()];
   const roleEntries = Object.entries(data.roles).sort(([a], [b]) =>
@@ -130,6 +133,7 @@ export function LlmPanel() {
     const oldId = editing?.id;
     const newId = drafts[0]?.id;
     const endpoints = base.endpoints.filter((endpoint) => endpoint.id !== oldId);
+
     for (const draft of drafts) {
       const index = endpoints.findIndex((endpoint) => endpoint.id === draft.id);
       const next = {
@@ -142,13 +146,16 @@ export function LlmPanel() {
         ...(draft.maxOutput !== undefined ? { maxOutput: draft.maxOutput } : {}),
         ...(draft.apiKey !== undefined && draft.apiKey !== "" ? { apiKey: draft.apiKey } : {}),
       };
+
       if (index >= 0) endpoints[index] = next;
       else endpoints.push(next);
     }
     const roles = Object.fromEntries(
       Object.entries(base.roles).map(([name, selector]) => {
         const { endpoint, thinking } = parseModelSelector(selector);
+
         if (oldId === undefined || newId === undefined || endpoint !== oldId) return [name, selector];
+
         return [name, thinking === undefined ? newId : `${newId}:${thinking}`];
       }),
     );
@@ -193,6 +200,7 @@ export function LlmPanel() {
 
   const addRole = () => {
     const name = roleName.trim();
+
     if (name === "" || roleEndpoint === "" || data.roles[name] !== undefined) return;
     persist({ ...updateFrom(data), roles: { ...data.roles, [name]: roleEndpoint } }, () => {
       setRoleName("");
@@ -225,6 +233,7 @@ export function LlmPanel() {
 
   const saveSearchKey = () => {
     const key = searchKey.trim();
+
     if (searchProvider === "" || key === "") return;
     persist(
       { ...updateFrom(data), search: { provider: searchProvider, endpoint: searchEndpoint, apiKey: key } },
@@ -283,6 +292,7 @@ export function LlmPanel() {
           ) : (
             providerGroups.map(([provider, group]) => {
               const first = group[0]!;
+
               return (
                 <div key={provider} className="flex flex-col gap-1.5 rounded-md border border-line bg-elevated/40 px-3 py-2">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -310,6 +320,7 @@ export function LlmPanel() {
                   </div>
                   {group.map((endpoint) => {
                     const result = testResult[endpoint.id];
+
                     return (
                       <div key={endpoint.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-1.5">
                         <code className="min-w-0 flex-1 truncate font-mono text-xs">{endpoint.model}</code>
@@ -379,6 +390,7 @@ export function LlmPanel() {
                 thinkingOptionsFor(modelsDevIndex, endpoint?.model ?? "", endpoint?.provider),
                 thinking,
               );
+
               return (
                 <li key={name} className="flex flex-wrap items-center gap-2 rounded border border-line bg-elevated/40 px-2 py-1">
                   <code className="w-28 truncate font-mono text-xs">@{name}</code>

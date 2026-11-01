@@ -73,6 +73,7 @@ export function LlmEndpointForm({ initial, providerPreset, modelsDevIndex, savin
   const models = useMemo(() => {
     const list = probe.data?.models ?? [];
     const needle = modelFilter.trim().toLowerCase();
+
     return needle === "" ? list : list.filter((item) => item.toLowerCase().includes(needle));
   }, [probe.data, modelFilter]);
 
@@ -89,19 +90,24 @@ export function LlmEndpointForm({ initial, providerPreset, modelsDevIndex, savin
 
   const enrichLimits = (modelId: string) => {
     const limits = pickModelLimits(modelsDevIndex, modelId, provider.trim());
+
     if (limits?.contextWindow !== undefined) setContextWindow(String(limits.contextWindow));
+
     if (limits?.maxOutput !== undefined) setMaxOutput(String(limits.maxOutput));
   };
 
   useEffect(() => {
     if (!modelsDevIndex || model.trim() === "") return;
     const limits = pickModelLimits(modelsDevIndex, model.trim(), provider.trim());
+
     if (limits?.contextWindow !== undefined && contextWindow === "") setContextWindow(String(limits.contextWindow));
+
     if (limits?.maxOutput !== undefined && maxOutput === "") setMaxOutput(String(limits.maxOutput));
   }, [modelsDevIndex]);
 
   const addTypedModel = () => {
     const value = model.trim();
+
     if (value === "" || selectedModels.includes(value)) return;
     setSelectedModels((previous) => [...previous, value]);
     setModel("");
@@ -113,6 +119,7 @@ export function LlmEndpointForm({ initial, providerPreset, modelsDevIndex, savin
       const limits = pickModelLimits(modelsDevIndex, item, provider.trim());
       const context = editing ? (contextWindow !== "" ? Number(contextWindow) : undefined) : limits?.contextWindow ?? (contextWindow !== "" ? Number(contextWindow) : undefined);
       const output = editing ? (maxOutput !== "" ? Number(maxOutput) : undefined) : limits?.maxOutput ?? (maxOutput !== "" ? Number(maxOutput) : undefined);
+
       return {
         id: endpointId(provider.trim(), item),
         provider: provider.trim(),
@@ -124,6 +131,7 @@ export function LlmEndpointForm({ initial, providerPreset, modelsDevIndex, savin
         ...(apiKey !== "" ? { apiKey } : {}),
         hasKey: keyReady,
       };
+
     });
     onSubmit(drafts);
   };
@@ -155,6 +163,7 @@ export function LlmEndpointForm({ initial, providerPreset, modelsDevIndex, savin
             disabled={saving}
             onChange={(event) => {
               const preset = LLM_PROVIDER_PRESETS.find((item) => item.slug === event.target.value);
+
               if (!preset) return;
               setProvider(preset.slug);
               setBaseUrl(preset.baseUrl);
@@ -187,6 +196,7 @@ export function LlmEndpointForm({ initial, providerPreset, modelsDevIndex, savin
             onBlur={() => {
               const inferred = inferProtocolFromUrl(baseUrl);
               setBaseUrl(normalizeLlmBaseUrl(baseUrl));
+
               if (inferred !== undefined) setProtocol(inferred);
             }}
           />

@@ -26,6 +26,7 @@ export interface ReviewApi {
   threadsAt: (path: string, line: number) => readonly ReviewThread[];
   threadsOf: (path: string) => readonly ReviewThread[];
   outgoingAt: (path: string, line: number) => readonly OutgoingComment[];
+
   /** 待提交的本地评论；身份稳定，可作 memo 依赖。 */
   outgoing: readonly OutgoingComment[];
   deleting: ReadonlySet<string>;
@@ -87,6 +88,7 @@ export function ReviewProvider({ n, children }: { n: number; children: ReactNode
       const run = chain.current.then(task);
       const settle = () => {
         inflight.current -= 1;
+
         if (inflight.current > 0) return;
         void client.invalidateQueries({ queryKey: qk.review(n) }).then(() => {
           if (inflight.current > 0) return;
@@ -94,7 +96,9 @@ export function ReviewProvider({ n, children }: { n: number; children: ReactNode
           setViewedOverride(new Map());
         });
       };
+
       chain.current = run.then(settle, settle);
+
       return run;
     },
     [client, n],
@@ -136,6 +140,7 @@ export function ReviewProvider({ n, children }: { n: number; children: ReactNode
   const retryComment = useCallback(
     (id: string) => {
       const item = outgoing.find((one) => one.id === id);
+
       if (item === undefined) return;
       const next = { ...item, error: null };
       setOutgoing((list) => list.map((one) => (one.id === id ? next : one)));
@@ -153,6 +158,7 @@ export function ReviewProvider({ n, children }: { n: number; children: ReactNode
         setDeleting((set) => {
           const next = new Set(set);
           next.delete(id);
+
           return next;
         });
       enqueue(() => api.deleteReviewComment(n, id)).then(
@@ -200,6 +206,7 @@ export function ReviewProvider({ n, children }: { n: number; children: ReactNode
         },
         (err: unknown) => {
           reportError(err, "回复失败");
+
           throw err;
         },
       ),
@@ -213,6 +220,7 @@ export function ReviewProvider({ n, children }: { n: number; children: ReactNode
         setViewedOverride((map) => {
           const next = new Map(map);
           next.delete(path);
+
           return next;
         });
         reportError(err, viewed ? "标记已看失败" : "取消已看失败");
@@ -225,6 +233,7 @@ export function ReviewProvider({ n, children }: { n: number; children: ReactNode
     (event: ReviewEvent, body: string) =>
       enqueue(() => api.submitReview(n, { event, body })).catch((err: unknown) => {
         if (isApiError(err) && err.code === "reauth") setNeedsReauth(true);
+
         throw err;
       }),
     [enqueue, n],
@@ -233,38 +242,46 @@ export function ReviewProvider({ n, children }: { n: number; children: ReactNode
   const index = useMemo(() => {
     const byLine = new Map<string, ReviewThread[]>();
     const byPath = new Map<string, ReviewThread[]>();
+
     for (const thread of state?.threads ?? []) {
       const comments = thread.comments.filter((comment) => !deleting.has(comment.id));
+
       if (comments.length === 0) continue;
       const shown = comments.length === thread.comments.length ? thread : { ...thread, comments };
       const all = byPath.get(thread.path) ?? [];
       all.push(shown);
       byPath.set(thread.path, all);
+
       if (thread.line === null) continue;
       const key = spot(thread.path, thread.line);
       const list = byLine.get(key) ?? [];
       list.push(shown);
       byLine.set(key, list);
     }
+
     return { byLine, byPath };
   }, [state, deleting]);
 
   const outgoingIndex = useMemo(() => {
     const map = new Map<string, OutgoingComment[]>();
+
     for (const item of outgoing) {
       const key = spot(item.path, item.line);
       const list = map.get(key) ?? [];
       list.push(item);
       map.set(key, list);
     }
+
     return map;
   }, [outgoing]);
 
   const pendingOnServer = useMemo(() => {
     let count = 0;
+
     for (const thread of state?.threads ?? []) {
       for (const comment of thread.comments) if (comment.pending && comment.mine && !deleting.has(comment.id)) count += 1;
     }
+
     return count;
   }, [state, deleting]);
 
@@ -287,7 +304,9 @@ export function ReviewProvider({ n, children }: { n: number; children: ReactNode
     deleting,
     viewedOf: (path) => {
       const override = viewedOverride.get(path);
+
       if (override !== undefined) return override ? "VIEWED" : "UNVIEWED";
+
       return state?.viewed[path] ?? "UNVIEWED";
     },
     setViewed,
@@ -302,15 +321,19 @@ export function ReviewProvider({ n, children }: { n: number; children: ReactNode
     setOpen: (path, line, next) =>
       setOpenSet((set) => {
         const key = spot(path, line);
+
         if (set.has(key) === next) return set;
         const copy = new Set(set);
+
         if (next) copy.add(key);
         else copy.delete(key);
+
         return copy;
       }),
     draftOf: (path, line) => drafts.current.get(spot(path, line)) ?? "",
     setDraft: (path, line, text) => {
       const key = spot(path, line);
+
       if (text === "") drafts.current.delete(key);
       else drafts.current.set(key, text);
     },
@@ -321,7 +344,9 @@ export function ReviewProvider({ n, children }: { n: number; children: ReactNode
 
 export function useReview(): ReviewApi {
   const value = useContext(ReviewContext);
+
   if (value === null) throw new Error("useReview 必须在 ReviewProvider 内使用");
+
   return value;
 }
 
@@ -336,5 +361,6 @@ export function useThreadHtml(threadId: string, ids: readonly string[], enabled:
     staleTime: Infinity,
     gcTime: Infinity,
   });
+
   return query.data?.html ?? EMPTY_HTML;
 }

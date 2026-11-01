@@ -34,13 +34,17 @@ const BREAKPOINT_RANK = { md: 1, lg: 2, xl: 3 } as const satisfies Record<NonNul
 
 function subscribeResize(callback: () => void): () => void {
   window.addEventListener("resize", callback);
+
   return () => window.removeEventListener("resize", callback);
 }
 
 function viewportRank(): number {
   if (window.innerWidth >= 1280) return 3;
+
   if (window.innerWidth >= 1024) return 2;
+
   if (window.innerWidth >= 768) return 1;
+
   return 0;
 }
 
@@ -63,6 +67,7 @@ export function DataTable<T>({
   useLayoutEffect(() => {
     if (!virtual) return;
     const top = (tableRef.current?.getBoundingClientRect().top ?? 0) + window.scrollY;
+
     if (Math.abs(top - scrollMargin) > 1) setScrollMargin(top);
   });
 

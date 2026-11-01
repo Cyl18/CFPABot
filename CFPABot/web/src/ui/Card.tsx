@@ -30,6 +30,7 @@ export function CardBody({ className, children }: { className?: string; children
 
 export function Stat({ label, value, tone }: { label: ReactNode; value: ReactNode; tone?: "ok" | "warn" | "danger" | "info" }) {
   const color = tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : tone === "danger" ? "text-danger" : tone === "info" ? "text-info" : "text-fg";
+
   return (
     <div className="rounded-lg border border-line bg-surface px-4 py-3">
       <div className="text-xs text-muted">{label}</div>

@@ -18,7 +18,9 @@ export function entryFindingsWithTerms(
 ): Finding[] {
   if (values.baseEn === values.headEn && values.baseZh === values.headZh) return [];
   const findings = entryFindings(key, values.headEn, values.headZh, { en: values.baseEn, zh: values.baseZh });
+
   if (!terms || values.headEn === undefined) return findings;
+
   for (const hit of matchTerms(terms, key, values.headEn, values.headZh ?? "", version)) {
     if (hit.ok) continue;
     findings.push({
@@ -29,5 +31,6 @@ export function entryFindingsWithTerms(
       key,
     });
   }
+
   return findings;
 }

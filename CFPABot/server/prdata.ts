@@ -123,29 +123,37 @@ async function storePull(pull: GhPull, files: GhFile[]): Promise<PrFileCache> {
     entries,
     updatedAt: new Date().toISOString(),
   };
+
   if (pull.state === "open") {
     await writeJson(prPath(pull.number), cache);
     meta.set(pull.number, { headSha: cache.headSha, slugs: cache.slugs, entries });
     openIndex.set(pull.number, summarizePr(pull, cache.slugs));
   }
+
   fileCaches.set(String(pull.number), cache);
+
   return cache;
 }
 
 /** head 没变时文件列表不用重拉，但 pull 快照必须跟着刷新；base 前进后 patch 也变了，得重拉文件。 */
 async function touchPull(pull: GhPull): Promise<void> {
   const cached = fileCaches.get(String(pull.number)) ?? (await readJson(prPath(pull.number), cacheSchema));
+
   if (!cached || cached.headSha !== pull.headSha) return;
+
   if (cached.pull.baseSha !== pull.baseSha) {
     await storePull(pull, await gh.listPullFiles(pull.number));
+
     return;
   }
+
   if (JSON.stringify(cached.pull) === JSON.stringify(pull)) return;
   await storePull(pull, cached.files);
 }
 
 function rebuildRelation(): void {
   relation.clear();
+
   for (const [number, entry] of meta) {
     for (const item of entry.entries) {
       const byPr = relation.get(item.slug) ?? new Map<number, Set<string>>();
@@ -169,7 +177,9 @@ async function loadClosedSlugs(): Promise<void> {
   if (closedSlugsLoaded) return;
   closedSlugsLoaded = true;
   const stored = await readJson(CLOSED_SLUGS_PATH, closedSlugsSchema);
+
   if (stored === null) return;
+
   for (const [key, slugs] of Object.entries(stored)) closedSlugs.set(Number(key), slugs);
 }
 
@@ -181,6 +191,7 @@ function slugsOf(n: number): string[] {
 function fillClosedSlugs(numbers: readonly number[]): void {
   if (numbers.length === 0 || fillingClosed !== null) return;
   const todo = numbers.slice(0, CLOSED_FILL_MAX);
+
   for (const n of todo) closedTried.add(n);
   fillingClosed = (async () => {
     let added = false;
@@ -197,6 +208,7 @@ function fillClosedSlugs(numbers: readonly number[]): void {
       },
       { concurrency: CLOSED_FILL_CONCURRENCY, stopOnError: true },
     ).catch((err: unknown) => log.warn("关闭 PR 的模组列表补齐中断", { err }));
+
     if (!added) return;
     await persistClosedSlugs();
     closedGeneration += 1;
@@ -209,10 +221,12 @@ function fillClosedSlugs(numbers: readonly number[]): void {
 
 async function drop(n: number): Promise<void> {
   const slugs = meta.get(n)?.slugs ?? fileCaches.get(String(n))?.slugs ?? openIndex.get(n)?.slugs;
+
   if (slugs !== undefined) {
     closedSlugs.set(n, slugs);
     await persistClosedSlugs();
   }
+
   meta.delete(n);
   fileCaches.delete(String(n));
   lastChecked.delete(n);
@@ -223,11 +237,14 @@ async function drop(n: number): Promise<void> {
 async function loadMetaFromDisk(): Promise<void> {
   const names = await readdir(PR_DIR).catch(() => [] as string[]);
   let recorded = false;
+
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
     const cached = await readJson(join(PR_DIR, name), cacheSchema);
+
     if (cached?.pull.state === "open") {
       meta.set(cached.pull.number, { headSha: cached.headSha, slugs: cached.slugs, entries: cached.entries });
+
       if (!openIndex.has(cached.pull.number)) openIndex.set(cached.pull.number, summarizePr(cached.pull, cached.slugs));
     } else if (cached !== null) {
       closedSlugs.set(cached.pull.number, cached.slugs);
@@ -235,6 +252,7 @@ async function loadMetaFromDisk(): Promise<void> {
       await removeFile(join(PR_DIR, name));
     }
   }
+
   if (recorded) await persistClosedSlugs();
 }
 
@@ -244,13 +262,17 @@ async function refreshList(): Promise<void> {
     const pulls = await gh.listPulls("open");
     listed = new Map(pulls.map((pull) => [pull.number, pull]));
     listedAt = startedAt;
+
     for (const pull of pulls) openIndex.set(pull.number, summarizePr(pull, meta.get(pull.number)?.slugs ?? []));
+
     for (const number of [...openIndex.keys()]) {
       if (!listed.has(number)) openIndex.delete(number);
     }
+
     for (const number of [...meta.keys()]) {
       if (!listed.has(number)) await drop(number);
     }
+
     rebuildRelation();
     refreshedAt = new Date().toISOString();
     await persistIndex();
@@ -262,28 +284,37 @@ async function refreshList(): Promise<void> {
 async function dripOnce(): Promise<void> {
   if (gh.mode === "anonymous" || listed.size === 0) return;
   const snapshotAt = listedAt;
+
   for (const pull of listed.values()) {
     // 列表抓取后又被 webhook 刷新过的 PR，缓存比快照新；拿旧 pull 回写会把 headSha 和文件配错。
     const cached = fileCaches.get(String(pull.number)) ?? (await readJson(prPath(pull.number), cacheSchema));
+
     if (cached !== null && Date.parse(cached.updatedAt) > snapshotAt) continue;
+
     try {
       const refetched = await withLock("prdata", async () => {
         if (meta.get(pull.number)?.headSha === pull.headSha) {
           await touchPull(pull);
+
           return false;
         }
+
         await storePull(pull, await gh.listPullFiles(pull.number));
+
         return true;
       });
+
       if (!refetched) continue;
     } catch (err) {
       if (isRateLimited(err)) {
         log.warn("GitHub 速率限制，暂停 PR 文件缓存预取", { pr: pull.number });
         break;
       }
+
       log.warn("PR 缓存预取失败", { pr: pull.number, err });
       continue;
     }
+
     await Bun.sleep(DRIP_DELAY_MS);
   }
   await withLock("prdata", async () => {
@@ -298,6 +329,7 @@ function drip(): Promise<void> {
     .finally(() => {
       dripping = null;
     });
+
   return dripping;
 }
 
@@ -307,27 +339,39 @@ async function loadFiles(n: number): Promise<PrFileCache> {
     const checkedAt = lastChecked.get(n) ?? 0;
     const fresh = Date.now() - checkedAt < 60_000;
     const cached = fileCaches.get(String(n));
+
     if (cached && fresh && (indexHead === undefined || indexHead === cached.headSha)) return cached;
     const onDisk = fresh ? await readJson(prPath(n), cacheSchema) : null;
+
     if (onDisk && fresh && (indexHead === undefined || indexHead === onDisk.headSha)) {
       fileCaches.set(String(n), onDisk);
+
       if (onDisk.pull.state === "open") {
         meta.set(n, { headSha: onDisk.headSha, slugs: onDisk.slugs, entries: onDisk.entries });
       }
+
       return onDisk;
     }
+
     const pull = await gh.getPull(n);
     lastChecked.set(n, Date.now());
+
     if (cached && cached.headSha === pull.headSha) {
       await touchPull(pull);
+
       return fileCaches.get(String(n)) ?? cached;
     }
+
     if (onDisk && onDisk.headSha === pull.headSha) {
       await touchPull(pull);
+
       return fileCaches.get(String(n)) ?? onDisk;
     }
+
     const stored = await storePull(pull, await gh.listPullFiles(n));
+
     if (stored.pull.state === "open") await persistIndex();
+
     return stored;
   });
 }
@@ -337,10 +381,12 @@ export const prdata = {
   async init(): Promise<void> {
     if (loaded) return;
     const index = await readJson(INDEX_PATH, indexSchema);
+
     if (index) {
       for (const pull of index.pulls) openIndex.set(pull.number, pull);
       refreshedAt = index.updatedAt;
     }
+
     await loadClosedSlugs();
     await loadMetaFromDisk();
     loaded = true;
@@ -360,16 +406,20 @@ export const prdata = {
     await withLock("prdata", async () => {
       const pull = await gh.getPull(n);
       lastChecked.set(n, Date.now());
+
       if (pull.state === "closed") {
         await drop(n);
         await persistIndex();
+
         return;
       }
+
       if (meta.get(n)?.headSha !== pull.headSha) {
         await storePull(pull, await gh.listPullFiles(n));
       } else {
         await touchPull(pull);
       }
+
       openIndex.set(n, summarizePr(pull, meta.get(n)?.slugs ?? []));
       rebuildRelation();
       refreshedAt = new Date().toISOString();
@@ -381,14 +431,19 @@ export const prdata = {
     if (state === "open") return byUpdatedDesc([...openIndex.values()]);
     const closed = await closedList.wrap(`closed:${closedGeneration}`, async () => {
       const pulls = await gh.listPulls("closed");
+
       return pulls.map((pull) => summarizePr(pull, slugsOf(pull.number)));
     });
+
     // 必须在 wrap 返回之后再动缓存：fetch 进行中删除条目会让 lru-cache 以 "deleted" 失败整个请求。
     fillClosedSlugs(
       closed.filter((pull) => pull.slugs.length === 0 && !closedSlugs.has(pull.number) && !closedTried.has(pull.number)).map((pull) => pull.number),
     );
+
     if (state === "closed") return byUpdatedDesc(closed.filter((pull) => pull.state === "closed"));
+
     if (state === "merged") return byUpdatedDesc(closed.filter((pull) => pull.state === "merged"));
+
     return byUpdatedDesc([...openIndex.values(), ...closed]);
   },
 
@@ -396,14 +451,17 @@ export const prdata = {
     const indexHead = openIndex.get(n)?.headSha;
     const cached = fileCaches.get(String(n));
     const fresh = Date.now() - (lastChecked.get(n) ?? 0) < 60_000;
+
     if (cached && fresh && (indexHead === undefined || indexHead === cached.headSha)) return cached;
     const pending = inflight.get(n);
+
     if (pending !== undefined) return pending;
     const run = loadFiles(n);
     inflight.set(n, run);
     void run.finally(() => {
       if (inflight.get(n) === run) inflight.delete(n);
     }).catch(() => undefined);
+
     return run;
   },
 
@@ -414,12 +472,15 @@ export const prdata = {
     const pull = () => {
       if (n === undefined) return Promise.reject(new Error("文件来源需要 PR 编号"));
       pullOf ??= prdata.files(n).then((cache) => cache.pull);
+
       return pullOf;
     };
     const ref = async (side: FileSide) => {
       const value = await pull();
+
       return side === "base" ? gh.mergeBase(value.baseSha, value.headSha) : value.headSha;
     };
+
     return {
       ref,
       read: async (path, side) => {
@@ -427,10 +488,12 @@ export const prdata = {
         const at = await ref(side);
         const key = `${at}\u0000${path}`;
         let pending = reads.get(key);
+
         if (pending === undefined) {
           pending = gh.getFile(path, at);
           reads.set(key, pending);
         }
+
         return pending;
       },
       readMany: async (paths, side) => gh.getFiles(paths, await ref(side)),
@@ -439,18 +502,24 @@ export const prdata = {
 
   related(n: number, slugs?: readonly string[]): RelatedPr[] {
     const targets = slugs ?? meta.get(n)?.slugs;
+
     if (targets === undefined) return [];
     const related: RelatedPr[] = [];
+
     for (const slug of targets) {
       const byPr = relation.get(slug);
+
       if (!byPr) continue;
+
       for (const [other, versions] of byPr) {
         if (other === n) continue;
         const summary = openIndex.get(other);
+
         if (!summary) continue;
         related.push({ number: other, title: summary.title, slug, versions: [...versions].sort(compareMc) });
       }
     }
+
     return related;
   },
 

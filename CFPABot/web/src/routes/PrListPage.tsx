@@ -45,21 +45,27 @@ export function PrListPage({ search, onSearchChange }: { search: PrListSearch; o
   useEffect(() => {
     if (!searchNotice) return;
     const timer = setTimeout(() => setSearchNotice(false), 4000);
+
     return () => clearTimeout(timer);
   }, [searchNotice]);
 
   const scoped = useMemo(() => {
     const list = data ?? [];
+
     if (state === "merge-soon") return list.filter((pr) => hasMergeSoonLabel(pr.labels));
+
     if (state === "open") return list.filter((pr) => !hasMergeSoonLabel(pr.labels));
+
     return list;
   }, [data, state]);
 
   const labels = useMemo(() => {
     const counts = new Map<string, number>();
+
     for (const pr of scoped) {
       for (const label of pr.labels) counts.set(label, (counts.get(label) ?? 0) + 1);
     }
+
     return [...counts.entries()].sort(
       (a, b) => sizeLabelRank(a[0]) - sizeLabelRank(b[0]) || b[1] - a[1] || a[0].localeCompare(b[0]),
     );
@@ -72,9 +78,12 @@ export function PrListPage({ search, onSearchChange }: { search: PrListSearch; o
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
+
     return scoped.filter((pr) => {
       if (selectedLabels.length > 0 && !selectedLabels.every((label) => pr.labels.includes(label))) return false;
+
       if (needle === "") return true;
+
       return (
         pr.title.toLowerCase().includes(needle) ||
         String(pr.number).includes(needle) ||

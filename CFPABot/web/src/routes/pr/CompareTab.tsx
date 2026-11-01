@@ -32,6 +32,7 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
       parsed !== null
         ? workspaces.find((item) => item.slug === parsed.slug && item.version === parsed.version && item.namespace === parsed.namespace)
         : undefined;
+
     return match ?? workspaces[0] ?? null;
   }, [ws, workspaces]);
 
@@ -41,6 +42,7 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
 
   const open = (candidates: readonly Workspace[]) => {
     const target = candidates.find((item) => item.version === selected?.version) ?? candidates[0];
+
     if (target === undefined) return;
     onSearchChange({ ws: workspaceParam(target.slug, target.version, target.namespace) });
   };
@@ -51,6 +53,7 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
   const sources = useMemo(() => {
     if (selected === null) return [];
     const picked = pickCompareFiles(files, selected);
+
     return [picked.en_us, picked.zh_cn].filter((path): path is string => path !== undefined);
   }, [files, selected]);
 
@@ -58,25 +61,31 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
   const target = compare.data?.review ?? null;
   const enTarget = compare.data?.reviewEn ?? null;
   const review = useReview();
+
   // 依赖 review 的底层数据而不是 review 本身：后者每次渲染都是新对象，这层 memo 会白算。
   const commentedKeys = useMemo(() => {
     const keys = new Set<string>();
+
     for (const source of [enTarget, target]) {
       if (source === null) continue;
+
       for (const [key, spot] of Object.entries(source.keys)) {
         if (review.threadsAt(source.path, spot.line).length > 0 || review.outgoingAt(source.path, spot.line).length > 0) keys.add(key);
       }
     }
+
     return keys;
   }, [enTarget, target, review.state, review.deleting, review.outgoing]);
 
   const anchored = new Map<string, Set<number>>();
+
   for (const source of [enTarget, target]) {
     if (source === null) continue;
     anchored.set(source.path, new Set(Object.values(source.keys).map((spot) => spot.line)));
   }
   const loose = sources.flatMap((path) => {
     const lines = anchored.get(path);
+
     return review.threadsOf(path).filter((thread) => lines === undefined || thread.line === null || !lines.has(thread.line));
   });
 
@@ -189,7 +198,9 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
           : (entry, side) => {
               const source = side === "en" ? enTarget : target;
               const spot = source?.keys[entry.key];
+
               if (source === null || spot === undefined) return null;
+
               return (
                 <CommentAnchor
                   path={source.path}
@@ -205,13 +216,17 @@ export function CompareTab({ n, files, workspaces, search, onSearchChange }: Com
           ? undefined
           : (entry) => {
               const zones: ReactNode[] = [];
+
               for (const source of [enTarget, target]) {
                 if (source === null) continue;
                 const spot = source.keys[entry.key];
+
                 if (spot === undefined) continue;
+
                 if (!review.isOpen(source.path, spot.line)) continue;
                 zones.push(<LineThreads key={source.path} path={source.path} line={spot.line} raw={spot.raw} />);
               }
+
               return zones.length === 0 ? null : <div className="flex flex-col gap-3">{zones}</div>;
             }
       }
@@ -239,6 +254,7 @@ function Level<T>({
       </span>
     );
   }
+
   return (
     <div role="group" aria-label={label} className="flex flex-wrap items-center gap-1.5">
       {items.map((item) => (

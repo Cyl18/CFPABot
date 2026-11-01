@@ -16,6 +16,7 @@ export function tabClass(active: boolean, variant: TabVariant = "segmented", cla
       className,
     );
   }
+
   return cn(
     "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm transition-colors",
     active ? "bg-accent-soft font-medium text-accent" : "text-muted hover:bg-elevated hover:text-fg",
@@ -45,8 +46,10 @@ export function Tabs<T extends string>({ items, value, onChange, ariaLabel, vari
 
   function move(delta: number) {
     const index = items.findIndex((item) => item.id === value);
+
     if (index < 0) return;
     const next = items[(index + delta + items.length) % items.length];
+
     if (!next) return;
     onChange(next.id);
     listRef.current?.querySelector<HTMLButtonElement>(`[data-tab="${CSS.escape(next.id)}"]`)?.focus();
@@ -70,6 +73,7 @@ export function Tabs<T extends string>({ items, value, onChange, ariaLabel, vari
     >
       {items.map((item) => {
         const active = item.id === value;
+
         return (
           <button
             key={item.id}

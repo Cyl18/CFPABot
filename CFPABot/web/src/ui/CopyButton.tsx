@@ -5,6 +5,7 @@ import { cn } from "@/lib/cn.ts";
 async function writeClipboard(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
+
     return true;
   } catch {
     const area = document.createElement("textarea");
@@ -15,6 +16,7 @@ async function writeClipboard(text: string): Promise<boolean> {
     area.select();
     const copied = document.execCommand("copy");
     area.remove();
+
     return copied;
   }
 }
@@ -23,6 +25,7 @@ export function CopyButton({ text, label = "复制", className }: { text: string
   const [copied, setCopied] = useState(false);
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
+
   return (
     <button
       type="button"

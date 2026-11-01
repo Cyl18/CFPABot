@@ -18,6 +18,7 @@ export function hasMergeSoonLabel(labels: readonly string[]): boolean {
 
 export function PrStateBadge({ state, draft, labels }: { state: PrState; draft?: boolean; labels?: readonly string[] }) {
   const meta = state === "open" && labels !== undefined && hasMergeSoonLabel(labels) ? MERGE_SOON : PR_STATE[state];
+
   return (
     <span className="inline-flex items-center gap-1">
       <Badge tone={meta.tone}>{meta.label}</Badge>
@@ -28,11 +29,13 @@ export function PrStateBadge({ state, draft, labels }: { state: PrState; draft?:
 
 export function SeverityBadge({ severity }: { severity: Severity }) {
   const meta = SEVERITY_META[severity];
+
   return <Badge tone={meta.tone}>{meta.label}</Badge>;
 }
 
 export function EventBadge({ event }: { event: ReviewEvent }) {
   const meta = REVIEW_EVENT_META[event];
+
   return <Badge tone={meta.tone}>{meta.label}</Badge>;
 }
 

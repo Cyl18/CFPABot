@@ -41,12 +41,15 @@ export interface WorkspaceData {
 
 export async function loadPrContext(n: number): Promise<PrContext> {
   const { pull, files } = await prdata.files(n);
+
   return { pull, files, workspaces: workspacesOf(files), source: prdata.fileSource(n) };
 }
 
 async function loadOneWorkspace(ctx: PrContext, workspace: Workspace): Promise<WorkspaceData | null> {
   const loaded = await loadWorkspaceTexts(workspace, ctx.files, (path, ref) => ctx.source.read(path, ref));
+
   if (loaded === null) return null;
+
   return {
     workspace,
     format: loaded.format,
@@ -60,18 +63,23 @@ async function loadOneWorkspace(ctx: PrContext, workspace: Workspace): Promise<W
 
 export async function loadWorkspaceData(ctx: PrContext): Promise<WorkspaceData[]> {
   const targets = ctx.workspaces.slice(0, MAX_WORKSPACES);
+
   if (ctx.workspaces.length > targets.length) {
     log.warn("工作区数量超过上限，仅检查前若干个", { pr: ctx.pull.number, total: ctx.workspaces.length, checked: targets.length });
   }
+
   const loaded = await pMap(targets, (workspace) => loadOneWorkspace(ctx, workspace), { concurrency: MAX_CONCURRENCY });
+
   return loaded.filter((item): item is WorkspaceData => item !== null);
 }
 
 function postProcess(value: string | null): string | null {
   if (value === null) return null;
+
   if (value.includes("$")) {
     return `\`${value.replaceAll("<", "\\<").replaceAll("`", "\\`").replaceAll("\n", "[换行符]")}\``;
   }
+
   return value
     .replaceAll("<", "\\<")
     .replaceAll("`", "\\`")
@@ -82,12 +90,15 @@ function postProcess(value: string | null): string | null {
 
 function parseRef(text: string, format: LangFormat): Map<string, string> {
   const parsed = parseLang(text, format);
+
   if (format === "json" && parsed.errors.length > 0) throw new Error(parsed.errors[0] ?? "JSON 语法错误");
   const out = new Map<string, string>();
+
   for (const [key, value] of parsed.entries) {
     if (key.startsWith("_")) continue;
     out.set(key, value);
   }
+
   return out;
 }
 
@@ -96,14 +107,17 @@ async function fetchText(source: FileSource, path: string, side: FileSide): Prom
     return await source.read(path, side);
   } catch (err) {
     log.warn("下载语言文件失败", { path, err });
+
     return null;
   }
 }
 
 async function fetchLangAt(source: FileSource, side: FileSide, base: string, lang: string, ext: string): Promise<string | null> {
   const first = await fetchText(source, `${base}/${lang}.${ext}`, side);
+
   if (first !== null) return first;
   const [head, tail] = lang.split("_");
+
   return fetchText(source, `${base}/${head}_${(tail ?? "").toUpperCase()}.${ext}`, side);
 }
 
@@ -116,6 +130,7 @@ type DiffRow5 = readonly [string, string | null, string | null, string | null, s
 function addLine(row: DiffRow5): string {
   const [, sourceEn, currentEn, sourceCn, currentCn] = row;
   let out = "";
+
   if (sourceEn === null || sourceEn.trim() === "") {
     out += currentEn === null || currentEn.trim() === "" ? "⛔" : currentEn;
   } else if (currentEn === null) {
@@ -125,12 +140,15 @@ function addLine(row: DiffRow5): string {
   } else {
     out += `${sourceEn}<br>🔽<br>${currentEn}`;
   }
+
   out += " | ";
+
   if (sourceCn === null || sourceCn.trim() === "") {
     out += currentCn === null || currentCn.trim() === "" ? "⛔" : currentCn;
   } else {
     out += `${sourceCn}<br>🔽<br>${currentCn ?? ""}`;
   }
+
   return out;
 }
 
@@ -143,8 +161,10 @@ interface DiffMaps {
 
 function diffRows(maps: DiffMaps): DiffRow5[] {
   const headZh = maps.headZh;
+
   if (headZh === null) throw new Error("Object reference not set to an instance of an object.");
   const rows: DiffRow5[] = [];
+
   for (const key of new Set([...headZh.keys(), ...(maps.baseZh?.keys() ?? [])])) {
     rows.push([
       key,
@@ -163,13 +183,16 @@ function diffRows(maps: DiffMaps): DiffRow5[] {
   ]);
   const kept = processed.filter(([, , currentEn, sourceCn, currentCn]) => {
     if (sourceCn === currentCn) return false;
+
     return !(isWs(currentEn) && isWs(currentCn));
   });
+
   return [...kept.filter(([, , currentEn, , currentCn]) => currentEn !== currentCn), ...kept.filter(([, , currentEn, , currentCn]) => currentEn === currentCn)];
 }
 
 export async function buildDiffComment(pull: GhPull, files: PrFile[], publicUrl: string, source: FileSource): Promise<string> {
   let result: string;
+
   try {
     const modPaths = modPathsOf(files.filter((file) => file.status !== "removed").map((file) => file.path));
     const sb = new Lines();
@@ -186,6 +209,7 @@ export async function buildDiffComment(pull: GhPull, files: PrFile[], publicUrl:
         ? `projects/${modPath.dir}/assets/${modPath.slug}/${modPath.domain}/lang`
         : `projects/assets/${modPath.slug}/${modPath.dir}/${modPath.domain}/lang`;
       let maps: DiffMaps;
+
       try {
         const [baseEnText, baseZhText, headEnText, headZhText] = await Promise.all([
           fetchLangAt(source, "base", base, "en_us", ext),
@@ -205,37 +229,45 @@ export async function buildDiffComment(pull: GhPull, files: PrFile[], publicUrl:
         exceptions.push(messageOf(err));
         continue;
       }
+
       const ordered = diffRows(maps);
       const label = `${modPath.slug}/${modPath.dir}/${modPath.domain}`;
 
       sb.line(`<details><summary>${label}</summary>\n`);
       sb.line("| 英文 | 中文 |");
       sb.line("| --: | :------------- |");
+
       for (const row of ordered) {
         sb.raw("| ");
         sb.raw(addLine(row));
         sb.raw(" |\n");
       }
+
       sb.line("\n</details>\n\n");
 
       sb.line(`<details><summary>${label}-keys</summary>\n`);
       sb.line("| Key | 英文 | 中文 |");
       sb.line("| - | --: | :------------- |");
+
       for (const row of ordered) {
         sb.raw("| ");
         sb.raw(` \`${row[0]}\` |`);
         sb.raw(addLine(row));
         sb.raw(" |\n");
       }
+
       sb.line("\n</details>\n");
 
       sb.line(`<details><summary>${label}-术语检查</summary>\n`);
       sb.line("| Key | 英文 | 中文 | 检查结果 |");
       sb.line("| - | --: | :------------- | - |");
+
       for (const row of ordered) {
         const [, , currentEn, , currentCn] = row;
+
         if (currentEn === null || currentCn === null) continue;
         const hits = terms === null ? [] : matchTerms(terms, row[0], currentEn, currentCn, modPath.dir);
+
         if (hits.length === 0) continue;
         const termText = hits
           .map(
@@ -248,13 +280,16 @@ export async function buildDiffComment(pull: GhPull, files: PrFile[], publicUrl:
         sb.raw(addLine(row));
         sb.raw(` | ${termText.replaceAll("\n", "<br>")} |\n`);
       }
+
       sb.line("\n</details>\n");
     }
 
     if (exceptions.length > 0) {
       sb.line(`异常：\n\`\`\`\n${exceptions.join("\n\n")}\n\`\`\``);
     }
+
     result = collapseBlankRuns(`${sb.text()}\n`);
+
     if (result.length > MAX_DIFF_GIST && botWritesEnabled()) {
       try {
         const url = await gh.createGist(
@@ -271,8 +306,10 @@ export async function buildDiffComment(pull: GhPull, files: PrFile[], publicUrl:
     log.error(`UpdateDiffSegment ${pull.number}`, { err });
     result = `${DIFF_EXCEPTION}\n`;
   }
+
   if (files.some((file) => file.path.split("/").some((segment) => segment.replace(/^_+/, "").toLowerCase() === "zh_cn"))) {
     result = `\n🔛 [转到复杂文件 Diff](${publicUrl}/pr/${pull.number}/special)\n\n${result}`;
   }
+
   return result;
 }

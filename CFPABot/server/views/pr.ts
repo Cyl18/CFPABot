@@ -8,6 +8,7 @@ import type { PrDetail } from "@cfpa/contracts/api";
 export async function prDetail(n: number): Promise<PrDetail> {
   const { pull, files } = await prdata.files(n);
   const { slugs } = langEntriesOf(files);
+
   return {
     ...summarizePr(pull, slugs),
     htmlUrl: pull.htmlUrl,

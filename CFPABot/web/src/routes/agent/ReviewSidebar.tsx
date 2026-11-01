@@ -50,6 +50,7 @@ function SectionCard({ icon, title, meta, children }: { icon: ReactNode; title: 
 
 function Meter({ value, total }: { value: number; total: number }) {
   const ratio = total > 0 ? Math.min(1, value / total) : 0;
+
   return (
     <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
       <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${Math.round(ratio * 100)}%` }} />
@@ -59,6 +60,7 @@ function Meter({ value, total }: { value: number; total: number }) {
 
 function PlanCard({ phases }: { phases: readonly TodoPhase[] | undefined }) {
   const stats = planStats(phases);
+
   return (
     <SectionCard icon={<ListTodo aria-hidden="true" className="size-3.5" />} title="计划" meta={phases !== undefined ? `${stats.completed}/${stats.total}` : undefined}>
       {phases === undefined ? (
@@ -110,9 +112,11 @@ function SubagentList({
   const rows = items.map((item) => {
     const snapshot = subagentInfo(item.tool);
     const live = snapshot === undefined ? undefined : infos?.[snapshot.agentId];
+
     return { item, info: live === undefined ? snapshot : { ...snapshot, ...live } };
   });
   const opened = rows.find((row) => row.info !== undefined && row.info.agentId === openId);
+
   return (
     <SectionCard icon={<Bot aria-hidden="true" className="size-3.5" />} title="子代理" meta={rows.length > 0 ? String(rows.length) : undefined}>
       {rows.length === 0 ? (
@@ -137,6 +141,7 @@ function SubagentList({
                 ? `${formatTokens(info.tokens)} · ${formatDuration(info.durationMs)}`
                 : undefined;
             const model = info?.model ?? subagentModel(item.tool);
+
             return (
               <div
                 key={item.id}
@@ -204,6 +209,7 @@ export function ReviewSidebar({
   infos?: Record<string, SubagentInfo>;
 }) {
   const subagents = delegateItems(items);
+
   return (
     <div className="scroll-thin h-full min-h-0 space-y-3 overflow-y-auto p-3">
       <PlanCard phases={plan} />

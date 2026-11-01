@@ -28,6 +28,7 @@ export function CrossVersionPanel({ slug, namespace, pr, state, onStateChange, o
       (data?.versions ?? []).map((version) => {
         const zhFile = data?.zhVersions.includes(version) === true;
         const highlight = data?.prVersions.includes(version) === true;
+
         return {
           id: version,
           label: version,
@@ -138,6 +139,7 @@ export function CrossVersionPanel({ slug, namespace, pr, state, onStateChange, o
         />
       );
     }
+
     return (
       <EmptyState
         icon={<CircleCheck aria-hidden="true" className="size-5 text-ok" />}

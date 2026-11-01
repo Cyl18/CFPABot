@@ -45,6 +45,7 @@ function bashBinary(): string {
     localAppData === undefined ? undefined : join(localAppData, "Programs", "Git", "bin", "bash.exe"),
     "C:\\Program Files\\Git\\bin\\bash.exe",
   ].filter((path): path is string => path !== undefined);
+
   return candidates.find((path) => existsSync(path)) ?? "bash";
 }
 
@@ -59,29 +60,39 @@ function envPrologue(cwd: string, prNumber: number | undefined): string {
     CFPA_REPO: vars.repo,
     CFPA_SESSION: vars.session,
   };
+
   if (vars.pr !== undefined) env.CFPA_PR = vars.pr;
   const lines = Object.entries(env).map(([key, value]) => `export ${key}=${shellQuote(value)}`);
+
   if (prNumber === undefined) lines.push("unset CFPA_PR");
+
   return `${lines.join("\n")}\n`;
 }
 
 // 子进程只拿白名单环境变量与 PI_*，避免把 API key 递给模型写的脚本。CFPA_* 由脚本开头的 export 给出。
 export function sandboxEnv(env: NodeJS.ProcessEnv, cwd: string): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
+
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) continue;
+
     if (ENV_ALLOW[key.toLowerCase()] === true || key.startsWith("PI_")) out[key] = value;
   }
+
   // Windows 的 PATH 键大小写不固定；Bun.spawn 查找可执行文件只认 PATH。
   const pathValue = env.PATH ?? env.Path;
+
   if (pathValue !== undefined) out.PATH = pathValue;
   out.HOME = cwd;
+
   // Windows 上子进程默认 cp936，输出被工具按 UTF-8 解码就碎成 �；python 与原生工具都靠这些变量。
   out.LANG ??= "C.UTF-8";
   out.LC_ALL ??= "C.UTF-8";
   out.PYTHONIOENCODING ??= "utf-8";
+
   // PYTHONIOENCODING 只管 stdin/stdout；open() 的默认编码要靠 UTF-8 模式，否则读 json 仍会 UnicodeDecodeError。
   out.PYTHONUTF8 ??= "1";
+
   return out;
 }
 
@@ -106,6 +117,7 @@ export function heredocReason(command: string): string | undefined {
   if (FILE_HEREDOC.test(command)) {
     return "bash 里不要用 heredoc 写文件：改用 `write` 写整份内容，或 `edit` 改某一段，路径用 `local://…`。";
   }
+
   return undefined;
 }
 
@@ -118,13 +130,17 @@ export function bashTool(ctx: ToolContext, availableTools: string[]): CustomTool
     parameters: BASH_PARAMS,
     execute: async (_toolCallId, params, _onUpdate, runtime, signal) => {
       const settings = runtime.settings;
+
       if (settings !== undefined && cfgBashInterceptorEnabled.get(settings)) {
         // 自定义 bash 没有 name，指向 bash 自身的规则给出的替代方案不存在。
         const rules = cfgBashInterceptorPatterns.get(settings).filter((rule) => rule.tool !== "bash");
         const hit = checkBashInterception(params.command, availableTools, rules);
+
         if (hit.block) throw new Error(hit.message ?? "这条命令请改用对应的专用工具。");
       }
+
       const heredoc = heredocReason(params.command);
+
       if (heredoc !== undefined) throw new Error(heredoc);
       const cwd = localDir(ctx.sessionId);
       const timeoutMs = Math.min(300_000, Math.max(1_000, (params.timeout ?? 60) * 1000));
@@ -153,27 +169,32 @@ export function bashTool(ctx: ToolContext, availableTools: string[]): CustomTool
       clearTimeout(timer);
       clearTimeout(graceTimer);
       stopListening();
+
       if (result === null) {
         await proc.stdout.cancel().catch(() => undefined);
         await proc.stderr.cancel().catch(() => undefined);
         proc.kill();
+
         return {
           content: [{ type: "text", text: `bash 超时（>${timeoutMs} ms），后台子进程仍持有输出管道，已放弃等待。` }],
           details: { exitCode: null, timedOut: true },
           isError: true,
         };
       }
+
       const [stdout, stderr, exitCode] = result;
       const full = [stdout.trimEnd(), stderr.trimEnd()].filter(Boolean).join("\n");
       const bytes = Buffer.byteLength(full);
       let text = full || `(exit ${exitCode})`;
       let log: string | undefined;
+
       if (bytes > 50_000) {
         const name = `bash/${Date.now().toString(36)}.log`;
         await writeLocal(ctx.sessionId, name, full).catch(() => undefined);
         log = `local://${name}`;
         text = `${Buffer.from(full).subarray(0, 50_000).toString("utf8")}\n…[输出 ${bytes} B，全文 ${log}]`;
       }
+
       return {
         content: [{ type: "text", text }],
         details: { exitCode, truncated: bytes > 50_000, ...(log === undefined ? {} : { log }), timedOut },

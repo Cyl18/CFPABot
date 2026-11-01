@@ -19,6 +19,7 @@ export interface LangEntry {
 
 export function prStateOf(pull: Pick<GhPull, "state" | "merged">): PrState {
   if (pull.state === "open") return "open";
+
   return pull.merged ? "merged" : "closed";
 }
 
@@ -27,15 +28,19 @@ export function langEntriesOf(files: readonly Pick<GhFile, "path">[]): { slugs: 
   const slugs = new Set<string>();
   const entries: LangEntry[] = [];
   const seen = new Set<string>();
+
   for (const file of files) {
     const parsed = parseLangPath(file.path);
+
     if (!parsed) continue;
     slugs.add(parsed.slug);
     const key = `${parsed.slug}\u0000${parsed.version}`;
+
     if (seen.has(key)) continue;
     seen.add(key);
     entries.push({ slug: parsed.slug, version: parsed.version });
   }
+
   return { slugs: [...slugs].sort(), entries };
 }
 

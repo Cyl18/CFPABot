@@ -10,6 +10,7 @@ const log = logger("agent-tools");
 // 模型只看到错误文本；工具名、参数与堆栈留在服务端日志里，排障不用再猜。
 function logged<T extends CustomTool>(tool: T): T {
   const run = tool.execute.bind(tool);
+
   return {
     ...tool,
     execute: async (...args: Parameters<CustomTool["execute"]>) => {
@@ -17,6 +18,7 @@ function logged<T extends CustomTool>(tool: T): T {
         return await run(...args);
       } catch (err) {
         log.error("工具执行失败", { tool: tool.name, args: args[1], err });
+
         throw err;
       }
     },

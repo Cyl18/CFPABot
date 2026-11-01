@@ -32,6 +32,7 @@ export interface Turn {
   usage: UsageTotals;
   startedAt: string;
   endedAt: string;
+
   /** 仅在有可信结束时刻（工具时间戳或响应完成时刻）时给出。 */
   elapsed?: number;
   running: boolean;
@@ -39,6 +40,7 @@ export interface Turn {
 
 function addUsage(target: UsageTotals, item: AssistantItem): void {
   const usage = item.usage;
+
   if (usage === undefined) return;
   target.input += usage.input ?? 0;
   target.output += usage.output ?? 0;
@@ -51,9 +53,11 @@ function addUsage(target: UsageTotals, item: AssistantItem): void {
 export function buildTurns(items: readonly ChatItem[], running: boolean): Turn[] {
   const turns: Turn[] = [];
   const assistants = new Map<string, AssistantItem>();
+
   for (const item of items) {
     if (item.kind === "assistant") assistants.set(item.id, item);
   }
+
   let turn: Turn | undefined;
 
   const open = (at: string, user?: UserItem): Turn => {
@@ -67,7 +71,9 @@ export function buildTurns(items: readonly ChatItem[], running: boolean): Turn[]
       endedAt: at,
       running: false,
     };
+
     turns.push(created);
+
     return created;
   };
 
@@ -76,8 +82,10 @@ export function buildTurns(items: readonly ChatItem[], running: boolean): Turn[]
       turn = open(item.at, item);
       continue;
     }
+
     turn ??= open(item.at);
     turn.endedAt = item.at;
+
     if (item.kind === "assistant") {
       turn.steps.push({
         key: item.id,
@@ -90,7 +98,9 @@ export function buildTurns(items: readonly ChatItem[], running: boolean): Turn[]
       addUsage(turn.usage, item);
       continue;
     }
+
     const step = turn.steps.at(-1);
+
     if (step === undefined) turn.steps.push({ key: `step-${item.id}`, at: item.at, text: "", tools: [item] });
     else step.tools.push(item);
   }
@@ -101,22 +111,29 @@ export function buildTurns(items: readonly ChatItem[], running: boolean): Turn[]
       if (step.tools.length > 0) lastTool = position;
     });
     let lastKnown = 0;
+
     for (const step of entry.steps) {
       for (const tool of step.tools) {
         const time = Date.parse(tool.at);
+
         if (Number.isFinite(time)) lastKnown = Math.max(lastKnown, time);
       }
+
       const done = Date.parse(step.completedAt ?? "");
+
       if (Number.isFinite(done)) lastKnown = Math.max(lastKnown, done);
     }
+
     const began = Date.parse(entry.startedAt);
     entry.elapsed = lastKnown > 0 && Number.isFinite(began) ? Math.max(0, lastKnown - began) : undefined;
 
     // 最后一段正文之后没有工具调用时，它才是这一轮的答案；其余保留为过程。
     for (let position = entry.steps.length - 1; position > lastTool; position -= 1) {
       const step = entry.steps[position];
+
       if (step === undefined || step.text.trim() === "") continue;
       const assistant = assistants.get(step.key);
+
       if (assistant === undefined) continue;
       entry.answer = assistant;
       entry.steps.splice(position, 1);
@@ -133,29 +150,38 @@ export function buildTurns(items: readonly ChatItem[], running: boolean): Turn[]
 
 export function formatTokens(value: number): string {
   if (value <= 0) return "0";
+
   if (value < 1000) return String(Math.round(value));
   const k = value / 1000;
+
   if (k < 100) return `${k.toFixed(1).replace(/\.0$/, "")}k`;
+
   if (k < 1000) return `${Math.round(k)}k`;
+
   return `${(k / 1000).toFixed(1).replace(/\.0$/, "")}M`;
 }
 
 export function formatDuration(ms: number): string {
   const seconds = Math.max(0, Math.round(ms / 1000));
+
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
+
   if (minutes < 60) return `${minutes}m${String(seconds % 60).padStart(2, "0")}s`;
+
   return `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, "0")}m`;
 }
 
 export function turnElapsed(turn: Turn, now: number): number | undefined {
   if (!turn.running) return turn.elapsed;
   const began = Date.parse(turn.startedAt);
+
   return Number.isFinite(began) ? Math.max(0, now - began) : undefined;
 }
 
 /** 缓存命中率：命中的 prompt token 占全部 prompt token。 */
 export function cacheRatio(usage: UsageTotals): number {
   const prompt = usage.input + usage.cacheRead + usage.cacheWrite;
+
   return prompt > 0 ? usage.cacheRead / prompt : 0;
 }

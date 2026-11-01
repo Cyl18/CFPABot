@@ -65,14 +65,20 @@ const htmlSchema = z.object({
 function graphqlErrors(err: unknown): { types: string[]; messages: string[] } {
   const types: string[] = [];
   const messages: string[] = [];
+
   if (err === null || typeof err !== "object" || !("errors" in err)) return { types, messages };
   const errors = err.errors;
+
   if (!Array.isArray(errors)) return { types, messages };
+
   for (const item of errors) {
     if (item === null || typeof item !== "object") continue;
+
     if ("type" in item && typeof item.type === "string") types.push(item.type);
+
     if ("message" in item && typeof item.message === "string") messages.push(item.message);
   }
+
   return { types, messages };
 }
 
@@ -83,45 +89,55 @@ async function runReview<T>(fn: () => Promise<T>): Promise<T> {
     if (err instanceof HttpError) throw err;
     const { types, messages } = graphqlErrors(err);
     const message = messages.length > 0 ? messages.join("; ") : null;
+
     if (httpStatus(err) === 401 || types.includes("FORBIDDEN") || types.includes("INSUFFICIENT_SCOPES")) {
       throw new HttpError(401, message ?? REAUTH, "reauth");
     }
+
     if (types.length > 0 || messages.length > 0) {
       throw new HttpError(422, message ?? "GitHub 拒绝了这次操作", "github");
     }
+
     throw err;
   }
 }
 
 function requirePull<T>(value: T | null): T {
   if (value === null) throw notFound("PR 不存在");
+
   return value;
 }
 
 async function reviewState(c: AppContext, n: number): Promise<PrReviewState | null> {
   const token = c.get("token");
+
   try {
     if (!currentUser(c) || !token) return await anonymousReviewState(serverGraphql, n);
+
     try {
       return await userReviewState(userGraphql(token), n);
     } catch (err) {
       if (httpStatus(err) !== 401) throw err;
+
       return await anonymousReviewState(serverGraphql, n);
     }
   } catch (err) {
     if (graphqlErrors(err).types.includes("NOT_FOUND")) throw notFound("PR 不存在");
+
     throw err;
   }
 }
 
 reviewRoutes.get("/prs/:n/review", async (c) => {
   const n = prNumber(c);
+
   return c.json(requirePull(await withPull(() => reviewState(c, n))));
 });
 
 reviewRoutes.post("/prs/:n/review/html", async (c) => {
   const input = await parseBody<ReviewHtmlRequest>(c, htmlSchema);
   prNumber(c);
+
   return c.json({ html: await runReview(() => renderComments(serverGraphql, input.ids)) });
 });
 
@@ -131,6 +147,7 @@ reviewRoutes.post("/prs/:n/review/comments", async (c) => {
   const n = prNumber(c);
   const octokit = userGraphql(token);
   const thread = requirePull(await withPull(() => runReview(() => createReviewComment(octokit, n, input))));
+
   return c.json(thread);
 });
 
@@ -138,6 +155,7 @@ reviewRoutes.delete("/prs/:n/review/comments/:id", async (c) => {
   const token = requireUserToken(c);
   prNumber(c);
   await runReview(() => deleteReviewComment(userGraphql(token), c.req.param("id")));
+
   return c.body(null, 204);
 });
 
@@ -146,6 +164,7 @@ reviewRoutes.put("/prs/:n/review/threads/:id/resolved", async (c) => {
   const input = await parseBody<SetThreadResolvedRequest>(c, resolveSchema);
   prNumber(c);
   await runReview(() => setThreadResolved(userGraphql(token), c.req.param("id"), input.resolved));
+
   return c.body(null, 204);
 });
 
@@ -156,6 +175,7 @@ reviewRoutes.post("/prs/:n/review/threads/:id/replies", async (c) => {
   const comment = await runReview(() =>
     replyToReviewThread(userGraphql(token), c.req.param("id"), input.body, currentUser(c)?.login ?? null),
   );
+
   return c.json(comment);
 });
 
@@ -166,6 +186,7 @@ reviewRoutes.put("/prs/:n/review/viewed", async (c) => {
   const octokit = userGraphql(token);
   const meta = requirePull(await runReview(() => reviewMeta(octokit, n)));
   await runReview(() => setFileViewed(octokit, meta.pullRequestId, input.path, input.viewed));
+
   return c.body(null, 204);
 });
 
@@ -179,10 +200,13 @@ reviewRoutes.post("/prs/:n/review/submit", async (c) => {
     if (meta.pendingReviewId !== null) {
       return submitPendingReview(octokit, meta.pendingReviewId, input.event, input.body);
     }
+
     if (input.event === "COMMENT" && input.body.trim() === "") {
       throw new HttpError(422, "没有待提交的评论，也没有填写总结", "empty_review");
     }
+
     return createSubmittedReview(octokit, meta.pullRequestId, meta.headSha, input.event, input.body);
   });
+
   return c.json({ url });
 });

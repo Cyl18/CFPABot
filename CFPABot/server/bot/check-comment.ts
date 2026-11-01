@@ -22,43 +22,56 @@ function lineOf(finding: Finding): string {
   const meta = SEVERITY[finding.severity];
   const where = finding.path ? `\`${finding.path}\`：` : finding.key ? `\`${finding.key}\`：` : "";
   const detail = finding.detail.replace(/^\s*(?:✔|❌|⚠|❗|ℹ)\uFE0F?\s*/u, "");
+
   return `${meta.icon} ${where}${detail}`;
 }
 
 function bySeverity(a: Finding, b: Finding): number {
   const rank = SEVERITY[a.severity].rank - SEVERITY[b.severity].rank;
+
   if (rank !== 0) return rank;
   const code = (FINDING_CODE_RANK[a.code] ?? 9) - (FINDING_CODE_RANK[b.code] ?? 9);
+
   return code !== 0 ? code : a.detail.localeCompare(b.detail);
 }
 
 function groupsOf(findings: readonly Finding[]): Map<string, Finding[]> {
   const groups = new Map<string, Finding[]>();
+
   for (const finding of findings) {
     const key = finding.unit ?? "";
     const list = groups.get(key);
+
     if (list === undefined) groups.set(key, [finding]);
     else list.push(finding);
   }
+
   return groups;
 }
 
 function reportText(report: CheckReport): string {
   const sb = new Lines();
+
   for (const finding of report.findings) {
     if (!finding.keys || finding.keys.length === 0) continue;
     sb.line(`${finding.unit ?? "PR"} ${finding.code}: ${finding.detail}`);
+
     for (const key of finding.keys) sb.line(`    ${key}`);
     sb.line();
   }
+
   for (const file of report.modFiles) {
     if (file.status !== "mismatch") continue;
     sb.line(`${file.slug}/${file.version}/${file.namespace} 与模组语言文件不一致`);
+
     if (file.missing.length > 0) sb.line(`  缺失: ${file.missing.join(", ")}`);
+
     if (file.extra.length > 0) sb.line(`  多余: ${file.extra.join(", ")}`);
+
     if (file.changed.length > 0) sb.line(`  变更: ${file.changed.join(", ")}`);
     sb.line();
   }
+
   return sb.text().trim();
 }
 
@@ -68,17 +81,20 @@ export async function buildCheckComment(report: CheckReport, publicUrl: string):
   const groups = groupsOf(report.findings.filter((finding) => finding.code !== "typo"));
   const pr = groups.get("");
   groups.delete("");
+
   if (pr !== undefined && pr.length > 0) {
     sb.raw(`${[...pr].sort(bySeverity).map(lineOf).join("\n")}\n\n`);
   }
 
   const units = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+
   for (const severity of ["critical", "major", "minor", "neutral"] as const) {
     const chosen = units.filter(
       ([, list]) =>
         list.reduce<Severity>((acc, finding) => (SEVERITY[finding.severity].rank < SEVERITY[acc].rank ? finding.severity : acc), "neutral") ===
         severity,
     );
+
     if (chosen.length === 0) continue;
     const meta = SEVERITY[severity];
     const names = chosen.map(([unit]) => unit);
@@ -90,6 +106,7 @@ export async function buildCheckComment(report: CheckReport, publicUrl: string):
   }
 
   const passed = report.units.filter((unit) => !groups.has(unit));
+
   if (passed.length > 0) {
     sb.raw(
       fold(
@@ -107,15 +124,19 @@ export async function buildCheckComment(report: CheckReport, publicUrl: string):
   }
 
   const text = reportText(report);
+
   if (text !== "") {
     const reportPath = checkReportPath(report.prNumber, report.headSha);
     await mkdir(dirname(reportPath), { recursive: true });
     await writeFile(reportPath, text, "utf8");
     const reportUrl = `${publicUrl}/api/Utils/Report/${report.prNumber}/${report.headSha.slice(0, 7)}`;
+
     if (text.length <= MAX_REPORT_EMBED) {
       sb.raw(fold("📄 详细检查报告", text.replaceAll("\n", "<br>").replaceAll(" ", "&nbsp;")));
     }
+
     sb.line(`完整报告在 [这里](${reportUrl}) 查看。PR 更新也会更新检查。`);
   }
+
   return sb.text();
 }

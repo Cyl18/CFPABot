@@ -14,6 +14,7 @@ const STORAGE_KEY = "cfpa-diff-mode";
 function read(): DiffMode {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
+
     return DIFF_MODES.some((item) => item.id === stored) ? (stored as DiffMode) : "auto";
   } catch {
     return "auto";
@@ -25,14 +26,17 @@ const listeners = new Set<() => void>();
 
 export function setDiffMode(next: DiffMode): void {
   current = next;
+
   try {
     localStorage.setItem(STORAGE_KEY, next);
   } catch {}
+
   for (const listener of listeners) listener();
 }
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
+
   return () => {
     listeners.delete(listener);
   };
@@ -44,5 +48,6 @@ export function useDiffMode(): [DiffMode, (next: DiffMode) => void] {
     () => current,
     () => "auto" as DiffMode,
   );
+
   return [mode, setDiffMode];
 }

@@ -49,6 +49,7 @@ function withMarker(body: string, sessionId: string, toolCallId: string): string
 
 function parseSubmit(content: string | undefined): SubmitInput {
   if (content === undefined || content.trim().length === 0) return { event: "COMMENT", body: "" };
+
   return submitSchema.parse(JSON.parse(content) as unknown);
 }
 
@@ -56,13 +57,17 @@ async function writeDraft(uri: PrParts, content: string | undefined, ctx: Harnes
   // 空正文 = 复用 local://draft.json：可以先 edit 几行，再整份校验落盘。
   let body = content ?? "";
   let reused = false;
+
   if (body.trim() === "") {
     const raw = await readLocal(ctx.sessionId, DRAFT_FILE);
+
     if (raw === null) throw new Error("没有已保存的草稿；正文里给草稿 JSON，或先写 local://draft.json。");
     body = raw.content;
     reused = true;
   }
+
   const result = await saveDraftOf(uri.number, ctx.sessionId, body);
+
   if (!result.ok || result.draft === undefined) {
     return errorResult({
       ok: false,
@@ -70,7 +75,9 @@ async function writeDraft(uri: PrParts, content: string | undefined, ctx: Harnes
       next: [`按 errors 修正后重写 pr://${uri.number}/draft`],
     });
   }
+
   await ctx.onDraftSaved?.(result.draft);
+
   return jsonResult({
     ok: true,
     saved: `local://${DRAFT_FILE}`,
@@ -93,8 +100,10 @@ async function writeComment(uri: PrParts, content: string | undefined, ctx: Harn
   if (content === undefined || content.trim() === "") throw new Error("评论需要正文。");
   const marker = markerOf(ctx.sessionId, toolCallId);
   const existing = (await gh.listComments(uri.number)).find((comment) => comment.body.includes(marker));
+
   if (existing) return jsonResult({ ok: true, deduped: true, id: existing.id, url: existing.htmlUrl });
   const comment = await gh.createComment(uri.number, withMarker(content ?? "", ctx.sessionId, toolCallId));
+
   return jsonResult({ ok: true, id: comment.id, url: comment.htmlUrl });
 }
 
@@ -102,18 +111,24 @@ async function writeInlineComment(uri: PrParts, content: string | undefined, ctx
   if (content === undefined || content.trim() === "") throw new Error("行内评论需要正文。");
   const seg = uri.path.split("/").filter(Boolean);
   const path = seg.slice(1, -1).join("/");
+
   if (!path) throw new Error("行内评论需要文件路径。");
   const marker = markerOf(ctx.sessionId, toolCallId);
   const existing = (await gh.listReviewComments(uri.number)).find((comment) => comment.body.includes(marker));
+
   if (existing) return jsonResult({ ok: true, deduped: true, id: existing.id, url: existing.htmlUrl });
   const key = uri.query.get("key")?.trim() ?? "";
   const line = key === "" ? Number(uri.query.get("line")) : await lineOfKey(uri.number, path, key);
+
   if (line === null) throw new Error(`pack 里找不到 ${path} 的 key：${key}；改用 ?line=<head 行号>。`);
+
   if (!Number.isInteger(line) || line <= 0) {
     throw new Error("行内评论需要 ?line=<head 行号> 或 ?key=<key>。");
   }
+
   const { files } = await prdata.files(uri.number);
   const patch = files.find((file) => file.path === path)?.patch;
+
   if (patch !== undefined && patch !== "" && !inHunks(line, patchHunks(patch))) {
     throw new Error(`line ${line} 不在 ${path} 的 diff hunk 新侧；换 key 或确认 head 行号。`);
   }
@@ -122,8 +137,10 @@ async function writeInlineComment(uri: PrParts, content: string | undefined, ctx
     line,
     body: withMarker(content ?? "", ctx.sessionId, toolCallId),
   });
+
   if (thread === null) throw new Error("PR 无法创建评论。");
   invalidateThreads(uri.number);
+
   return jsonResult({
     ok: true,
     thread,
@@ -133,9 +150,12 @@ async function writeInlineComment(uri: PrParts, content: string | undefined, ctx
 
 async function ownedThread(n: number, threadId: string): Promise<ReviewThread> {
   const view = await threadsOf(n, undefined, true);
+
   if (!view.available) throw new Error(`读取 review 线程失败：${view.error ?? "未知错误"}`);
   const thread = view.threads.find((entry) => entry.id === threadId);
+
   if (thread === undefined) throw new Error(`线程 ${threadId} 不属于 PR #${n}；拒绝写入。`);
+
   return thread;
 }
 
@@ -146,6 +166,7 @@ async function writeThreadState(uri: PrParts, content: string | undefined) {
   await ownedThread(uri.number, threadId);
   await setThreadResolved(serverGraphql, threadId, resolved);
   invalidateThreads(uri.number);
+
   return jsonResult({ ok: true, threadId, resolved });
 }
 
@@ -156,6 +177,7 @@ async function writeThreadReply(uri: PrParts, content: string | undefined, ctx: 
   const thread = await ownedThread(uri.number, threadId);
   const marker = markerOf(ctx.sessionId, toolCallId);
   const existing = thread.comments.find((comment) => comment.body.includes(marker));
+
   if (existing !== undefined) return jsonResult({ ok: true, deduped: true, comment: existing });
   const comment = await replyToReviewThread(
     serverGraphql,
@@ -164,27 +186,35 @@ async function writeThreadReply(uri: PrParts, content: string | undefined, ctx: 
     env.BOT_LOGIN,
   );
   invalidateThreads(uri.number);
+
   return jsonResult({ ok: true, comment });
 }
 
 async function writeReview(uri: PrParts, content: string | undefined, ctx: HarnessSession, toolCallId: string) {
   const n = uri.number;
   let draft: ReviewDraft;
+
   if (content !== undefined && content.trim() !== "") {
     const { pull } = await prdata.files(n);
     const prepared = prepareDraft(await withServerFilledFields(n, content), n, pull.headSha);
+
     if (prepared.draft === undefined) {
       return errorResult({ ok: false, errors: prepared.errors, next: [`write pr://${n}/draft 修正后再发布`] });
     }
+
     draft = prepared.draft;
   } else {
     const saved = await storedDraftOf(ctx.sessionId);
+
     if (saved === null) throw new Error(`没有已保存的草稿；先 write pr://${n}/draft，或在正文里给草稿 JSON。`);
+
     if (saved.prNumber !== n) {
       throw new Error(`已保存的草稿属于 PR #${saved.prNumber}，不能发布到 PR #${n}；先审目标 PR。`);
     }
+
     draft = saved;
   }
+
   if (draft.publishedUrl !== undefined) {
     return errorResult({
       ok: false,
@@ -192,8 +222,10 @@ async function writeReview(uri: PrParts, content: string | undefined, ctx: Harne
       next: [`read pr://${n}/draft 复核`, "重写草稿后再发布"],
     });
   }
+
   const marker = markerOf(ctx.sessionId, toolCallId);
   const unreviewed = await unreviewedSlices(ctx.sessionId, draft.headSha);
+
   if (unreviewed !== null && unreviewed.length > 0) {
     return errorResult({
       ok: false,
@@ -204,9 +236,12 @@ async function writeReview(uri: PrParts, content: string | undefined, ctx: Harne
       ],
     });
   }
+
   const existing = (await gh.listReviews(n)).find((review) => review.body.includes(marker));
+
   if (existing) return jsonResult({ ok: true, deduped: true, url: existing.htmlUrl });
   const meta = await reviewMeta(serverGraphql, n);
+
   if (meta?.pendingReviewId !== null && meta?.pendingReviewId !== undefined) {
     return errorResult({
       ok: false,
@@ -214,7 +249,9 @@ async function writeReview(uri: PrParts, content: string | undefined, ctx: Harne
       next: [`write pr://${n}/review/submit 提交待审评论`, `read pr://${n}/threads 查看待审线程`],
     });
   }
+
   let url: string;
+
   try {
     ({ url } = await publishDraft(draft, marker));
   } catch (err) {
@@ -224,15 +261,18 @@ async function writeReview(uri: PrParts, content: string | undefined, ctx: Harne
       next: [`read pr://${n}/draft 检查 head 与校验结果`],
     });
   }
+
   const saved = await markPublishedOf(n, ctx.sessionId, draft, url);
   invalidateThreads(n);
   await ctx.onDraftSaved?.(saved);
+
   return jsonResult({ ok: true, url, comments: saved.comments.length, next: [`read pr://${n}/draft 复核已发布状态`] });
 }
 
 async function writeReviewSubmit(uri: PrParts, content: string | undefined, ctx: HarnessSession, toolCallId: string) {
   const n = uri.number;
   let input: SubmitInput;
+
   try {
     input = parseSubmit(content);
   } catch (err) {
@@ -242,47 +282,64 @@ async function writeReviewSubmit(uri: PrParts, content: string | undefined, ctx:
       next: [`正文给 {"event":"COMMENT|APPROVE|REQUEST_CHANGES","body":"总结"}`],
     });
   }
+
   const marker = markerOf(ctx.sessionId, toolCallId);
   const existing = (await gh.listReviews(n)).find((review) => review.body.includes(marker));
+
   if (existing) return jsonResult({ ok: true, deduped: true, url: existing.htmlUrl });
   const body = withMarker(input.body, ctx.sessionId, toolCallId);
   const meta = await reviewMeta(serverGraphql, n);
+
   if (meta === null) throw new Error("PR 不存在。");
   let url: string;
+
   if (meta.pendingReviewId !== null) {
     url = await submitPendingReview(serverGraphql, meta.pendingReviewId, input.event, body);
   } else {
     if (input.event === "COMMENT" && input.body.trim().length === 0) {
       throw new Error("没有待提交的评论，也没有填写总结。");
     }
+
     url = await createSubmittedReview(serverGraphql, meta.pullRequestId, meta.headSha, input.event, body);
   }
+
   invalidateThreads(n);
+
   return jsonResult({ ok: true, url });
 }
 
 async function replaceComment(uri: PrParts, content: string | undefined, ctx: HarnessSession, toolCallId: string) {
   const seg = uri.path.split("/").filter(Boolean);
   const id = Number(seg[1]);
+
   if (!Number.isInteger(id) || id <= 0) throw new Error("评论编号无效。");
+
   if (content === undefined) throw new Error("替换评论需要提供新的完整正文。");
   const comment = (await gh.listComments(uri.number)).find((entry) => entry.id === id);
+
   if (comment === undefined) throw new Error("评论不存在。");
+
   if (comment.author !== env.BOT_LOGIN) throw new Error("只能编辑机器人自己的评论。");
   await gh.updateComment(id, withMarker(content, ctx.sessionId, toolCallId));
+
   return jsonResult({ ok: true, url: comment.htmlUrl });
 }
 
 async function replaceReviewComment(uri: PrParts, content: string | undefined, ctx: HarnessSession, toolCallId: string) {
   const seg = uri.path.split("/").filter(Boolean);
   const id = Number(seg[1]);
+
   if (!Number.isInteger(id) || id <= 0) throw new Error("行内评论编号无效。");
+
   if (content === undefined) throw new Error("替换行内评论需要提供新的完整正文。");
   const comment = (await gh.listReviewComments(uri.number)).find((entry) => entry.id === id);
+
   if (comment === undefined) throw new Error("行内评论不存在。");
+
   if (comment.author !== env.BOT_LOGIN) throw new Error("只能编辑机器人自己的行内评论。");
   await gh.updateReviewComment(id, withMarker(content, ctx.sessionId, toolCallId));
   invalidateThreads(uri.number);
+
   return jsonResult({ ok: true, url: comment.htmlUrl });
 }
 
@@ -290,8 +347,10 @@ async function replaceReviewComment(uri: PrParts, content: string | undefined, c
 async function manualTextOf(n: number): Promise<string> {
   try {
     const pairs = (await specialPairs(n)).filter((entry) => entry.kind === "pair");
+
     if (pairs.length === 0) return "";
     const items = await specialContents(n, pairs.map((entry) => entry.key), prdata.fileSource(n));
+
     return items
       .flatMap((item) => (item.kind === "pair" ? [item.en.head ?? "", item.zh.head ?? ""] : []))
       .join("\n");
@@ -304,12 +363,16 @@ async function writeTerms(uri: PrParts, content: string | undefined): Promise<Wr
   if (content === undefined || content.trim() === "") throw new Error("术语表需要正文：{terms:[…]}。");
   const pack = await loadPack(uri.number);
   const parsed = parseTermInput(content, uri.number, pack.headSha);
+
   if (parsed.table === undefined) return errorResult({ ok: false, errors: parsed.errors });
   const errors = validateTermTable(parsed.table, pack, await manualTextOf(uri.number));
+
   if (errors.length > 0) {
     return errorResult({ ok: false, errors, next: [`按 errors 修正后重写 pr://${uri.number}/terms`] });
   }
+
   await saveTermTable(parsed.table);
+
   return jsonResult({
     ok: true,
     saved: `pr://${uri.number}/terms`,
@@ -332,6 +395,7 @@ export async function writePr(
     assertCanWrite(ctx);
     assertBotWrites();
   }
+
   switch (target.id) {
     case "pr-draft":
       return writeDraft(uri, content, ctx);
@@ -339,12 +403,14 @@ export async function writePr(
       return writeTerms(uri, content);
     case "pr-pack": {
       const body = content?.trim() ?? "";
+
       if (body !== "" && body !== "{}") {
         return errorResult({
           error: "pr://<n>/pack 不接受参数；片大小由服务端按预算切",
           hint: "用 write pr://<n>/pack {}",
         });
       }
+
       return jsonResult(await writeWorkPack(uri.number, ctx.sessionId));
     }
     case "pr-comment":

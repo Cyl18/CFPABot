@@ -16,9 +16,11 @@ export function useTheme(): { theme: Theme; toggle: () => void } {
     root.classList.add("theme-switching");
     root.classList.toggle("dark", theme === "dark");
     root.dataset.theme = theme;
+
     // 必须在同一个任务里重排一次再撤掉 theme-switching，否则过渡会照常触发
     void root.offsetHeight;
     root.classList.remove("theme-switching");
+
     try {
       localStorage.setItem(STORAGE_KEY, theme);
     } catch {}

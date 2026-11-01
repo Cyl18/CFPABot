@@ -4,6 +4,7 @@ const BODY_LIMIT = 2000;
 
 export function trimBody(body: string, limit = BODY_LIMIT): string {
   const trimmed = body.trim();
+
   return trimmed.length > limit ? `${trimmed.slice(0, limit)}…[已截断]` : trimmed;
 }
 

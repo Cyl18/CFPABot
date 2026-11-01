@@ -9,35 +9,44 @@ const STREAM_THROTTLE_MS = 150;
 
 function blocksOf(content: unknown): Record<string, unknown>[] {
   if (!Array.isArray(content)) return [];
+
   return content.filter((block): block is Record<string, unknown> => !!block && typeof block === "object");
 }
 
 export function textOf(content: unknown): string {
   if (typeof content === "string") return content;
   const parts: string[] = [];
+
   for (const block of blocksOf(content)) {
     if (block.type === "text" && typeof block.text === "string") parts.push(block.text);
   }
+
   return parts.join("");
 }
 
 function thinkingOf(content: unknown): string | undefined {
   const parts: string[] = [];
+
   for (const block of blocksOf(content)) {
     if (block.type === "thinking" && typeof block.thinking === "string") parts.push(block.thinking);
   }
+
   return parts.length > 0 ? parts.join("\n") : undefined;
 }
 
 function sliceHead(text: string, maxBytes: number): string {
   const bytes = Buffer.from(text, "utf8");
+
   if (bytes.length <= maxBytes) return text;
+
   return bytes.subarray(0, maxBytes).toString("utf8").replace(/\uFFFD+$/, "");
 }
 
 function sliceTail(text: string, maxBytes: number): string {
   const bytes = Buffer.from(text, "utf8");
+
   if (bytes.length <= maxBytes) return text;
+
   return bytes.subarray(bytes.length - maxBytes).toString("utf8").replace(/^\uFFFD+/, "");
 }
 
@@ -45,16 +54,19 @@ function sliceTail(text: string, maxBytes: number): string {
 function clip(text: string, whole: boolean): string {
   if (whole) return text;
   const lines = text.split("\n");
+
   if (lines.length <= RESULT_MAX_LINES && Buffer.byteLength(text, "utf8") <= RESULT_MAX_BYTES) return text;
   const keep = lines.length > RESULT_MAX_LINES ? RESULT_MAX_LINES / 2 : 0;
   const head = sliceHead(keep > 0 ? lines.slice(0, keep).join("\n") : text, RESULT_MAX_BYTES / 2);
   const tail = sliceTail(keep > 0 ? lines.slice(-keep).join("\n") : text, RESULT_MAX_BYTES / 2);
+
   return `${head}\n\n…\n\n${tail}`;
 }
 
 /** omp 对 skill:// 指令不设结果上限（SchemeSpec.unbounded），面板同样整篇展示。 */
 function readsWholeSkill(name: string, args: unknown): boolean {
   if (name !== "read" || args === null || typeof args !== "object" || !("path" in args)) return false;
+
   return typeof args.path === "string" && args.path.startsWith("skill://");
 }
 
@@ -64,8 +76,11 @@ function isoAt(timestamp: unknown): string {
 
 function toolDetailsOf(name: string, details: unknown): unknown {
   if (details === null || typeof details !== "object") return undefined;
+
   if (name === "todo" || name === "delegate") return details;
+
   if (name === "bash" && "exitCode" in details) return { exitCode: details.exitCode };
+
   return undefined;
 }
 
@@ -93,20 +108,25 @@ function toolItem(
 
 function toolCallsOf(content: unknown): { id: string; name: string; args: unknown }[] {
   const calls: { id: string; name: string; args: unknown }[] = [];
+
   for (const block of blocksOf(content)) {
     if (block.type !== "toolCall") continue;
     const id = typeof block.id === "string" ? block.id : "";
     const name = typeof block.name === "string" ? block.name : "";
+
     if (!id || !name) continue;
     calls.push({ id, name, args: block.arguments });
   }
+
   return calls;
 }
 
 function usageOf(message: Extract<AgentMessage, { role: "assistant" }>): ChatUsage | undefined {
   const usage = message.usage;
   const contextTokens = calculateContextTokens(usage);
+
   if (contextTokens === 0 && usage.output === 0) return undefined;
+
   return {
     contextTokens,
     input: usage.input,
@@ -122,7 +142,9 @@ function assistantItem(index: number, message: AgentMessage, streaming: boolean,
   const text = textOf(message.content);
   const thinking = thinkingOf(message.content);
   const usage = usageOf(message);
+
   if (!text && !thinking && usage === undefined) return null;
+
   return {
     id: `m${index}`,
     kind: "assistant",
@@ -140,6 +162,7 @@ export function projectMessages(
   pending?: ReadonlySet<string>,
 ): ChatItem[] {
   const results = new Map<string, { text: string; isError: boolean; details: unknown }>();
+
   for (const message of messages) {
     if (message.role !== "toolResult") continue;
     results.set(message.toolCallId, {
@@ -148,16 +171,22 @@ export function projectMessages(
       details: "details" in message ? message.details : undefined,
     });
   }
+
   const items: ChatItem[] = [];
   messages.forEach((message, index) => {
     const at = isoAt(message.timestamp);
+
     if (message.role === "user") {
       items.push({ id: `m${index}`, kind: "user", text: textOf(message.content), at });
+
       return;
     }
+
     if (message.role !== "assistant") return;
     const assistant = assistantItem(index, message, false);
+
     if (assistant) items.push(assistant);
+
     for (const call of toolCallsOf(message.content)) {
       const result = results.get(call.id);
       const state = result ? (result.isError ? "error" : "done") : pending?.has(call.id) ? "running" : "pending";
@@ -169,7 +198,9 @@ export function projectMessages(
         }),
       );
     }
+
   });
+
   return items;
 }
 
@@ -187,9 +218,12 @@ export class LiveProjector {
   /** 正在流式的助手消息；它还没进 `state.messages`，快照要单独补上。 */
   partial(): ChatItem | undefined {
     const message = this.stream;
+
     if (message === undefined || message.role !== "assistant") return undefined;
     const item = assistantItem(this.currentIndex, message, true);
+
     if (item === null || item.kind !== "assistant") return undefined;
+
     return item.text !== "" || item.thinking !== undefined ? item : undefined;
   }
 
@@ -198,42 +232,54 @@ export class LiveProjector {
       case "message_start":
         this.currentIndex = this.nextIndex++;
         this.stream = event.message;
+
         return [];
       case "message_update": {
         this.stream = event.message;
+
         if (event.message.role !== "assistant") return [];
         const now = Date.now();
+
         if (now - this.lastStreamAt < STREAM_THROTTLE_MS) return [];
         this.lastStreamAt = now;
         const item = assistantItem(this.currentIndex, event.message, true);
+
         return item ? [item] : [];
       }
       case "message_end": {
         this.stream = undefined;
         const index = this.currentIndex;
+
         if (event.message.role === "user") {
           return [{ id: `m${index}`, kind: "user", text: textOf(event.message.content), at: isoAt(event.message.timestamp) }];
         }
+
         if (event.message.role !== "assistant") return [];
         const out: ChatItem[] = [];
         const item = assistantItem(index, event.message, false, new Date().toISOString());
+
         if (item) out.push(item);
+
         for (const call of toolCallsOf(event.message.content)) {
           this.toolArgs.set(call.id, call.args);
           out.push(toolItem(call.id, call.name, call.args, "pending", { at: isoAt(event.message.timestamp) }));
         }
+
         return out;
       }
       case "agent_end":
         this.stream = undefined;
+
         return [];
       case "tool_execution_start":
         this.toolArgs.set(event.toolCallId, event.args);
+
         return [toolItem(event.toolCallId, event.toolName, event.args, "running")];
       case "tool_execution_update": {
         this.toolArgs.set(event.toolCallId, event.args);
         const progress = progressOf(event.partialResult);
         const details = toolDetailsOf(event.toolName, resultDetailsOf(event.partialResult));
+
         return [
           toolItem(event.toolCallId, event.toolName, event.args, "running", {
             ...(progress ? { progress } : {}),
@@ -243,6 +289,7 @@ export class LiveProjector {
       }
       case "tool_execution_end": {
         const args = this.toolArgs.get(event.toolCallId);
+
         return [
           toolItem(event.toolCallId, event.toolName, args, event.isError ? "error" : "done", {
             result: clip(resultTextOf(event.result), readsWholeSkill(event.toolName, args)),
@@ -259,16 +306,20 @@ export class LiveProjector {
 function progressOf(partialResult: unknown): string | undefined {
   if (!partialResult || typeof partialResult !== "object" || !("details" in partialResult)) return undefined;
   const details = partialResult.details;
+
   if (!details || typeof details !== "object" || !("progress" in details)) return undefined;
+
   return typeof details.progress === "string" ? details.progress : undefined;
 }
 
 function resultDetailsOf(result: unknown): unknown {
   if (!result || typeof result !== "object" || !("details" in result)) return undefined;
+
   return result.details;
 }
 
 function resultTextOf(result: unknown): string {
   if (!result || typeof result !== "object" || !("content" in result)) return "";
+
   return textOf(result.content);
 }

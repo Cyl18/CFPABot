@@ -18,10 +18,13 @@ import type { SessionRecord } from "./sessions.ts";
 export async function openAuthStorage(endpoints: LlmEndpoint[]): Promise<AuthStorage> {
   assertEndpointRouting(endpoints);
   const authStorage = await discoverAuthStorage(paths.piAgent);
+
   for (const endpoint of endpoints) {
     const apiKey = resolveApiKey(endpoint.apiKey);
+
     if (apiKey) authStorage.keys.setRuntime(endpoint.provider, apiKey);
   }
+
   return authStorage;
 }
 
@@ -35,14 +38,18 @@ export async function openModelRuntime(
   settings.overrideModelRoles(roles);
   const registry = new ModelRegistry(authStorage);
   const byProvider = new Map<string, LlmEndpoint[]>();
+
   for (const endpoint of endpoints) {
     if (!resolveApiKey(endpoint.apiKey)) continue;
     byProvider.set(endpoint.provider, [...(byProvider.get(endpoint.provider) ?? []), endpoint]);
   }
+
   for (const [provider, list] of byProvider) {
     const first = list[0];
+
     if (!first) continue;
     const apiKey = resolveApiKey(first.apiKey);
+
     if (apiKey === undefined) continue;
     registry.registerProvider(
       provider,
@@ -64,6 +71,7 @@ export async function openModelRuntime(
       "cfpa",
     );
   }
+
   return { settings, registry };
 }
 
@@ -71,18 +79,22 @@ export async function openSessionManager(record: SessionRecord): Promise<Session
   if (record.sessionFile && existsSync(record.sessionFile)) {
     return SessionManager.open(record.sessionFile, paths.sessions);
   }
+
   // 会话文件定在 runtime/sessions/<id>.jsonl：omp 的 artifacts 目录随之等于 <id>/，local:// 与 cwd 都落在 <id>/local。
   const manager = SessionManager.create(localDir(record.meta.id), paths.sessions);
   const file = join(paths.sessions, `${record.meta.id}.jsonl`);
   await manager.setSessionFile(file);
   record.sessionFile = file;
+
   return manager;
 }
 
 export async function messagesFromFile(file: string | undefined): Promise<AgentMessage[]> {
   if (file === undefined || !existsSync(file)) return [];
+
   try {
     const manager = await SessionManager.open(file, paths.sessions);
+
     return manager.buildSessionContext({ transcript: true, collapseCompactedHistory: true }).messages;
   } catch {
     return [];
@@ -92,8 +104,10 @@ export async function messagesFromFile(file: string | undefined): Promise<AgentM
 /** 计划以会话分支上的 todo 快照为准：压缩后的消息里可能已经没有那次调用。 */
 export async function planFromFile(file: string | undefined): Promise<TodoPhase[]> {
   if (file === undefined || !existsSync(file)) return [];
+
   try {
     const manager = await SessionManager.open(file, paths.sessions);
+
     return getLatestTodoPhasesFromEntries(manager.getBranch());
   } catch {
     return [];

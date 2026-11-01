@@ -11,13 +11,16 @@ export async function publishDraft(draft: ReviewDraft, marker?: string): Promise
   assertBotWrites();
   await prdata.refresh(draft.prNumber);
   const { pull, files } = await prdata.files(draft.prNumber);
+
   if (pull.headSha !== draft.headSha) {
     throw new Error(
       `PR #${draft.prNumber} 的 head 已变为 ${pull.headSha.slice(0, 7)}，草稿基于 ${draft.headSha.slice(0, 7)}，请重新审查后再发布`,
     );
   }
+
   const patches = new Map(files.map((file) => [file.path, file.patch]));
   const errors = validateDraft(draft, { patches });
+
   if (errors.length > 0) throw new Error(`草稿校验失败：${errors.join("；")}`);
   const table = await loadTermTable(draft.prNumber, draft.headSha);
   const freshest: ReviewDraft = table === null ? draft : { ...draft, terms: table.terms };
@@ -42,5 +45,6 @@ export async function publishDraft(draft: ReviewDraft, marker?: string): Promise
     fileLevel: draft.comments.length - inline.length,
     url: review.htmlUrl,
   });
+
   return { url: review.htmlUrl };
 }

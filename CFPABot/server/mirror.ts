@@ -29,6 +29,7 @@ function git(args: string[], cwd = paths.mirror): Promise<string> {
 
 async function readHeadSha(): Promise<string | null> {
   if (!(await stat(join(paths.mirror, ".git")).catch(() => null))) return null;
+
   try {
     return (await git(["rev-parse", "HEAD"])).trim() || null;
   } catch {
@@ -41,18 +42,23 @@ let listing: { head: string; files: Promise<readonly LangPath[]> } | null = null
 
 async function headSha(): Promise<string | null> {
   knownHead ??= await readHeadSha();
+
   return knownHead;
 }
 
 async function listLangFiles(rev: string): Promise<readonly LangPath[]> {
   const out = await git(["ls-tree", "-r", "--name-only", rev]);
   const files: LangPath[] = [];
+
   for (const line of out.split("\n")) {
     const path = line.trim();
+
     if (!path) continue;
     const parsed = parseLangPath(path);
+
     if (parsed) files.push(parsed);
   }
+
   return files;
 }
 
@@ -84,13 +90,17 @@ interface CfMeta {
 
 async function curseforgeMeta(ids: number[]): Promise<Map<number, CfMeta>> {
   const meta = new Map<number, CfMeta>();
+
   if (!env.CURSEFORGE_API_KEY) return meta;
+
   for (let i = 0; i < ids.length; i += ID_BATCH) {
     const batch = ids.slice(i, i + ID_BATCH);
+
     for (const mod of await getModsByIds(batch)) {
       meta.set(mod.id, { slug: mod.slug, name: mod.name, url: mod.links?.websiteUrl ?? null });
     }
   }
+
   return meta;
 }
 
@@ -116,15 +126,20 @@ function modlistFresh(cache: ModlistCache | null, head: string | null, stamp: st
 async function blobOids(rev: string, wanted: ReadonlySet<string>): Promise<Map<string, string>> {
   const out = await git(["ls-tree", "-r", rev, "--", "projects/assets"]);
   const oids = new Map<string, string>();
+
   for (const line of out.split("\n")) {
     const tab = line.indexOf("\t");
+
     if (tab < 0) continue;
     const path = line.slice(tab + 1);
+
     if (!wanted.has(path)) continue;
     const parts = line.slice(0, tab).split(" ");
     const oid = parts[2];
+
     if (parts[1] === "blob" && oid !== undefined) oids.set(path, oid);
   }
+
   return oids;
 }
 
@@ -137,6 +152,7 @@ async function ensureBlobs(oids: readonly string[]): Promise<void> {
       .filter((oid) => oid !== ""),
   );
   const missing = oids.filter((oid) => !local.has(oid));
+
   for (let i = 0; i < missing.length; i += PREFETCH_CHUNK) {
     const chunk = missing.slice(i, i + PREFETCH_CHUNK);
     await runGitBytes(
@@ -162,6 +178,7 @@ async function buildModList(head: string | null, mappingsStamp: string | null): 
   const rev = head ?? "HEAD";
   const files = await mirror.langFiles();
   const grouped = new Map<string, Map<string, Set<string>>>();
+
   for (const file of files) {
     const versions = grouped.get(file.slug) ?? new Map<string, Set<string>>();
     const namespaces = versions.get(file.version) ?? new Set<string>();
@@ -175,9 +192,11 @@ async function buildModList(head: string | null, mappingsStamp: string | null): 
   await ensureBlobs([...oids.values()]);
   const texts = await mirror.readBlobs([...new Set(oids.values())]);
   const zhDomains = new Map<string, Set<string>>();
+
   for (const file of zhFiles) {
     const oid = oids.get(file.path);
     const text = oid === undefined ? undefined : texts.get(oid);
+
     if (text === undefined || text.trim() === "{}") continue;
     const key = `${file.slug}\n${file.version}`;
     const domains = zhDomains.get(key) ?? new Set<string>();
@@ -196,6 +215,7 @@ async function buildModList(head: string | null, mappingsStamp: string | null): 
     .map(([slug, versions]) => {
       const curseforgeId = idsBySlug.get(slug);
       const info = curseforgeId === undefined ? undefined : meta.get(curseforgeId);
+
       return {
         slug,
         ...(info === undefined ? {} : { cfSlug: info.slug }),
@@ -210,6 +230,7 @@ async function buildModList(head: string | null, mappingsStamp: string | null): 
             zhDomains: [...(zhDomains.get(`${slug}\n${version}`) ?? [])].sort(),
           })),
       };
+
     });
 
   return { schema: MODLIST_SCHEMA, updatedAt: new Date().toISOString(), headSha: head, mappingsStamp, mods };
@@ -219,16 +240,21 @@ function parseCatFileBatch(out: Uint8Array, keys: readonly string[]): Map<string
   const texts = new Map<string, string>();
   const decoder = new TextDecoder();
   let pos = 0;
+
   for (const key of keys) {
     const eol = out.indexOf(0x0a, pos);
+
     if (eol < 0) break;
     const header = /^[0-9a-f]+ (\w+) (\d+)$/.exec(decoder.decode(out.subarray(pos, eol)));
     pos = eol + 1;
+
     if (!header) continue;
     const size = Number(header[2]);
+
     if (header[1] === "blob") texts.set(key, decoder.decode(out.subarray(pos, pos + size)));
     pos += size + 1;
   }
+
   return texts;
 }
 
@@ -237,6 +263,7 @@ export const mirror = {
     return withLock("mirror", async () => {
       const before = await readHeadSha();
       await ensureMirror();
+
       if (before !== null) {
         for (let attempt = 0; ; attempt++) {
           try {
@@ -248,8 +275,10 @@ export const mirror = {
           }
         }
       }
+
       const after = await readHeadSha();
       knownHead = after;
+
       return { headSha: after ?? "", changed: after !== before };
     });
   },
@@ -258,7 +287,9 @@ export const mirror = {
 
   async langFiles(): Promise<readonly LangPath[]> {
     const head = await headSha();
+
     if (head === null) return listLangFiles("HEAD");
+
     if (listing?.head !== head) {
       const files = listLangFiles(head);
       listing = { head, files };
@@ -266,6 +297,7 @@ export const mirror = {
         if (listing?.files === files) listing = null;
       });
     }
+
     return listing.files;
   },
 
@@ -273,6 +305,7 @@ export const mirror = {
     if (files.length === 0) return new Map();
     const input = new TextEncoder().encode(files.map((path) => `${rev}:${path}\n`).join(""));
     const out = new Uint8Array(await runGitBytes(paths.mirror, ["cat-file", "--batch"], null, input));
+
     return parseCatFileBatch(out, files);
   },
 
@@ -280,20 +313,25 @@ export const mirror = {
     if (oids.length === 0) return new Map();
     const input = new TextEncoder().encode(`${oids.join("\n")}\n`);
     const out = new Uint8Array(await runGitBytes(paths.mirror, ["cat-file", "--batch"], null, input));
+
     return parseCatFileBatch(out, oids);
   },
 
   async existing(rev: string, files: readonly string[]): Promise<Set<string>> {
     const found = new Set<string>();
+
     if (files.length === 0) return found;
     const input = new TextEncoder().encode(files.map((path) => `${rev}:${path}\n`).join(""));
     const out = new TextDecoder().decode(await runGitBytes(paths.mirror, ["cat-file", "--batch-check"], null, input));
     const lines = out.split("\n");
+
     for (let i = 0; i < files.length; i++) {
       const line = lines[i];
       const path = files[i];
+
       if (line !== undefined && path !== undefined && /^[0-9a-f]+ blob \d+$/.test(line)) found.add(path);
     }
+
     return found;
   },
 
@@ -301,22 +339,29 @@ export const mirror = {
     const rev = (await headSha()) ?? "HEAD";
     const out = await git(["ls-tree", "-r", "--name-only", rev, `projects/assets/${slug}`]);
     const zhFiles: LangPath[] = [];
+
     for (const line of out.split("\n")) {
       const parsed = parseLangPath(line.trim());
+
       if (parsed && parsed.locale === "zh_cn" && parsed.slug === slug) zhFiles.push(parsed);
     }
+
     const texts = await mirror.readMany(rev, zhFiles.map((file) => file.path));
     const grouped = new Map<string, Set<string>>();
+
     for (const file of zhFiles) {
       const text = texts.get(file.path);
+
       if (text === undefined || text.trim() === "{}") continue;
       const namespaces = grouped.get(file.version) ?? new Set<string>();
       namespaces.add(file.namespace);
       grouped.set(file.version, namespaces);
     }
+
     return [...grouped.entries()]
       .flatMap(([version, namespaces]) => {
         const parsed = commentVersionDir(version);
+
         return parsed === null ? [] : [{ parsed, version, namespaces: [...namespaces].sort() }];
       })
       .sort(
@@ -332,19 +377,27 @@ export const mirror = {
     const stamp = await mappings.stamp();
     const cached = await readJson(MODLIST_PATH, modlistCacheSchema);
     const stale = cached !== null && cached.schema === MODLIST_SCHEMA ? cached : null;
+
     if (modlistFresh(cached, head, stamp)) return cached;
+
     return withLock("modlist", async () => {
       const fresh = await readJson(MODLIST_PATH, modlistCacheSchema);
+
       if (modlistFresh(fresh, head, stamp)) return fresh;
       let result: ModlistCache;
+
       try {
         result = await buildModList(head, stamp);
       } catch (err) {
         log.warn("模组列表重建失败，沿用旧缓存", { err });
+
         if (stale !== null) return stale;
+
         throw err;
       }
+
       await writeJson(MODLIST_PATH, result);
+
       return result;
     });
   },

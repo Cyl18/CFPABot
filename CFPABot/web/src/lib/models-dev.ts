@@ -66,12 +66,16 @@ const FULL_THINKING_OPTIONS: readonly ThinkingOption[] = [
 
 export function flattenModelsDevIndex(index: ModelsDevIndex): FlatModelEntry[] {
   const entries: FlatModelEntry[] = [];
+
   for (const [providerKey, provider] of Object.entries(index)) {
     if (!provider || typeof provider !== "object" || !provider.models) continue;
+
     for (const [modelId, model] of Object.entries(provider.models)) {
       if (!model || typeof model !== "object") continue;
       const id = model.id || modelId;
+
       if (!id) continue;
+
       if (!model.limit && model.reasoning !== true && !model.reasoning_options) continue;
       entries.push({
         providerKey,
@@ -84,14 +88,17 @@ export function flattenModelsDevIndex(index: ModelsDevIndex): FlatModelEntry[] {
       });
     }
   }
+
   return entries;
 }
 
 function loadFromStorage(): ModelsDevPersist | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
+
     if (!raw) return null;
     const parsed = JSON.parse(raw) as ModelsDevPersist;
+
     return parsed && Array.isArray(parsed.entries) ? parsed : null;
   } catch {
     return null;
@@ -116,38 +123,50 @@ let inFlight: Promise<FlatModelEntry[] | null> | null = null;
 
 export async function fetchModelsDevModels(): Promise<FlatModelEntry[] | null> {
   const now = Date.now();
+
   if (cache && now < expiresAt) return cache;
   const persisted = loadFromStorage();
+
   if (persisted && now < persisted.fetchedAt + CACHE_TTL) {
     cache = persisted.entries;
     expiresAt = persisted.fetchedAt + CACHE_TTL;
+
     return cache;
   }
+
   if (inFlight) return inFlight;
   inFlight = (async () => {
     try {
       const response = await fetch(MODELS_DEV_URL, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+
       if (!response.ok) throw new Error(`models.dev HTTP ${response.status}`);
       const entries = flattenModelsDevIndex((await response.json()) as ModelsDevIndex);
       cache = entries;
       expiresAt = Date.now() + CACHE_TTL;
       saveToStorage(entries);
+
       return entries;
     } catch (error) {
       if (cache) return cache;
+
       if (persisted) return persisted.entries;
+
       throw error;
     } finally {
       inFlight = null;
     }
+
   })();
+
   return inFlight;
 }
 
 function pickModelEntry(index: readonly FlatModelEntry[] | null, modelId: string, provider?: string): FlatModelEntry | undefined {
   if (!index || modelId === "") return undefined;
   const matches = index.filter((entry) => entry.model.id === modelId);
+
   if (matches.length === 0) return undefined;
+
   return (provider ? matches.find((entry) => entry.providerKey === provider) : undefined) ?? matches[0];
 }
 
@@ -157,10 +176,13 @@ export function pickModelLimits(
   provider?: string,
 ): ModelLimits | undefined {
   const limit = pickModelEntry(index, modelId, provider)?.model.limit;
+
   if (!limit) return undefined;
   const contextWindow = limit.context ?? limit.input;
   const maxOutput = limit.output;
+
   if (contextWindow === undefined && maxOutput === undefined) return undefined;
+
   return {
     ...(contextWindow !== undefined ? { contextWindow } : {}),
     ...(maxOutput !== undefined ? { maxOutput } : {}),
@@ -173,21 +195,29 @@ export function thinkingOptionsFor(
   provider?: string,
 ): readonly ThinkingOption[] {
   const entry = pickModelEntry(index, modelId, provider);
+
   if (!entry) return FULL_THINKING_OPTIONS;
+
   if (entry.model.reasoning === false) return [{ value: "", label: "默认（该模型不支持思考）" }];
   const values = new Set<string>();
+
   for (const option of entry.model.reasoning_options ?? []) {
     if (option.type !== "effort") continue;
+
     for (const raw of option.values ?? []) {
       const value = raw === "none" ? "off" : raw === "default" ? "" : raw;
+
       if (value !== "" && THINKING_LABELS[value] !== undefined) values.add(value);
     }
   }
+
   if (values.size === 0) return FULL_THINKING_OPTIONS;
+
   return [{ value: "", label: "默认" }, ...[...values].map((value) => ({ value, label: THINKING_LABELS[value] ?? value }))];
 }
 
 export function withCurrentThinking(options: readonly ThinkingOption[], value: string | undefined): readonly ThinkingOption[] {
   if (!value || options.some((option) => option.value === value)) return options;
+
   return [...options, { value, label: `${value}（当前）` }];
 }

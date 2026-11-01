@@ -60,12 +60,15 @@ export function isApiError(value: unknown): value is ApiError {
 
 export function errorMessage(error: unknown): string {
   if (isApiError(error)) return error.message;
+
   if (error instanceof Error) return error.message;
+
   return String(error);
 }
 
 export function loginUrl(next?: string): string {
   const target = next ?? (typeof window === "undefined" ? "/" : window.location.pathname + window.location.search);
+
   return `/auth/login?next=${encodeURIComponent(target)}`;
 }
 
@@ -73,16 +76,19 @@ function errorEnvelope(body: unknown, status: number): { message: string; code?:
   if (body !== null && typeof body === "object") {
     const record = body as Record<string, unknown>;
     const message = typeof record.error === "string" ? record.error : typeof record.message === "string" ? record.message : null;
+
     if (message !== null) {
       return typeof record.code === "string" ? { message, code: record.code } : { message };
     }
   }
+
   return { message: `请求失败（HTTP ${status}）` };
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("accept", "application/json");
+
   if (init.body !== undefined && !headers.has("content-type")) headers.set("content-type", "application/json");
   const response = await fetch(path, {
     ...init,
@@ -90,9 +96,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     credentials: "include",
     signal: init.signal ?? AbortSignal.timeout(TIMEOUT_MS),
   });
+
   if (response.status === 204) return undefined as T;
   const text = await response.text();
   let body: unknown = null;
+
   if (text.length > 0) {
     try {
       body = JSON.parse(text);
@@ -100,10 +108,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       body = null;
     }
   }
+
   if (!response.ok) {
     const envelope = errorEnvelope(body, response.status);
+
     throw new ApiError(response.status, envelope.message, envelope.code);
   }
+
   return body as T;
 }
 
@@ -121,10 +132,13 @@ function send<T>(method: "POST" | "PUT" | "PATCH" | "DELETE", path: string, body
 
 function query(params: Record<string, string | number | undefined>): string {
   const search = new URLSearchParams();
+
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") search.set(key, String(value));
   }
+
   const text = search.toString();
+
   return text.length > 0 ? `?${text}` : "";
 }
 
@@ -136,9 +150,12 @@ export interface CompareKey {
 
 export function parseWorkspaceKey(key: string): CompareKey | null {
   const parts = key.split("/");
+
   if (parts.length !== 3) return null;
   const [slug, version, namespace] = parts;
+
   if (!slug || !version || !namespace) return null;
+
   return { slug, version, namespace };
 }
 

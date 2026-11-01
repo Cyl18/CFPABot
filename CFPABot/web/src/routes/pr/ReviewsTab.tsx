@@ -26,9 +26,12 @@ export function ReviewsTab({ n }: { n: number }) {
 
 function PackCard({ n }: { n: number }) {
   const pack = usePack(n);
+
   if (pack.error !== null) return <ErrorState error={pack.error} onRetry={() => void pack.refetch()} />;
+
   if (pack.isPending) return <SkeletonTable rows={3} columns={3} />;
   const data = pack.data;
+
   return (
     <Card>
       <CardHeader
@@ -119,6 +122,7 @@ function SessionsTable({ n }: { n: number }) {
   ];
 
   if (sessions.error !== null) return <ErrorState error={sessions.error} onRetry={() => void sessions.refetch()} />;
+
   if (sessions.isPending) return <SkeletonTable rows={3} columns={5} />;
 
   if (rows.length === 0) {

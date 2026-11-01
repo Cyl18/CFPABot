@@ -114,6 +114,7 @@ export interface WorkspaceBrief {
   format: "json" | "lang";
   enPath: string | null;
   zhPath: string | null;
+
   /** pack 未构建时缺失。 */
   counts?: { total: number; changed: number; flagged: number };
   histogram?: Record<string, number>;
@@ -148,6 +149,7 @@ export interface WorkspaceBrief {
 
 export interface ChecksSummary {
   status: "unknown" | "running" | "ok" | "stale" | "failed";
+
   /** counts/top 的来源：bot 结构化报告、本地预审、或都没有。 */
   source: "bot" | "local" | "none";
   headSha: string;
@@ -189,6 +191,7 @@ export interface ReviewRowView {
   zh?: string;
   baseEn?: string;
   baseZh?: string;
+
   /** head 该行的原始文本，供整行 suggestion 对齐缩进与逗号；只有 changed 行才有。 */
   raw?: string;
   line: number | null;
@@ -213,9 +216,11 @@ export interface ReviewSlice {
 export interface ReviewPlan {
   total: number;
   bytes: number;
+
   /** 单页 JSON 的预算；和 pack 的片文档预算不是同一口径。 */
   rowsBudgetBytes: number;
   fits: boolean;
+
   /** 分片总数；slices 只列开头几片，其余照每片的 next 继续。 */
   sliceCount: number;
   slices: ReviewSlice[];
@@ -228,15 +233,18 @@ export interface ReviewRowsPage {
   offset: number;
   limit: number;
   nextOffset: number | null;
+
   /** true = 本次 rows 字段完整（全集或单片）；只返回 plan 时为 false。 */
   complete: boolean;
   slice?: string;
   plan?: ReviewPlan;
   counts: { workspaces: number; rows: number; changed: number; flagged: number; reviewable: number };
+
   /** 分片页省略工作区清单 */
   workspaces?: WorkspaceBrief[];
   rows: ReviewRowView[];
   patches?: Record<string, string>;
+
   /** 未内联的 patch 改用 files/<path>?format=patch 读 */
   patchesOmitted?: string[];
   commentsAvailable: boolean;
@@ -248,6 +256,7 @@ export interface ReviewRowsPage {
 export interface DraftSchemaView {
   shape: Record<string, unknown>;
   notes: string[];
+
   /** 全形 `<dim>/<type>` 词表，由 MQM_TYPES 生成；写之前先读，不必先错一次。 */
   mqm: string[];
 }
@@ -257,6 +266,7 @@ export interface ReviewDraftView {
   headSha: string;
   exists: boolean;
   draft: ReviewDraft | null;
+
   /** `?schema=0` 时不返回：复核草稿只要 validation。 */
   schema?: DraftSchemaView;
   validation: { errors: string[]; warnings: string[]; headCurrent: boolean };
@@ -273,6 +283,7 @@ export interface ReviewBrief {
     headRef: string;
     headRepo: string;
   };
+
   localRoot: string;
   repoRoot: string;
   plan?: ReviewPlan;
@@ -286,6 +297,7 @@ export interface ReviewBrief {
     changedRows: number | null;
     flaggedRows: number | null;
   };
+
   files: { total: number; items: PrFile[]; truncated: boolean };
   workspaces: WorkspaceBrief[];
   checks: ChecksSummary;
@@ -303,6 +315,7 @@ export interface ReviewBrief {
     write: string;
     publish: string;
   };
+
   capabilities: { writeScope: Scope; publish: boolean };
   rows?: ReviewRowsPage;
   next: string[];
@@ -318,6 +331,7 @@ export interface TermVariant {
 export interface TermGroup {
   en: string;
   inPr: TermVariant[];
+
   /** 本组命中 glossary 但译文没对上的条目；没命中就是空数组。 */
   missed: { en: string; zh: string[]; keys: string[]; reason?: string }[];
   rows: number;
@@ -345,8 +359,10 @@ export interface TermEntry {
   en: string;
   zh: string;
   bucket: TermBucket;
+
   /** 依据：语料命中、原版术语、本模组既有译法。必填，供人复核。 */
   source: string;
+
   /** discard 必填：为什么不是术语。 */
   note?: string;
 }
@@ -360,14 +376,19 @@ export interface TermTable {
 
 export interface TermCandidate {
   en: string;
+
   /** 本 PR changed 行里的出现次数。 */
   count: number;
+
   /** 本 PR 已用的译文；多值说明内部不一致，需要裁定。 */
   inPr: TermVariant[];
+
   /** 全文双侧上下文：同英文的其它条目，含未改动的行。 */
   contexts: { key: string; en: string; zh: string }[];
+
   /** 原版术语表里的完全同形条目。 */
   vanilla?: { zh: string[] };
+
   /** 服务端建议档：lock=原版唯一命中；pending=有多个候选；new=无权威命中。 */
   suggest: "lock" | "pending" | "new";
 }
@@ -428,6 +449,7 @@ export interface CompareReview {
   path: string;
   keys: Record<string, { line: number; raw: string }>;
   keysOmitted?: number;
+
   /** GitHub 没给 patch（文件过大等）或文件已被删除，无从判断可评论行。 */
   unavailable?: "no_patch" | "removed";
 }
@@ -493,6 +515,7 @@ export interface CrossVersionKeysResult {
   activeVersions: string[];
   prVersions: string[];
   zhVersions: string[];
+
   /** 请求的版本筛选一个都没命中，已回退成全部版本。 */
   filterIgnored?: boolean;
   rows: CrossVersionKeyRow[];
@@ -526,6 +549,7 @@ export interface ModList {
 export type SessionStatus = "idle" | "running";
 
 export const SCOPES = ["off", "on"] as const;
+
 /** 会话的三个权限开关（写仓库、eval、bash）共用这一档。 */
 export type Scope = (typeof SCOPES)[number];
 
@@ -578,6 +602,7 @@ export interface SubagentInfo {
   agent: string;
   status: "queued" | "running" | "done" | "error";
   model?: string;
+
   /** 当前动作：工具名 + 参数/意图，或模型自述的阶段。 */
   activity?: string;
   toolCount: number;
@@ -588,8 +613,10 @@ export interface SubagentInfo {
   currentToolStartMs?: number;
   contextTokens?: number;
   contextWindow?: number;
+
   /** 后台 job id。 */
   jobId?: string;
+
   /** 这份子代理拿到的审查片 id（从 resources 的 slices/<id>.md 推出），用于核对覆盖率。 */
   slices?: string[];
   percent?: number;
@@ -602,6 +629,7 @@ export interface SubagentInfo {
 export interface SubagentTranscript {
   items: ChatItem[];
   total: number;
+
   /** true 表示这份 transcript 来自内存中的活动会话，而不是磁盘上的会话文件。 */
   live: boolean;
   status?: SubagentInfo["status"];
@@ -610,14 +638,18 @@ export interface SubagentTranscript {
   stage?: string;
   watch?: string;
   probeCost?: number;
+
   /** 子代理此刻是否在流式接收。 */
   streaming?: boolean;
+
   /** 正在流式的那条助手的字符数；它增长就说明上游还在吐 token。 */
   streamChars?: number;
+
   /** 用量计数器比 percent/stage 刷新得勤，抽屉头部用它们显示实时值。 */
   tokens?: number;
   toolCount?: number;
   durationMs?: number;
+
   /** 子代理创建时刻；运行中的耗时以它为准，progress 的时间戳会停在最后一次事件。 */
   startedAt?: number;
 }
@@ -630,11 +662,13 @@ export type ChatItem =
       text: string;
       thinking?: string;
       at: string;
+
       /** 这条响应完整返回的时刻；流式过程中的 `at` 只是开始时间。 */
       completedAt?: string;
       streaming?: boolean;
       usage?: ChatUsage;
     }
+
   | { id: string; kind: "tool"; tool: ToolCallView; at: string };
 
 export const SEVERITIES = ["critical", "major", "minor", "neutral"] as const;
@@ -652,6 +686,7 @@ export const SEVERITY_META: Record<Severity, { label: string; tone: "danger" | "
 export interface DraftComment {
   id: string;
   path: string;
+
   /** 文件级评论没有 line，靠 fileLevel 落到整个文件。 */
   line?: number;
   key: string;
@@ -663,6 +698,7 @@ export interface DraftComment {
   suggestion?: string;
   covers?: string[];
   suspected?: boolean;
+
   /** 手册评论的锚点二选一：fileLevel 或 line。 */
   fileLevel?: boolean;
 }
@@ -673,6 +709,7 @@ export interface ReviewDraft {
   event: ReviewEvent;
   summary: string;
   comments: DraftComment[];
+
   /** 服务端按已冻结的术语表补，不读模型输入。 */
   terms?: TermEntry[];
   updatedAt: string;
@@ -698,8 +735,10 @@ export interface SessionDetail extends SessionSummary {
   items: ChatItem[];
   artifact?: unknown;
   artifactFile?: string;
+
   /** 已知子代理的最近状态；服务重启后从 status.json 回放。 */
   subagents?: SubagentInfo[];
+
   /** 最近一次提交的计划；没有计划时省略。 */
   plan?: TodoPhase[];
 }
@@ -718,6 +757,7 @@ export interface CreateSessionRequest {
   message?: string;
   model?: string;
   prNumber?: number;
+
   /** 定死的标题尾段（有 prNumber 时前面加 `#<n> · `），给了就不调模型摘要。 */
   title?: string;
   writeScope?: Scope;
@@ -735,12 +775,16 @@ export type SessionEvent =
   | { type: "snapshot"; session: SessionDetail }
   | { type: "status"; status: SessionStatus; lastError?: string; note?: string }
   | { type: "item"; item: ChatItem }
+
   /** 一次模型往返（step）结束：响应正文与思考都已完整返回。 */
   | { type: "step"; phase: "end" }
+
   /** omp 插入队列快照：用户消息已受理但还没到下一个步边界。 */
   | { type: "queue"; steering: string[]; followUp: string[] }
+
   /** 子代理状态更新：进度、探针估计、完成或失败。 */
   | { type: "subagent"; info: SubagentInfo }
+
   /** 计划更新：`todo` 提交成功后的整份快照。 */
   | { type: "plan"; plan: TodoPhase[] }
   | { type: "artifact"; artifact: unknown }
@@ -757,10 +801,13 @@ export const THINKING_LEVELS: readonly ThinkingLevel[] = ["off", "minimal", "low
 export function parseModelSelector(value: string): { endpoint: string; thinking?: ThinkingLevel } {
   const trimmed = value.trim();
   const colon = trimmed.lastIndexOf(":");
+
   if (colon > 0) {
     const level = trimmed.slice(colon + 1) as ThinkingLevel;
+
     if (THINKING_LEVELS.includes(level)) return { endpoint: trimmed.slice(0, colon), thinking: level };
   }
+
   return { endpoint: trimmed };
 }
 
@@ -882,9 +929,11 @@ export const LLM_PROVIDER_PRESETS: readonly LlmProviderPreset[] = ([
 export interface SearchProviderPreset {
   id: string;
   label: string;
+
   /** 默认端点；空串表示由 SDK 内置，端点可不填 */
   endpoint: string;
   selfHosted?: true;
+
   /** 不需要任何凭据的抓取类 provider */
   keyless?: true;
 }

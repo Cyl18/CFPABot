@@ -31,10 +31,12 @@ export function ensureDirs(): void {
   for (const dir of [paths.cache, paths.state, paths.sessions, paths.work, paths.jars, paths.piAgent]) {
     mkdirSync(dir, { recursive: true });
   }
+
   if (process.platform !== "win32") {
     // bash 以 nobody 跑：配置只留 root，sessions 可穿越不可列目录。
     chmodSync(paths.config, 0o700);
     chmodSync(paths.sessions, 0o711);
+
     for (const file of ["secret.key", "llm.json", "app.pem"]) {
       try {
         chmodSync(join(paths.config, file), 0o600);

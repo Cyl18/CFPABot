@@ -27,6 +27,7 @@ export type ModRef =
 
 export function parseLangPath(path: string): LangPath | null {
   const parts = path.split("/");
+
   if (parts.length !== 7) return null;
   const p0 = parts[0] as string;
   const p1 = parts[1] as string;
@@ -35,11 +36,13 @@ export function parseLangPath(path: string): LangPath | null {
   const p4 = parts[4] as string;
   const p5 = parts[5] as string;
   const p6 = parts[6] as string;
+
   if (p0 !== "projects" || p5 !== "lang") return null;
 
   let slug: string;
   let version: string;
   let legacy: boolean;
+
   if (p1 === "assets") {
     legacy = false;
     slug = p2;
@@ -51,11 +54,14 @@ export function parseLangPath(path: string): LangPath | null {
   } else {
     return null;
   }
+
   const namespace = p4;
 
   const dot = p6.lastIndexOf(".");
+
   if (dot <= 0) return null;
   const ext = p6.slice(dot + 1).toLowerCase();
+
   if (ext !== "json" && ext !== "lang") return null;
   const base = p6.slice(0, dot).toLowerCase();
   const locale: Locale | null = base === "en_us" ? "en_us" : base === "zh_cn" ? "zh_cn" : null;
@@ -86,22 +92,29 @@ const VERSION_DIR_RE = /^(\d+\.\d+(?:\.\d+)?)(-fabric)?$/;
 
 export function parseVersionDir(dir: string): VersionDir | null {
   const m = VERSION_DIR_RE.exec(dir);
+
   if (!m) return null;
+
   return { dir, mc: m[1] as string, loader: m[2] ? "fabric" : "forge" };
 }
 
 export function langFormatFor(versionDir: string): LangFormat {
   const parsed = parseVersionDir(versionDir);
+
   return parsed !== null && parsed.mc === "1.12.2" ? "lang" : "json";
 }
 
 export function mcMatches(dirMc: string, gameVersion: string): boolean {
   const dir = dirMc.replace(/-fabric$/i, "").trim();
   const game = gameVersion.trim();
+
   if (dir === "" || game === "") return false;
+
   if (dir === game) return true;
   const segs = dir.split(".");
+
   if (segs.length >= 3) return false;
+
   return game.startsWith(`${dir}.`);
 }
 
@@ -109,27 +122,35 @@ export function compareMc(a: string, b: string): number {
   const xs = a.replace(/-fabric$/i, "").trim().split(".");
   const ys = b.replace(/-fabric$/i, "").trim().split(".");
   const n = Math.max(xs.length, ys.length);
+
   for (let i = 0; i < n; i++) {
     const x = xs[i] ?? "0";
     const y = ys[i] ?? "0";
+
     if (x === y) continue;
+
     if (/^\d+$/.test(x) && /^\d+$/.test(y)) {
       return Number(x) < Number(y) ? -1 : 1;
     }
+
     return x < y ? -1 : 1;
   }
+
   return 0;
 }
 
 export function workspacesOf(files: readonly Pick<PrFile, "path" | "status">[]): Workspace[] {
   const byKey = new Map<string, Workspace>();
+
   for (const file of files) {
     // 删除的文件也要占位：只有删除的 PR 同样需要有工作区才能对比 base/head。
     const raw = file.path;
     const parsed = parseLangPath(raw);
+
     if (!parsed || parsed.locale === null) continue;
     const key = `${parsed.slug}\u0000${parsed.version}\u0000${parsed.namespace}`;
     const existing = byKey.get(key);
+
     if (existing) {
       existing.files.push(raw);
     } else {
@@ -141,17 +162,21 @@ export function workspacesOf(files: readonly Pick<PrFile, "path" | "status">[]):
       });
     }
   }
+
   return [...byKey.values()];
 }
 
 export function modRefOf(slug: string): ModRef {
   if (slug === "1UNKNOWN" || slug.startsWith("0-")) return { provider: "none", slug };
+
   if (slug.startsWith("modrinth-")) return { provider: "modrinth", slug: slug.slice("modrinth-".length) };
+
   return { provider: "curseforge", slug };
 }
 
 export function langPathFor(path: string, locale: Locale): string[] {
   const names = locale === "en_us" ? ["en_us", "en_US"] : ["zh_cn", "zh_CN"];
+
   return names.map((name) => path.replace(/[^/]*$/, (file) => file.replace(/^(?:zh_cn|zh_CN|en_us|en_US)(?=\.)/, name)));
 }
 
@@ -169,11 +194,15 @@ export function commentVersionDir(dir: string): CommentVersionDir | null {
   if (dir === "1.12.2") return { dir, mc: "1.12", loader: "forge", index: 0, label: "1.12" };
   const match = /^(\d+\.\d+)(-fabric)?$/.exec(dir);
   const mc = match?.[1];
+
   if (mc === undefined) return null;
   const index = MC_ORDER.indexOf(mc);
+
   if (index < 0 || mc === "1.12") return null;
   const loader = match?.[2] ? ("fabric" as const) : ("forge" as const);
+
   if (loader === "fabric" && mc === "1.19") return null;
+
   return { dir, mc, loader, index, label: dir };
 }
 
@@ -191,18 +220,22 @@ export interface ModPath {
   slug: string;
   dir: string;
   domain: string;
+
   /** 旧布局：版本目录在 slug 前面。 */
   legacy: boolean;
 }
 
 export function modPathOf(path: string): ModPath | null {
   const parts = path.split("/");
+
   if (parts.length < 7 || parts[0] !== "projects") return null;
   const standard = parts[1] === "assets";
   const slug = (standard ? parts[2] : parts[3]) as string;
   const dir = (standard ? parts[3] : parts[1]) as string;
   const domain = parts[4] as string;
+
   if (commentVersionDir(dir) === null) throw invalidVersionError(dir);
+
   return { slug, dir, domain, legacy: !standard };
 }
 
@@ -210,13 +243,17 @@ export function modPathOf(path: string): ModPath | null {
 export function modPathsOf(paths: readonly string[]): ModPath[] {
   const seen = new Set<string>();
   const out: ModPath[] = [];
+
   for (const path of paths) {
     const parsed = modPathOf(path);
+
     if (parsed === null || parsed.slug === "1UNKNOWN") continue;
     const key = `${parsed.dir}\u0000${parsed.slug}\u0000${parsed.domain}`;
+
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(parsed);
   }
+
   return out;
 }

@@ -15,8 +15,10 @@ export function useSessionEvents(id: string | undefined, onEvent: (event: Sessio
   useEffect(() => {
     if (id === undefined || id === "") {
       setState("disconnected");
+
       return;
     }
+
     setState("connecting");
     const source = new EventSource(api.sessionEventsUrl(id), { withCredentials: true });
     let failures = 0;
@@ -26,24 +28,30 @@ export function useSessionEvents(id: string | undefined, onEvent: (event: Sessio
     };
     source.onerror = () => {
       failures += 1;
+
       if (failures >= 5) {
         source.close();
       }
+
       setState("disconnected");
     };
     source.onmessage = (message) => {
       try {
         const event = JSON.parse(message.data) as SessionEvent;
+
         if (event.type === "ping") return;
         handler.current(event);
       } catch {
         setState("disconnected");
       }
+
     };
+
     return () => {
       source.close();
       setState("disconnected");
     };
+
   }, [id]);
 
   return state;
@@ -68,6 +76,7 @@ export function useSessionsFeed(onChange: () => void): void {
         if ((JSON.parse(message.data) as SessionListEvent).type === "changed") handler.current();
       } catch {}
     };
+
     return () => source.close();
   }, []);
 }

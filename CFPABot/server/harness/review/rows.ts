@@ -62,10 +62,12 @@ const briefCache = new WeakMap<Pack, WorkspaceBrief[]>();
 
 function packBriefs(pack: Pack): WorkspaceBrief[] {
   let briefs = briefCache.get(pack);
+
   if (briefs === undefined) {
     briefs = workspaceBriefs(pack);
     briefCache.set(pack, briefs);
   }
+
   return briefs;
 }
 
@@ -75,9 +77,11 @@ export function workspaceBriefs(pack: Pack): WorkspaceBrief[] {
 
 function reviewableCount(pack: Pack): number {
   let count = 0;
+
   for (const workspace of pack.workspaces) {
     for (const row of workspace.rows) if (row.changed && row.inHunk) count += 1;
   }
+
   return count;
 }
 
@@ -86,34 +90,42 @@ function threadIndexes(
   threads: readonly ReviewThread[],
 ): { byLocation: Map<string, ReviewThread[]>; byKey: Map<string, ReviewThread[]> } {
   const rowKey = new Map<string, string>();
+
   for (const workspace of pack.workspaces) {
     for (const row of workspace.rows) {
       if (row.line === null) continue;
+
       for (const path of [workspace.zhPath, workspace.enPath]) {
         if (path !== null) rowKey.set(`${path}\u0000${row.line}`, row.key);
       }
     }
   }
+
   const byLocation = new Map<string, ReviewThread[]>();
   const byKey = new Map<string, ReviewThread[]>();
   const push = (map: Map<string, ReviewThread[]>, key: string, thread: ReviewThread): void => {
     const list = map.get(key);
+
     if (list === undefined) map.set(key, [thread]);
     else if (!list.includes(thread)) list.push(thread);
   };
+
   for (const thread of threads) {
     const lines = [thread.line, thread.originalLine].filter((line): line is number => line !== null);
     const keys = new Set<string>();
+
     for (const line of lines) {
       const at = `${thread.path}\u0000${line}`;
       push(byLocation, at, thread);
       const key = rowKey.get(at);
+
       if (key !== undefined && !keys.has(key)) {
         keys.add(key);
         push(byKey, key, thread);
       }
     }
   }
+
   return { byLocation, byKey };
 }
 
@@ -121,23 +133,28 @@ function threadIndexes(
 function mergeThreads(here: readonly ReviewThread[] | undefined, shared: readonly ReviewThread[] | undefined): ReviewThread[] {
   const out: ReviewThread[] = [];
   const seen = new Set<string>();
+
   for (const thread of here ?? []) {
     seen.add(thread.id);
     out.push(thread);
   }
+
   for (const thread of shared ?? []) {
     if (!thread.resolved || seen.has(thread.id)) continue;
     seen.add(thread.id);
     out.push(thread);
   }
+
   return out;
 }
 
 function duplicateOf(workspace: PackWorkspace, key: string, zh: string | undefined): ReviewRowView["duplicate"] {
   if (zh === undefined || zh === "") return undefined;
   const group = workspace.duplicates.find((entry) => entry.zh === zh && entry.keys.includes(key));
+
   if (group === undefined) return undefined;
   const keys = group.keys.filter((entry) => entry !== key);
+
   return keys.length === 0 ? undefined : { zh: group.zh, keys };
 }
 
@@ -148,14 +165,19 @@ function rowBytes(row: ReviewRowView): number {
 function filterParams(options: RowsOptions): URLSearchParams {
   const params = new URLSearchParams();
   params.set("filter", options.filter);
+
   if (options.workspace !== undefined) params.set("workspace", options.workspace);
+
   if (options.prefix !== undefined) params.set("prefix", options.prefix);
+
   if (options.keys !== undefined && options.keys.length > 0) params.set("keys", options.keys.join(","));
+
   if (options.query !== undefined) params.set("query", options.query);
   const include = Object.entries(options.include)
     .filter(([, value]) => value)
     .map(([name]) => name);
   params.set("include", include.length > 0 ? include.join(",") : "none");
+
   return params;
 }
 
@@ -166,6 +188,7 @@ export function rowsUri(n: number, options: RowsOptions): string {
 function sliceParams(options: RowsOptions, id: string): URLSearchParams {
   const params = filterParams(options);
   params.set("slice", id);
+
   return params;
 }
 
@@ -177,11 +200,14 @@ function selectForOptions(pack: Pack, options: RowsOptions): SelectedRow[] {
     ...(options.query === undefined ? {} : { query: options.query }),
     filter,
   });
+
   if (options.filter === "reviewable") selected = selected.filter((entry) => entry.row.inHunk);
+
   if (options.prefix !== undefined && options.prefix !== "") {
     const prefix = options.prefix;
     selected = selected.filter((entry) => entry.row.key.startsWith(prefix));
   }
+
   return selected;
 }
 
@@ -189,11 +215,13 @@ function buildRows(input: RowsInput, options: RowsOptions, selected: readonly Se
   const indexes = input.threads.available
     ? threadIndexes(input.pack, input.threads.threads)
     : { byLocation: new Map<string, ReviewThread[]>(), byKey: new Map<string, ReviewThread[]>() };
+
   return selected.map(({ workspace, row }: SelectedRow) => {
     const path = workspace.zhPath;
     const here = path === null ? undefined : indexes.byLocation.get(`${path}\u0000${row.line ?? -1}`);
     const found = mergeThreads(here, indexes.byKey.get(row.key));
     const duplicate = options.include.duplicates ? duplicateOf(workspace, row.key, row.headZh) : undefined;
+
     return {
       workspace: workspaceKey(workspace),
       path,
@@ -221,6 +249,7 @@ function buildRows(input: RowsInput, options: RowsOptions, selected: readonly Se
       ...(options.include.threads && found.length > 0 ? { threads: found } : {}),
       ...(duplicate === undefined ? {} : { duplicate }),
     };
+
   });
 }
 
@@ -233,18 +262,23 @@ function patchesOf(
   const patches: Record<string, string> = {};
   const omitted: string[] = [];
   let bytes = 0;
+
   for (const path of new Set(rows.map((row) => row.path).filter((path): path is string => path !== null))) {
     const patch = input.patches.get(path);
+
     if (patch === undefined || patch === "") continue;
     const size = Buffer.byteLength(JSON.stringify(patch));
+
     // 超大 patch 不内联
     if (size > PATCH_BUDGET_BYTES || (bytes > 0 && bytes + size > PATCH_BUDGET_BYTES)) {
       omitted.push(path);
       continue;
     }
+
     patches[path] = patch;
     bytes += size;
   }
+
   return {
     ...(Object.keys(patches).length === 0 ? {} : { patches }),
     ...(omitted.length === 0 ? {} : { omitted }),
@@ -275,6 +309,7 @@ function basePage(
     plan?: ReviewPlan;
     hint: string;
     next: string | null;
+
     /** 分片页不带工作区清单 */
     withWorkspaces?: boolean;
   },
@@ -298,6 +333,7 @@ function basePage(
   const hint = workspaceList || extra.withWorkspaces === false
     ? `${extra.hint}${scopeHint}${zeroHint}${truncHint}`
     : `${extra.hint}${scopeHint}${zeroHint}${truncHint} 工作区清单超过 ${MAX_PAGE_WORKSPACES} 个已省略。`;
+
   return {
     prNumber: input.pack.prNumber,
     headSha: input.pack.headSha,
@@ -334,10 +370,12 @@ const planCache = new WeakMap<Pack, LRUCache<string, { bytes: number; slices: Pl
 
 function plansOf(pack: Pack): LRUCache<string, { bytes: number; slices: PlannedSlice[] }> {
   let cache = planCache.get(pack);
+
   if (cache === undefined) {
     cache = new LRUCache({ max: PLAN_CACHE });
     planCache.set(pack, cache);
   }
+
   return cache;
 }
 
@@ -346,6 +384,7 @@ function selectionKey(options: RowsOptions): string {
     .filter(([, value]) => value)
     .map(([name]) => name)
     .join(",");
+
   return [
     options.filter,
     options.workspace ?? "",
@@ -403,6 +442,7 @@ function rowsBudget(input: RowsInput, options: RowsOptions): number {
       ? Buffer.byteLength(JSON.stringify(packBriefs(input.pack)))
       : 0;
   const patchReserve = options.include.patch ? PATCH_BUDGET_BYTES : 0;
+
   return Math.max(
     MIN_ROWS_BUDGET_BYTES,
     Math.min(40_000, RESULT_BUDGET_BYTES - Math.max(base + workspaceBytes, base + PLAN_RESERVE_BYTES) - patchReserve - BUDGET_MARGIN_BYTES),
@@ -415,12 +455,15 @@ function planFor(input: RowsInput, options: RowsOptions, rows: readonly ReviewRo
 } {
   const entries = rows.map((row) => ({ run: row.workspace, bytes: Buffer.byteLength(JSON.stringify(row)) }));
   const totalBytes = entries.reduce((sum, entry) => sum + entry.bytes, 0);
+
   if (rows.length === 0 || totalBytes <= budget) {
     return { plan: planView(rows.length, totalBytes, [], true, budget), slices: [] };
   }
+
   const tag = Bun.hash(key).toString(36);
   const slices = sliceRuns(entries, budget).map((bound): PlannedSlice => {
     const id = `${input.pack.headSha.slice(0, 7)}~${tag}~${rows[bound.start]!.workspace}~${bound.start}`;
+
     return {
       id,
       workspace: rows[bound.start]!.workspace,
@@ -432,7 +475,9 @@ function planFor(input: RowsInput, options: RowsOptions, rows: readonly ReviewRo
       start: bound.start,
       end: bound.end,
     };
+
   });
+
   return { plan: planView(rows.length, totalBytes, slices, false, budget), slices };
 }
 
@@ -455,11 +500,14 @@ export function reviewRowsForInput(input: RowsInput, options: RowsOptions): Revi
   const plans = plansOf(input.pack);
   let cached = plans.get(key);
   let built: ReviewRowView[] | undefined;
+
   if (cached === undefined) {
     built = buildRows(input, options, selected);
     const computed = planFor(input, options, built, budget, key);
+
     if (computed.plan.fits) {
       if (options.slice !== undefined) throw missingSlice(input, options.slice);
+
       return {
         plan: computed.plan,
         page: basePage(input, options, selected.length, built, {
@@ -472,11 +520,14 @@ export function reviewRowsForInput(input: RowsInput, options: RowsOptions): Revi
         }),
       };
     }
+
     cached = { bytes: computed.plan.bytes, slices: computed.slices };
     plans.set(key, cached);
   }
+
   const slices = cached.slices;
   const plan = planView(selected.length, cached.bytes, slices, false, budget);
+
   if (options.slice === undefined) {
     return {
       plan,
@@ -491,8 +542,10 @@ export function reviewRowsForInput(input: RowsInput, options: RowsOptions): Revi
       }),
     };
   }
+
   const index = slices.findIndex((entry) => entry.id === options.slice);
   const slice = index < 0 ? undefined : slices[index];
+
   if (
     slice === undefined ||
     selected[slice.start]?.row.key !== slice.firstKey ||
@@ -504,6 +557,7 @@ export function reviewRowsForInput(input: RowsInput, options: RowsOptions): Revi
     built === undefined
       ? buildRows(input, options, selected.slice(slice.start, slice.end))
       : built.slice(slice.start, slice.end);
+
   return {
     plan,
     page: basePage(input, options, selected.length, part, {
@@ -525,6 +579,7 @@ export async function reviewRowsOf(n: number, options: RowsOptions): Promise<Rev
   const threads = options.include.threads
     ? await threadsOf(n, pack.headSha)
     : ({ available: false, headSha: null, pendingReviewId: null, threads: [] } satisfies ThreadsView);
+
   return reviewRowsForPack(n, pack, threads, options);
 }
 
@@ -544,5 +599,6 @@ export async function reviewRowsForPack(
     options.include.patch
       ? new Map((await prdata.files(n)).files.map((file) => [file.path, file.patch]))
       : new Map<string, string | undefined>();
+
   return reviewRowsForInput({ pack, threads, terms, patches }, options);
 }

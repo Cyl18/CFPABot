@@ -28,6 +28,7 @@ export function Input({ label, hint, error, wrapperClassName, className, id, ico
       {...rest}
     />
   );
+
   return (
     <div className={cn("flex flex-col gap-1", wrapperClassName)}>
       {label !== undefined && (
@@ -72,10 +73,12 @@ export function Textarea({ label, hint, error, wrapperClassName, className, id, 
   const area = useRef<HTMLTextAreaElement | null>(null);
   useEffect(() => {
     const node = area.current;
+
     if (node === null || !autoGrow) return;
     node.style.height = "auto";
     node.style.height = `${Math.min(node.scrollHeight, MAX_GROW)}px`;
   }, [autoGrow, rest.value]);
+
   return (
     <div className={cn("flex flex-col gap-1", wrapperClassName)}>
       {label !== undefined && (
@@ -113,6 +116,7 @@ export interface CheckboxProps extends InputHTMLAttributes<HTMLInputElement> {
 export function Checkbox({ label, hint, className, id, ...rest }: CheckboxProps) {
   const generated = useId();
   const fieldId = id ?? generated;
+
   return (
     <div className="flex items-start gap-2">
       <input id={fieldId} type="checkbox" className={cn("mt-0.5 size-4 accent-[var(--brand)]", className)} {...rest} />

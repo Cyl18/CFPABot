@@ -32,15 +32,18 @@ async function save(file: MappingFile, touch: boolean): Promise<void> {
 
 function maxMappedId(file: MappingFile): number {
   let max = 0;
+
   for (const entry of Object.values(file.mappings)) {
     if (entry.id > max) max = entry.id;
   }
+
   return max;
 }
 
 export const mappings = {
   async get(slug: string): Promise<number | undefined> {
     const file = await load();
+
     return file.mappings[slug]?.id;
   },
 
@@ -54,6 +57,7 @@ export const mappings = {
 
   async list(): Promise<MappingEntry[]> {
     const file = await load();
+
     return Object.entries(file.mappings)
       .map(([slug, entry]) => ({ slug, curseforgeId: entry.id, source: entry.source }))
       .sort((a, b) => a.slug.localeCompare(b.slug));
@@ -65,39 +69,51 @@ export const mappings = {
 
   async scan(maxIds = DEFAULT_MAX_IDS): Promise<string[]> {
     if (!env.CURSEFORGE_API_KEY) return [];
+
     return withLock("mappings", async () => {
       const file = await load();
       let cursor = Math.max(file.lastScannedId, maxMappedId(file));
       const end = cursor + maxIds;
       const changed: string[] = [];
+
       while (cursor < end) {
         const ids: number[] = [];
+
         for (let offset = 1; offset <= BATCH_SIZE && cursor + offset <= end; offset++) ids.push(cursor + offset);
+
         if (ids.length === 0) break;
         let found: CfMod[];
+
         try {
           found = await getModsByIds(ids);
         } catch (err) {
           log.warn("CurseForge ID 扫描中断", { cursor, err });
           break;
         }
+
         let dirty = false;
+
         for (const mod of found) {
           if (mod.gameId !== GAME_ID) continue;
           const website = mod.links?.websiteUrl ?? "";
+
           if (!website.startsWith(CF_MOD_PREFIX)) continue;
           const slug = mod.slug || website.slice(CF_MOD_PREFIX.length);
           const existing = file.mappings[slug];
+
           if (existing?.source === "manual") continue;
+
           if (existing?.id === mod.id) continue;
           changed.push(slug);
           dirty = true;
           file.mappings[slug] = { id: mod.id, source: "resolved" };
         }
+
         cursor += ids.length;
         file.lastScannedId = cursor;
         await save(file, dirty);
       }
+
       return changed;
     });
   },

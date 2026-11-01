@@ -20,15 +20,20 @@ type LangPair = { en?: LangEntries | null; zh?: LangEntries | null };
 
 export function withLiteralNewlines(entries: Map<string, string> | undefined): Map<string, string> {
   const out = new Map<string, string>();
+
   for (const [key, value] of entries ?? []) out.set(key, value.replaceAll("\n", "\\n"));
+
   return out;
 }
 
 function statusOf(from: Map<string, string>, to: Map<string, string>, key: string): RowStatus {
   const inFrom = from.has(key);
   const inTo = to.has(key);
+
   if (!inFrom && inTo) return "add";
+
   if (inFrom && !inTo) return "remove";
+
   return from.get(key) === to.get(key) ? "same" : "modify";
 }
 
@@ -40,17 +45,21 @@ export function compareLang(base: LangPair, head: LangPair): CompareRow[] {
 
   const keys: string[] = [];
   const seen = new Set<string>();
+
   for (const key of headEn.keys()) {
     if (seen.has(key)) continue;
     seen.add(key);
     keys.push(key);
   }
+
   const rest = new Set<string>();
+
   for (const map of [baseEn, baseZh, headZh]) {
     for (const key of map.keys()) {
       if (!seen.has(key)) rest.add(key);
     }
   }
+
   keys.push(...[...rest].sort());
 
   return keys.map((key) => {
@@ -59,14 +68,20 @@ export function compareLang(base: LangPair, head: LangPair): CompareRow[] {
       enStatus: statusOf(baseEn, headEn, key),
       zhStatus: statusOf(baseZh, headZh, key),
     };
+
     const baseEnValue = baseEn.get(key);
+
     if (baseEnValue !== undefined) row.baseEn = baseEnValue;
     const headEnValue = headEn.get(key);
+
     if (headEnValue !== undefined) row.headEn = headEnValue;
     const baseZhValue = baseZh.get(key);
+
     if (baseZhValue !== undefined) row.baseZh = baseZhValue;
     const headZhValue = headZh.get(key);
+
     if (headZhValue !== undefined) row.headZh = headZhValue;
+
     return row;
   });
 }
@@ -78,6 +93,7 @@ export function compareTwo(
   const leftEntries = withLiteralNewlines(left);
   const rightEntries = withLiteralNewlines(right);
   const keys = [...new Set([...leftEntries.keys(), ...rightEntries.keys()])].sort();
+
   return keys.map((key) => {
     const l = leftEntries.get(key);
     const r = rightEntries.get(key);
@@ -89,12 +105,14 @@ export function compareTwo(
           : l === r
             ? "same"
             : "modify";
+
     return {
       key,
       ...(l !== undefined ? { left: l } : {}),
       ...(r !== undefined ? { right: r } : {}),
       status,
     };
+
   });
 }
 
@@ -114,21 +132,27 @@ export function alignKeys(input: readonly CrossVersionInput[]): CrossVersionKeyR
   }));
 
   const keys = new Set<string>();
+
   for (const entry of entries) {
     for (const key of entry.en?.keys() ?? []) keys.add(key);
+
     for (const key of entry.zh?.keys() ?? []) keys.add(key);
   }
 
   return [...keys].sort().map((key) => {
     const cells: CrossVersionKeyCell[] = [];
     let touched = false;
+
     for (const entry of entries) {
       const en = entry.en?.get(key);
       const zh = entry.zh?.get(key);
+
       if (en === undefined && zh === undefined) continue;
       cells.push({ version: entry.version, en: en ?? "", zh: zh === undefined || zh === "" ? null : zh });
+
       if (entry.touched?.has(key) === true) touched = true;
     }
+
     return { key, touched, cells };
   });
 }
@@ -143,10 +167,13 @@ export function patchHunks(patch: string): Hunk[] {
 
 export function patchAddedLines(patch: string): { line: number; text: string }[] {
   const added: { line: number; text: string }[] = [];
+
   for (const hunk of hunksOf(patch)) {
     let line = hunk.newStart;
+
     for (const text of hunk.lines) {
       const head = text[0];
+
       if (head === "+") {
         added.push({ line, text: text.slice(1) });
         line++;
@@ -155,21 +182,26 @@ export function patchAddedLines(patch: string): { line: number; text: string }[]
       }
     }
   }
+
   return added;
 }
 
 /** head 侧行号到整行文本，用于核对 suggestion 是不是整行替换。 */
 export function patchHeadLines(patch: string): Map<number, string> {
   const lines = new Map<number, string>();
+
   for (const hunk of hunksOf(patch)) {
     let line = hunk.newStart;
+
     for (const text of hunk.lines) {
       const head = text[0];
+
       if (head !== "+" && head !== " ") continue;
       lines.set(line, text.slice(1));
       line++;
     }
   }
+
   return lines;
 }
 

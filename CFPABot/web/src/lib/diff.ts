@@ -12,57 +12,73 @@ export interface DiffSegment {
 
 function kindOf(change: Change): DiffKind {
   if (change.added) return "insert";
+
   if (change.removed) return "delete";
+
   return "equal";
 }
 
 function groupRuns(segments: DiffSegment[]): DiffSegment[] {
   const out: DiffSegment[] = [];
   let index = 0;
+
   while (index < segments.length) {
     const segment = segments[index];
+
     if (!segment) break;
+
     if (segment.type === "equal") {
       out.push(segment);
       index += 1;
       continue;
     }
+
     const removed: DiffSegment[] = [];
     const added: DiffSegment[] = [];
+
     while (index < segments.length && segments[index]?.type !== "equal") {
       const current = segments[index];
+
       if (!current) break;
       (current.type === "delete" ? removed : added).push(current);
       index += 1;
     }
+
     out.push(...removed, ...added);
   }
+
   return out;
 }
 
 function changeRunCount(segments: DiffSegment[]): number {
   let runs = 0;
   let inside = false;
+
   for (const segment of segments) {
     if (segment.type === "equal") {
       inside = false;
       continue;
     }
+
     if (!inside && /\S/.test(segment.text)) {
       runs += 1;
       inside = true;
     }
   }
+
   return runs;
 }
 
 function compact(segments: DiffSegment[]): DiffSegment[] {
   const merged: DiffSegment[] = [];
+
   for (const segment of segments) {
     const previous = merged[merged.length - 1];
+
     if (previous && previous.type === segment.type) previous.text += segment.text;
     else merged.push({ type: segment.type, text: segment.text });
   }
+
   return merged.map((segment) => (segment.type === "equal" ? segment : { ...segment, block: /\S/.test(segment.text) }));
 }
 
@@ -82,14 +98,18 @@ function coalesceChanges(segments: DiffSegment[]): DiffSegment[] {
   const flush = () => {
     if (hunk.length === 0) return;
     const added = hunk.filter((segment) => segment.type === "insert");
+
     if (added.length > 0 && hunk.some((segment) => segment.type === "delete")) {
       const text = added.map((segment) => segment.text).join("");
+
       if (text !== "") out.push({ type: "change", text, block: /\S/.test(text) });
     } else {
       out.push(...hunk);
     }
+
     hunk = [];
   };
+
   for (const segment of segments) {
     if (segment.type === "equal") {
       flush();
@@ -98,7 +118,9 @@ function coalesceChanges(segments: DiffSegment[]): DiffSegment[] {
       hunk.push(segment);
     }
   }
+
   flush();
+
   return out;
 }
 
@@ -109,10 +131,12 @@ const SENTENCE_MARKERS = ["<br>", "$(p)"];
 function splitSentences(text: string): string[] {
   const out: string[] = [];
   let start = 0;
+
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index] ?? "";
     const next = text[index + 1];
     let end = -1;
+
     if (SENTENCE_TERMINATORS.includes(char)) end = index + 1;
     else if (char === "." && (next === undefined || /\s/.test(next))) end = index + 1;
     else if (char === "\n") end = index + 1;
@@ -124,21 +148,29 @@ function splitSentences(text: string): string[] {
         }
       }
     }
+
     if (end === -1) continue;
+
     while (true) {
       const after = text[end];
+
       if (after === undefined) break;
+
       if (after === " " || after === "\t" || SENTENCE_CLOSERS.includes(after) || SENTENCE_TERMINATORS.includes(after)) {
         end += 1;
         continue;
       }
+
       break;
     }
+
     out.push(text.slice(start, end));
     start = end;
     index = end - 1;
   }
+
   if (start < text.length) out.push(text.slice(start));
+
   return out;
 }
 
@@ -150,13 +182,17 @@ const AUTO_SHORT_CHARS = 12;
 
 function similarTokens(left: string, right: string): boolean {
   const min = Math.min(left.length, right.length);
+
   if (min < 3) return false;
   let prefix = 0;
+
   while (prefix < left.length && prefix < right.length && left[prefix] === right[prefix]) prefix += 1;
   let suffix = 0;
+
   while (suffix < left.length - prefix && suffix < right.length - prefix && left[left.length - 1 - suffix] === right[right.length - 1 - suffix]) {
     suffix += 1;
   }
+
   return prefix + suffix >= Math.ceil(min * REFINE_SHARED_RATIO);
 }
 
@@ -164,28 +200,37 @@ function fineDiff(before: string, after: string): DiffSegment[] {
   const changes = diffWordsWithSpace(before, after);
   const out: DiffSegment[] = [];
   let index = 0;
+
   while (index < changes.length) {
     const change = changes[index];
+
     if (change === undefined) break;
+
     if (!change.added && !change.removed) {
       out.push({ type: "equal", text: change.value });
       index += 1;
       continue;
     }
+
     const removed: string[] = [];
     const added: string[] = [];
+
     while (index < changes.length && (changes[index]?.added === true || changes[index]?.removed === true)) {
       (changes[index]?.added === true ? added : removed).push(changes[index]?.value ?? "");
       index += 1;
     }
+
     const refine = removed.length === added.length && removed.every((token, at) => similarTokens(token, added[at] ?? ""));
+
     if (refine) {
       for (let at = 0; at < removed.length; at += 1) out.push(...segmentsOf(diffChars(removed[at] ?? "", added[at] ?? "")));
     } else {
       for (const token of removed) out.push({ type: "delete", text: token });
+
       for (const token of added) out.push({ type: "insert", text: token });
     }
   }
+
   return compact(out);
 }
 
@@ -195,23 +240,31 @@ function autoDiff(before: string, after: string): DiffSegment[] {
   const changes = diffArrays(beforeParts, afterParts);
   const out: DiffSegment[] = [];
   let index = 0;
+
   while (index < changes.length) {
     const change = changes[index];
+
     if (change === undefined) break;
+
     if (!change.added && !change.removed) {
       out.push({ type: "equal", text: change.value.join("") });
       index += 1;
       continue;
     }
+
     const removed: string[] = [];
     const added: string[] = [];
+
     while (index < changes.length && (changes[index]?.added === true || changes[index]?.removed === true)) {
       for (const sentence of changes[index]?.value ?? []) {
         (changes[index]?.added === true ? added : removed).push(sentence);
       }
+
       index += 1;
     }
+
     const paired = Math.min(removed.length, added.length);
+
     for (let at = 0; at < paired; at += 1) {
       const sentenceBefore = removed[at] ?? "";
       const sentenceAfter = added[at] ?? "";
@@ -224,26 +277,38 @@ function autoDiff(before: string, after: string): DiffSegment[] {
         .replace(/\s/g, "").length;
       const base = Math.min(sentenceBefore.replace(/\s/g, "").length, sentenceAfter.replace(/\s/g, "").length);
       const worthSplitting = base < AUTO_SHORT_CHARS || shared / base >= AUTO_MIN_SHARED_RATIO;
+
       if (worthSplitting && changeRunCount(segments) <= limit) out.push(...segments);
       else out.push({ type: "delete", text: sentenceBefore }, { type: "insert", text: sentenceAfter });
     }
+
     for (let at = paired; at < removed.length; at += 1) out.push({ type: "delete", text: removed[at] ?? "" });
+
     for (let at = paired; at < added.length; at += 1) out.push({ type: "insert", text: added[at] ?? "" });
   }
+
   return compact(out);
 }
 
 export function inlineDiff(before: string, after: string, mode: DiffMode = "auto"): DiffSegment[] {
   if (mode === "off") {
     const text = after === "" ? before : after;
+
     return text === "" ? [] : [{ type: "equal", text }];
   }
+
   if (before === after) return before === "" ? [] : [{ type: "equal", text: after }];
+
   if (before === "") return [{ type: "insert", text: after }];
+
   if (after === "") return [{ type: "delete", text: before }];
+
   if (mode === "auto") return coalesceChanges(autoDiff(before, after));
+
   if (mode === "char") return coalesceChanges(charDiff(before, after));
+
   if (mode === "word") return coalesceChanges(compact(groupRuns(segmentsOf(diffWordsWithSpace(before, after)))));
+
   return coalesceChanges(compact(groupRuns(segmentsOf(diffSentences(before, after)))));
 }
 
@@ -260,7 +325,9 @@ export interface LineRow {
 function splitLines(text: string): string[] {
   if (text === "") return [];
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
+
   if (lines[lines.length - 1] === "") lines.pop();
+
   return lines;
 }
 
@@ -271,6 +338,7 @@ function plainRows(text: string): LineRow[] {
 // anchor 是对齐滚动用的行号：被删的行没有最新行号，记成下一行减 0.5。
 export function lineRows(base: string | null, head: string | null, mode: DiffMode): LineRow[] {
   if (head === null) return base === null ? [] : plainRows(base).map((row) => ({ ...row, kind: mode === "off" ? "equal" : "delete" }));
+
   if (base === null || base === head || mode === "off") return plainRows(head);
   const rows: LineRow[] = [];
   let line = 1;
@@ -278,9 +346,11 @@ export function lineRows(base: string | null, head: string | null, mode: DiffMod
   let added: string[] = [];
   const flush = () => {
     const size = Math.max(removed.length, added.length);
+
     for (let offset = 0; offset < size; offset += 1) {
       const before = removed[offset];
       const after = added[offset];
+
       if (before !== undefined && after !== undefined) {
         rows.push({ kind: "change", line, anchor: line, text: after, segments: inlineDiff(before, after, mode) });
         line += 1;
@@ -291,20 +361,25 @@ export function lineRows(base: string | null, head: string | null, mode: DiffMod
         rows.push({ kind: "delete", line: null, anchor: line - 0.5, text: before });
       }
     }
+
     removed = [];
     added = [];
   };
+
   for (const change of diffArrays(splitLines(base), splitLines(head))) {
     if (change.removed) removed.push(...change.value);
     else if (change.added) added.push(...change.value);
     else {
       flush();
+
       for (const text of change.value) {
         rows.push({ kind: "equal", line, anchor: line, text });
         line += 1;
       }
     }
   }
+
   flush();
+
   return rows;
 }

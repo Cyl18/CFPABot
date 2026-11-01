@@ -22,6 +22,7 @@ export async function specialPageOf(n: number, options: SpecialOptions): Promise
   const slice = selected.slice(page.offset, page.offset + page.limit);
   let items: SpecialFilesPage["items"] = slice;
   let shown = slice.length;
+
   if (options.withText) {
     const full = (
       await specialContents(
@@ -32,21 +33,28 @@ export async function specialPageOf(n: number, options: SpecialOptions): Promise
     ).map(clipSpecialContent);
     const kept: SpecialFilesPage["items"] = [];
     let bytes = 0;
+
     for (const item of full) {
       const size = Buffer.byteLength(JSON.stringify(item));
+
       if (kept.length > 0 && bytes + size > 40_000) break;
       kept.push(item);
       bytes += size;
     }
+
     items = kept;
     shown = kept.length;
   }
+
   const nextOffset = page.offset + shown < selected.length ? page.offset + shown : null;
   const params = new URLSearchParams();
+
   if (options.withText) params.set("include", "text");
+
   for (const key of options.keys) params.append("keys", key);
   params.set("limit", String(page.limit));
   const next = nextPageUri(`pr://${n}/special-files`, params, nextOffset);
+
   return {
     prNumber: n,
     total: selected.length,

@@ -31,6 +31,7 @@ export function MappingsPanel() {
 
   const unmapped = useMemo(() => {
     const needle = filter.trim().toLowerCase();
+
     return (mappings.data?.unmapped ?? []).filter((item) => needle === "" || item.toLowerCase().includes(needle));
   }, [mappings.data, filter]);
 
@@ -41,6 +42,7 @@ export function MappingsPanel() {
   ];
 
   if (mappings.error !== null) return <ErrorState error={mappings.error} onRetry={() => void mappings.refetch()} />;
+
   if (mappings.isPending) return <SkeletonText lines={6} />;
 
   const valid = slug.trim() !== "" && Number.isInteger(Number(curseforgeId)) && Number(curseforgeId) > 0;

@@ -17,16 +17,20 @@ const log = logger("bot/labels");
 export function sizeLabel(changes: number): string | null {
   for (const [index, label] of SIZE_LABELS.entries()) {
     const max = SIZE_LABELS[index + 1]?.min ?? Number.POSITIVE_INFINITY;
+
     if (label.min <= changes && changes < max) return label.name;
   }
+
   return null;
 }
 
 export function pathLabels(files: PrFile[]): string[] {
   const out: string[] = [];
+
   for (const label of PATH_LABELS) {
     if (files.some((file) => file.path.startsWith(label.prefix))) out.push(label.name);
   }
+
   return out;
 }
 
@@ -40,8 +44,11 @@ export async function syncLabels(n: number): Promise<void> {
   const expected = [...(size ? [size] : []), ...pathLabels(files)];
   const toAdd = expected.filter((label) => !current.includes(label));
   const toRemove = current.filter((label) => managed.includes(label) && !expected.includes(label));
+
   if (toAdd.length > 0) await gh.addLabels(n, toAdd);
+
   for (const label of toRemove) await gh.removeLabel(n, label);
+
   if (toAdd.length > 0 || toRemove.length > 0) log.debug("标签已同步", { pr: n, added: toAdd, removed: toRemove });
 }
 

@@ -29,20 +29,27 @@ export function FilesTab({ pr, search, onSearchChange }: { pr: PrDetail; search:
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
+
     return pr.files.filter((file) => {
       if (status !== "all" && file.status !== status && !(status === "modified" && file.status === "changed")) return false;
+
       if (needle === "") return true;
+
       return file.path.toLowerCase().includes(needle);
     });
   }, [pr.files, query, status]);
 
   const compared = useMemo(() => {
     const paths = new Set<string>();
+
     for (const workspace of pr.workspaces) {
       const picked = pickCompareFiles(pr.files, workspace);
+
       if (picked.en_us !== undefined) paths.add(picked.en_us);
+
       if (picked.zh_cn !== undefined) paths.add(picked.zh_cn);
     }
+
     return paths;
   }, [pr.files, pr.workspaces]);
 
@@ -52,6 +59,7 @@ export function FilesTab({ pr, search, onSearchChange }: { pr: PrDetail; search:
       header: "路径",
       cell: (file) => {
         const parsed = parseLangPath(file.path);
+
         if (parsed && compared.has(file.path)) {
           return (
             <Link
@@ -65,6 +73,7 @@ export function FilesTab({ pr, search, onSearchChange }: { pr: PrDetail; search:
             </Link>
           );
         }
+
         return (
           <code
             className="block truncate font-mono text-xs text-muted"

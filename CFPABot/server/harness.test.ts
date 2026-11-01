@@ -50,6 +50,7 @@ function workspace(rows: PackRow[]): PackWorkspace {
 
 function pack(rows: PackRow[]): Pack {
   const space = workspace(rows);
+
   return {
     prNumber: 7,
     baseSha: "base",
@@ -129,6 +130,7 @@ describe("review rows plan", () => {
       terms: null,
       patches: new Map(),
     };
+
     const result = reviewRowsForInput(input, options);
     expect(result.plan.fits).toBe(false);
     expect(result.page.complete).toBe(false);
@@ -142,6 +144,7 @@ describe("review rows plan", () => {
     const keys: string[] = [];
     let uri: string | null = result.page.next;
     let pages = 0;
+
     while (uri !== null) {
       const id = new URL(uri).searchParams.get("slice") ?? "";
       const page = reviewRowsForInput(input, { ...options, slice: id }).page;
@@ -152,6 +155,7 @@ describe("review rows plan", () => {
       pages += 1;
       uri = page.next;
     }
+
     expect(keys).toEqual(rows.map((entry) => entry.key));
     expect(pages).toBe(result.plan.sliceCount);
   });
@@ -180,6 +184,7 @@ describe("draft 回填", () => {
     const filled = JSON.parse(await withServerFilledFields(7, payload, space)) as {
       comments: Record<string, unknown>[];
     };
+
     expect(filled.comments[0]).toMatchObject({ en: "A", zh: "甲", suggestion: '    "a": "乙",' });
     expect("zhNew" in (filled.comments[0] ?? {})).toBe(false);
   });
@@ -199,6 +204,7 @@ describe("draft 回填", () => {
     const filled = JSON.parse(await withServerFilledFields(7, payload, space)) as {
       comments: Record<string, unknown>[];
     };
+
     expect(filled.comments[0]).toMatchObject({ line: 41, suggestion: '    "a": "丙",' });
     expect(filled.comments[1]).toMatchObject({ line: 42, severity: "critical", suggestion: '    "b": "丁",' });
   });
@@ -248,8 +254,10 @@ describe("本地分片预取", () => {
     const sessionId = `test-prefetch-${Date.now().toString(36)}`;
     const dir = localDir(sessionId);
     await mkdir(join(dir, "pack"), { recursive: true });
+
     // 3000 个「甲」= 9000 B，8192 落在第二个字节上。
     await writeFile(join(dir, "pack", "s.md"), `${"甲".repeat(3000)}\n结尾标记\n`, "utf8");
+
     try {
       const joined = await prefetch(["local://pack/s.md"], sessionId);
       expect(joined).not.toContain("Cannot read binary");
@@ -257,6 +265,7 @@ describe("本地分片预取", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+
   });
 });
 

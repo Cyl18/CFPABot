@@ -8,8 +8,10 @@ const TRAILING_SUFFIXES = ["/chat/completions", "/completions", "/messages", "/r
 export function normalizeLlmBaseUrl(input: string): string {
   let url = input.trim().replace(/\/+$/, "");
   let stripped = true;
+
   while (stripped) {
     stripped = false;
+
     for (const suffix of TRAILING_SUFFIXES) {
       if (url.endsWith(suffix)) {
         url = url.slice(0, -suffix.length).replace(/\/+$/, "");
@@ -17,14 +19,19 @@ export function normalizeLlmBaseUrl(input: string): string {
       }
     }
   }
+
   return url;
 }
 
 export function inferProtocolFromUrl(url: string): LlmProtocol | undefined {
   if (/\/(chat\/completions|completions)$/.test(url)) return "openai-completions";
+
   if (/\/responses$/.test(url)) return "openai-responses";
+
   if (/\/messages$/.test(url)) return "anthropic-messages";
+
   if (/generativelanguage\.googleapis\.com|\/v1beta$|gemini/i.test(url)) return "google-generative-ai";
+
   return undefined;
 }
 

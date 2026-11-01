@@ -22,11 +22,14 @@ export interface ChecksView {
 /** 信息评论里的报告链接带着检查时的 SHA，是评论里唯一机器可读的检查凭据。 */
 export function commentCheckedSha(n: number, comments: readonly GhComment[]): string | null {
   const pattern = new RegExp(`(?:/static/${n}-|/api/Utils/Report/${n}/)([0-9a-f]{7,40})`);
+
   for (const comment of comments) {
     if (!isMainBot(comment.author, comment.body)) continue;
     const match = pattern.exec(comment.body);
+
     if (match?.[1] !== undefined) return match[1];
   }
+
   return null;
 }
 
@@ -40,12 +43,15 @@ async function commentsOf(n: number): Promise<GhComment[] | null> {
 
 export function unknownHint(n: number, headSha: string, checkedSha: string | null, readable: boolean): string {
   if (!readable) return "本实例没有该 PR 的检查记录，读取信息评论也失败了；机械项看本地预审（warnings / rows[].findings）。";
+
   if (checkedSha === null) {
     return "本实例没有该 PR 的检查记录，信息评论里也没有找到检查段；机械项看本地预审（warnings / rows[].findings）。";
   }
+
   if (headSha.startsWith(checkedSha)) {
     return `信息评论记录该 PR 已在 ${checkedSha} 检查过，但本实例没有结构化报告；评论里的检查段在 pr://${n}/comments 里被过滤，机械项看本地预审（warnings / rows[].findings）。`;
   }
+
   return `信息评论里的检查基于 ${checkedSha}，当前 head 是 ${headSha.slice(0, 7)}，findings 可能已过期；本实例没有结构化报告，机械项看本地预审（warnings / rows[].findings）。`;
 }
 
@@ -63,10 +69,12 @@ export async function checksOf(n: number, comments?: readonly GhComment[] | null
         ? "ok"
         : "stale";
   const counts = { critical: 0, major: 0, minor: 0, neutral: 0 };
+
   for (const finding of report?.findings ?? []) counts[finding.severity] += 1;
   const findings = report?.findings ?? [];
   const units = report?.units ?? [];
   let hint: string | undefined;
+
   if (status === "unknown") {
     const list = comments === undefined ? await commentsOf(n) : comments;
     hint = unknownHint(n, pull.headSha, list === null ? null : commentCheckedSha(n, list), list !== null);
@@ -77,6 +85,7 @@ export async function checksOf(n: number, comments?: readonly GhComment[] | null
   } else if (status === "stale") {
     hint = `报告基于 ${report?.headSha.slice(0, 7)}，当前 head 是 ${pull.headSha.slice(0, 7)}。`;
   }
+
   return {
     status,
     source: report === null ? "none" : "bot",

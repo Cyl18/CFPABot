@@ -13,7 +13,9 @@ function file(path: string, status: PrFile["status"], previousPath?: string): Pr
 
 function pairWhere(plans: readonly SpecialPlan[], match: (plan: Extract<SpecialPlan, { kind: "pair" }>) => boolean) {
   const plan = plans.find((item): item is Extract<SpecialPlan, { kind: "pair" }> => item.kind === "pair" && match(item));
+
   if (plan === undefined) throw new Error("缺少配对计划");
+
   return plan;
 }
 

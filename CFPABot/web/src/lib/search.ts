@@ -26,9 +26,12 @@ export function parseSearch(searchStr: string): Record<string, string> {
 
 export function stringifySearch(search: Record<string, unknown>): string {
   const params = new URLSearchParams();
+
   for (const [key, value] of Object.entries(search)) {
     if (typeof value === "string") params.set(key, value);
   }
+
   const query = params.toString();
+
   return query === "" ? "" : `?${query}`;
 }

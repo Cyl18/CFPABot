@@ -17,14 +17,17 @@ for (const entry of entries) {
   const file = join(paths.sessions, entry.name);
   const raw = await readJson<Meta>(file);
   const meta = raw?.meta;
+
   if (raw === null || meta === undefined) continue;
   let touched = "workflow" in meta;
   delete meta.workflow;
+
   for (const key of KEYS) {
     if (meta[key] !== FROM) continue;
     meta[key] = TO;
     touched = true;
   }
+
   if (!touched) continue;
   await writeJson(file, raw);
   changed += 1;

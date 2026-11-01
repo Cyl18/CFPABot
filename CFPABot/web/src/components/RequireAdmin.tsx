@@ -11,6 +11,7 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
   const { data: me, isPending, error, refetch } = useMe();
 
   if (isPending) return <SkeletonTable rows={5} columns={4} />;
+
   if (error !== null) return <ErrorState error={error} onRetry={() => void refetch()} />;
 
   if (me === null) {

@@ -40,6 +40,7 @@ export function Composer({
 
   useEffect(() => {
     const node = ref.current;
+
     if (!node) return;
     node.style.height = "auto";
     node.style.height = `${Math.min(node.scrollHeight, MAX_HEIGHT)}px`;

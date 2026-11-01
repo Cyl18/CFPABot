@@ -4,6 +4,7 @@ import type { ReviewDraft, Scope } from "@cfpa/contracts/api";
 export interface HarnessSession {
   sessionId: string;
   writeScope: Scope;
+
   /** 草稿保存/发布后刷新面板与会话索引。 */
   onDraftSaved?(draft: ReviewDraft): void | Promise<void>;
 }

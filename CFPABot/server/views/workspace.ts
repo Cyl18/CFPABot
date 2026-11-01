@@ -31,9 +31,12 @@ interface LangRead {
 function pickLang(files: GhFile[], key: WorkspaceKey, locale: Locale): LangSide | null {
   const workspace: Workspace = { ...key, files: files.map((file) => file.path) };
   const picked = pickLocale(workspace, locale);
+
   if (picked === null) return null;
   const file = files.find((entry) => entry.path === picked.path);
+
   if (file === undefined) return null;
+
   return { path: picked.path, format: picked.format, ...sidePaths(file) };
 }
 
@@ -50,9 +53,12 @@ export async function compareWorkspace(
   const readAny = async (paths: string[], side: FileSide, label: string): Promise<LangRead | null> => {
     for (const path of paths) {
       const text = await readOne(path, side);
+
       if (text !== null) return { path, text };
     }
+
     missing.push(label);
+
     return null;
   };
 
@@ -62,6 +68,7 @@ export async function compareWorkspace(
 
   const candidates = (path: string, locale: Locale): string[] => {
     const variants = langPathFor(path, locale);
+
     return variants[0] === path ? variants : [path, ...variants];
   };
   const readSide = (side: LangSide | null, locale: Locale): { base: Promise<LangRead | null>; head: Promise<LangRead | null> } => {
@@ -71,11 +78,14 @@ export async function compareWorkspace(
         head: side.head === null ? Promise.resolve(null) : readAny(candidates(side.head, locale), "head", `${locale} (head)`),
       };
     }
+
     const guessed = candidates(buildLangPath(key.slug, key.version, key.namespace, locale, format), locale);
+
     return {
       base: readAny(guessed, "base", `${locale} (base)`),
       head: readAny(guessed, "head", `${locale} (head)`),
     };
+
   };
 
   const enText = readSide(en, "en_us");
@@ -114,24 +124,33 @@ function compareReview(
   const file =
     files.find((entry) => entry.path === path) ??
     (pickedPath === null ? undefined : files.find((entry) => entry.path === pickedPath));
+
   if (file === undefined) return null;
+
   if (file.status === "removed") return { path: file.path, keys: {}, unavailable: "removed" };
+
   if (read === null || parsed === null) return null;
   const hunks = commentableHunks(file, read.text);
+
   if (hunks === null) return { path: read.path, keys: {}, unavailable: "no_patch" };
+
   if (hunks.length === 0) return null;
   const lines = read.text.split("\n");
   const keys: CompareReview["keys"] = {};
   let kept = 0;
   let omitted = 0;
+
   for (const [key, line] of parsed.lines) {
     if (!inHunks(line, hunks)) continue;
+
     if (maxKeys !== undefined && kept >= maxKeys) {
       omitted += 1;
       continue;
     }
+
     keys[key] = { line, raw: (lines[line - 1] ?? "").replace(/\r$/, "") };
     kept += 1;
   }
+
   return { path: read.path, keys, ...(omitted === 0 ? {} : { keysOmitted: omitted }) };
 }

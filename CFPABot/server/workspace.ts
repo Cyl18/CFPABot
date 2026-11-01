@@ -15,7 +15,9 @@ const log = logger("workspace");
 /** 仓库相对路径的硬校验：不允许绝对路径、`..`、反斜杠。 */
 export function isRepoPath(path: string): boolean {
   if (path.length === 0 || path.length > 1024) return false;
+
   if (path.startsWith("/") || path.includes("\\") || path.includes("\0")) return false;
+
   return !path.split("/").includes("..");
 }
 
@@ -23,7 +25,9 @@ export function isRepoPath(path: string): boolean {
 export function resolveInside(root: string, path: string): string {
   const base = resolve(root);
   const target = resolve(base, path);
+
   if (target !== base && !target.startsWith(base + sep)) throw new Error(`路径越界：${path}`);
+
   return target;
 }
 
@@ -40,6 +44,7 @@ async function ensureRepoUnlocked(): Promise<string> {
   await runGit(paths.mirror, ["worktree", "prune"], null);
   await runGit(paths.mirror, ["worktree", "add", "--detach", paths.repo, repo.defaultBranch], null);
   log.info("仓库工作树已创建", { dir: paths.repo });
+
   return paths.repo;
 }
 
@@ -47,6 +52,7 @@ async function ensureRepoUnlocked(): Promise<string> {
 async function clearStaleIndexLock(): Promise<void> {
   const lock = join(WORKTREE_ADMIN, "index.lock");
   const info = await stat(lock).catch(() => null);
+
   if (info === null || Date.now() - info.mtimeMs < STALE_LOCK_MS) return;
   await rm(lock, { force: true });
   log.warn("已清理残留的 git index.lock", { path: lock });
@@ -80,6 +86,7 @@ async function readMarker(prNumber: number): Promise<string | null> {
 async function prTexts(prNumber: number, headSha: string, wanted: readonly string[]): Promise<Map<string, string>> {
   const token = await gh.gitToken().catch(() => null);
   const auth = token ? `x-access-token:${token}@` : "";
+
   try {
     await withLock("mirror", () =>
       runGit(
@@ -100,12 +107,15 @@ async function prTexts(prNumber: number, headSha: string, wanted: readonly strin
     );
     const texts = await mirror.readMany(headSha, wanted);
     const missing = wanted.filter((path) => !texts.has(path));
+
     if (missing.length > 0) {
       for (const [path, text] of await gh.getFiles(missing, headSha)) texts.set(path, text);
     }
+
     return texts;
   } catch (err) {
     log.warn("从 mirror 取 PR 文件失败，改走 REST", { prNumber, err });
+
     return gh.getFiles(wanted, headSha);
   }
 }
@@ -114,6 +124,7 @@ async function prTexts(prNumber: number, headSha: string, wanted: readonly strin
 export async function ensurePrDir(prNumber: number): Promise<string> {
   return withLock(`pr-worktree:${prNumber}`, async () => {
     const { pull, files } = await prdata.files(prNumber);
+
     if ((await readMarker(prNumber)) === pull.headSha) return prRoot(prNumber);
     const dir = prRoot(prNumber);
     const tmp = `${dir}.tmp`;
@@ -122,20 +133,24 @@ export async function ensurePrDir(prNumber: number): Promise<string> {
     await rm(tmp, { recursive: true, force: true });
     await mkdir(tmp, { recursive: true });
     let written = 0;
+
     for (const path of wanted) {
       const text = texts.get(path);
+
       if (text === undefined) continue;
       const target = join(tmp, path);
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, text, "utf8");
       written += 1;
     }
+
     await rm(dir, { recursive: true, force: true });
     await rename(tmp, dir);
     await mkdir(paths.prs, { recursive: true });
     await writeFile(join(paths.prs, `${prNumber}.head`), pull.headSha, "utf8");
     await chmod(dir, 0o555).catch(() => undefined);
     log.info("PR 文件已物化", { prNumber, headSha: pull.headSha.slice(0, 7), files: written });
+
     return dir;
   });
 }

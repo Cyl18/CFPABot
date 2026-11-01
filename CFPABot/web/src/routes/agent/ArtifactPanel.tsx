@@ -28,6 +28,7 @@ export function ArtifactPanel({
   const list = files.data ?? [];
 
   if (files.isError) return <ErrorState error={files.error} onRetry={() => void files.refetch()} />;
+
   if (list.length === 0) {
     return (
       <EmptyState
@@ -45,6 +46,7 @@ export function ArtifactPanel({
         {list.map((entry) => {
           const isDraft = entry.name === DRAFT_FILE;
           const active = entry.name === open;
+
           return (
             <li key={entry.name}>
               <button

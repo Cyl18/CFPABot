@@ -38,20 +38,25 @@ interface Section {
 
 function sectionsOf(report: CheckReport): Section[] {
   const groups = new Map<string, Finding[]>();
+
   for (const finding of report.findings) {
     const key = finding.unit ?? "";
     const list = groups.get(key);
+
     if (list === undefined) groups.set(key, [finding]);
     else list.push(finding);
   }
+
   for (const unit of report.units) if (!groups.has(unit)) groups.set(unit, []);
   const sections = [...groups].map(([key, list]): Section => {
     const sorted = [...list].sort(
       (a, b) => (SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]) || ((FINDING_CODE_RANK[a.code] ?? 9) - (FINDING_CODE_RANK[b.code] ?? 9)),
     );
     const worst = sorted.reduce<Worst>((acc, finding) => (SEVERITY_RANK[finding.severity] < SEVERITY_RANK[acc] ? finding.severity : acc), "ok");
+
     return { key, title: key === "" ? "PR 整体" : key, findings: sorted, worst };
   });
+
   return sections.sort((a, b) => Number(a.key !== "") - Number(b.key !== ""));
 }
 
@@ -91,7 +96,9 @@ function SectionBlock({ section, severities }: { section: Section; severities: r
   } else if (!section.findings.some((finding) => severities.includes(finding.severity))) {
     return null;
   }
+
   const shown = section.findings.filter((finding) => severities.includes(finding.severity));
+
   return (
     <section className="overflow-hidden rounded-lg border border-line bg-surface">
       <header className="flex items-center gap-2 border-b border-line bg-elevated/40 px-3 py-1.5">
@@ -115,6 +122,7 @@ function SectionBlock({ section, severities }: { section: Section; severities: r
 
 export function CheckReportView({ report, className }: { report: CheckReport | null; className?: string }) {
   const [filter, setFilter] = useState<Filter | null>(null);
+
   if (report === null) {
     return <EmptyState compact title="暂无检查结果" description="本实例还没有该 PR 的结构化检查报告；信息评论里可能仍有检查段。" className={className} />;
   }
@@ -123,6 +131,7 @@ export function CheckReportView({ report, className }: { report: CheckReport | n
     if (option.id === "ok") {
       return { ...option, count: report.units.filter((unit) => !report.findings.some((finding) => finding.unit === unit)).length };
     }
+
     return { ...option, count: report.findings.filter((finding) => option.severities.includes(finding.severity)).length };
   });
   const preferred = filter ?? (counts[0] !== undefined && counts[0].count > 0 ? "attention" : "all");

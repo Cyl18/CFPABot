@@ -7,6 +7,7 @@ export function track<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const wrapped = run.catch(() => undefined);
   inflight.add(wrapped);
   void wrapped.finally(() => inflight.delete(wrapped));
+
   return run;
 }
 

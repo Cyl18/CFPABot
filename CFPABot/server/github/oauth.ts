@@ -20,7 +20,9 @@ const userSchema = z.object({
 function credentials(): { id: string; secret: string } {
   const id = env.GITHUB_OAUTH_CLIENT_ID;
   const secret = env.GITHUB_OAUTH_CLIENT_SECRET;
+
   if (!id || !secret) throw new Error("未配置 GITHUB_OAUTH_CLIENT_ID / GITHUB_OAUTH_CLIENT_SECRET");
+
   return { id, secret };
 }
 
@@ -32,6 +34,7 @@ export function authorizeUrl(state: string, redirectUri: string): string {
     scope: "read:user public_repo",
     state,
   });
+
   return `${AUTHORIZE_URL}?${params.toString()}`;
 }
 
@@ -42,11 +45,15 @@ export async function exchangeCode(code: string, redirectUri: string): Promise<s
     headers: { accept: "application/json", "content-type": "application/json", "user-agent": "CFPAAgent2" },
     body: JSON.stringify({ client_id: id, client_secret: secret, code, redirect_uri: redirectUri }),
   });
+
   if (!res.ok) throw new Error(`GitHub OAuth 令牌交换失败: HTTP ${res.status}`);
   const parsed = tokenSchema.safeParse(await res.json());
+
   if (!parsed.success) throw new Error("GitHub OAuth 返回了无法解析的响应");
   const token = parsed.data.access_token;
+
   if (!token) throw new Error(parsed.data.error_description ?? parsed.data.error ?? "GitHub OAuth 未返回 access_token");
+
   return token;
 }
 
@@ -58,8 +65,11 @@ export async function fetchUser(token: string): Promise<{ login: string; id: num
       "user-agent": "CFPAAgent2",
     },
   });
+
   if (!res.ok) throw new Error(`获取 GitHub 用户信息失败: HTTP ${res.status}`);
   const parsed = userSchema.safeParse(await res.json());
+
   if (!parsed.success) throw new Error("GitHub 用户信息格式错误");
+
   return { login: parsed.data.login, id: parsed.data.id, avatarUrl: parsed.data.avatar_url };
 }

@@ -20,22 +20,28 @@ const log = logger("http");
 
 function allowedOrigins(c: Context<AppEnv>): Set<string> {
   const origins = new Set<string>([env.PUBLIC_URL, new URL(c.req.url).origin]);
+
   if (isDev) {
     origins.add(`http://localhost:${env.PORT}`);
     origins.add(`http://127.0.0.1:${env.PORT}`);
     origins.add("http://localhost:5173");
     origins.add("http://127.0.0.1:5173");
   }
+
   return origins;
 }
 
 async function csrfGuard(c: Context<AppEnv>): Promise<void> {
   const method = c.req.method;
+
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return;
   const contentType = (c.req.header("content-type") ?? "").toLowerCase();
+
   if (contentType.includes("application/json")) return;
   const origin = c.req.header("origin");
+
   if (origin && allowedOrigins(c).has(origin.replace(/\/+$/, ""))) return;
+
   throw new HttpError(403, "跨站请求被拒绝", "csrf");
 }
 
@@ -61,13 +67,17 @@ app.route("/api/admin", adminRoutes);
 
 app.notFound(async (c) => {
   const path = new URL(c.req.url).pathname;
+
   if (path.startsWith("/api/") || path.startsWith("/auth/")) return jsonError(c, 404, "未找到", "not_found");
+
   return serveStatic(c);
 });
 
 app.onError((err, c) => {
   const { status, body } = errorResponse(err);
+
   if (status >= 500) log.error("请求处理失败", { method: c.req.method, path: c.req.path, err });
   else if (!(err instanceof HttpError)) log.warn("请求被拒绝", { method: c.req.method, path: c.req.path, err });
+
   return c.json(body, status);
 });

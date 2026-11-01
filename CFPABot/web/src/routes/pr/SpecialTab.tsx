@@ -68,16 +68,21 @@ interface Spot {
 
 function sharedDir(keys: readonly string[]): string {
   const [first, ...rest] = keys;
+
   if (first === undefined) return "";
   let parts = first.split("/").slice(0, -1);
+
   for (const key of rest) {
     const other = key.split("/");
     let size = 0;
+
     while (size < parts.length && size < other.length - 1 && parts[size] === other[size]) size += 1;
     parts = parts.slice(0, size);
   }
+
   const lang = parts.findIndex((part) => part.includes(LANG));
   const kept = lang === -1 ? parts : parts.slice(0, lang);
+
   return kept.length === 0 ? "" : `${kept.join("/")}/`;
 }
 
@@ -88,11 +93,13 @@ function labelOf(key: string, prefix: string): string {
     .filter((part) => part !== LANG)
     .join("/")
     .replace(/[._-]\{lang\}(?=\.|$)/g, "");
+
   return label === "" ? key : label;
 }
 
 function sidesOf(content: SpecialPairContent): Side[] {
   if (content.kind === "single") return [{ label: "文件", text: content.file }];
+
   return [
     { label: "英文", text: content.en },
     { label: "中文", text: content.zh },
@@ -101,13 +108,16 @@ function sidesOf(content: SpecialPairContent): Side[] {
 
 function positionOf(pane: HTMLElement, rows: readonly LineRow[]): Position | null {
   const list = pane.firstElementChild?.children;
+
   if (rows.length === 0 || !list || list.length !== rows.length) return null;
   const top = pane.scrollTop;
   let lo = 0;
   let hi = list.length - 1;
   let index = 0;
+
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
+
     if ((list[mid] as HTMLElement).offsetTop <= top) {
       index = mid;
       lo = mid + 1;
@@ -115,23 +125,30 @@ function positionOf(pane: HTMLElement, rows: readonly LineRow[]): Position | nul
       hi = mid - 1;
     }
   }
+
   const row = list[index] as HTMLElement;
   const fraction = row.offsetHeight === 0 ? 0 : Math.min(1, Math.max(0, (top - row.offsetTop) / row.offsetHeight));
+
   return { anchor: rows[index]?.anchor ?? 0, fraction };
 }
 
 function scrollTopFor(pane: HTMLElement, rows: readonly LineRow[], position: Position): number | null {
   const list = pane.firstElementChild?.children;
+
   if (rows.length === 0 || !list || list.length !== rows.length) return null;
   let lo = 0;
   let hi = rows.length;
+
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
+
     if ((rows[mid]?.anchor ?? 0) < position.anchor) lo = mid + 1;
     else hi = mid;
   }
+
   if (lo >= rows.length) return pane.scrollHeight;
   const row = list[lo] as HTMLElement;
+
   return row.offsetTop + (rows[lo]?.anchor === position.anchor ? position.fraction * row.offsetHeight : 0);
 }
 
@@ -143,7 +160,9 @@ export function SpecialTab({ n, paths, search, onSearchChange }: { n: number; pa
   const prefix = useMemo(() => sharedDir(items.map((item) => item.key)), [items]);
 
   if (special.error !== null) return <ErrorState error={special.error} onRetry={() => void special.refetch()} />;
+
   if (special.isPending) return <SkeletonText lines={6} />;
+
   if (items.length === 0) {
     return (
       <EmptyState
@@ -181,6 +200,7 @@ export function SpecialTab({ n, paths, search, onSearchChange }: { n: number; pa
                 const active = item === selected;
                 const sides = (item.kind === "single" ? [item.file] : [item.en, item.zh]).filter((side) => side.status !== "unchanged" && side.status !== "missing");
                 const done = sides.length > 0 && sides.every((side) => review.viewedOf(side.path) === "VIEWED");
+
                 return (
                   <li key={item.key}>
                     <button
@@ -214,6 +234,7 @@ export function SpecialTab({ n, paths, search, onSearchChange }: { n: number; pa
 
 function SideTags({ item }: { item: SpecialPair }) {
   if (item.kind === "single") return <FileStatusBadge status={item.file.status} />;
+
   return (
     <span className="flex flex-wrap gap-1">
       <FileStatusBadge prefix="英·" status={item.en.status} />
@@ -266,13 +287,16 @@ function PairView({ n, pair, label }: { n: number; pair: SpecialPair; label: str
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setFull(false);
     };
+
     document.addEventListener("keydown", onKeyDown);
     (panes.current[0] ?? shell.current)?.focus();
+
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = overflow;
       restore?.focus();
     };
+
   }, [full]);
 
   useEffect(() => {
@@ -280,20 +304,25 @@ function PairView({ n, pair, label }: { n: number; pair: SpecialPair; label: str
     const pane = panes.current[flash.lang === "en" ? 0 : 1];
     pane?.querySelector(`[data-line="${flash.line}"]`)?.scrollIntoView({ block: "center" });
     const timer = window.setTimeout(() => setFlash(null), FLASH_MS);
+
     return () => window.clearTimeout(timer);
   }, [flash, view]);
 
   const sync = (from: number) => {
     const source = panes.current[from];
+
     if (!source) return;
     const echo = echoes.current[from];
     echoes.current[from] = null;
+
     if (echo != null && Math.abs(echo - source.scrollTop) < 1) return;
     const position = positionOf(source, rows[from] ?? []);
+
     if (position === null) return;
     panes.current.forEach((target, index) => {
       if (index === from || !target) return;
       const top = scrollTopFor(target, rows[index] ?? [], position);
+
       if (top === null || Math.abs(target.scrollTop - top) < 1) return;
       target.scrollTop = top;
       echoes.current[index] = target.scrollTop;
@@ -318,6 +347,7 @@ function PairView({ n, pair, label }: { n: number; pair: SpecialPair; label: str
               onClick={() => {
                 const next = !syncScroll;
                 setSyncScroll(next);
+
                 if (next) sync(0);
               }}
             >
@@ -433,26 +463,33 @@ function KeyView({
 
   const spotsOf = (key: string): Spot[] => {
     const row = byKey.get(key);
+
     if (row === undefined) return [];
     const spots: Spot[] = [];
+
     for (const lang of ["en", "zh"] as const) {
       const line = lang === "en" ? row.enLine : row.zhLine;
+
       if (line === undefined) continue;
       const text = content[lang];
       spots.push({ lang, line, path: text.path, commentable: (text.hunks ?? []).some((hunk) => line >= hunk.start && line <= hunk.end) });
     }
+
     return spots;
   };
 
   // 依赖 review 的底层数据而不是 review 本身：后者每次渲染都是新对象，这层 memo 会白算。
   const commentedKeys = useMemo(() => {
     const keys = new Set<string>();
+
     for (const row of rows) {
       const hit = spotsOf(row.key).some(
         (spot) => review.threadsAt(spot.path, spot.line).length > 0 || review.outgoingAt(spot.path, spot.line).length > 0,
       );
+
       if (hit) keys.add(row.key);
     }
+
     return keys;
   }, [byKey, content, review.state, review.deleting, review.outgoing]);
 
@@ -468,6 +505,7 @@ function KeyView({
       <div role="group" aria-label="对照文件" className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
         {(["en", "zh"] as const).map((lang) => {
           const text = content[lang];
+
           return (
             <span key={lang} className="inline-flex min-w-0 items-center gap-1.5 text-xs">
               <span className="font-medium text-fg">{LANGS[lang]}</span>
@@ -485,7 +523,9 @@ function KeyView({
         threads={loose.map((item) => item.thread)}
         locate={(thread) => {
           const side = LANGS[langOf.get(thread) ?? "zh"];
+
           if (thread.line !== null) return `${side}第 ${thread.line} 行`;
+
           return thread.originalLine === null ? side : `${side}原第 ${thread.originalLine} 行`;
         }}
       />
@@ -508,7 +548,9 @@ function KeyView({
       commented={commentedKeys}
       rowAction={(entry) => {
         const spots = spotsOf(entry.key);
+
         if (spots.length === 0) return null;
+
         return (
           <div className="flex shrink-0 flex-col items-end gap-0.5">
             {spots.map((spot) => (
@@ -537,7 +579,9 @@ function KeyView({
                 (spot) =>
                   review.threadsAt(spot.path, spot.line).length + review.outgoingAt(spot.path, spot.line).length > 0 || review.isOpen(spot.path, spot.line),
               );
+
               if (shown.length === 0) return null;
+
               return (
                 <div className="flex flex-col gap-2">
                   {shown.map((spot) => (
@@ -583,6 +627,7 @@ function SidePane({
   const hunks = text.hunks ?? [];
   const heads = text.head?.split("\n") ?? [];
   const outdated = review.threadsOf(text.path).filter((thread) => thread.line === null);
+
   return (
     <section aria-label={side.label} className={cn("flex min-w-0 flex-col gap-1.5", fill && "min-h-0")}>
       <header className="flex flex-wrap items-center gap-2 text-xs">
@@ -615,6 +660,7 @@ function SidePane({
               const line = row.line;
               const commentable = line !== null && hunks.some((hunk) => line >= hunk.start && line <= hunk.end);
               const count = line === null ? 0 : review.threadsAt(text.path, line).length + review.outgoingAt(text.path, line).length;
+
               return (
                 <div key={index} data-line={line ?? undefined}>
                   <div className={cn("group flex border-l-2 transition-shadow", ROW_TONE[row.kind], line !== null && line === flash && "ring-2 ring-inset ring-accent")}>
@@ -685,11 +731,13 @@ function RowCounts({ rows }: { rows: readonly LineRow[] }) {
   let inserted = 0;
   let deleted = 0;
   let changed = 0;
+
   for (const row of rows) {
     if (row.kind === "insert") inserted += 1;
     else if (row.kind === "delete") deleted += 1;
     else if (row.kind === "change") changed += 1;
   }
+
   return (
     <span className="ml-auto flex gap-2 tabular-nums text-muted">
       <span>{rows.length} 行</span>

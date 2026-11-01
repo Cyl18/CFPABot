@@ -48,7 +48,9 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
   });
 
   if (!Number.isFinite(n) || n <= 0) return <ErrorState error={new Error("无效的 PR 编号")} />;
+
   if (error !== null) return <ErrorState error={error} onRetry={() => void refetch()} />;
+
   if (isPending || !pr) return <SkeletonTable rows={8} columns={4} />;
 
   return (
@@ -144,6 +146,7 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
               )}
             </>
           );
+
           if (item.id === "overview") {
             return (
               <Link key={item.id} to="/pr/$n" params={{ n: String(n) }} className={tabClass(active, "underline")} aria-current={active ? "page" : undefined}>
@@ -151,6 +154,7 @@ export function PrDetailPage({ n, tab, search, onSearchChange }: { n: number; ta
               </Link>
             );
           }
+
           return (
             <Link
               key={item.id}

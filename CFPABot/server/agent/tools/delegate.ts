@@ -35,10 +35,13 @@ const SLICE_RESOURCE = /\/slices\/([^/]+)\.md$/;
 /** 片 id 从 resources 文件名回推：pack 的 manifest 是唯一来源，这里只认它的命名。 */
 function slicesOf(resources: readonly string[]): string[] {
   const ids = new Set<string>();
+
   for (const uri of resources) {
     const match = SLICE_RESOURCE.exec(uri);
+
     if (match?.[1] !== undefined) ids.add(match[1]);
   }
+
   return [...ids];
 }
 
@@ -66,6 +69,7 @@ interface AgentSpec {
 
 async function agentNames(): Promise<string> {
   const entries = await readdir(AGENTS_DIR).catch(() => [] as string[]);
+
   return (
     entries
       .filter((entry) => entry.endsWith(".md"))
@@ -76,12 +80,16 @@ async function agentNames(): Promise<string> {
 
 async function loadAgent(name: string): Promise<AgentSpec> {
   if (name === "") throw new Error(`缺少 agent：可用子代理 ${await agentNames()}`);
+
   if (!AGENT_NAME.test(name)) throw new Error(`子代理名只能是字母、数字、下划线和连字符：${name}`);
   const file = join(AGENTS_DIR, `${name}.md`);
   const content = await readFile(file, "utf8").catch(() => null);
+
   if (content === null) throw new Error(`没有子代理定义 config/subagents/${name}.md；可用子代理 ${await agentNames()}`);
   const agent = parseAgent(file, content, "project", "fatal");
+
   if (agent.output === undefined) throw new Error(`config/subagents/${name}.md 缺少 output schema`);
+
   return {
     agent: {
       ...agent,
@@ -96,18 +104,22 @@ export async function prefetch(resources: readonly string[], sessionId: string):
   if (resources.length === 0) return "";
   const blocks = await Promise.all(resources.map((uri) => readResource(uri, sessionId)));
   const joined = ["# 已预取资源", ...blocks].join("\n\n");
+
   if (Buffer.byteLength(joined) > PREFETCH_TOTAL_BYTES) {
     throw new Error(`预取总量超过 ${PREFETCH_TOTAL_BYTES} B；减少 resources 或拆片`);
   }
+
   return joined;
 }
 
 async function readResource(uri: string, sessionId: string): Promise<string> {
   const local = /^local:\/\//i.test(uri);
+
   try {
     const router = InternalUrlRouter.instance();
     const target = router.split(uri);
     const range = target.sel === undefined ? null : lineRangeOf(target.sel);
+
     // 本地分片走 readLocal：omp 的 local:// 只嗅前 8 KB，截断落在多字节字符中间会把整片判成二进制。
     const text = local
       ? (await readLocal(sessionId, target.path.replace(/^local:\/\//i, "")))?.content
@@ -120,16 +132,21 @@ async function readResource(uri: string, sessionId: string): Promise<string> {
             },
           })
         ).content;
+
     if (text === undefined) throw new Error(`资源不存在：${uri}`);
     const content = range === null ? text : sliceLines(text, range);
     const bytes = Buffer.byteLength(content);
+
     if (bytes <= PREFETCH_BYTES) return `## 预取资源 ${uri}\n\n${content}`;
+
     // 子代理没有读取工具，截断等于让它审半份材料，所以整份分片必须装得下。
     if (local) throw new Error(`分片超过预取上限 ${PREFETCH_BYTES} B：${uri}（${bytes} B），重新打包成更小的片`);
     const head = Buffer.from(content).subarray(0, PREFETCH_BYTES).toString("utf8").replace(/\uFFFD+$/, "");
+
     return `## 预取资源 ${uri}\n\n${head}\n…[预取已截断]`;
   } catch (err) {
     if (local) throw err;
+
     return `## 预取资源 ${uri} 失败\n\n${err instanceof Error ? err.message : String(err)}`;
   }
 }
@@ -159,16 +176,20 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
       let modelOverride: string[] | undefined;
       let endpoint: string | undefined;
       let thinking: ThinkingLevel | undefined;
+
       if (roleName !== "") {
         const selector = config.roles[roleName];
+
         if (selector === undefined) throw new Error(`未知模型 @${roleName}；可用：${available || "（未配置）"}`);
         const parsed = parseRoleSelector(selector);
         endpoint = parsed.endpoint;
         thinking = parsed.thinking;
+
         // 先确认端点存在，避免 SDK 的模型解析静默回退到别的模型。
         await resolveModel(endpoint, thinking);
         modelOverride = [`@${roleName}`];
       }
+
       const slices = slicesOf(resources);
       const base = {
         agent: agentName,
@@ -190,6 +211,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
         cost: 0,
         durationMs: 0,
       };
+
       let lastSentAt = 0;
       let lastKey = "";
       const publish = (info: SubagentInfo) => {
@@ -197,6 +219,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
         noteSubagent(ctx.sessionId, info);
         ctx.emit?.({ type: "subagent", info });
       };
+
       const shared = [params.context, await prefetch(resources, ctx.sessionId)].filter(Boolean).join("\n\n");
       const artifacts = subagentDir(ctx.sessionId);
       await mkdir(artifacts, { recursive: true });
@@ -212,6 +235,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
         const probeAbort = new AbortController();
         const stopProbe = () => probeAbort.abort();
         runSignal.addEventListener("abort", stopProbe, { once: true });
+
         try {
           const { settings, registry } = await openModelRuntime(authStorage, config.endpoints, config.roles);
           const mcpManager = ctx.mcpManager?.() ?? (await agentMcpManager());
@@ -267,8 +291,10 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
             signal: runSignal,
             onProgress: (progress) => {
               const now = Date.now();
+
               if (now - lastSentAt < PROGRESS_INTERVAL_MS) return;
               const seen = `${progress.toolCount}|${progress.tokens}|${progress.currentTool ?? ""}|${progress.lastIntent ?? ""}`;
+
               if (seen === lastKey) return;
               lastSentAt = now;
               lastKey = seen;
@@ -286,16 +312,19 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
                 ...(progress.contextWindow === undefined ? {} : { contextWindow: progress.contextWindow }),
               });
               void reportProgress?.(activity ?? `${progress.toolCount} 次工具`, { subagent: lastInfo });
+
               if (live) onUpdate?.({ content: [], details: { ...base, subagent: lastInfo } });
             },
           });
           await saveYield(ctx.sessionId, agentId, result.structuredOutput?.data);
+
           return result;
         } finally {
           runSignal.removeEventListener("abort", stopProbe);
           stopProbe();
           authStorage.close();
         }
+
       };
 
       if (manager === undefined || session === undefined) {
@@ -309,6 +338,7 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
           : data === undefined
             ? result.output.trim() || "(子代理没有返回结果)"
             : JSON.stringify(data);
+
         return {
           content: [{ type: "text", text }],
           details: { ...base, subagent: lastInfo },
@@ -326,26 +356,31 @@ export function delegateTool(ctx: ToolContext, extensions: ExtensionFactory[]): 
           try {
             const result = await run(jobSignal, false, reportProgress);
             const structured = result.structuredOutput;
+
             if (result.aborted || result.exitCode !== 0 || result.error !== undefined) {
               throw new AsyncJobError(
                 result.error ?? (result.aborted ? "子代理已停止" : result.stderr.trim() || "子代理失败"),
                 structured,
               );
             }
+
             publish({ ...lastInfo, status: "done" });
             const data = structured?.data;
+
             return {
               text: data === undefined ? result.output.trim() || "(子代理没有返回结果)" : JSON.stringify(data),
               ...(structured === undefined ? {} : { structured }),
             };
           } catch (error) {
             publish({ ...lastInfo, status: "error" });
+
             throw error;
           }
         },
         { id: agentId, agentId, ...(ownerId === undefined ? {} : { ownerId }) },
       );
       onUpdate?.({ content: [], details: { ...base, subagent: info } });
+
       return {
         content: [
           {

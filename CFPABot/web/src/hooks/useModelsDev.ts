@@ -16,6 +16,7 @@ export function useModelsDevIndex(): ModelsDevState {
     void fetchModelsDevModels()
       .then((entries) => {
         if (!alive) return;
+
         if (entries) setIndex(entries);
         setStatus(entries ? "ready" : "error");
       })
@@ -23,9 +24,12 @@ export function useModelsDevIndex(): ModelsDevState {
         if (!alive) return;
         setStatus((current) => (current === "ready" ? "ready" : "error"));
       });
+
     return () => {
       alive = false;
     };
+
   }, []);
+
   return { index, status };
 }

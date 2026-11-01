@@ -59,7 +59,9 @@ export function SubagentDrawer({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
+
     window.addEventListener("keydown", onKeyDown);
+
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
@@ -71,7 +73,9 @@ export function SubagentDrawer({
     const tick = async () => {
       try {
         const page: SubagentTranscript = await api.subagent(sessionId, info.agentId, offset.current);
+
         if (!alive) return;
+
         if (page.total < offset.current) {
           offset.current = page.total;
           setItems(page.items);
@@ -82,6 +86,7 @@ export function SubagentDrawer({
         } else {
           quiet += 1;
         }
+
         setStatus(page.status);
         setActivity(page.activity);
         setEstimate({ percent: page.percent, stage: page.stage, watch: page.watch });
@@ -91,6 +96,7 @@ export function SubagentDrawer({
           durationMs: page.durationMs,
           startedAt: page.startedAt,
         });
+
         // 字符增长才算有流；收尾归零、换下一条时不刷新 since。
         const chars = page.streamChars ?? 0;
         const previous = flowRef.current;
@@ -102,15 +108,20 @@ export function SubagentDrawer({
         if (!alive) return;
         setError(err instanceof Error ? err.message : String(err));
       }
+
       if (!alive) return;
+
       if (!live && quiet >= IDLE_POLLS_BEFORE_STOP) return;
       timer = setTimeout(() => void tick(), POLL_MS);
     };
+
     void tick();
+
     return () => {
       alive = false;
       clearTimeout(timer);
     };
+
   }, [sessionId, info.agentId, live]);
 
   const jump = useCallback(() => undefined, []);

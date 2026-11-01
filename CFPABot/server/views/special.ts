@@ -20,9 +20,12 @@ interface Capped {
 function cap(text: string | null): Capped {
   if (text === null) return { text: null, truncated: false };
   const bytes = Buffer.from(text, "utf8");
+
   if (bytes.length <= SPECIAL_MAX_BYTES) return { text, truncated: false };
+
   // stream 解码不 flush，末尾被切一半的多字节字符直接丢掉，不会变成替换符。
   const cut = new TextDecoder("utf-8").decode(bytes.subarray(0, SPECIAL_MAX_BYTES), { stream: true });
+
   return { text: cut, truncated: true };
 }
 
@@ -40,6 +43,7 @@ async function specialPlanFor(n: number): Promise<SpecialPlanData> {
   const rev = (await mirror.headSha()) ?? "HEAD";
   const cacheKey = `${n}@${pull.baseSha}@${pull.headSha}@${rev}`;
   const cached = planCache.get(cacheKey);
+
   if (cached !== undefined) return cached;
   const pending = (async (): Promise<SpecialPlanData> => {
     const special = files.filter((file) => isSpecialPath(file.path));
@@ -48,11 +52,14 @@ async function specialPlanFor(n: number): Promise<SpecialPlanData> {
       special.flatMap((file) => (file.status === "renamed" && file.previousPath !== undefined ? [file.previousPath] : [])),
     );
     const derived: string[] = [];
+
     for (const plan of plans) {
       if (plan.kind === "single") continue;
+
       for (const side of [plan.en, plan.zh]) {
         if (side.file !== null) continue;
         derived.push(side.path);
+
         if (side.alternate !== undefined) derived.push(side.alternate);
       }
     }
@@ -61,20 +68,25 @@ async function specialPlanFor(n: number): Promise<SpecialPlanData> {
         ? new Set<string>()
         : await mirror.existing(rev, derived).catch(() => new Set<string>());
     const resolved = resolveDerived(plans, existing);
+
     // 两侧都不在 head 的组不产出：删除记录留在文件页。
     return { files, plans: resolved.filter((plan) => planAtHead(plan, existing, moved)), existing, moved };
   })();
   planCache.set(cacheKey, pending);
   void pending.catch(() => planCache.delete(cacheKey));
+
   if (planCache.size > 8) {
     const oldest = planCache.keys().next().value;
+
     if (oldest !== undefined) planCache.delete(oldest);
   }
+
   return pending;
 }
 
 export async function specialPairs(n: number): Promise<SpecialPair[]> {
   const { plans, existing, moved } = await specialPlanFor(n);
+
   return resolveSpecial(plans, existing, moved);
 }
 
@@ -83,12 +95,14 @@ const AGENT_TEXT_BYTES = 12_000;
 function clippedText(text: string | null): string | null {
   if (text === null || Buffer.byteLength(text) <= AGENT_TEXT_BYTES) return text;
   const cut = new TextDecoder("utf-8").decode(Buffer.from(text).subarray(0, AGENT_TEXT_BYTES), { stream: true });
+
   return `${cut}\n…[已截断，read 对应文件路径取全文]`;
 }
 
 function clipSide(side: SpecialText, base: string | null, head: string | null): SpecialText {
   const shown = side.hunks === null ? null : side.hunks.slice(0, 50);
   const omitted = side.hunks === null || shown === null ? 0 : side.hunks.length - shown.length;
+
   return {
     ...side,
     base,
@@ -104,6 +118,7 @@ export function clipSpecialContent(item: SpecialPairContent): SpecialPairContent
   if (item.kind === "single") {
     return { ...item, file: clipSide(item.file, clippedText(item.file.base), clippedText(item.file.head)) };
   }
+
   return {
     ...item,
     en: clipSide(item.en, clippedText(item.en.base), clippedText(item.en.head)),
@@ -119,8 +134,10 @@ function specialParsedOf(format: string, en: SpecialText, zh: SpecialText): Spec
   const headEn = read(en.head);
   const baseZh = read(zh.base);
   const headZh = read(zh.head);
+
   if (baseEn === null || headEn === null || baseZh === null || headZh === null) return null;
   const rows: SpecialKeyRow[] = [];
+
   for (const row of compareLang({ en: baseEn, zh: baseZh }, { en: headEn, zh: headZh })) {
     const enLine = headEn.lines.get(row.key);
     const zhLine = headZh.lines.get(row.key);
@@ -130,6 +147,7 @@ function specialParsedOf(format: string, en: SpecialText, zh: SpecialText): Spec
       ...(zhLine === undefined ? {} : { zhLine }),
     });
   }
+
   return { format, rows };
 }
 
@@ -144,6 +162,7 @@ async function contentFrom(
     const file = side.file;
     let baseText: string | null;
     let headText: string | null;
+
     if (file === null) {
       if (existing.has(side.path)) {
         [baseText, headText] = await Promise.all([read(side.path, "base"), read(side.path, "head")]);
@@ -155,9 +174,11 @@ async function contentFrom(
       const paths = sidePaths(file);
       [baseText, headText] = await Promise.all([read(paths.base, "base"), read(paths.head, "head")]);
     }
+
     const base = cap(baseText);
     const head = cap(headText);
     const prFile = files.find((file) => file.path === side.path);
+
     return {
       path: side.path,
       status: specialStatusOf(side, existing, moved),
@@ -167,7 +188,9 @@ async function contentFrom(
       truncated: base.truncated || head.truncated,
       hunks: prFile === undefined || prFile.status === "removed" ? null : commentableHunks(prFile, headText),
     };
+
   };
+
   if (entry.kind === "single") return { key: entry.key, kind: "single", file: await textOf(entry.file) };
   const [en, zh] = await Promise.all([textOf(entry.en), textOf(entry.zh)]);
   const format = specialFormat(entry.en.path);
@@ -175,13 +198,16 @@ async function contentFrom(
     format !== null && format === specialFormat(entry.zh.path) && !en.truncated && !zh.truncated
       ? specialParsedOf(format, en, zh)
       : null;
+
   return { key: entry.key, kind: "pair", en, zh, parsed };
 }
 
 export async function specialPairContent(n: number, key: string, source: FileSource): Promise<SpecialPairContent | null> {
   const { files, plans, existing, moved } = await specialPlanFor(n);
   const entry = plans.find((plan) => plan.key === key);
+
   if (entry === undefined) return null;
+
   return contentFrom(entry, files, existing, moved, source.read);
 }
 
@@ -189,18 +215,24 @@ function sidePathsOf(entry: SpecialPlan, existing: ReadonlySet<string>): { base:
   const base: string[] = [];
   const head: string[] = [];
   const sides = entry.kind === "single" ? [entry.file] : [entry.en, entry.zh];
+
   for (const side of sides) {
     if (side.file === null) {
       if (existing.has(side.path)) {
         base.push(side.path);
         head.push(side.path);
       }
+
       continue;
     }
+
     const paths = sidePaths(side.file);
+
     if (paths.base !== null) base.push(paths.base);
+
     if (paths.head !== null) head.push(paths.head);
   }
+
   return { base, head };
 }
 
@@ -213,12 +245,16 @@ export async function specialContents(
   const { files, plans, existing, moved } = await specialPlanFor(n);
   const wanted = new Set(keys);
   const entries = plans.filter((plan) => wanted.has(plan.key));
+
   if (entries.length === 0) return [];
   const basePaths = new Set<string>();
   const headPaths = new Set<string>();
+
   for (const entry of entries) {
     const paths = sidePathsOf(entry, existing);
+
     for (const path of paths.base) basePaths.add(path);
+
     for (const path of paths.head) headPaths.add(path);
   }
   const [baseTexts, headTexts] = await Promise.all([
@@ -227,8 +263,10 @@ export async function specialContents(
   ]);
   const read: FileSource["read"] = (path, side) => {
     if (path === null) return Promise.resolve(null);
+
     return Promise.resolve((side === "base" ? baseTexts : headTexts).get(path) ?? null);
   };
+
   return Promise.all(entries.map((entry) => contentFrom(entry, files, existing, moved, read)));
 }
 

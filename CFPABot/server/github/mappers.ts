@@ -114,6 +114,7 @@ export function mapFile(d: RawFile): GhFile {
 
 export function mapComment(d: RawComment): GhComment {
   const login = d.user?.login ?? "";
+
   return {
     id: d.id,
     author: login,
@@ -156,10 +157,12 @@ export function mapRun(d: RawRun): GhRun {
 
 export function asRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+
   return value as Record<string, unknown>;
 }
 
 export function httpStatus(err: unknown): number | null {
   if (typeof err !== "object" || err === null || !("status" in err)) return null;
+
   return typeof err.status === "number" ? err.status : null;
 }

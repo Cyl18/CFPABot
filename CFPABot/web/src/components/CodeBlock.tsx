@@ -47,7 +47,9 @@ let highlighter: Promise<HighlighterCore | null> | null = null;
 function canonical(lang: string | undefined): Lang | undefined {
   if (lang === undefined) return undefined;
   const id = lang.toLowerCase();
+
   if (id in LANG_MODULES) return id as Lang;
+
   return ALIASES[id];
 }
 
@@ -59,6 +61,7 @@ async function createHighlighterCore(): Promise<HighlighterCore | null> {
       import("shiki/themes/github-light.mjs"),
       import("shiki/themes/github-dark.mjs"),
     ]);
+
     return await core.createHighlighterCore({
       themes: [light.default, dark.default],
       langs: [],
@@ -87,29 +90,39 @@ export function CodeBlock({ code, lang }: { code: string; lang?: string }) {
   useEffect(() => {
     if (key === "" || id === undefined) {
       setHtml(undefined);
+
       return;
     }
+
     const hit = cache.get(key);
+
     if (hit !== undefined) {
       setHtml(hit);
+
       return;
     }
+
     highlighter ??= createHighlighterCore();
     let alive = true;
     void highlighter.then(async (instance) => {
       if (instance === null) return;
+
       try {
         await ensureLanguage(instance, id);
+
         if (!alive) return;
         const output = instance.codeToHtml(code, { lang: id, themes: THEMES, defaultColor: false });
+
         if (cache.size >= CACHE_LIMIT) cache.clear();
         cache.set(key, output);
         setHtml(output);
       } catch {}
     });
+
     return () => {
       alive = false;
     };
+
   }, [code, id, key]);
 
   return (

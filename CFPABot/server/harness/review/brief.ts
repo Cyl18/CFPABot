@@ -31,25 +31,32 @@ export interface BriefOptions {
 
 function briefWorkspaces(detail: PrDetail, pack: Pack | null): WorkspaceBrief[] {
   if (pack !== null) return workspaceBriefs(pack);
+
   return detail.workspaces.map((workspace) => {
     let enPath: string | null = null;
     let zhPath: string | null = null;
     let format: "json" | "lang" = "json";
+
     for (const path of workspace.files) {
       const parsed = parseLangPath(path);
+
       if (parsed === null) continue;
+
       if (parsed.locale === "en_us") enPath = path;
+
       if (parsed.locale === "zh_cn") {
         zhPath = path;
         format = parsed.format;
       }
     }
+
     return {
       workspace: `${workspace.slug}/${workspace.version}/${workspace.namespace}`,
       format,
       enPath,
       zhPath,
     };
+
   });
 }
 
@@ -62,6 +69,7 @@ async function discussionsOf(
   let recentIssueComments: DiscussionsBrief["recentIssueComments"];
   let commentsError: string | undefined;
   let comments: GhComment[] | null = null;
+
   try {
     const all = await gh.listComments(n);
     comments = all;
@@ -75,6 +83,7 @@ async function discussionsOf(
   } catch (err) {
     commentsError = err instanceof Error ? err.message : String(err);
   }
+
   return {
     brief: {
       available: threads.available || commentsError === undefined,
@@ -95,6 +104,7 @@ async function discussionsOf(
 async function draftSummaryOf(n: number, session?: HarnessSession): Promise<ReviewBrief["draft"]> {
   const stored = await storedDraftOf(session?.sessionId);
   const draft = stored !== null && stored.prNumber === n ? stored : null;
+
   return {
     exists: draft !== null,
     ...(draft?.updatedAt === undefined ? {} : { updatedAt: draft.updatedAt }),
@@ -115,8 +125,11 @@ function nextOf(
   specialTotal: number,
 ): string[] {
   const next = new Set<string>();
+
   if (rowsNext !== null) next.add(`read ${rowsNext}`);
+
   if (specialTotal > 0) next.add(`read pr://${n}/special-files?include=text&limit=6`);
+
   if (detail.workspaces.length === 0) {
     next.add(`read pr://${n}/files`);
     next.add(`read pr://${n}/checks`);
@@ -127,7 +140,9 @@ function nextOf(
     next.add(`write pr://${n}/pack {}`);
     next.add(`read pr://${n}/draft`);
   }
+
   if (rowsNext === null && !hasReviewData) next.add(`read pr://${n}?review=1`);
+
   return [...next];
 }
 
@@ -139,20 +154,25 @@ function warningsOf(findings: readonly Finding[]): Finding[] {
 
 function tallyOf(findings: readonly Finding[]): { critical: number; major: number; minor: number; neutral: number } {
   const counts = { critical: 0, major: 0, minor: 0, neutral: 0 };
+
   for (const finding of findings) counts[finding.severity] += 1;
+
   return counts;
 }
 
 function fitBrief(brief: ReviewBrief, rowsLink: string | null): ReviewBrief {
   if (Buffer.byteLength(JSON.stringify(brief)) <= RESULT_BUDGET_BYTES) return brief;
   const reduced = { ...brief };
+
   if (reduced.rows !== undefined) {
     delete reduced.rows;
+
     if (rowsLink !== null) {
       reduced.hint = `${reduced.hint} 简报预算不足，rows 未内嵌，read ${rowsLink} 取全集。`;
       reduced.next = [`read ${rowsLink}`, ...reduced.next];
     }
   }
+
   if (Buffer.byteLength(JSON.stringify(reduced)) <= RESULT_BUDGET_BYTES) return reduced;
   reduced.files = { ...reduced.files, items: [], truncated: true };
   reduced.specialFiles = { ...reduced.specialFiles, paths: [], truncated: true };
@@ -160,9 +180,11 @@ function fitBrief(brief: ReviewBrief, rowsLink: string | null): ReviewBrief {
   reduced.checks = { ...reduced.checks, top: [] };
   reduced.discussions = { ...reduced.discussions };
   delete reduced.discussions.recentIssueComments;
+
   if (Buffer.byteLength(JSON.stringify(reduced)) <= RESULT_BUDGET_BYTES) return reduced;
   reduced.workspaces = [];
   reduced.hint = `${reduced.hint} 工作区清单过大已省略。`;
+
   return reduced;
 }
 
@@ -187,11 +209,13 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
       : undefined;
   const complete = reviewed?.page.complete === true ? reviewed.page : undefined;
   let rows = complete;
+
   if (complete !== undefined) {
     const pruned = { ...complete };
     delete pruned.workspaces;
     rows = pruned;
   }
+
   const plan = reviewed?.plan;
   const additions = detail.files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = detail.files.reduce((sum, file) => sum + file.deletions, 0);
@@ -206,6 +230,7 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
   const localMajor = localFindings.filter(
     (finding) => finding.severity === "critical" || finding.severity === "major",
   );
+
   // 没有 bot 报告时 counts/top 是空的，模型会以为机械项没跑；用本地预审补上。
   if (checksView.status === "unknown" && localFindings.length > 0) {
     checksView.source = "local";
@@ -238,11 +263,13 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
     .filter(Boolean)
     .join(" ");
   const next = nextOf(n, detail, rows?.next ?? null, pack !== null, reviewed !== undefined, detail.specialFiles.length);
+
   if (warnings.length > warningsShown.length) {
     next.unshift(
       `read ${rowsUri(n, { filter: "flagged", include: { terms: false, threads: false, duplicates: false, patch: false } })}`,
     );
   }
+
   const writeScope = options.session?.writeScope ?? "off";
   const brief: ReviewBrief = {
     next,
@@ -300,6 +327,7 @@ export async function reviewBrief(n: number, options: BriefOptions): Promise<Rev
     },
     ...(rows === undefined ? {} : { rows }),
   };
+
   return fitBrief(brief, reviewed === undefined ? null : rowsUri(n, rowsOptions));
 }
 

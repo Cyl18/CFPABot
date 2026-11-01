@@ -8,13 +8,16 @@ const log = logger("agent-events");
 export function statusEventOf(event: AgentSessionEvent): SessionEvent | undefined {
   if (event.type === "auto_retry_start") {
     const seconds = Math.max(1, Math.round(event.delayMs / 1000));
+
     return {
       type: "status",
       status: "running",
       note: `上游请求失败，约 ${seconds} 秒后自动重试（第 ${event.attempt}/${event.maxAttempts} 次）`,
     };
   }
+
   if (event.type === "auto_retry_end" && event.success) return { type: "status", status: "running" };
+
   return undefined;
 }
 
@@ -26,14 +29,17 @@ export class SessionHub {
     const set = this.listeners.get(sessionId) ?? new Set<(event: SessionEvent) => void>();
     set.add(listener);
     this.listeners.set(sessionId, set);
+
     return () => {
       set.delete(listener);
+
       if (set.size === 0) this.listeners.delete(sessionId);
     };
   }
 
   emit(sessionId: string, event: SessionEvent): void {
     const set = this.listeners.get(sessionId);
+
     if (set) {
       for (const listener of [...set]) {
         try {
@@ -44,12 +50,14 @@ export class SessionHub {
         }
       }
     }
+
     if (event.type === "status" || event.type === "artifact") this.touch(sessionId);
   }
 
   /** 订阅会话摘要（状态、时间、草稿计数）的变化，与具体会话无关。 */
   subscribeAll(listener: (sessionId: string) => void): () => void {
     this.watchers.add(listener);
+
     return () => {
       this.watchers.delete(listener);
     };

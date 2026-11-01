@@ -13,6 +13,7 @@ export interface MqmType {
   id: string;
   dim: MqmDimension;
   label: string;
+
   /** 默认档位；实际档位按后果定，检查器只对低于默认档的条目给提示。 */
   severity: Severity;
   rule: string;

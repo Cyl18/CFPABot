@@ -8,11 +8,13 @@ export function placeholders(text: string): string[] {
   const shielded = text.replace(/%%/g, "\u0000");
   const found: { pos: number; sig: string }[] = [];
   let next = 1;
+
   for (const match of shielded.matchAll(PLACEHOLDER_RE)) {
     const explicit = match[1];
     const type = match[2];
     const index = match[3];
     const name = match[4];
+
     if (type !== undefined) {
       const pos = explicit !== undefined ? Number(explicit) : next;
       next = pos + 1;
@@ -23,6 +25,7 @@ export function placeholders(text: string): string[] {
       found.push({ pos: 0, sig: `{${name}}` });
     }
   }
+
   return found.sort((a, b) => a.pos - b.pos || a.sig.localeCompare(b.sig)).map((entry) => `${entry.pos}:${entry.sig}`);
 }
 

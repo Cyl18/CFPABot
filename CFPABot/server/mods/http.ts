@@ -22,6 +22,7 @@ export async function requestJson(url: string, options: HttpOptions = {}): Promi
   });
   const text = await res.text();
   let body: unknown = null;
+
   if (text) {
     try {
       body = JSON.parse(text);
@@ -29,6 +30,7 @@ export async function requestJson(url: string, options: HttpOptions = {}): Promi
       body = null;
     }
   }
+
   return { status: res.status, body };
 }
 
@@ -38,10 +40,14 @@ export async function downloadBytes(url: string, maxBytes: number, timeoutMs = 1
     redirect: "follow",
     signal: AbortSignal.timeout(timeoutMs),
   });
+
   if (!res.ok) return null;
   const declared = Number(res.headers.get("content-length") ?? "0");
+
   if (declared > maxBytes) return null;
   const bytes = new Uint8Array(await res.arrayBuffer());
+
   if (bytes.byteLength === 0 || bytes.byteLength > maxBytes) return null;
+
   return bytes;
 }

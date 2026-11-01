@@ -31,6 +31,7 @@ function clock(at: string): string {
 const ToolRow = memo(function ToolRow({ item, prNumber }: { item: ToolItem; prNumber?: number }) {
   const { tool, at } = item;
   const preview = tool.progress ?? toolPreview(tool);
+
   return (
     <details className="agent-fade group border-t border-line first:border-t-0">
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-1.5 hover:bg-elevated/40">
@@ -58,6 +59,7 @@ function ToolGroup({ items, prNumber }: { items: readonly ToolItem[]; prNumber?:
 
   if (items.length === 1) {
     const only = items[0];
+
     return (
       <div className="overflow-hidden rounded-lg border border-line bg-surface">
         {only !== undefined && <ToolRow item={only} prNumber={prNumber} />}
@@ -133,6 +135,7 @@ const AssistantRow = memo(function AssistantRow({ item }: { item: AssistantRowIt
   const thinking = item.thinking?.trim() ?? "";
   const streaming = item.streaming === true;
   const empty = item.text.trim() === "";
+
   return (
     <div className="flex gap-2.5">
       <div aria-hidden="true" className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-md border border-line bg-elevated text-muted">
@@ -163,6 +166,7 @@ const AssistantRow = memo(function AssistantRow({ item }: { item: AssistantRowIt
 function StepBlock({ step, live, prNumber }: { step: Step; live: boolean; prNumber?: number }) {
   const thinking = step.thinking?.trim() ?? "";
   const hasText = step.text.trim() !== "";
+
   return (
     <div className="agent-fade space-y-1.5 px-3 py-2">
       {/* 连续工具调用之间的纯思考块不单独占位，只在有正文或正在生成时露出。 */}
@@ -178,8 +182,10 @@ function useNow(active: boolean): number {
   useEffect(() => {
     if (!active) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
+
     return () => window.clearInterval(timer);
   }, [active]);
+
   return now;
 }
 
@@ -187,6 +193,7 @@ function UsageChips({ turn, now }: { turn: Turn; now: number }) {
   const { usage } = turn;
   const elapsed = turnElapsed(turn, now);
   const hasTokens = usage.input + usage.output + usage.cacheRead > 0;
+
   return (
     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] tabular-nums text-muted">
       {hasTokens && (
@@ -335,8 +342,10 @@ export function ChatStream({
   const offset = virtualizer.scrollOffset ?? 0;
   const measurements = virtualizer.measurementsCache;
   let active = 0;
+
   for (let index = 0; index < measurements.length; index += 1) {
     const measurement = measurements[index];
+
     if (measurement !== undefined && measurement.start <= offset + 80) active = index;
   }
   const handleJump = useCallback(
@@ -351,9 +360,11 @@ export function ChatStream({
 
   useEffect(() => {
     jumpRef.current = handleJump;
+
     return () => {
       jumpRef.current = null;
     };
+
   }, [handleJump, jumpRef]);
 
   useEffect(() => {
@@ -364,7 +375,9 @@ export function ChatStream({
     <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
       {virtualizer.getVirtualItems().map((entry) => {
         const turn = turns[entry.index];
+
         if (turn === undefined) return null;
+
         return (
           <div
             key={turn.key}
@@ -405,7 +418,9 @@ export function TurnRail({
       })),
     [turns],
   );
+
   if (items.length < 2) return null;
+
   return (
     <nav
       aria-label="回合导航"

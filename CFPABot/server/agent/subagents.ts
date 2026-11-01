@@ -34,9 +34,11 @@ const infos = new Map<string, Map<string, SubagentInfo>>();
 
 function infosOf(sessionId: string): Map<string, SubagentInfo> {
   const existing = infos.get(sessionId);
+
   if (existing !== undefined) return existing;
   const created = new Map<string, SubagentInfo>();
   infos.set(sessionId, created);
+
   return created;
 }
 
@@ -54,11 +56,14 @@ export function noteSubagent(sessionId: string, info: SubagentInfo): void {
 
 async function hydrate(sessionId: string): Promise<Map<string, SubagentInfo>> {
   const map = infosOf(sessionId);
+
   if (map.size > 0) return map;
   const rows = await readJson<SubagentInfo[]>(join(subagentDir(sessionId), STATUS_FILE));
+
   if (Array.isArray(rows)) {
     for (const row of rows) if (typeof row?.agentId === "string") map.set(row.agentId, row);
   }
+
   return map;
 }
 
@@ -74,6 +79,7 @@ export async function loadSubagentInfo(sessionId: string, agentId: string): Prom
 export function infoOf(details: unknown, agentId: string): SubagentInfo | undefined {
   if (details === null || typeof details !== "object") return undefined;
   const info = (details as { subagent?: SubagentInfo }).subagent;
+
   return info !== undefined && info.agentId === agentId ? info : undefined;
 }
 
@@ -96,12 +102,14 @@ export async function subagentTranscript(
   const activity = ref?.activity ?? info?.activity;
   const partial = session?.agent.state.streamMessage ?? null;
   let streamChars = 0;
+
   if (partial?.role === "assistant") {
     for (const block of partial.content) {
       if (block.type === "text") streamChars += block.text.length;
       else if (block.type === "thinking") streamChars += block.thinking.length;
     }
   }
+
   return {
     items: items.slice(Math.max(0, offset)),
     total: items.length,
@@ -125,7 +133,9 @@ export async function subagentTranscript(
 export function stopSubagent(agentId: string): boolean {
   if (!AGENT_ID.test(agentId)) return false;
   const ref = AgentRegistry.global().get(agentId);
+
   if (ref?.status !== "running" || ref.session === null) return false;
   void ref.session.abort({ reason: "用户停止了子代理" });
+
   return true;
 }

@@ -18,11 +18,13 @@ const TSV_ROWS = 500;
 
 function previewText(content: string, extension: string): string {
   let text = content;
+
   if (extension === "json") {
     try {
       text = JSON.stringify(JSON.parse(content), null, 2);
     } catch {}
   }
+
   return text.length > PREVIEW_LIMIT ? `${text.slice(0, PREVIEW_LIMIT)}\n…（已截断，共 ${text.length} 字符）` : text;
 }
 
@@ -31,7 +33,9 @@ function TsvTable({ text }: { text: string }) {
   const lines = text.split(/\r?\n/).filter((line) => line !== "");
   const header = lines[0]?.split("\t") ?? [];
   const rows = lines.slice(1, TSV_ROWS + 1).map((line) => line.split("\t"));
+
   if (header.length === 0) return <p className="text-xs text-muted">空表格。</p>;
+
   return (
     <div className="flex flex-col gap-1">
       <div className="scroll-thin overflow-auto rounded-md border border-line">
@@ -92,7 +96,9 @@ export function ArtifactDrawer({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
+
     window.addEventListener("keydown", onKeyDown);
+
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 

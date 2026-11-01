@@ -34,9 +34,11 @@ export function jsonResult(
 ): AgentToolResult<Record<string, unknown>> {
   const text = JSON.stringify(value);
   const bytes = Buffer.byteLength(text);
+
   if (bytes > RESULT_BUDGET_BYTES) {
     return envelope(bytes, { hint: "缩小过滤范围，或用 limit/offset 分页后重试", ...guide }, details);
   }
+
   return { content: [{ type: "text", text }], details };
 }
 
@@ -56,9 +58,11 @@ export function textResult(
   options: { clip?: boolean } = {},
 ): AgentToolResult<Record<string, unknown>> {
   const bytes = Buffer.byteLength(text);
+
   if (options.clip === false || bytes <= RESULT_BUDGET_BYTES) return { content: [{ type: "text", text }], details };
   const notice = `\n…[已截断：原 ${bytes} B，改用行范围或更窄的过滤条件读取${guide.hint === undefined ? "" : `；${guide.hint}`}]`;
   const clipped = Buffer.from(text).subarray(0, RESULT_BUDGET_BYTES - Buffer.byteLength(notice)).toString("utf8");
+
   return {
     content: [{ type: "text", text: clipped + notice }],
     details: { ...details, truncated: true, bytes },
@@ -68,6 +72,7 @@ export function textResult(
 export function numberParam(value: string | null): number | undefined {
   if (value === null || value.trim() === "") return undefined;
   const parsed = Number(value);
+
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
@@ -82,6 +87,7 @@ export function pageOf(
     limit !== undefined && Number.isFinite(limit)
       ? Math.min(max, Math.max(1, Math.floor(limit)))
       : Math.min(max, Math.max(1, defaultLimit));
+
   return { offset: start, limit: size };
 }
 
@@ -107,6 +113,7 @@ export function paginate<T>(items: readonly T[], query: URLSearchParams, max = 1
   const slice = items.slice(page.offset, page.offset + page.limit);
   const end = page.offset + slice.length;
   const nextOffset = end < items.length ? end : null;
+
   return {
     items: slice,
     total: items.length,
@@ -120,7 +127,9 @@ export function paginate<T>(items: readonly T[], query: URLSearchParams, max = 1
 /** 只取调用方点名的段，避免模型一次拿到全部再自己剪。 */
 export function pickFields<T extends object>(value: T, query: URLSearchParams): Partial<T> {
   const fields = query.get("fields");
+
   if (fields === null || fields.trim() === "") return value;
   const wanted = new Set(fields.split(",").map((field) => field.trim()).filter(Boolean));
+
   return Object.fromEntries(Object.entries(value).filter(([key]) => wanted.has(key))) as Partial<T>;
 }

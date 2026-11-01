@@ -13,6 +13,7 @@ export function ttlCache<V>(ttlMs: number, max = 500): TtlCache<V> {
     ttl: ttlMs,
     fetchMethod: (_key, _stale, { context }) => (context as () => Promise<NonNullable<V>>)(),
   });
+
   return {
     get: (k) => cache.get(k),
     set: (k, v) => {

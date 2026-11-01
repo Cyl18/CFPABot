@@ -14,6 +14,7 @@ export interface PackRow {
   headEn?: string;
   baseZh?: string;
   headZh?: string;
+
   /** head 该行原文，只给 changed 行，用于整行 suggestion 对齐。 */
   headRaw?: string;
   line: number | null;
@@ -56,6 +57,7 @@ export interface PackInput {
 }
 
 const WORKSPACE_CONCURRENCY = 4;
+
 /** 与 Bot 检查共用同一个上限，避免面板/Agent 对超大 PR 触发无界文件读取。 */
 export const MAX_WORKSPACES = 40;
 
@@ -65,9 +67,11 @@ export function workspaceKey(workspace: Pick<PackWorkspace, "slug" | "version" |
 
 export function findingHistogram(workspace: PackWorkspace): Record<string, number> {
   const histogram: Record<string, number> = {};
+
   for (const row of workspace.rows) {
     for (const finding of row.findings) histogram[finding.code] = (histogram[finding.code] ?? 0) + 1;
   }
+
   return histogram;
 }
 
@@ -101,16 +105,22 @@ export function selectRows(pack: Pack, selection: RowSelection): SelectedRow[] {
   const query = selection.query?.trim().toLowerCase();
   const filter = selection.filter ?? "all";
   const selected: SelectedRow[] = [];
+
   for (const workspace of pack.workspaces) {
     if (selection.workspace && workspaceKey(workspace) !== selection.workspace) continue;
+
     for (const row of workspace.rows) {
       if (wanted && !wanted.has(row.key)) continue;
+
       if (filter === "changed" && !row.changed) continue;
+
       if (filter === "flagged" && row.findings.length === 0) continue;
+
       if (query && !matchesQuery(row, query)) continue;
       selected.push({ workspace, row });
     }
   }
+
   return selected;
 }
 
@@ -123,17 +133,22 @@ function matchesQuery(row: PackRow, query: string): boolean {
 function keyOrder(head: ParsedLang | null, others: (ParsedLang | null)[]): string[] {
   const order: string[] = [];
   const seen = new Set<string>();
+
   if (head) {
     for (const key of head.entries.keys()) {
       seen.add(key);
       order.push(key);
     }
   }
+
   const rest = new Set<string>();
+
   for (const parsed of others) {
     if (!parsed) continue;
+
     for (const key of parsed.entries.keys()) if (!seen.has(key)) rest.add(key);
   }
+
   return [...order, ...[...rest].sort()];
 }
 
@@ -143,12 +158,14 @@ async function buildWorkspace(
   patches: Map<string, string | undefined>,
 ): Promise<PackWorkspace | null> {
   const loaded = await loadWorkspaceTexts(workspace, input.files, input.read);
+
   if (loaded === null) return null;
   const { format, enPath, zhPath, baseEn, baseZh, headEn, headZh, headEnText, headZhText } = loaded;
   const patch = zhPath ? patches.get(zhPath) : undefined;
   const hunks = patch === undefined || patch === "" ? null : patchHunks(patch);
   const zhLines = headZhText === null ? null : headZhText.split("\n");
   const rows: PackRow[] = [];
+
   for (const key of keyOrder(headEn, [baseEn, baseZh, headZh])) {
     const values = {
       baseEn: baseEn?.entries.get(key),
@@ -156,6 +173,7 @@ async function buildWorkspace(
       baseZh: baseZh?.entries.get(key),
       headZh: headZh?.entries.get(key),
     };
+
     const line = headZh?.lines.get(key) ?? null;
     const changed = values.baseEn !== values.headEn || values.baseZh !== values.headZh;
     const headRaw =
@@ -170,8 +188,10 @@ async function buildWorkspace(
       findings: entryFindingsWithTerms(key, values, workspace.version, input.terms),
     });
   }
+
   const checks = keyParity(workspaceKey(workspace), headEn, headZh);
   const fileLevel: { path: string; findings: Finding[] }[] = [];
+
   for (const [path, content] of [
     [enPath, headEnText],
     [zhPath, headZhText],
@@ -182,6 +202,7 @@ async function buildWorkspace(
   const duplicates = [...duplicateZh(rows.map((row) => ({ key: row.key, en: row.headEn, zh: row.headZh })))].map(
     ([zh, keys]) => ({ zh, keys }),
   );
+
   return {
     slug: workspace.slug,
     version: workspace.version,
@@ -203,15 +224,19 @@ async function buildWorkspace(
 
 export async function buildPack(input: PackInput): Promise<Pack> {
   const patches = new Map<string, string | undefined>();
+
   for (const file of input.files) patches.set(file.path, file.patch);
   const available = workspacesOf(input.files);
   const workspaces = available.slice(0, MAX_WORKSPACES);
   const built: PackWorkspace[] = [];
+
   for (let index = 0; index < workspaces.length; index += WORKSPACE_CONCURRENCY) {
     const batch = workspaces.slice(index, index + WORKSPACE_CONCURRENCY);
     const results = await Promise.all(batch.map((workspace) => buildWorkspace(workspace, input, patches)));
+
     for (const result of results) if (result) built.push(result);
   }
+
   return {
     prNumber: input.prNumber,
     baseSha: input.baseSha,

@@ -24,6 +24,7 @@ function payload(): string {
 async function readLock(): Promise<InstanceLock | null> {
   try {
     const parsed = lockSchema.safeParse(JSON.parse(await readFile(lockFile, "utf8")));
+
     return parsed.success ? parsed.data : null;
   } catch {
     return null;
@@ -33,6 +34,7 @@ async function readLock(): Promise<InstanceLock | null> {
 function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
+
     return true;
   } catch (err) {
     return (err as NodeJS.ErrnoException).code === "EPERM";
@@ -41,6 +43,7 @@ function isAlive(pid: number): boolean {
 
 function isStale(lock: InstanceLock): boolean {
   if (Date.now() - lock.at > STALE_MS) return true;
+
   // 同主机上进程已消失就立刻接管，否则 --watch 热重启要白等一个 STALE_MS。
   return lock.host === hostname() && !isAlive(lock.pid);
 }
@@ -48,16 +51,21 @@ function isStale(lock: InstanceLock): boolean {
 export async function acquireInstanceLock(options: { waitMs?: number } = {}): Promise<void> {
   const deadline = Date.now() + (options.waitMs ?? 30_000);
   await mkdir(paths.state, { recursive: true });
+
   for (;;) {
     const current = await readLock();
+
     if (current && !isStale(current)) {
       if (Date.now() > deadline) {
         throw new Error(`数据目录已被另一个实例占用：pid ${current.pid} @ ${current.host}，拒绝启动`);
       }
+
       await Bun.sleep(500);
       continue;
     }
+
     token = crypto.randomUUID();
+
     try {
       // 接管不是原子的：两个实例同时判定过期时，后写的会覆盖先写的。
       await writeFile(lockFile, payload(), { encoding: "utf8", flag: "wx" });
@@ -77,6 +85,7 @@ export async function releaseInstanceLock(): Promise<void> {
   clearInterval(beat);
   beat = undefined;
   const current = await readLock();
+
   if (current?.token === token) await rm(lockFile, { force: true });
   token = undefined;
 }

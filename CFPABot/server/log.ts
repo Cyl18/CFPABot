@@ -8,6 +8,7 @@ const threshold = ORDER[env.LOG_LEVEL];
 
 function serializeError(value: unknown): unknown {
   if (value instanceof Error) return { name: value.name, message: value.message, stack: value.stack };
+
   return value;
 }
 
@@ -16,10 +17,12 @@ function emit(level: LogLevel, scope: string, message: string, data?: Record<str
   const clean = data ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, serializeError(v)])) : undefined;
   const entry: LogEntry = { at: new Date().toISOString(), level, scope, message, ...(clean ? { data: clean } : {}) };
   ring.push(entry);
+
   if (ring.length > RING_SIZE) ring.shift();
   const line = isDev
     ? `${entry.at.slice(11, 19)} ${level.toUpperCase().padEnd(5)} [${scope}] ${message}${clean ? ` ${JSON.stringify(clean)}` : ""}`
     : JSON.stringify(entry);
+
   if (level === "error") console.error(line);
   else if (level === "warn") console.warn(line);
   else console.log(line);
@@ -43,5 +46,6 @@ export function logger(scope: string): Logger {
 
 export function recentLogs(limit = 500, level?: LogLevel): LogEntry[] {
   const min = level ? ORDER[level] : 0;
+
   return ring.filter((e) => ORDER[e.level] >= min).slice(-limit);
 }

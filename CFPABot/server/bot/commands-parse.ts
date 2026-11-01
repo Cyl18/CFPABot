@@ -18,31 +18,38 @@ export function splitArgs(input: string): string[] {
   let inDouble = false;
   const out: string[] = [];
   let current = "";
+
   for (const char of chars) {
     if (char === '"' && !inSingle) {
       inDouble = !inDouble;
       current += "\n";
       continue;
     }
+
     if (char === "'" && !inDouble) {
       inSingle = !inSingle;
       current += "\n";
       continue;
     }
+
     if (!inSingle && !inDouble && char === " ") {
       current += "\n";
       continue;
     }
+
     current += char;
   }
+
   for (const part of current.split("\n")) {
     if (part.length > 0) out.push(part);
   }
+
   return out;
 }
 
 export function parseLines(body: string): CommandLine[] {
   const out: CommandLine[] = [];
+
   for (const raw of body.split(/\r?\n/)) {
     if (!raw.startsWith("/")) continue;
     const space = raw.indexOf(" ");
@@ -50,6 +57,7 @@ export function parseLines(body: string): CommandLine[] {
     const rest = space === -1 ? "" : raw.slice(space + 1);
     out.push({ name, args: rest.trim().length > 0 ? splitArgs(rest) : [], rest });
   }
+
   return out;
 }
 
@@ -59,7 +67,9 @@ export function permissionDecision(input: {
   headOwnerIsAuthor: boolean;
 }): Permission {
   if (input.isCollaborator) return "allow";
+
   if (!input.isPrAuthor) return "denied";
+
   return input.headOwnerIsAuthor ? "allow" : "owner-denied";
 }
 

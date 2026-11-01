@@ -62,7 +62,9 @@ const recordSchema = z.object({
 
 function toRecord(parsed: z.infer<typeof recordSchema>): SessionRecord {
   const record: SessionRecord = { meta: parsed.meta };
+
   if (parsed.sessionFile) record.sessionFile = parsed.sessionFile;
+
   return record;
 }
 
@@ -72,6 +74,7 @@ export function summarize(
   draft?: SessionDraftSummary,
 ): SessionSummary {
   const meta = record.meta;
+
   return {
     id: meta.id,
     title: meta.title,
@@ -99,9 +102,11 @@ export class SessionStore {
   async init(): Promise<void> {
     await mkdir(paths.sessions, { recursive: true });
     const entries = await readdir(paths.sessions, { withFileTypes: true }).catch(() => []);
+
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
       const record = await this.read(entry.name.slice(0, -5));
+
       if (!record || record.meta.status !== "running") continue;
       record.meta.status = "idle";
       record.meta.lastError = "服务重启，运行中的会话已中止";
@@ -120,11 +125,14 @@ export class SessionStore {
 
   async get(id: string): Promise<SessionRecord | null> {
     const cached = this.records.get(id);
+
     if (cached) return cached;
     const inflight = this.pending.get(id);
+
     if (inflight) return inflight;
     const read = this.read(id).finally(() => this.pending.delete(id));
     this.pending.set(id, read);
+
     return read;
   }
 
@@ -139,9 +147,11 @@ export class SessionStore {
     if (!ID_PATTERN.test(id)) return null;
     const raw = await readJson<unknown>(join(paths.sessions, `${id}.json`));
     const parsed = recordSchema.safeParse(raw);
+
     if (!parsed.success) return null;
     const record = toRecord(parsed.data);
     this.records.set(id, record);
+
     return record;
   }
 }

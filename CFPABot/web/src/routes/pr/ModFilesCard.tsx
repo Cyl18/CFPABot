@@ -27,14 +27,19 @@ const FILTER_ORDER: readonly Filter[] = ["mismatch", "extra", "unavailable", "ok
 
 function summaryOf(row: ModFileCheck): string {
   const parts: string[] = [];
+
   if (row.missing.length > 0) parts.push(`缺少 ${row.missing.length} 个 key`);
+
   if (row.changed.length > 0) parts.push(`值不同 ${row.changed.length} 个`);
+
   if (row.extra.length > 0) parts.push(`多出 ${row.extra.length} 个 key`);
+
   return parts.join(" · ");
 }
 
 function KeyList({ title, keys, danger }: { title: string; keys: readonly string[]; danger: boolean }) {
   if (keys.length === 0) return null;
+
   return (
     <div className="flex flex-col gap-1">
       <p className={cn("text-xs font-medium", danger ? "text-danger" : "text-muted")}>
@@ -75,6 +80,7 @@ function ModFileRow({ row }: { row: ModFileCheck }) {
     </>
   );
   const note = expandable ? summaryOf(row) : row.status === "unavailable" ? row.note : undefined;
+
   return (
     <li>
       {expandable ? (

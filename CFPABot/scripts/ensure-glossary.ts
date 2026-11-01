@@ -27,6 +27,7 @@ if (existsSync(bin)) {
 }
 
 const target = ASSETS[`${process.platform}-${process.arch}`];
+
 if (target === undefined) {
   console.warn(`[glossary] 没有 ${process.platform}-${process.arch} 的预编译包，术语 MCP 跳过`);
   process.exit(0);
@@ -35,14 +36,17 @@ if (target === undefined) {
 const archive = `packtrans-glossary-${VERSION}-${target}`;
 const ext = process.platform === "win32" ? "zip" : "tar.gz";
 const tmp = await mkdtemp(join(tmpdir(), "glossary-"));
+
 try {
   const res = await fetch(`https://github.com/packtrans/glossary/releases/download/${VERSION}/${archive}.${ext}`, {
     signal: AbortSignal.timeout(30_000),
   });
+
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const file = join(tmp, `pkg.${ext}`);
   await Bun.write(file, res);
   const untar = Bun.spawnSync(["tar", "-xf", file, "-C", tmp], { stdout: "pipe", stderr: "pipe" });
+
   if (untar.exitCode !== 0) throw new Error(untar.stderr.toString());
   await mkdir(dir, { recursive: true });
   await cp(join(tmp, archive, name), bin);

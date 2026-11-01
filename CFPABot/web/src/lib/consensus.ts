@@ -2,9 +2,11 @@ import { charDiff } from "@/lib/diff.ts";
 
 function charDistance(a: string, b: string): number {
   let distance = 0;
+
   for (const segment of charDiff(a, b)) {
     if (segment.type !== "equal") distance += Array.from(segment.text).length;
   }
+
   return distance;
 }
 
@@ -12,14 +14,18 @@ function charDistance(a: string, b: string): number {
 function centerOf(texts: readonly string[]): string {
   let best = texts[0] ?? "";
   let bestScore = Infinity;
+
   for (const text of texts) {
     let score = 0;
+
     for (const other of texts) score += charDistance(text, other);
+
     if (score < bestScore) {
       best = text;
       bestScore = score;
     }
   }
+
   return best;
 }
 
@@ -28,8 +34,10 @@ function alignToCenter(center: string, text: string): { slots: (string | null)[]
   const slots = new Array<string | null>(Array.from(center).length).fill(null);
   const inserts: string[][] = Array.from({ length: slots.length + 1 }, () => []);
   let at = 0;
+
   for (const segment of charDiff(center, text)) {
     const chars = Array.from(segment.text);
+
     if (segment.type === "equal") {
       for (const char of chars) {
         slots[at] = char;
@@ -41,21 +49,27 @@ function alignToCenter(center: string, text: string): { slots: (string | null)[]
       inserts[at]?.push(...chars);
     }
   }
+
   return { slots, inserts };
 }
 
 // 逐列投票：某个字比空位多才进共识，空位不输就删掉这列；平票取中心版本的字。
 function voteColumn(tokens: readonly (string | null)[], centerIndex: number): string | null {
   const counts = new Map<string | null, number>();
+
   for (const token of tokens) counts.set(token, (counts.get(token) ?? 0) + 1);
   const top = [...counts.entries()]
     .filter(([token]) => token !== null)
     .sort((a, b) => b[1] - a[1])[0];
+
   if (top === undefined || top[1] <= (counts.get(null) ?? 0)) return null;
   const tied = [...counts.entries()].filter(([token, count]) => token !== null && count === top[1]);
+
   if (tied.length === 1) return tied[0]?.[0] ?? null;
   const centerToken = tokens[centerIndex] ?? null;
+
   if (tied.some(([token]) => token === centerToken)) return centerToken;
+
   return tied.map(([token]) => token).sort((a, b) => tokens.indexOf(a) - tokens.indexOf(b))[0] ?? null;
 }
 
@@ -68,11 +82,15 @@ export function consensusOf(texts: readonly string[]): string | null {
   const centerChars = Array.from(center);
   const rows = texts.map((text) => alignToCenter(center, text));
   const picked: (string | null)[] = [];
+
   for (let gap = 0; gap <= centerChars.length; gap += 1) {
     const inserts = rows.map((row) => row.inserts[gap] ?? []);
     const width = Math.max(0, ...inserts.map((chars) => chars.length));
+
     for (let k = 0; k < width; k += 1) picked.push(voteColumn(inserts.map((chars) => chars[k] ?? null), centerIndex));
+
     if (gap < centerChars.length) picked.push(voteColumn(rows.map((row) => row.slots[gap] ?? null), centerIndex));
   }
+
   return picked.filter((token): token is string => token !== null).join("");
 }

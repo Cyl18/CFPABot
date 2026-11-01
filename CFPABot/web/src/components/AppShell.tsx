@@ -62,8 +62,10 @@ function useIsLg(): boolean {
     const onChange = () => setIsLg(media.matches);
     media.addEventListener("change", onChange);
     onChange();
+
     return () => media.removeEventListener("change", onChange);
   }, []);
+
   return isLg;
 }
 
@@ -102,6 +104,7 @@ export function AppShell() {
 
   const navItem = (item: NavItem) => {
     const active = item.match(pathname);
+
     return (
       <Link
         key={item.to}

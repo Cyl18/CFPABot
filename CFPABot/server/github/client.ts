@@ -31,7 +31,9 @@ const appConfig =
   env.GITHUB_APP_ID && env.GITHUB_APP_INSTALLATION_ID
     ? (() => {
         const privateKey = readPrivateKey();
+
         if (!privateKey) return null;
+
         return { appId: env.GITHUB_APP_ID, privateKey, installationId: env.GITHUB_APP_INSTALLATION_ID };
       })()
     : null;
@@ -45,6 +47,7 @@ function throttleOptions(): ThrottlingOptions {
   return {
     onRateLimit: (retryAfter, options, _octokit, retryCount) => {
       log.warn("GitHub 速率限制", { method: options.method, url: options.url, retryAfter, retryCount });
+
       return retryCount < 2 && retryAfter <= 60;
     },
     onSecondaryRateLimit: (retryAfter, options, _octokit, retryCount) => {
@@ -54,6 +57,7 @@ function throttleOptions(): ThrottlingOptions {
         retryAfter,
         retryCount,
       });
+
       return retryCount < 2 && retryAfter <= 60;
     },
   };
@@ -92,7 +96,9 @@ export function userGraphql(token: string): GhOctokit {
 
 export function isRateLimited(err: unknown): boolean {
   const status = httpStatus(err);
+
   if (status === 429) return true;
+
   return status === 403 && err instanceof Error && /rate limit/i.test(err.message);
 }
 
@@ -108,6 +114,7 @@ export function assertBotWrites(): void {
 }
 
 log.info("GitHub 客户端已初始化", { mode, repo: repo.fullName });
+
 if (!botWritesEnabled()) log.info("当前不是机器人身份，评论 / 标签 / check run 写入已暂停", { mode });
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
@@ -119,7 +126,9 @@ async function mergeBaseOf(baseSha: string, headSha: string): Promise<string> {
   if (baseSha === headSha) return baseSha;
   const key = `${baseSha}\u0000${headSha}`;
   const cached = mergeBaseCache.get(key);
+
   if (cached !== undefined) return cached;
+
   try {
     const r = await octokit.rest.repos.compareCommits({
       owner: repo.owner,
@@ -130,15 +139,18 @@ async function mergeBaseOf(baseSha: string, headSha: string): Promise<string> {
     });
     const sha = r.data.merge_base_commit?.sha ?? baseSha;
     mergeBaseCache.set(key, sha);
+
     return sha;
   } catch (err) {
     log.warn("merge base 查询失败，回退 baseSha", { baseSha, headSha, err });
+
     return baseSha;
   }
 }
 
 async function fetchFileText(path: string, ref: string): Promise<string | null> {
   let data: unknown;
+
   try {
     const r = await octokit.rest.repos.getContent({
       owner: repo.owner,
@@ -149,19 +161,28 @@ async function fetchFileText(path: string, ref: string): Promise<string | null> 
     data = r.data;
   } catch (err) {
     if (httpStatus(err) === 404) return null;
+
     throw err;
   }
+
   const record = asRecord(data);
+
   if (!record) return null;
+
   if (typeof record.content === "string" && record.content.length > 0) {
     const text = Buffer.from(record.content, "base64").toString("utf8");
+
     return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
   }
+
   const downloadUrl = record.download_url;
+
   if (typeof downloadUrl !== "string" || !downloadUrl) return null;
   const res = await fetch(downloadUrl, { headers: { "user-agent": USER_AGENT } });
+
   if (!res.ok) return null;
   const text = await res.text();
+
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
@@ -171,12 +192,14 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
 
   async getPull(n) {
     const r = await octokit.rest.pulls.get({ owner: repo.owner, repo: repo.name, pull_number: n });
+
     return mapPull(r.data);
   },
 
   async listPulls(state, opts) {
     const maxPages = opts?.maxPages ?? (state === "open" ? Number.POSITIVE_INFINITY : 1);
     const pulls: GhPull[] = [];
+
     for (let page = 1; page <= maxPages; page++) {
       const r = await octokit.rest.pulls.list({
         owner: repo.owner,
@@ -187,9 +210,12 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
         per_page: FILE_PAGE_SIZE,
         page,
       });
+
       for (const item of r.data) pulls.push(mapPull(item));
+
       if (r.data.length < FILE_PAGE_SIZE) break;
     }
+
     return pulls;
   },
 
@@ -199,7 +225,9 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
       per_page: 5,
     });
     const hit = r.data.items.find((item) => "pull_request" in item && item.pull_request != null);
+
     if (!hit) return null;
+
     return gh.getPull(hit.number);
   },
 
@@ -210,16 +238,20 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
       pull_number: n,
       per_page: FILE_PAGE_SIZE,
     });
+
     return all.slice(0, 3000).map(mapFile);
   },
 
   async getFile(path, ref) {
     const key = `${ref}\u0000${path}`;
     const cached = fileCache.get(key);
+
     if (cached !== undefined) return cached;
     const text = await fetchFileText(path, ref);
+
     // 分支名会移动，只有 SHA 指向的内容可以长期缓存。
     if (text !== null && SHA_PATTERN.test(ref)) fileCache.set(key, text);
+
     return text;
   },
 
@@ -230,28 +262,36 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
       async (path: string) => {
         const key = `${ref}\u0000${path}`;
         const cached = fileCache.get(key);
+
         if (cached !== undefined) {
           texts.set(path, cached);
+
           return;
         }
+
         try {
           const encoded = path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
           const res = await fetch(`https://raw.githubusercontent.com/${repo.owner}/${repo.name}/${ref}/${encoded}`, {
             headers: { "user-agent": USER_AGENT },
           });
+
           if (res.status === 404) return;
+
           if (!res.ok) throw new Error(`raw.githubusercontent ${res.status}`);
           const raw = await res.text();
           const text = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
           texts.set(path, text);
+
           if (SHA_PATTERN.test(ref)) fileCache.set(key, text);
         } catch {
           const text = await gh.getFile(path, ref);
+
           if (text !== null) texts.set(path, text);
         }
       },
       { concurrency: 6 },
     );
+
     return texts;
   },
 
@@ -262,6 +302,7 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
       issue_number: n,
       per_page: FILE_PAGE_SIZE,
     });
+
     return all.map(mapComment);
   },
 
@@ -273,6 +314,7 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
       body,
       request: { retries: 0 },
     });
+
     return mapComment(r.data);
   },
 
@@ -289,6 +331,7 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
   async getIssue(n) {
     const r = await octokit.rest.issues.get({ owner: repo.owner, repo: repo.name, issue_number: n });
     const data = r.data;
+
     return {
       number: data.number,
       title: data.title,
@@ -309,6 +352,7 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
       q: `${q} repo:${repo.fullName} type:${type === "pr" ? "pr" : "issue"}`,
       per_page: 30,
     });
+
     return r.data.items.map((item) => ({
       number: item.number,
       title: item.title,
@@ -326,6 +370,7 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
       pull_number: n,
       per_page: FILE_PAGE_SIZE,
     });
+
     return all.map((review) => ({
       id: review.id,
       author: review.user?.login ?? "ghost",
@@ -352,6 +397,7 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
       pull_number: n,
       per_page: FILE_PAGE_SIZE,
     });
+
     return all.map(mapReviewComment);
   },
 
@@ -366,6 +412,7 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
       comments: input.comments.map((c) => ({ path: c.path, line: c.line, side: c.side, body: c.body })),
       request: { retries: 0 },
     });
+
     return { id: r.data.id, htmlUrl: r.data.html_url };
   },
 
@@ -415,6 +462,7 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
       event: "pull_request",
       per_page: 20,
     });
+
     return (r.data.workflow_runs ?? [])
       .map(mapRun)
       .filter((run) => run.name.includes("PR Packer"))
@@ -428,6 +476,7 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
       run_id: runId,
       per_page: FILE_PAGE_SIZE,
     });
+
     return all.map((a) => ({
       id: a.id,
       name: a.name,
@@ -448,11 +497,15 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
   async isCollaborator(login) {
     try {
       await octokit.rest.repos.checkCollaborator({ owner: repo.owner, repo: repo.name, username: login });
+
       return true;
     } catch (err) {
       const status = httpStatus(err);
+
       if (status === 404) return false;
+
       if (status === 403 && err instanceof Error && err.message.includes("Must have push access")) return false;
+
       throw err;
     }
   },
@@ -460,9 +513,11 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
   async getUser(login) {
     try {
       const r = await octokit.rest.users.getByUsername({ username: login });
+
       return { login: r.data.login, id: r.data.id };
     } catch (err) {
       if (httpStatus(err) === 404) return null;
+
       throw err;
     }
   },
@@ -475,22 +530,28 @@ export const gh: GitHubClient & { mergeBase(baseSha: string, headSha: string): P
       public: false,
       request: { retries: 0 },
     });
+
     if (!r.data.html_url) throw new Error("创建 Gist 失败：响应缺少 html_url");
+
     return r.data.html_url;
   },
 
   async rateLimit() {
     const r = await octokit.rest.rateLimit.get();
     const core = r.data.rate;
+
     return { remaining: core.remaining, limit: core.limit, resetAt: new Date(core.reset * 1000).toISOString() };
   },
 
   async gitToken() {
     if (devToken) return devToken;
+
     if (appConfig) {
       const auth = await createAppAuth(appConfig)({ type: "installation" });
+
       return auth.token;
     }
+
     return env.GITHUB_PAT ?? null;
   },
 };

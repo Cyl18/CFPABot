@@ -46,10 +46,15 @@ export function InlineTextDiff({ before, after, className }: InlineTextDiffProps
   const segments = useMemo(() => inlineDiff(left, right, mode), [left, right, mode]);
 
   if (before === undefined) return <span className={className}>{right}</span>;
+
   if (left === "" && right === "") return <span className="text-muted">—</span>;
+
   if (mode === "off" || left === right) return <span className={className}>{right === "" ? left : right}</span>;
+
   if (left === "") return <ins className={cn(INSERT, className)}>{right}</ins>;
+
   if (right === "") return <del className={cn(DELETE, className)}>{left}</del>;
+
   return (
     <span className={className}>
       <InlineRuns segments={segments} />

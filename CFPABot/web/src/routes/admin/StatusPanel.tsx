@@ -9,6 +9,7 @@ export function StatusPanel() {
   const status = useStatus();
 
   if (status.error !== null) return <ErrorState error={status.error} onRetry={() => void status.refetch()} />;
+
   if (status.isPending || !status.data) return <SkeletonText lines={6} />;
 
   const data = status.data;
@@ -91,6 +92,7 @@ export function StatusPanel() {
 
 function Row({ label, ok, text }: { label: string; ok: boolean; text?: string }) {
   const badge = ok ? "可用" : "未配置";
+
   return (
     <div className="flex min-w-0 items-center justify-between gap-3 py-1.5 text-sm">
       <span className="truncate text-muted">{label}</span>

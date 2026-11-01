@@ -48,5 +48,6 @@ export async function buildSystemPrompt(
     .replace(MODELS_PLACEHOLDER, modelsLine)
     .replace(PR_PLACEHOLDER, prBound);
   const fragments = await Promise.all(PROMPT_FILES.map(readPrompt));
+
   return [system, ...fragments].filter(Boolean).join("\n\n");
 }

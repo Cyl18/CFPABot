@@ -15,12 +15,15 @@ export function endpointId(provider: string, model: string): string {
 /** 同一 provider 必须共用一个 baseUrl/protocol/apiKey，否则 registry 与 auth 会各连一个端点。 */
 export function assertEndpointRouting(endpoints: readonly LlmEndpoint[]): void {
   const seen = new Map<string, LlmEndpoint>();
+
   for (const endpoint of endpoints) {
     const previous = seen.get(endpoint.provider);
+
     if (previous === undefined) {
       seen.set(endpoint.provider, endpoint);
       continue;
     }
+
     if (
       previous.baseUrl !== endpoint.baseUrl ||
       previous.protocol !== endpoint.protocol ||
@@ -35,12 +38,14 @@ export function assertEndpointRouting(endpoints: readonly LlmEndpoint[]): void {
 
 export function normalizeBaseUrl(baseUrl: string, protocol: LlmProtocol): string {
   const trimmed = baseUrl.trim().replace(/\/+$/, "");
+
   return protocol === "anthropic-messages" ? trimmed.replace(/\/v1$/, "") : trimmed;
 }
 
 /** 存的可能是字面量，也可能是 `env:NAME` 引用；引用未设置按没有密钥处理。 */
 export function resolveApiKey(stored: string): string | undefined {
   if (!stored.startsWith("env:")) return stored || undefined;
+
   return process.env[stored.slice(4).trim()]?.trim() || undefined;
 }
 
@@ -61,6 +66,7 @@ export function buildModel(endpoint: LlmEndpoint, thinking?: ThinkingLevel): Mod
     contextWindow: endpoint.contextWindow ?? 128_000,
     maxTokens: endpoint.maxOutput ?? 8192,
   };
+
   return buildCatalogModel(spec);
 }
 

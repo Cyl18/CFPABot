@@ -23,37 +23,46 @@ interface OverlayText {
 
 function namespaceVersions(files: readonly LangPath[], slug: string): Map<string, Set<string>> {
   const result = new Map<string, Set<string>>();
+
   for (const file of files) {
     if (file.slug !== slug) continue;
+
     if (file.locale !== "en_us" && file.locale !== "zh_cn") continue;
     const versions = result.get(file.namespace) ?? new Set<string>();
     versions.add(file.version);
     result.set(file.namespace, versions);
   }
+
   return result;
 }
 
 function widestNamespace(candidates: Iterable<string>, versionsOf: Map<string, Set<string>>): string | null {
   let best: string | null = null;
   let bestCount = -1;
+
   for (const namespace of candidates) {
     const count = versionsOf.get(namespace)?.size ?? 0;
+
     if (count > bestCount || (count === bestCount && best !== null && namespace < best)) {
       best = namespace;
       bestCount = count;
     }
   }
+
   return best;
 }
 
 function changedKeys(base: Map<string, string> | undefined, head: Map<string, string> | undefined): Set<string> {
   const keys = new Set<string>();
+
   for (const [key, value] of head ?? []) {
     if (base?.get(key) !== value) keys.add(key);
   }
+
   for (const key of base?.keys() ?? []) {
     if (head?.has(key) !== true) keys.add(key);
   }
+
   return keys;
 }
 
@@ -95,14 +104,18 @@ async function buildCrossVersion(
     opts.namespace ?? widestNamespace(prNamespaces.size > 0 ? prNamespaces : namespaces, versionsOf) ?? slug;
 
   const byVersion = new Map<string, { en?: LangPath; zh?: LangPath }>();
+
   for (const file of all) {
     if (file.slug !== slug || file.namespace !== namespace) continue;
+
     if (file.locale !== "en_us" && file.locale !== "zh_cn") continue;
     const slot = byVersion.get(file.version) ?? {};
+
     if (file.locale === "en_us") slot.en ??= file;
     else slot.zh ??= file;
     byVersion.set(file.version, slot);
   }
+
   for (const parsed of prLangs) {
     if (parsed.namespace !== namespace || byVersion.has(parsed.version)) continue;
     byVersion.set(parsed.version, {});
@@ -114,9 +127,12 @@ async function buildCrossVersion(
   const activeVersions = kept.length === 0 ? versions : kept;
 
   const basePaths: string[] = [];
+
   for (const version of activeVersions) {
     const slot = byVersion.get(version) ?? {};
+
     if (slot.en) basePaths.push(slot.en.path);
+
     if (slot.zh) basePaths.push(slot.zh.path);
   }
   const prPaths = prLangs
@@ -128,10 +144,12 @@ async function buildCrossVersion(
   ]);
 
   const overlay = new Map<string, { en?: OverlayText; zh?: OverlayText }>();
+
   if (prTexts !== null) {
     for (const parsed of prLangs) {
       if (parsed.namespace !== namespace) continue;
       const text = prTexts.get(parsed.path);
+
       if (text === undefined) continue;
       const slot = overlay.get(parsed.version) ?? {};
       slot[parsed.locale === "en_us" ? "en" : "zh"] = { text, format: parsed.format };
@@ -145,16 +163,22 @@ async function buildCrossVersion(
     const load = (file: LangPath | undefined): Map<string, string> | undefined => {
       if (!file) return undefined;
       const text = baseTexts.get(file.path);
+
       return text === undefined ? undefined : parseLang(text, file.format).entries;
     };
+
     const baseEn = load(slot.en);
     const baseZh = load(slot.zh);
     const en = patch?.en ? parseLang(patch.en.text, patch.en.format).entries : baseEn;
     const zh = patch?.zh ? parseLang(patch.zh.text, patch.zh.format).entries : baseZh;
+
     if (!patch) return { version, en, zh };
+
     // en/zh 没被 PR 覆盖时就是 base 自己，双向比对不会把整份文件误判成改动。
     const touched = changedKeys(baseEn, en);
+
     for (const key of changedKeys(baseZh, zh)) touched.add(key);
+
     return { version, en, zh, touched };
   });
 
@@ -186,6 +210,7 @@ async function crossVersionBuild(slug: string, opts: CrossVersionOpts, source: F
     opts.namespace ?? null,
     selection,
   ]);
+
   return crossCache.wrap(key, () => buildCrossVersion(slug, opts, head, prData, source));
 }
 
@@ -195,6 +220,7 @@ export async function crossVersionKeys(
   source: FileSource,
 ): Promise<CrossVersionKeysResult> {
   const build = await crossVersionBuild(slug, opts, source);
+
   return {
     slug: build.slug,
     namespace: build.namespace,

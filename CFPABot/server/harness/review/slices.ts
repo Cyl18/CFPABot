@@ -17,13 +17,16 @@ export interface SliceBounds {
 export function sliceRuns(entries: readonly SliceEntry[], budget: number, maxRows = SLICE_MAX_ROWS): SliceBounds[] {
   const bounds: SliceBounds[] = [];
   let start = 0;
+
   while (start < entries.length) {
     const run = entries[start]!.run;
     let end = start + 1;
+
     while (end < entries.length && entries[end]!.run === run) end += 1;
     bounds.push(...fill(entries, start, end, budget, maxRows));
     start = end;
   }
+
   return bounds;
 }
 
@@ -39,16 +42,21 @@ function fill(
   const bounds: SliceBounds[] = [];
   let start = from;
   let bytes = 0;
+
   for (let index = from; index < to; index += 1) {
     const size = entries[index]!.bytes;
+
     if (index > start && (bytes + size > cap || index - start >= rowCap)) {
       bounds.push({ start, end: index, bytes });
       start = index;
       bytes = 0;
     }
+
     bytes += size;
   }
+
   bounds.push({ start, end: to, bytes });
+
   return balanceTail(bounds, entries, cap, rowCap);
 }
 
@@ -61,20 +69,24 @@ function balanceTail(
 ): SliceBounds[] {
   const prev = bounds[bounds.length - 2];
   const last = bounds[bounds.length - 1];
+
   if (prev === undefined || last === undefined || last.bytes * 2 >= cap) return bounds;
   const total = prev.bytes + last.bytes;
   const target = Math.min(total / 2, cap);
   let cut = prev.start;
   let bytes = 0;
+
   // 单条就直接超半片时不动，宁可留一条小尾片也不把片撑爆。
   while (cut < last.end - 1 && bytes + entries[cut]!.bytes <= target && cut - prev.start < rowCap - 1) {
     bytes += entries[cut]!.bytes;
     cut += 1;
   }
+
   if (cut === prev.start) return bounds;
   prev.end = cut;
   prev.bytes = bytes;
   last.start = cut;
   last.bytes = total - bytes;
+
   return bounds;
 }

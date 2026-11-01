@@ -53,6 +53,7 @@ let cache: LlmConfig | null = null;
 function normalizeEndpoint(raw: z.infer<typeof storedSchema>): LlmEndpoint {
   const provider = raw.provider.trim();
   const model = raw.model.trim();
+
   return {
     id: endpointId(provider, model),
     provider,
@@ -69,25 +70,32 @@ export async function loadConfig(): Promise<LlmConfig> {
   if (cache) return cache;
   const raw = await readJson<unknown>(CONFIG_PATH);
   const parsed = configSchema.safeParse(raw ?? {});
+
   if (!parsed.success) {
     log.warn("LLM 配置无法解析，按未配置处理", { path: CONFIG_PATH });
     cache = { endpoints: [], roles: {} };
+
     return cache;
   }
+
   const endpoints = parsed.data.endpoints.map(normalizeEndpoint);
   const ids = new Set(endpoints.map((endpoint) => endpoint.id));
   const roles: Record<string, string> = {};
+
   for (const [name, selector] of Object.entries(parsed.data.roles)) {
     const role = name.trim();
     const parsedRole = parseRoleSelector(selector);
+
     if (role !== "" && ids.has(parsedRole.endpoint)) roles[role] = formatRoleSelector(parsedRole.endpoint, parsedRole.thinking);
   }
+
   if (roles.default === undefined) {
     const legacyThinking = new Map(
       parsed.data.endpoints.map((raw) => [endpointId(raw.provider.trim(), raw.model.trim()), raw.thinking] as const),
     );
     const agent = parsed.data.agent?.trim();
     const thinking = parsed.data.agentThinking ?? (agent ? legacyThinking.get(agent) : undefined);
+
     if (agent && ids.has(agent)) roles.default = formatRoleSelector(agent, thinking);
   }
   cache = {
@@ -97,6 +105,7 @@ export async function loadConfig(): Promise<LlmConfig> {
       ? { search: { ...parsed.data.search, provider: parsed.data.search.provider.trim() } }
       : {}),
   };
+
   return cache;
 }
 
@@ -109,10 +118,13 @@ export async function resolveModel(
   const endpoint = id
     ? config.endpoints.find((e) => e.id === id)
     : config.endpoints.find((e) => e.id === defaultRole?.endpoint) ?? config.endpoints[0];
+
   if (!endpoint) {
     throw new Error(id ? `未找到 LLM 端点 ${id}` : "尚未配置任何 LLM 端点");
   }
+
   const thinking = thinkingOverride ?? (endpoint.id === defaultRole?.endpoint ? defaultRole?.thinking : undefined);
+
   return { model: buildModel(endpoint, thinking), apiKey: resolveApiKey(endpoint.apiKey), endpoint, thinking };
 }
 
@@ -156,10 +168,13 @@ const SEARCH_ENV: Record<string, { key?: string; endpoint?: string }> = {
 
 function nextSearch(current: LlmSearch | undefined, input: LlmConfigUpdate["search"]): LlmSearch | undefined {
   if (input === undefined) return current;
+
   if (input === null) return undefined;
   const provider = input.provider.trim();
+
   if (provider === "") return undefined;
   const apiKey = input.apiKey?.trim() ? input.apiKey.trim() : current?.provider === provider ? current.apiKey : "";
+
   return { provider, endpoint: (input.endpoint ?? "").trim(), apiKey };
 }
 
@@ -167,12 +182,17 @@ function nextSearch(current: LlmSearch | undefined, input: LlmConfigUpdate["sear
 export function applySearchEnv(search: LlmSearch | undefined): void {
   for (const spec of Object.values(SEARCH_ENV)) {
     if (spec.key !== undefined) delete process.env[spec.key];
+
     if (spec.endpoint !== undefined) delete process.env[spec.endpoint];
   }
+
   if (search === undefined) return;
   const spec = SEARCH_ENV[search.provider];
+
   if (spec === undefined) return;
+
   if (spec.key !== undefined && search.apiKey !== "") process.env[spec.key] = search.apiKey;
+
   if (spec.endpoint !== undefined && search.endpoint !== "") process.env[spec.endpoint] = search.endpoint;
 }
 
@@ -185,9 +205,11 @@ export const llm = {
     const current = await loadConfig();
     const stored = new Map(current.endpoints.map((endpoint) => [endpoint.id, endpoint]));
     const endpoints: LlmEndpoint[] = [];
+
     for (const raw of input.endpoints) {
       const provider = raw.provider.trim();
       const model = raw.model.trim();
+
       if (!provider || !model) throw new Error("LLM 端点必须填写 provider 与 model");
       const id = endpointId(provider, model);
       const apiKey =
@@ -207,37 +229,48 @@ export const llm = {
         }),
       );
     }
+
     const ids = new Set(endpoints.map((endpoint) => endpoint.id));
+
     if (ids.size !== endpoints.length) {
       throw new Error("存在重复的 provider/model 端点；同一 provider/model 只能配置一条。");
     }
+
     assertEndpointRouting(endpoints);
     const roles: Record<string, string> = {};
+
     for (const [rawName, rawSelector] of Object.entries(input.roles)) {
       const name = rawName.trim();
+
       if (name === "" || /[\s@]/.test(name)) throw new Error(`别名 ${rawName} 不能为空，也不能含空格或 @`);
       const parsedRole = parseRoleSelector(rawSelector);
+
       if (!ids.has(parsedRole.endpoint)) throw new Error(`别名 ${name} 指向的端点 ${parsedRole.endpoint} 不在端点列表中`);
       roles[name] = formatRoleSelector(parsedRole.endpoint, parsedRole.thinking);
     }
+
     const search = nextSearch(current.search, input.search);
     const next: LlmConfig = {
       endpoints,
       roles,
       ...(search ? { search } : {}),
     };
+
     await writeJson(CONFIG_PATH, next, 0o600);
     cache = next;
+
     return toView(next);
   },
 
   async test(endpointIdToTest: string): Promise<{ ok: boolean; reply?: string; error?: string }> {
     const config = await loadConfig();
     const endpoint = config.endpoints.find((e) => e.id === endpointIdToTest);
+
     if (!endpoint) return { ok: false, error: `未找到端点 ${endpointIdToTest}` };
     const defaultRole = config.roles.default === undefined ? undefined : parseRoleSelector(config.roles.default);
     const thinking = endpoint.id === defaultRole?.endpoint ? defaultRole?.thinking : undefined;
     const model = buildModel(endpoint, thinking);
+
     try {
       const response = await completeSimple(
         model,
@@ -251,6 +284,7 @@ export const llm = {
           signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
         },
       );
+
       if (response.stopReason === "error" || response.stopReason === "aborted") {
         return { ok: false, error: response.errorMessage ?? "调用失败" };
       }
@@ -259,18 +293,22 @@ export const llm = {
         .map((block) => block.text)
         .join("")
         .trim();
+
       return text ? { ok: true, reply: text } : { ok: false, error: "LLM 返回了空内容" };
     } catch (err) {
       const name = err instanceof Error ? err.name : "";
+
       if (name === "TimeoutError" || name === "AbortError") {
         return { ok: false, error: `测试超时（${TEST_TIMEOUT_MS / 1000}s）` };
       }
+
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   },
 
   async probe(request: ProbeModelsRequest): Promise<string[]> {
     const config = await loadConfig();
+
     return probeModels(request, (id) => resolveApiKey(config.endpoints.find((e) => e.id === id)?.apiKey ?? ""));
   },
 };

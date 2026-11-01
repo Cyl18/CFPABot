@@ -44,12 +44,15 @@ type AsideTab = "files" | "status";
 
 function isReviewDraft(value: unknown): value is ReviewDraft {
   if (typeof value !== "object" || value === null) return false;
+
   return "event" in value && "comments" in value && Array.isArray(value.comments);
 }
 
 function QueuedSteers({ steering, followUp }: { steering: readonly string[]; followUp: readonly string[] }) {
   const items = [...steering, ...followUp];
+
   if (items.length === 0) return null;
+
   return (
     <div className="mb-2 overflow-hidden rounded-lg border border-warn/40 bg-warn/5">
       <div className="flex items-center gap-1.5 border-b border-warn/30 px-2.5 py-1 text-[11px] text-warn">
@@ -71,8 +74,10 @@ function QueuedSteers({ steering, followUp }: { steering: readonly string[]; fol
 function latestContextTokens(items: readonly ChatItem[]): number | undefined {
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index];
+
     if (item?.kind === "assistant" && item.usage !== undefined) return item.usage.contextTokens;
   }
+
   return undefined;
 }
 
@@ -154,13 +159,16 @@ export function SessionPage({ id }: { id: string }) {
     if (rows.length === 0) return;
     setSubagents((previous) => {
       const next = { ...previous };
+
       for (const row of rows) next[row.agentId] = { ...next[row.agentId], ...row };
+
       return next;
     });
   }, []);
 
   useEffect(() => {
     const data = detail.data;
+
     if (!data || seededId.current === id) return;
     seededId.current = id;
     setItems(data.items);
@@ -182,6 +190,7 @@ export function SessionPage({ id }: { id: string }) {
           seededId.current = id;
           setItems(event.session.items);
           setStatus(event.session.status);
+
           if (!dirtyRef.current) setDraft(isReviewDraft(event.session.artifact) ? event.session.artifact : null);
           setLastError(event.session.lastError);
           setNote(undefined);
@@ -198,9 +207,11 @@ export function SessionPage({ id }: { id: string }) {
                 : -1;
             const kept = local < 0 ? previous : previous.filter((_, index) => index !== local);
             const index = kept.findIndex((item) => item.id === incoming.id);
+
             if (index < 0) return [...kept, incoming];
             const next = [...kept];
             next[index] = incoming;
+
             return next;
           });
           break;
@@ -209,10 +220,12 @@ export function SessionPage({ id }: { id: string }) {
           setStatus(event.status);
           setLastError(event.lastError);
           setNote(event.note);
+
           if (event.status !== "running") {
             void client.invalidateQueries({ queryKey: qk.sessionFiles(id) });
             void client.invalidateQueries({ queryKey: ["session-file", id] });
           }
+
           break;
         }
         case "queue": {
@@ -249,15 +262,18 @@ export function SessionPage({ id }: { id: string }) {
 
   useEffect(() => {
     const node = listRef.current;
+
     if (!node || !atBottomRef.current) return;
     const frame = requestAnimationFrame(() => {
       if (atBottomRef.current) node.scrollTop = node.scrollHeight;
     });
+
     return () => cancelAnimationFrame(frame);
   }, [items]);
 
   const scrollToBottom = () => {
     const node = listRef.current;
+
     if (!node) return;
     atBottomRef.current = true;
     setAtBottom(true);
@@ -283,14 +299,18 @@ export function SessionPage({ id }: { id: string }) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       const target = event.target;
+
       if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) {
         return;
       }
+
       if (document.querySelector('[role="dialog"]') !== null) return;
       event.preventDefault();
       abort.mutate();
     };
+
     window.addEventListener("keydown", onKeyDown);
+
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [abort, confirmExec, status]);
 
@@ -365,6 +385,7 @@ export function SessionPage({ id }: { id: string }) {
   });
 
   if (detail.error !== null) return <ErrorState error={detail.error} onRetry={() => void detail.refetch()} />;
+
   if (detail.isPending) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -407,13 +428,17 @@ export function SessionPage({ id }: { id: string }) {
 
   const submit = () => {
     const value = text.trim();
+
     if (value === "" || archived || send.isPending) return;
+
     // 运行中只进服务端队列：气泡等 omp 注入后由回声显示，免得提前出现在 transcript。
     const localId = running ? undefined : `local-${Date.now()}`;
+
     if (localId !== undefined) {
       setItems((previous) => [...previous, { id: localId, kind: "user", text: value, at: new Date().toISOString() }]);
       scrollToBottom();
     }
+
     setText("");
     send.mutate(value, {
       onError: () => {
@@ -530,8 +555,10 @@ export function SessionPage({ id }: { id: string }) {
             onChange={(next) => {
               if (next === "chat") {
                 setPane("chat");
+
                 return;
               }
+
               setAsideTab(next);
               setPane("aside");
             }}
@@ -544,6 +571,7 @@ export function SessionPage({ id }: { id: string }) {
         <section className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", asideOpen && pane === "aside" && "hidden xl:flex")}>
           <div ref={listRef} onScroll={() => {
             const node = listRef.current;
+
             if (!node) return;
             const near = node.scrollHeight - node.scrollTop - node.clientHeight < BOTTOM_SLACK;
             atBottomRef.current = near;
@@ -707,6 +735,7 @@ export function SessionPage({ id }: { id: string }) {
               onClick={() => {
                 const scope = confirmExec;
                 setConfirmExec(null);
+
                 if (scope === "bash") setBash.mutate("on");
                 else if (scope === "eval") setEval.mutate("on");
                 else if (scope === "write") setWrite.mutate("on");

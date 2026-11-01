@@ -24,6 +24,7 @@ export interface DiffEntry {
   key: string;
   touched?: boolean;
   cells: Record<string, DiffCell | null>;
+
   /** 对比模式每侧文件的 key 增删；跨版本模式没有这个信息。 */
   status?: { en: RowStatus; zh: RowStatus };
 }
@@ -67,6 +68,7 @@ export function diffFacts(entry: DiffEntry, lanes: readonly DiffLane[]): DiffFac
   const status = entry.status;
   const added = status !== undefined && (status.en === "add" || status.zh === "add");
   const removed = status !== undefined && (status.en === "remove" || status.zh === "remove");
+
   // 单侧文件删了 key 时两侧单元格都还在，光看存在性只会判成「改了」。
   const missing = added !== removed ? (added ? "add" : "remove") : laneMissing;
 
@@ -76,8 +78,10 @@ export function diffFacts(entry: DiffEntry, lanes: readonly DiffLane[]): DiffFac
 
   const zhByEn = new Map<string, Set<string>>();
   const enByZh = new Map<string, Set<string>>();
+
   for (const lane of zhLanes) {
     const cell = entry.cells[lane.id]!;
+
     if (cell.zh === null) continue;
     const values = zhByEn.get(cell.en) ?? new Set<string>();
     values.add(cell.zh);
@@ -90,6 +94,7 @@ export function diffFacts(entry: DiffEntry, lanes: readonly DiffLane[]): DiffFac
   const untranslated = present.some((lane) => {
     if (lane.role !== "real" || lane.zhFile === false) return false;
     const cell = entry.cells[lane.id]!;
+
     return cell.en.trim() !== "" && (cell.zh ?? "").trim() === "";
   });
 
@@ -117,51 +122,66 @@ export const FACET_MATCH: Record<DiffFactFacet, (facts: DiffFacts) => boolean> =
 /** 每个开关是否命中由调用方给出：facts 之外的开关（如「有评论」）还要额外数据。 */
 export function matchesFilter(match: (facet: DiffFacet) => boolean, state: DiffFilterState): boolean {
   const only: DiffFacet[] = [];
+
   for (const facet of DIFF_FACETS) {
     const want = state[facet];
+
     if (want === undefined) continue;
+
     if (want === false) {
       if (match(facet)) return false;
     } else {
       only.push(facet);
     }
   }
+
   if (only.length === 0) return true;
+
   return state.combine === "or" ? only.some((facet) => match(facet)) : only.every((facet) => match(facet));
 }
 
 function encodeFilter(state: DiffFilterState): string {
   const tokens = DIFF_FACETS.flatMap((facet) => (state[facet] === undefined ? [] : [`${state[facet] === true ? "" : "-"}${facet}`]));
+
   if (state.combine === "or") tokens.unshift("or");
+
   return tokens.length === 0 ? "all" : tokens.join(",");
 }
 
 export function parseDiffFilter(raw: string | undefined): DiffFilterState {
   if (raw === undefined) return DEFAULT_DIFF_FILTER;
   const state: DiffFilterState = {};
+
   for (const token of raw.split(",")) {
     if (token === "or") {
       state.combine = "or";
       continue;
     }
+
     const negated = token.startsWith("-");
     const facet = (negated ? token.slice(1) : token) as DiffFacet;
+
     if (DIFF_FACETS.includes(facet)) state[facet] = !negated;
   }
+
   return state;
 }
 
 /** 默认状态不写进 URL。 */
 export function formatDiffFilter(state: DiffFilterState): string | undefined {
   const raw = encodeFilter(state);
+
   return raw === encodeFilter(DEFAULT_DIFF_FILTER) ? undefined : raw;
 }
 
 export function matchesQuery(entry: DiffEntry, lanes: readonly DiffLane[], needle: string): boolean {
   if (needle === "") return true;
+
   if (entry.key.toLowerCase().includes(needle)) return true;
+
   return lanes.some((lane) => {
     const cell = entry.cells[lane.id];
+
     return cell != null && (cell.en.toLowerCase().includes(needle) || (cell.zh ?? "").toLowerCase().includes(needle));
   });
 }

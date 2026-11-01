@@ -51,10 +51,13 @@ const ROOT_COMMENT = "审查简报；?review=1 给全集或分片计划";
 
 function childNames(entries: readonly ResourceEntry[]): string[] {
   const names = new Set<string>();
+
   for (const entry of entries) {
     const name = entry.path.split(/[/?]/, 1)[0];
+
     if (name) names.add(name);
   }
+
   return [...names];
 }
 
@@ -64,6 +67,7 @@ export const GH_CHILDREN = childNames(GH);
 function lines(entries: readonly ResourceEntry[]): string[] {
   return entries.map((entry, index) => {
     const glyph = index === entries.length - 1 ? "└─" : "├─";
+
     return `${glyph} ${entry.path}${entry.comment === undefined ? "" : `  # ${entry.comment}`}`;
   });
 }

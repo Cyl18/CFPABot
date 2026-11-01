@@ -13,6 +13,8 @@
     "start": "bun dist/main.js",
     "typecheck": "tsc --noEmit -p . && bun run --cwd web typecheck",
     "test": "bun test server",
+    "format": "bun scripts/format-newspaper.ts",
+    "format:check": "bun scripts/format-newspaper.ts --check",
     "migrate:exec-scope": "bun scripts/migrate-exec-scope.ts"
   },
   "dependencies": {

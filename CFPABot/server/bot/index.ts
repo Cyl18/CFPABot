@@ -69,26 +69,36 @@ async function refreshPull(prNumber: number, refreshPacker: boolean): Promise<vo
 
 async function onPullRequest(payload: unknown): Promise<void> {
   const parsed = pullRequestSchema.safeParse(payload);
+
   if (!parsed.success) {
     log.warn("pull_request 负载无效", { issues: parsed.error.issues.length });
+
     return;
   }
+
   const { action, number } = parsed.data;
+
   if (action === "opened" || action === "reopened" || action === "synchronize") {
     track(`pr:${number}`, () => refreshPull(number, action !== "opened"));
+
     return;
   }
+
   if (action === "edited") {
     track(`pr:${number}`, async () => {
       await step("labels", () => syncLabels(number));
       await step("label-check", () => labelCheck(number));
     });
+
     return;
   }
+
   if (action === "labeled" || action === "unlabeled") {
     track(`pr:${number}`, () => step("label-check", () => labelCheck(number)));
+
     return;
   }
+
   if (action === "closed") {
     track(`pr:${number}`, () => step("prdata.refresh", () => prdata.refresh(number)));
   }
@@ -96,12 +106,17 @@ async function onPullRequest(payload: unknown): Promise<void> {
 
 async function onIssueComment(payload: unknown): Promise<void> {
   const parsed = issueCommentSchema.safeParse(payload);
+
   if (!parsed.success) {
     log.warn("issue_comment 负载无效", { issues: parsed.error.issues.length });
+
     return;
   }
+
   const { action, issue, comment } = parsed.data;
+
   if (!issue.pull_request && !issue.html_url.includes("pull")) return;
+
   if (action === "created") {
     if (comment.user.type === "Bot" || comment.user.login === env.BOT_LOGIN) return;
     track(`pr:${issue.number}`, () =>
@@ -112,21 +127,29 @@ async function onIssueComment(payload: unknown): Promise<void> {
         userId: comment.user.id,
       }),
     );
+
     return;
   }
+
   if (action !== "edited") return;
+
   if (!isMainBot(comment.user.login, comment.body)) return;
+
   if (!comment.body.includes("- [x] 🔄") && !comment.body.includes("- [x] 🔃")) return;
   track(`pr:${issue.number}`, () => refreshInfoComment(issue.number, { force: true, refreshPacker: true }));
 }
 
 async function onWorkflowRun(payload: unknown): Promise<void> {
   const parsed = workflowRunSchema.safeParse(payload);
+
   if (!parsed.success) {
     log.warn("workflow_run 负载无效", { issues: parsed.error.issues.length });
+
     return;
   }
+
   const run = parsed.data.workflow_run;
+
   if (parsed.data.workflow.name !== PACKER_WORKFLOW_NAME || run.event !== "pull_request") return;
   const number = run.pull_requests?.[0]?.number;
   track(number === undefined ? "workflow-run" : `pr:${number}`, async () => {
@@ -138,6 +161,7 @@ async function onWorkflowRun(payload: unknown): Promise<void> {
         : owner
           ? await gh.findPullByHead(`${owner}:${run.head_branch}`)
           : null;
+
       if (!pull) return;
       const { files } = await prdata.files(pull.number);
       await autoApprovePacker(pull, files);
@@ -145,12 +169,15 @@ async function onWorkflowRun(payload: unknown): Promise<void> {
     } catch (err) {
       log.error("处理 workflow_run 失败", { error: err });
     }
+
   });
 }
 
 async function onPush(payload: unknown): Promise<void> {
   const parsed = pushSchema.safeParse(payload);
+
   if (!parsed.success) return;
+
   if (parsed.data.ref !== `refs/heads/${repo.defaultBranch}`) return;
   track("push", () =>
     mirror.sync().then(
@@ -163,20 +190,27 @@ async function onPush(payload: unknown): Promise<void> {
 export async function handleWebhook(event: string, payload: unknown): Promise<void> {
   try {
     const common = repoSchema.safeParse(payload);
+
     if (!common.success) return;
+
     if (common.data.repository?.full_name !== repo.fullName) return;
+
     switch (event) {
       case "pull_request":
         await onPullRequest(payload);
+
         return;
       case "issue_comment":
         await onIssueComment(payload);
+
         return;
       case "workflow_run":
         await onWorkflowRun(payload);
+
         return;
       case "push":
         await onPush(payload);
+
         return;
       default:
         return;

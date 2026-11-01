@@ -68,10 +68,12 @@ export function assembleComment(sections: CommentSections, mode: "preview" | "fi
   const push = (value: string): void => {
     out.push(value, "\n");
   };
+
   push(PIC);
   push(sections.mods);
   push("---");
   push(sections.packer);
+
   if (mode === "preview") {
     if (sections.checks !== "") {
       push("---");
@@ -81,15 +83,18 @@ export function assembleComment(sections: CommentSections, mode: "preview" | "fi
     push("---");
     push(sections.checks);
   }
+
   push("---");
   push(sections.diffs);
   push("---");
   push(`🐖 [命令列表](${publicUrl}/commands) | [问题反馈](https://github.com/Cyl18/CFPABot/issues/new)`);
   push(RELOAD_LINE);
+
   if (mode === "preview") {
     push("---");
     push(UPDATING_LINE);
   }
+
   return collapseBlankRuns(out.join(""));
 }
 
@@ -101,6 +106,7 @@ export function collapseBlankRuns(text: string): string {
   const out: string[] = [];
   let inFence = false;
   let blank = false;
+
   for (const line of text.split("\n")) {
     if (/^\s*```/.test(line)) inFence = !inFence;
     if (!inFence && line === "") {

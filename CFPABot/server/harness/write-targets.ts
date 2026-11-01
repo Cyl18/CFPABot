@@ -18,6 +18,7 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
     summary: "保存草稿并按当前 head 校验；正文省略则复用 local://draft.json；有错不落盘，直接返回可改的字段",
     match: (parts) => {
       const seg = prSegments(parts);
+
       return seg.length === 1 && seg[0] === "draft";
     },
   },
@@ -27,6 +28,7 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
     summary: "把审查输入打包成 local://pack/：自包含片文档 + manifest；只写会话 workspace，不发 GitHub，正文只接受空对象",
     match: (parts) => {
       const seg = prSegments(parts);
+
       return seg.length === 1 && seg[0] === "pack";
     },
   },
@@ -36,6 +38,7 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
     summary: "保存本 PR 的术语表并冻结到当前 head；正文 {terms:[{en,zh,bucket,source,note}]} 或数组；只写服务端缓存，不发 GitHub",
     match: (parts) => {
       const seg = prSegments(parts);
+
       return seg.length === 1 && seg[0] === "terms";
     },
   },
@@ -45,6 +48,7 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
     summary: "在 PR 下发一条评论",
     match: (parts) => {
       const seg = prSegments(parts);
+
       return seg.length === 1 && seg[0] === "comments";
     },
   },
@@ -54,6 +58,7 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
     summary: "在 PR 文件的 head 行上发一条行内评论；给 key 就按 path+key 定位并校验 hunk",
     match: (parts) => {
       const seg = prSegments(parts);
+
       return seg.length >= 3 && seg[0] === "files" && seg[seg.length - 1] === "comments";
     },
   },
@@ -63,6 +68,7 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
     summary: "把 review 线程标为 resolved 或未 resolved（正文写 true/false）",
     match: (parts) => {
       const seg = prSegments(parts);
+
       return seg.length === 2 && seg[0] === "threads";
     },
   },
@@ -72,6 +78,7 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
     summary: "回复一条 review 线程",
     match: (parts) => {
       const seg = prSegments(parts);
+
       return seg.length === 3 && seg[0] === "threads" && seg[2] === "replies";
     },
   },
@@ -81,6 +88,7 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
     summary: "发布审查：正文给草稿 JSON，省略则发布 pr://<n>/draft 已保存的草稿",
     match: (parts) => {
       const seg = prSegments(parts);
+
       return seg.length === 1 && seg[0] === "review";
     },
   },
@@ -90,6 +98,7 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
     summary: "提交 pending review 或直接提交审查结论（正文 {event, body}）",
     match: (parts) => {
       const seg = prSegments(parts);
+
       return seg.length === 2 && seg[0] === "review" && seg[1] === "submit";
     },
   },
@@ -99,6 +108,7 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
     summary: "整段替换机器人自己的 PR 评论（id 从 pr://<n>/comments 取；先读原文再写全文）",
     match: (parts) => {
       const seg = prSegments(parts);
+
       return seg.length === 2 && seg[0] === "comments";
     },
   },
@@ -108,6 +118,7 @@ export const WRITE_TARGETS: readonly WriteTarget[] = [
     summary: "整段替换机器人自己的行内评论（id 从 pr://<n>/comments 的 reviewComments 取；先读原文再写全文）",
     match: (parts) => {
       const seg = prSegments(parts);
+
       return seg.length === 2 && seg[0] === "review-comments";
     },
   },

@@ -87,12 +87,19 @@ const GRID_KEY =
 
 function toneOf(facts: DiffFacts, compare: boolean): Tone {
   if (facts.missing === "add") return "ok";
+
   if (facts.missing === "remove") return "danger";
+
   if (facts.stale) return compare ? "warn" : "danger";
+
   if (facts.en) return "warn";
+
   if (facts.zhAny) return "accent";
+
   if (facts.missing === "partial") return "line";
+
   if (facts.untranslated) return "info";
+
   return "none";
 }
 
@@ -100,15 +107,19 @@ function useLayout(fallback: DiffLayout): [DiffLayout, (next: DiffLayout) => voi
   const [layout, setLayout] = useState<DiffLayout>(() => {
     try {
       const stored = localStorage.getItem(LAYOUT_KEY);
+
       return LAYOUTS.some((item) => item.id === stored) ? (stored as DiffLayout) : fallback;
     } catch {
       return fallback;
     }
+
   });
+
   return [
     layout,
     (next) => {
       setLayout(next);
+
       try {
         localStorage.setItem(LAYOUT_KEY, next);
       } catch {}
@@ -122,17 +133,23 @@ function wholeEdge(direction: "insert" | "delete", value: string | null): { befo
 
 function zhReference(lane: DiffLane | null, cell: DiffCell | null): string | null | undefined {
   if (lane === null || lane.skipZh === true) return undefined;
+
   return cell?.zh ?? null;
 }
 
 function ZhText({ lane, cell, before }: { lane: DiffLane; cell: DiffCell | null; before?: string | null }) {
   const [mode] = useDiffMode();
+
   if (lane.zhFile === false) return <span className="text-xs italic text-muted" title="这个来源整份中文文件都不存在">无中文文件</span>;
+
   if (lane.whole !== undefined) return <InlineTextDiff {...wholeEdge(lane.whole, cell?.zh ?? null)} />;
+
   if (cell === null) {
     if (typeof before === "string" && before !== "" && mode !== "off") return <del className={DELETE}>{expandNewlines(before)}</del>;
+
     return <span className="text-muted">—</span>;
   }
+
   if (cell.zh === null) {
     return (
       <>
@@ -142,6 +159,7 @@ function ZhText({ lane, cell, before }: { lane: DiffLane; cell: DiffCell | null;
       </>
     );
   }
+
   return <InlineTextDiff before={before} after={cell.zh} />;
 }
 
@@ -165,30 +183,37 @@ interface ChainMarks {
 function marksOf(text: string, segments: readonly DiffSegment[], side: "before" | "after"): (MarkKind | null)[] {
   const marks = new Array<MarkKind | null>(text.length).fill(null);
   let at = 0;
+
   for (const segment of segments) {
     if (segment.type === "equal") {
       at += segment.text.length;
       continue;
     }
+
     if (side === "before" ? segment.type !== "delete" : segment.type === "delete") continue;
     marks.fill(segment.type === "delete" ? "delete" : segment.type === "change" ? "change" : "insert", at, at + segment.text.length);
     at += segment.text.length;
   }
+
   return marks;
 }
 
 function Marked({ text, marks }: { text: string; marks: (MarkKind | null)[] | null }) {
   if (text === "") return <span className="text-muted">—</span>;
+
   if (marks === null) return <span>{text}</span>;
   const runs: { type: MarkKind | null; text: string }[] = [];
   let at = 0;
+
   while (at < text.length) {
     const type = marks[at] ?? null;
     let end = at + 1;
+
     while (end < text.length && (marks[end] ?? null) === type) end += 1;
     runs.push({ type, text: text.slice(at, end) });
     at = end;
   }
+
   return (
     <>
       {runs.map((run, index) =>
@@ -219,23 +244,29 @@ function chainMarks(sides: readonly ChainSide[], mode: DiffMode): ChainMarks {
     en: new Array<(MarkKind | null)[] | null>(count).fill(null),
     zh: new Array<(MarkKind | null)[] | null>(count).fill(null),
   };
+
   if (mode === "off") return marks;
+
   for (let at = 0; at + 1 < count; at += 1) {
     const left = sides[at];
     const right = sides[at + 1];
+
     if (left === undefined || right === undefined || left.absent || right.absent) continue;
     const enSegments = inlineDiff(left.en, right.en, mode);
     marks.en[at] = marksOf(left.en, enSegments, "before");
     marks.en[at + 1] = marksOf(right.en, enSegments, "after");
+
     if (left.skipZh) continue;
     const zhLeft = left.zh ?? "";
     const zhRight = right.zh ?? "";
     const zhSegments = inlineDiff(zhLeft, zhRight, mode);
+
     if (right.zhFile) {
       marks.zh[at] = marksOf(zhLeft, zhSegments, "before");
       marks.zh[at + 1] = marksOf(zhRight, zhSegments, "after");
     }
   }
+
   return marks;
 }
 
@@ -250,6 +281,7 @@ const CONSENSUS_LANE: DiffLane = {
 interface ConsensusBase {
   en: string | null;
   zh: string | null;
+
   /** 跟共识一字不差的版本，用来标「= 谁的写法」。 */
   enLanes: string[];
   zhLanes: string[];
@@ -260,14 +292,19 @@ function consensusBase(entry: DiffEntry, lanes: readonly DiffLane[]): ConsensusB
   if (lanes.length < 3) return null;
   const en: string[] = [];
   const zh: string[] = [];
+
   for (const lane of lanes) {
     const cell = entry.cells[lane.id];
+
     if (cell == null) continue;
     en.push(expandNewlines(cell.en));
+
     if (lane.zhFile !== false && cell.zh != null) zh.push(expandNewlines(cell.zh));
   }
+
   const enText = consensusOf(en);
   const zhText = consensusOf(zh);
+
   return {
     en: enText,
     zh: zhText,
@@ -277,6 +314,7 @@ function consensusBase(entry: DiffEntry, lanes: readonly DiffLane[]): ConsensusB
         : lanes
             .filter((lane) => {
               const cell = entry.cells[lane.id];
+
               return cell != null && expandNewlines(cell.en) === enText;
             })
             .map((lane) => lane.label),
@@ -286,6 +324,7 @@ function consensusBase(entry: DiffEntry, lanes: readonly DiffLane[]): ConsensusB
         : lanes
             .filter((lane) => {
               const cell = entry.cells[lane.id];
+
               return lane.zhFile !== false && cell?.zh != null && expandNewlines(cell.zh) === zhText;
             })
             .map((lane) => lane.label),
@@ -392,6 +431,7 @@ function MergeRow({
 }) {
   const from = lanes[0];
   const to = lanes[lanes.length - 1];
+
   if (from === undefined || to === undefined) return null;
   const fromCell = entry.cells[from.id] ?? null;
   const toCell = entry.cells[to.id] ?? null;
@@ -403,6 +443,7 @@ function MergeRow({
     lanes
       .slice(1, -1)
       .some((lane) => JSON.stringify(entry.cells[lane.id] ?? null) !== JSON.stringify(fromCell) && JSON.stringify(entry.cells[lane.id] ?? null) !== JSON.stringify(toCell));
+
   return (
     <article className={cn(ROW, BORDER[toneOf(facts, compare)])}>
       <KeyColumn
@@ -462,6 +503,7 @@ function GridRow({
   const heads = runs.map((run) => run[0]!);
   const sides: ChainSide[] = heads.map((lane) => {
     const cell = entry.cells[lane.id] ?? null;
+
     return {
       en: expandNewlines(cell?.en ?? ""),
       zh: cell?.zh == null ? null : expandNewlines(cell.zh),
@@ -469,6 +511,7 @@ function GridRow({
       skipZh: lane.skipZh === true,
       absent: lane.absent === true,
     };
+
   });
   const marks = base === null ? chainMarks(sides, mode) : null;
   const nodes = new Map<string, ReactNode>();
@@ -476,6 +519,7 @@ function GridRow({
     const lane = heads[at]!;
     const cell = entry.cells[lane.id] ?? null;
     const side = sides[at];
+
     if (side === undefined) return;
     const chips = (
       <div className="mb-1 flex flex-wrap gap-1 md:hidden">
@@ -484,6 +528,7 @@ function GridRow({
         ))}
       </div>
     );
+
     if (lane.absent === true) {
       nodes.set(
         lane.id,
@@ -495,8 +540,10 @@ function GridRow({
           </div>
         </div>,
       );
+
       return;
     }
+
     const previousLane = at > 0 ? (heads[at - 1] ?? null) : null;
     const previousCell = previousLane === null ? null : (entry.cells[previousLane.id] ?? null);
     const same =
@@ -534,6 +581,7 @@ function GridRow({
       </div>,
     );
   });
+
   if (base !== null) {
     nodes.set(
       CONSENSUS_LANE.id,
@@ -553,6 +601,7 @@ function GridRow({
       </div>,
     );
   }
+
   return (
     <article className={cn(GRID_ROW, BORDER[toneOf(facts, compare)])}>
       <KeyColumn
@@ -602,6 +651,7 @@ function LaneCard({
 }) {
   const [mode] = useDiffMode();
   const groups: LaneGroup[] = [];
+
   for (const lane of lanes) {
     const cell = entry.cells[lane.id] ?? null;
     const wild = lane.zhFile === false;
@@ -609,11 +659,14 @@ function LaneCard({
       cell === null
         ? groups.find((group) => group.cell === null)
         : groups.find((group) => group.cell !== null && group.cell.en === cell.en && (wild || group.wild || group.cell.zh === cell.zh));
+
     if (found === undefined) {
       groups.push({ lanes: [lane], cell, wild });
       continue;
     }
+
     found.lanes.push(lane);
+
     if (found.wild && !wild) {
       found.cell = cell;
       found.wild = false;
@@ -633,8 +686,10 @@ function LaneCard({
   const sameEn = present.length > 1 && new Set(present.map((group) => group.cell!.en)).size === 1;
   const direction = facts.missing === "add" ? "insert" : facts.missing === "remove" ? "delete" : null;
   const shown: LaneGroup[] = [];
+
   for (const lane of display) {
     const group = groups.find((item) => item.lanes.some((one) => one.id === lane.id));
+
     if (group !== undefined && !shown.includes(group)) shown.push(group);
   }
 
@@ -691,7 +746,9 @@ function LaneCard({
           if (group.cell === null) return null;
           const at = groups.indexOf(group);
           const side = sides[at];
+
           if (side === undefined) return null;
+
           return (
             <li key={at} className="flex flex-col gap-1 rounded-md border border-line/60 bg-elevated/50 px-2 py-1.5 sm:flex-row sm:gap-3">
               <div className="flex flex-wrap items-center gap-1 sm:w-36 sm:shrink-0">
@@ -754,6 +811,7 @@ function FilterChip({ facet, count, state, onCycle }: { facet: DiffFacet; count:
         ? `已只看${label}，再点一下改成排除`
         : `已只看${label}，再点一下取消`
       : `已排除${label}，再点一下取消`;
+
   return (
     <button
       type="button"
@@ -814,6 +872,7 @@ export interface DiffViewerProps {
   error?: unknown;
   onRetry?: () => void;
   scope?: (entry: DiffEntry) => boolean;
+
   /** 有评论的 key 集合；传了才出现「有评论」开关。 */
   commented?: ReadonlySet<string>;
   noDiff?: (outside: number) => ReactNode;
@@ -856,6 +915,7 @@ export function DiffViewer({
     } catch {
       return false;
     }
+
   });
   const activeKey = active.join("\u0000");
   const activeLanes = useMemo(() => lanes.filter((lane) => active.includes(lane.id)), [lanes, activeKey]);
@@ -863,11 +923,14 @@ export function DiffViewer({
   const anchored = rowAnchor !== undefined;
   const display = useMemo(() => {
     if (!compare || !swapped) return activeLanes;
+
     return [...activeLanes].reverse();
   }, [activeLanes, compare, swapped]);
+
   // 相邻版本的每个 key 中英文都一样，分列里就并成一列。
   const runs = useMemo(() => {
     const out: DiffLane[][] = [];
+
     for (const lane of activeLanes) {
       const run = out[out.length - 1];
       const head = run?.[0];
@@ -880,17 +943,22 @@ export function DiffViewer({
         entries.every((entry) => {
           const a = entry.cells[head.id];
           const b = entry.cells[lane.id];
+
           return a == null ? b == null : b != null && a.en === b.en && a.zh === b.zh;
         });
+
       if (run !== undefined && same) run.push(lane);
       else out.push([lane]);
     }
+
     return out;
   }, [activeLanes, entries]);
+
   // 三个版本以上才做列投票共识；分列布局给共识单开一列。
   const consensusOn = activeLanes.length >= 3;
   const columns = useMemo(() => {
     const ordered = consensusOn ? [[CONSENSUS_LANE], ...runs] : compare ? runs.filter((run) => run.some((lane) => lane.absent !== true)) : runs;
+
     return compare && swapped ? [...ordered].reverse() : ordered;
   }, [runs, compare, swapped, consensusOn]);
   const present = activeLanes.filter((lane) => lane.absent !== true);
@@ -916,7 +984,9 @@ export function DiffViewer({
   );
   const scoped = useMemo(() => {
     const rows = inScope.filter((row) => matchesQuery(row.entry, activeLanes, needle));
+
     if (sortTouchedFirst) rows.sort((a, b) => Number(b.entry.touched === true) - Number(a.entry.touched === true));
+
     return rows;
   }, [inScope, activeLanes, needle, sortTouchedFirst]);
 
@@ -925,12 +995,15 @@ export function DiffViewer({
     const rows: typeof scoped = [];
     const match = (facet: DiffFacet, row: (typeof scoped)[number]) =>
       facet === "comments" ? commented?.has(row.entry.key) === true : FACET_MATCH[facet](row.facts);
+
     for (const row of scoped) {
       for (const facet of DIFF_FACETS) {
         if (match(facet, row)) tally.set(facet, (tally.get(facet) ?? 0) + 1);
       }
+
       if (matchesFilter((facet) => match(facet, row), filter)) rows.push(row);
     }
+
     return { counts: tally, visible: rows };
   }, [scoped, filter, commented]);
 
@@ -940,6 +1013,7 @@ export function DiffViewer({
 
   function cycleFacet(facet: DiffFacet) {
     const next: DiffFilterState = { ...filter };
+
     if (filter[facet] === undefined) next[facet] = true;
     else if (filter[facet] === true && NEGATABLE.includes(facet)) next[facet] = false;
     else delete next[facet];
@@ -948,6 +1022,7 @@ export function DiffViewer({
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
+
   // 两种 Virtualizer 只差这几个钩子，运行时切换 scroller 安全。
   const own: Partial<VirtualizerOptions<Window, Element>> =
     scroller === null
@@ -959,6 +1034,7 @@ export function DiffViewer({
           scrollToFn: elementScroll,
           initialOffset: () => scroller.scrollTop,
         } as unknown as Partial<VirtualizerOptions<Window, Element>>);
+
   // key 带上布局：切换排列方式时行会重新挂载并重新测量，否则缓存被清掉后只按估算高度排版，行会互相压住。
   const virtualizer = useWindowVirtualizer({
     count: visible.length,
@@ -972,6 +1048,7 @@ export function DiffViewer({
   useLayoutEffect(() => {
     const top = listRef.current?.getBoundingClientRect().top ?? 0;
     const margin = scroller === null ? top + window.scrollY : top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+
     if (Math.abs(margin - scrollMargin) > 1) setScrollMargin(margin);
   });
   const headShell = cn(HEAD_SHELL, scroller === null && PAGE_OFFSET);
@@ -1028,6 +1105,7 @@ export function DiffViewer({
                 onClick={() => {
                   const next = !swapped;
                   setSwapped(next);
+
                   try {
                     localStorage.setItem(SWAP_KEY, next ? "1" : "0");
                   } catch {}
@@ -1165,9 +1243,11 @@ export function DiffViewer({
           >
             {virtualizer.getVirtualItems().map((item) => {
               const row = visible[item.index];
+
               if (row === undefined) return null;
               const action = rowAction?.(row.entry);
               const footer = rowFooter?.(row.entry);
+
               return (
                 <div
                   key={item.key}

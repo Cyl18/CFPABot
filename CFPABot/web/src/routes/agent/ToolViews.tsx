@@ -46,33 +46,46 @@ function Pre({ text, label, danger = false, max = "max-h-80" }: { text: string; 
 
 function firstLine(value: string | undefined): string | undefined {
   const line = value?.split("\n").find((part) => part.trim() !== "")?.trim();
+
   return line;
 }
 
 function basename(path: string): string {
   const parts = path.replaceAll("\\", "/").split("/");
+
   return parts.at(-1) ?? path;
 }
 
 export function toolPreview(tool: ToolCallView): string {
   const path = stringArg(tool, "path");
+
   if (tool.name === "read") return path ?? "读取文件";
+
   if (tool.name === "bash") return firstLine(stringArg(tool, "command")) ?? "bash";
+
   if (tool.name === "eval") return firstLine(stringArg(tool, "code")) ?? "eval";
+
   if (tool.name === "grep") {
     const pattern = stringArg(tool, "pattern") ?? stringArg(tool, "query");
+
     return [pattern, path].filter((part) => part !== undefined && part !== "").join(" · ") || "grep";
   }
+
   if (tool.name === "write" || tool.name === "edit") return path ?? tool.name;
+
   if (tool.name === "todo") {
     const stats = planStats(todoPhases(tool.details));
+
     return stats.total > 0 ? `计划 ${stats.completed}/${stats.total}` : "计划";
   }
+
   if (tool.name === "delegate") {
     const model = subagentModel(tool);
     const task = firstLine(stringArg(tool, "task"));
+
     return [model !== undefined ? `@${model}` : "子代理", task].filter((part) => part !== undefined).join(" · ");
   }
+
   return tool.progress ?? "";
 }
 
@@ -80,24 +93,31 @@ export function toolPreview(tool: ToolCallView): string {
 export function toolComposition(items: readonly { tool: ToolCallView }[]): string {
   const counts = new Map<string, number>();
   let errors = 0;
+
   for (const item of items) {
     counts.set(item.tool.name, (counts.get(item.tool.name) ?? 0) + 1);
+
     if (item.tool.state === "error") errors += 1;
   }
   const parts = [...counts]
     .sort((left, right) => right[1] - left[1])
     .slice(0, 3)
     .map(([name, count]) => `${name} × ${count}`);
+
   if (errors > 0) parts.push(`${errors} 失败`);
   const lastRead = [...items].reverse().find((item) => {
     if (item.tool.name !== "read") return false;
     const path = stringArg(item.tool, "path");
+
     return path !== undefined && !path.startsWith("skill://") && !path.startsWith("local://");
   });
+
   if (lastRead !== undefined) {
     const path = stringArg(lastRead.tool, "path");
+
     if (path !== undefined) parts.push(`最近 ${basename(path)}`);
   }
+
   return parts.join(" · ");
 }
 
@@ -105,13 +125,16 @@ function prFileLink(path: string, prNumber: number | undefined): string | null {
   if (prNumber === undefined) return null;
   const clean = path.split("?")[0] ?? "";
   const marker = `/runtime/work/pr/${prNumber}/`;
+
   if (!clean.startsWith(`pr://${prNumber}/files/`) && !clean.includes(marker)) return null;
+
   return resolveFilePath(path, prNumber);
 }
 
 function ReadBody({ tool, prNumber }: { tool: ToolCallView; prNumber?: number }) {
   const path = stringArg(tool, "path") ?? "";
   const link = prFileLink(path, prNumber);
+
   return (
     <div className="space-y-2">
       <div className="flex items-start gap-1.5">
@@ -138,6 +161,7 @@ function ReadBody({ tool, prNumber }: { tool: ToolCallView; prNumber?: number })
 function EvalBody({ tool }: { tool: ToolCallView }) {
   const code = stringArg(tool, "code") ?? "";
   const language = stringArg(tool, "language");
+
   return (
     <div className="space-y-2">
       {code !== "" && (
@@ -157,6 +181,7 @@ function EvalBody({ tool }: { tool: ToolCallView }) {
 function BashBody({ tool }: { tool: ToolCallView }) {
   const command = stringArg(tool, "command") ?? "";
   const exitCode = isRecord(tool.details) && typeof tool.details.exitCode === "number" ? tool.details.exitCode : undefined;
+
   return (
     <div className="space-y-2">
       <Field
@@ -182,6 +207,7 @@ function BashBody({ tool }: { tool: ToolCallView }) {
 function GrepBody({ tool }: { tool: ToolCallView }) {
   const pattern = stringArg(tool, "pattern") ?? stringArg(tool, "query") ?? "";
   const path = stringArg(tool, "path");
+
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
@@ -200,6 +226,7 @@ function GrepBody({ tool }: { tool: ToolCallView }) {
 function TodoBody({ tool }: { tool: ToolCallView }) {
   const phases = todoPhases(tool.details);
   const stats = planStats(phases);
+
   return (
     <div className="space-y-2">
       <div className="text-[11px] text-muted">
@@ -227,6 +254,7 @@ function TodoBody({ tool }: { tool: ToolCallView }) {
 function DelegateBody({ tool }: { tool: ToolCallView }) {
   const model = subagentModel(tool);
   const task = stringArg(tool, "task") ?? "";
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-1.5 text-[11px]">

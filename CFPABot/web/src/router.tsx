@@ -21,10 +21,13 @@ const PR_SEARCH_KEYS = ["ws", "slug", "ns", "status", "filter", "file", "layout"
 
 function pickStrings<T extends string>(search: Record<string, unknown>, keys: readonly T[]): Partial<Record<T, string>> {
   const result: Partial<Record<T, string>> = {};
+
   for (const key of keys) {
     const value = search[key];
+
     if (typeof value === "string") result[key] = value;
   }
+
   return result;
 }
 
@@ -78,6 +81,7 @@ const adminRoute = createRoute({
 function PrListRoot() {
   const search = indexRoute.useSearch();
   const navigate = useNavigate();
+
   return (
     <PrListPage
       search={search}
@@ -89,6 +93,7 @@ function PrListRoot() {
 function PrOverviewRoot() {
   const { n } = prRoute.useParams();
   const navigate = useNavigate();
+
   return (
     <PrDetailPage
       n={Number(n)}
@@ -105,6 +110,7 @@ function PrTabRoot() {
   const search = prTabRoute.useSearch();
   const navigate = useNavigate();
   const resolved = PR_TABS.find((item) => item === tab) ?? "overview";
+
   return (
     <PrDetailPage
       n={Number(n)}
@@ -119,6 +125,7 @@ function VersionsRoot() {
   const { slug } = versionsRoute.useParams();
   const search = versionsRoute.useSearch();
   const navigate = useNavigate();
+
   return (
     <VersionsPage
       slug={slug}
@@ -131,6 +138,7 @@ function VersionsRoot() {
 function ModsRoot() {
   const search = modsRoute.useSearch();
   const navigate = useNavigate();
+
   return <ModsPage query={search.q ?? ""} onSearchChange={(patch) => void navigate({ to: "/mods", search: (prev: ModsSearch) => ({ ...prev, ...patch }), replace: true })} />;
 }
 
@@ -144,6 +152,7 @@ function AgentRoot() {
 
 function AgentSessionRoot() {
   const { id } = agentSessionRoute.useParams();
+
   return (
     <RequireAdmin>
       <SessionPage key={id} id={id} />
@@ -155,6 +164,7 @@ function AdminRoot() {
   const { tab } = adminRoute.useSearch();
   const navigate = useNavigate();
   const resolved = ADMIN_TABS.find((item) => item === tab) ?? "status";
+
   return (
     <RequireAdmin>
       <AdminPage tab={resolved} onTabChange={(next) => void navigate({ to: "/admin", search: { tab: next } })} />

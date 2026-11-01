@@ -44,6 +44,7 @@ export async function syncGlossary(): Promise<{ revision: string; files: number 
     await rm(TERMS_DIR, { recursive: true, force: true });
     await rename(temp, TERMS_DIR);
     log.info("术语表已同步", { revision, files: listed.length });
+
     return { revision, files: listed.length };
   });
 }
@@ -51,28 +52,37 @@ export async function syncGlossary(): Promise<{ revision: string; files: number 
 async function load(): Promise<TermIndex | null> {
   try {
     const info = await stat(TERMS_DIR).catch(() => null);
+
     if (cachedIndex !== null && (info === null || info.mtimeMs === cachedStamp)) return cachedIndex;
     const index = await loadTermIndex(TERMS_DIR);
+
     if (index.all.length === 0) return null;
     cachedIndex = index;
     cachedStamp = info?.mtimeMs ?? -1;
+
     return index;
   } catch (err) {
     log.warn("术语表加载失败", { err });
+
     return null;
   }
 }
 
 export async function glossaryTerms(): Promise<TermIndex | null> {
   const cached = await load();
+
   if (cached !== null) return cached;
+
   if (Date.now() - lastFailedAt < SYNC_RETRY_MS) return null;
+
   try {
     await syncGlossary();
   } catch (err) {
     lastFailedAt = Date.now();
     log.warn("术语表同步失败", { err });
+
     return null;
   }
+
   return load();
 }
