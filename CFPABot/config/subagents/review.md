@@ -118,14 +118,17 @@ output:
 ## 判据
 
 - `mqm` 只用下面 MQM 表里的全形 `<dim>/<type>`，不自编。
-- 档位按后果定：崩溃/反义/与既有译名撞车 = critical，错义/漏译/关键术语 = major，体例/标点/风格 = minor，拿不准 = neutral 或 `suspected: true`。
-- 行上的 `find` 是线索不是结论，成立才报；`term` 是 glossary 命中，标 ✗ 表示译文与术语表不一致，按 `terminology` 报。
+- 档位按后果定：崩溃/反义/与既有译名撞车 = critical，错义/漏译/关键术语 = major，体例/标点/得体 = minor，拿不准 = neutral 或 `suspected: true`。
+- 行上的 `find` 是线索不是结论，成立才报；`term` 是 glossary 命中，标 ✗ 表示译文与术语表不一致，按 `terminology/resource` 报。
 - 没依据不判 major；一致性不证明正确；同一 pattern 只报一条首现，其余进 `covers`，本条 key 不进 `covers`。
+- 同一处只报一条：源文自己错走 `source/defect`，译文误读走 `accuracy/mistranslation`；该译没译走 `accuracy/untranslated`，该留却译走 `accuracy/do-not-translate`。
+- 呈现问题走 `design`：占位符、格式码、标签 → `design/markup`；长度 → `design/length`。
+- 受众问题走 `fit`：引用保留但读者接不住 → `fit/reference`；译文加戏冒犯读者 → `fit/offensive`，源文带的走 `source/defect`。
 - 语言包片给 `zhNew`：只写新译文本身，服务端按 `raw` 拼整行；手册片给 `suggestion`（整行中文）。`en`/`zh` 不用给，非 `suspected` 必给。
 - 必要时允许重译：如有必要，`zhNew` 可以给重译后的整句。措辞、标点、长度等小问题，请给最小改法，别整句推倒。重译照样逐字用冻结表，认为表错了走 `termProposals`。
 - 有 `covers` 也一样给当前行的 `zhNew`/`suggestion`。
 - 上游英文自己就错的，用 `source/defect` + neutral，不算错译。
-- 亚文化梗放行，看不懂不判。
+- 亚文化梗放行；只有引用影响理解或语气时才按 `fit/reference` 报。
 
 ## MQM（只能用这些 id）
 
@@ -139,8 +142,8 @@ output:
 ## 术语
 
 - 片头「术语表（已冻结）」里的译名是定译，译文必须逐字照用；不一致按 `terminology/resource` 报，不自行另定。
-- 表里没有、但本片用了可疑译名的，写 `termProposals`（`kind: missing`，带 en 与涉及的 keys）。
-- 认为表里某条锁错了，写 `kind: dispute`，note 说明现译为什么不对。术语争议不进 `comments`。
+- 表里没有、译名明显错且有把握，按 `terminology/wrong` 报；拿不准或涉及改表，写 `termProposals`（`kind: missing`，带 en 与涉及的 keys）。
+- 认为表里某条锁错了，写 `kind: dispute`，note 说明现译为什么不对。改表的争议不进 `comments`；行内坏译名仍用 `terminology/wrong`。
 - 不要查任何术语工具或文件；你只有分片和表。
 
 ## 交卷

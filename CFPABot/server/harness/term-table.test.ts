@@ -275,7 +275,7 @@ describe("draftInputSchema", () => {
       prNumber: 1,
       event: "REQUEST_CHANGES",
       summary: "s",
-      comments: [{ id: "c1", path: "a.md", line: 3, mqm: "style/house-style", body: "b", suggestion: "s" }],
+      comments: [{ id: "c1", path: "a.md", line: 3, mqm: "fit/house-style", body: "b", suggestion: "s" }],
     });
     expect(parsed.success && parsed.data.comments[0]?.key).toBe("");
   });

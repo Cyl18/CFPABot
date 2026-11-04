@@ -1,12 +1,21 @@
 import type { Severity } from "./api.ts";
 
-export type MqmDimension = "accuracy" | "terminology" | "fluency" | "style" | "locale" | "design" | "source";
-
 export interface MqmDimensionInfo {
-  id: MqmDimension;
+  id: string;
   label: string;
   scope: string;
 }
+
+export const MQM_DIMENSIONS = [
+  { id: "accuracy", label: "准确", scope: "译文与原文的命题内容" },
+  { id: "terminology", label: "术语", scope: "与冻结术语表、同篇用词的一致性" },
+  { id: "fluency", label: "通顺", scope: "句子是否成立、自然、可读" },
+  { id: "fit", label: "得体", scope: "表达是否适合文本类型、项目约定与目标读者" },
+  { id: "design", label: "排版", scope: "占位符、格式码、长度等呈现约束" },
+  { id: "source", label: "原文", scope: "上游文本自身的问题，不计在译者头上" },
+] as const satisfies readonly MqmDimensionInfo[];
+
+export type MqmDimension = (typeof MQM_DIMENSIONS)[number]["id"];
 
 export interface MqmType {
   /** 草稿 mqm 字段的取值，形如 `<dim>/<type>`。 */
@@ -19,53 +28,31 @@ export interface MqmType {
   rule: string;
 }
 
-export const MQM_DIMENSIONS: readonly MqmDimensionInfo[] = [
-  { id: "accuracy", label: "准确", scope: "译文与原文的意思关系" },
-  { id: "terminology", label: "术语", scope: "与术语资源、全库用法的一致性" },
-  { id: "fluency", label: "流畅", scope: "中文本身读不读得通" },
-  { id: "style", label: "风格", scope: "语气、语域与项目体例" },
-  { id: "locale", label: "本地化格式", scope: "占位符、格式码、数字单位" },
-  { id: "design", label: "呈现", scope: "玩家在界面里看到的后果" },
-  { id: "source", label: "原文", scope: "上游文本自身的问题，不计在译者头上" },
-];
-
 export const MQM_TYPES = [
-  { id: "accuracy/mistranslation", dim: "accuracy", label: "错译", severity: "major", rule: "译文与原意不符" },
-  { id: "accuracy/omission", dim: "accuracy", label: "漏译", severity: "major", rule: "原文有信息没落地" },
-  { id: "accuracy/addition", dim: "accuracy", label: "擅加", severity: "minor", rule: "译出原文没有的信息" },
-  { id: "accuracy/untranslated", dim: "accuracy", label: "应译未译", severity: "major", rule: "正文仍是英文" },
-  { id: "accuracy/overly-literal", dim: "accuracy", label: "死译", severity: "minor", rule: "逐词对应，中文不成句" },
-  { id: "accuracy/wrong-entry", dim: "accuracy", label: "串条", severity: "major", rule: "译文对不上本条 key" },
-  { id: "accuracy/reversed", dim: "accuracy", label: "反义", severity: "critical", rule: "否定、方向或因果被译反" },
+  { id: "accuracy/mistranslation", dim: "accuracy", label: "错译", severity: "major", rule: "意思与原文不符：否定、指称、数量、关系、反义；只是读着别扭的走 fluency" },
+  { id: "accuracy/omission", dim: "accuracy", label: "漏译", severity: "major", rule: "原文有的信息译文没有：整句、从句、限定词、条件；空值也算" },
+  { id: "accuracy/addition", dim: "accuracy", label: "增译", severity: "minor", rule: "译文多出原文没有的信息：解释、串行、重复；必要的显化不算" },
+  { id: "accuracy/untranslated", dim: "accuracy", label: "未译", severity: "major", rule: "该译的仍是英文；品牌、模组名、刻意保留的原样不算" },
+  { id: "accuracy/do-not-translate", dim: "accuracy", label: "应留原文", severity: "major", rule: "保留清单要求原样，译文却译了；判据是保留清单，不是品牌名猜测" },
 
-  { id: "terminology/wrong-term", dim: "terminology", label: "错术语", severity: "major", rule: "用了别的词指同一个概念" },
-  { id: "terminology/inconsistent", dim: "terminology", label: "术语不一致", severity: "major", rule: "同一概念全库多种译法" },
-  { id: "terminology/inappropriate", dim: "terminology", label: "术语误用", severity: "major", rule: "术语放进不适用的语境" },
-  { id: "terminology/resource", dim: "terminology", label: "违反术语资源", severity: "minor", rule: "与词典、原版或术语表不符" },
+  { id: "terminology/resource", dim: "terminology", label: "术语不符", severity: "major", rule: "与冻结术语表不一致；表里没有的译名走 termProposals 或 wrong" },
+  { id: "terminology/inconsistent", dim: "terminology", label: "术语不一", severity: "minor", rule: "同一概念在同片或相邻 key 用了不同译名；表里没有的走 termProposals" },
+  { id: "terminology/wrong", dim: "terminology", label: "术语不当", severity: "major", rule: "表里没有、但译名是领域或社区里的坏选择；有把握才评论，拿不准或改表走 termProposals" },
 
-  { id: "fluency/punctuation", dim: "fluency", label: "标点", severity: "minor", rule: "中英标点混用、句末标点缺失或叠加" },
-  { id: "fluency/spacing", dim: "fluency", label: "空格", severity: "minor", rule: "汉字之间、原子前后的多余空格" },
-  { id: "fluency/grammar", dim: "fluency", label: "语法", severity: "minor", rule: "缺成分、搭配不通" },
-  { id: "fluency/word-order", dim: "fluency", label: "语序", severity: "minor", rule: "中文语序别扭" },
-  { id: "fluency/typo", dim: "fluency", label: "错字", severity: "minor", rule: "错别字、同音字" },
-  { id: "fluency/encoding", dim: "fluency", label: "字符编码", severity: "minor", rule: "乱码、替换字符、异体字" },
+  { id: "fluency/grammar", dim: "fluency", label: "语法", severity: "major", rule: "成分残缺、语序错、搭配错；读不通可升 major" },
+  { id: "fluency/awkward", dim: "fluency", label: "生硬", severity: "major", rule: "语法成立但译腔、冗余、拗口，意思没变" },
+  { id: "fluency/punctuation", dim: "fluency", label: "标点", severity: "minor", rule: "标点误用、引号括号不配对、句末缺失" },
+  { id: "fluency/typo", dim: "fluency", label: "错别字", severity: "minor", rule: "错字、别字、形近字；术语用字错走 terminology" },
 
-  { id: "style/awkward", dim: "style", label: "生硬", severity: "minor", rule: "读得通但翻译腔" },
-  { id: "style/inconsistent", dim: "style", label: "体例不一", severity: "minor", rule: "同类条目前后风格分裂" },
-  { id: "style/house-style", dim: "style", label: "违反项目体例", severity: "minor", rule: "违反 TransRules 或本模组约定" },
-  { id: "style/register", dim: "style", label: "语域漂移", severity: "major", rule: "角色声音、敬称、粗俗度偏离原作" },
+  { id: "fit/register", dim: "fit", label: "语域不符", severity: "minor", rule: "口吻或正式度与文本类型不符：物品描述写成说明书、按钮写成句子" },
+  { id: "fit/house-style", dim: "fit", label: "体例不符", severity: "minor", rule: "与项目约定不符：全半角、中英混排空格、称呼、大小写、同模式句式" },
+  { id: "fit/reference", dim: "fit", label: "文化引用", severity: "minor", rule: "引用保留了、意思还在，但目标读者接不住；意思丢了走 accuracy" },
+  { id: "fit/offensive", dim: "fit", label: "冒犯", severity: "major", rule: "译文自己加戏让目标读者不适；源文带的走 source/defect" },
 
-  { id: "locale/placeholder", dim: "locale", label: "占位符", severity: "critical", rule: "占位符的数量、顺序或签名不符" },
-  { id: "locale/format-code", dim: "locale", label: "格式码", severity: "major", rule: "§ 码、换行、标签被改动" },
-  { id: "locale/units", dim: "locale", label: "单位", severity: "minor", rule: "计量单位与原文不符" },
-  { id: "locale/number", dim: "locale", label: "数字日期", severity: "minor", rule: "数值或日期格式被改写" },
-  { id: "locale/fullwidth", dim: "locale", label: "全半角", severity: "minor", rule: "该全角用了半角，或相反" },
+  { id: "design/markup", dim: "design", label: "格式码错", severity: "major", rule: "占位符、格式码、标签缺失、错位或语义错" },
+  { id: "design/length", dim: "design", label: "长度超限", severity: "minor", rule: "译文显著长于原文，或超出按钮、提示框、物品名的可用长度" },
 
-  { id: "design/overflow", dim: "design", label: "截断溢出", severity: "major", rule: "按钮、页签、物品名超长" },
-  { id: "design/glyph", dim: "design", label: "缺字形", severity: "major", rule: "字符在游戏字体中缺失" },
-  { id: "design/markup", dim: "design", label: "标记破坏", severity: "major", rule: "闭合、转义或 JSON 结构被破坏" },
-
-  { id: "source/defect", dim: "source", label: "原文有误", severity: "neutral", rule: "上游英文错误、歧义或占位符不全" },
+  { id: "source/defect", dim: "source", label: "原文问题", severity: "neutral", rule: "原文错误、歧义、占位符不全；内容不适合受众也算；不计在译者头上" },
 ] as const satisfies readonly MqmType[];
 
 export const MQM_BY_ID: ReadonlyMap<string, MqmType> = new Map(MQM_TYPES.map((type) => [type.id, type]));

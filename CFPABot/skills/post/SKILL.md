@@ -63,7 +63,7 @@ run(f"{root}/skills/prep/scripts/termgen/final.py", "mod", "review", "./scope", 
 
 1. **一致性不是正确性。** 全库统一只证明没有分裂，不证明译对。
 2. **上游英文可能自己就错。** 错在原文，用 `source/defect` + neutral。
-3. **亚文化梗放行。** 看不懂就不判。
+3. **亚文化梗放行。** 只有引用影响理解或语气时才按 `fit/reference` 报。
 4. **没依据不判 major。** 机制、数值、显示名需要可核来源；拿不准标 `suspected`。
 5. **同一 pattern 只报一条。** 首现 key 给 suggestion，其余进 `covers`，body 写 pattern。
 6. **档位按后果定，不按词表默认。** 玩家会做错选择、崩溃、反义 → critical；错义、漏译、关键术语 → major；读得通但别扭 → minor；拿不准 → neutral 或 suspected。
@@ -74,12 +74,12 @@ run(f"{root}/skills/prep/scripts/termgen/final.py", "mod", "review", "./scope", 
 
 `mqm` 取全形 `<dim>/<type>`，完整词表在 `read pr://<n>/draft` 回包的 `mqm` 字段里，写评论前先读它。
 
-机械线索确认后按项归类：占位符→`locale/placeholder`；格式码、换行、制表符→`locale/format-code`；标签→`design/markup`；半角标点→`locale/fullwidth`；空格→`fluency/spacing`；术语→`terminology/resource`（译名争议用 `wrong-term`）；未译→`accuracy/untranslated`；空值、原文已变→`accuracy/omission`；字幕冒号、功能键大小写→`style/house-style`。
+机械线索确认后按项归类：占位符、格式码、换行、制表符、标签→`design/markup`；半角标点→`fluency/punctuation`；空格→`fit/house-style`；术语→`terminology/resource`（表里没有、明显错的用 `terminology/wrong`，改表走 `termProposals`）；未译→`accuracy/untranslated`；空值、原文已变→`accuracy/omission`；字幕冒号、功能键大小写→`fit/house-style`。
 
 ## 子代理
 
 `review` 没有任何工具（glossary 也不给），只看 `resources` 递过去的那一片。片文档由 `write pr://<n>/pack` 生成：原文、译文、`raw`、机械发现、冻结术语表、原版术语命中、旧线程、重复译文；MQM 表与结论契约在 `config/subagents/review.md`。
 
-术语分歧由你统一裁决：子代理只提 `termProposals`，不改表、不写术语评论。
+术语分歧由你统一裁决：表内不一致子代理写 `terminology/resource`；表里没有但明显错的写 `terminology/wrong`；改表争议走 `termProposals`。
 
 `read pr://<n>` 的 `localRoot` 是 head 文件的物化目录，只读；要跑脚本先复制到 `local://work/`，脚本吃 `./work`。仓库工作树只用于查 key 是否存在、路径与既有译文；给词定译走 `pr://<n>/terms` 与 glossary。
