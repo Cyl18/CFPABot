@@ -72,11 +72,9 @@ run(f"{root}/skills/prep/scripts/termgen/final.py", "mod", "review", "./scope", 
 
 ## MQM
 
-`mqm` 取全形 `<dim>/<type>`，完整词表在 `read pr://<n>/draft` 回包的 `mqm` 字段里，写评论前先读它。
+`mqm` 取全形 `<dim>/<type>`：词表、label、默认档与 `rule` 都在 `read pr://<n>/draft` 回包的 `mqm` 字段里，写评论前先读，不自编。
 
-机械线索确认后按项归类：占位符、格式码、换行、制表符、标签→`design/markup`；全半角（含半角标点）、中英混排空格、大小写、字幕冒号→`design/format`；标点用错、引号括号不配对→`fluency/punctuation`；术语→`accuracy/terminology`（表里没有、明显错的也用；改表走 `termProposals`）；未译→`accuracy/untranslated`；空值、原文已变→`accuracy/omission`。
-
-意思都对但用着不对走 `fit`：UI 元素功能不对→`fit/function`；情感色彩不对→`fit/tone`；文化意象与设定冲突→`fit/culture`；口吻/正式度/称呼→`fit/register`；固定说法→`fit/convention`。意思、态度或言外之意变了走 `accuracy`。
+逐条归类归子代理。你只在合并与裁决时用同一份表：子代理的结论与 `rule` 对不上的，按表改，或在 `body` 里写清为什么；跨片冲突先定维度（`accuracy` 先于 `fit`，`fit` 先于 `fluency`/`design`），再定档。
 
 ## 子代理
 

@@ -122,7 +122,7 @@ describe("draft 回填", () => {
 
     expect(filled.comments[0]).toMatchObject({ line: 41, en: "A", zh: "甲", suggestion: '    "a": "丙",' });
     expect("zhNew" in (filled.comments[0] ?? {})).toBe(false);
-    expect(filled.comments[1]).toMatchObject({ line: 42, severity: "major", suggestion: '    "b": "丁",' });
+    expect(filled.comments[1]).toMatchObject({ line: 42, severity: "critical", suggestion: '    "b": "丁",' });
   });
 });
 
