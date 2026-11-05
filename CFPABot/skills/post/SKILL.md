@@ -45,7 +45,7 @@ run(f"{root}/skills/prep/scripts/termgen/final.py", "mod", "review", "./scope", 
 好：
 
 ```text
-1. `exampleA` 是：示例译文A（原文中的难译点）。译文 `原始译文A` 把主从关系弄反
+1. `exampleA` 是：示例译文A（原文中的难译点是……的意思）。译文 `原始译文A` 把主从关系弄反
 2. `exampleB` 是：示例译文B。译文 `原始译文B` 换成了另一个意思，机制提示丢失。
 ```
 
@@ -63,10 +63,10 @@ run(f"{root}/skills/prep/scripts/termgen/final.py", "mod", "review", "./scope", 
 
 1. **一致性不是正确性。** 全库统一只证明没有分裂，不证明译对。
 2. **上游英文可能自己就错。** 错在原文，用 `source/defect` + neutral。
-3. **亚文化梗放行。** 只有引用影响理解或语气时才按 `fit/reference` 报。
+3. **亚文化梗放行。** 引用保留但意思丢了走 `accuracy/mistranslation`，意思还在不报。
 4. **没依据不判 major。** 机制、数值、显示名需要可核来源；拿不准标 `suspected`。
 5. **同一 pattern 只报一条。** 首现 key 给 suggestion，其余进 `covers`，body 写 pattern。
-6. **档位按后果定，不按词表默认。** 玩家会做错选择、崩溃、反义 → critical；错义、漏译、关键术语 → major；读得通但别扭 → minor；拿不准 → neutral 或 suspected。
+6. **档位按后果定，词表档位只是默认。** 读者理解错或内容不可用 → critical；不影响理解但明显影响使用或一致性 → major；只是观感或规范上的瑕疵 → minor；拿不准 → neutral 或 suspected。
 7. **文件级问题写 `summary`。** 路径、键集、JSON 语法都写进 `summary`；路径问题引用 `checks` 里的 `/mv` 提示。
 8. **只为本 PR 引入或本 PR 必须补齐的问题改 event。** base 就存在、不是本 PR 引入的文件级差异（缺 key、上游笔误、既有格式问题）写进 `summary` 并注明「base 既有」，event 照旧。
 
@@ -74,12 +74,14 @@ run(f"{root}/skills/prep/scripts/termgen/final.py", "mod", "review", "./scope", 
 
 `mqm` 取全形 `<dim>/<type>`，完整词表在 `read pr://<n>/draft` 回包的 `mqm` 字段里，写评论前先读它。
 
-机械线索确认后按项归类：占位符、格式码、换行、制表符、标签→`design/markup`；半角标点→`fluency/punctuation`；空格→`fit/house-style`；术语→`terminology/resource`（表里没有、明显错的用 `terminology/wrong`，改表走 `termProposals`）；未译→`accuracy/untranslated`；空值、原文已变→`accuracy/omission`；字幕冒号、功能键大小写→`fit/house-style`。
+机械线索确认后按项归类：占位符、格式码、换行、制表符、标签→`design/markup`；全半角（含半角标点）、中英混排空格、大小写、字幕冒号→`design/format`；标点用错、引号括号不配对→`fluency/punctuation`；术语→`accuracy/terminology`（表里没有、明显错的也用；改表走 `termProposals`）；未译→`accuracy/untranslated`；空值、原文已变→`accuracy/omission`。
+
+意思都对但用着不对走 `fit`：UI 元素功能不对→`fit/function`；情感色彩不对→`fit/tone`；文化意象与设定冲突→`fit/culture`；口吻/正式度/称呼→`fit/register`；固定说法→`fit/convention`。意思、态度或言外之意变了走 `accuracy`。
 
 ## 子代理
 
 `review` 没有任何工具（glossary 也不给），只看 `resources` 递过去的那一片。片文档由 `write pr://<n>/pack` 生成：原文、译文、`raw`、机械发现、冻结术语表、原版术语命中、旧线程、重复译文；MQM 表与结论契约在 `config/subagents/review.md`。
 
-术语分歧由你统一裁决：表内不一致子代理写 `terminology/resource`；表里没有但明显错的写 `terminology/wrong`；改表争议走 `termProposals`。
+术语分歧由你统一裁决：表内不一致、表外明显错都写 `accuracy/terminology`；改表争议走 `termProposals`；同片两种译法且表里没有，只提 proposal；同词多义选错义项按 `accuracy/terminology`，body 写清两个义项。
 
 `read pr://<n>` 的 `localRoot` 是 head 文件的物化目录，只读；要跑脚本先复制到 `local://work/`，脚本吃 `./work`。仓库工作树只用于查 key 是否存在、路径与既有译文；给词定译走 `pr://<n>/terms` 与 glossary。

@@ -113,22 +113,25 @@ output:
 
 1. 盲读译文：别扭、歧义、语气。
 2. 对照原文：先写清谁对谁做什么，再查指称、否定、量化、比较、专名。
-3. 回填：放回相邻 key 拼读，看主语、量词、标点、长度。相邻条目只在片内。
+3. 回填：放回相邻 key 拼读，看主语、量词、标点、长度；再看这个元素在界面里要干什么、语气对不对、文化意象是否和设定打架。相邻条目只在片内。
 
 ## 判据
 
 - `mqm` 只用下面 MQM 表里的全形 `<dim>/<type>`，不自编。
-- 档位按后果定：崩溃/反义/与既有译名撞车 = critical，错义/漏译/关键术语 = major，体例/标点/得体 = minor，拿不准 = neutral 或 `suspected: true`。
-- 行上的 `find` 是线索不是结论，成立才报；`term` 是 glossary 命中，标 ✗ 表示译文与术语表不一致，按 `terminology/resource` 报。
+- 档位按后果定，表里给的是默认值：读者理解错或内容不可用 = critical，不影响理解但明显影响使用或一致性 = major，只是观感或规范上的瑕疵 = minor，拿不准 = neutral 或 `suspected: true`。
+- 行上的 `find` 是线索不是结论，成立才报；`term` 是 glossary 命中，标 ✗ 表示译文与术语表不一致，按 `accuracy/terminology` 报。
 - 没依据不判 major；一致性不证明正确；同一 pattern 只报一条首现，其余进 `covers`，本条 key 不进 `covers`。
 - 同一处只报一条：源文自己错走 `source/defect`，译文误读走 `accuracy/mistranslation`；该译没译走 `accuracy/untranslated`，该留却译走 `accuracy/do-not-translate`。
-- 呈现问题走 `design`：占位符、格式码、标签 → `design/markup`；长度 → `design/length`。
-- 受众问题走 `fit`：引用保留但读者接不住 → `fit/reference`；译文加戏冒犯读者 → `fit/offensive`，源文带的走 `source/defect`。
+- 词或术语选错义项走 `accuracy/terminology`；整句命题、指称、否定、数量、关系错走 `accuracy/mistranslation`。
+- 呈现问题走 `design`：占位符、格式码、标签 → `design/markup`；全半角（含半角标点）、中英混排空格、大小写 → `design/format`；超出按钮、提示框、物品名的可用长度 → `design/length`。标点本身用错、引号括号不配对 → `fluency/punctuation`。
+- 先判 accuracy：意思、态度、言外之意变了走 `accuracy`；意思没变，只是场景/语气/文化不贴，才走 `fit`。
+- 语气问题走 `fit`：口吻、正式度、称呼 → `fit/register`；情感色彩 → `fit/tone`；固定句式、项目固定说法 → `fit/convention`。
+- 场景问题走 `fit`：UI 元素功能不对 → `fit/function`；文化意象与设定冲突 → `fit/culture`。
 - 语言包片给 `zhNew`：只写新译文本身，服务端按 `raw` 拼整行；手册片给 `suggestion`（整行中文）。`en`/`zh` 不用给，非 `suspected` 必给。
-- 必要时允许重译：如有必要，`zhNew` 可以给重译后的整句。措辞、标点、长度等小问题，请给最小改法，别整句推倒。重译照样逐字用冻结表，认为表错了走 `termProposals`。
+- 必要时允许重译：`zhNew` 可以给重译后的整句。措辞、标点这类小问题给最小改法；长度超限该压缩就压缩。重译照样逐字用冻结表，认为表错了走 `termProposals`。
 - 有 `covers` 也一样给当前行的 `zhNew`/`suggestion`。
 - 上游英文自己就错的，用 `source/defect` + neutral，不算错译。
-- 亚文化梗放行；只有引用影响理解或语气时才按 `fit/reference` 报。
+- 亚文化梗放行；引用保留但意思丢了走 `accuracy/mistranslation`，意思还在不报。
 
 ## MQM（只能用这些 id）
 
@@ -141,9 +144,11 @@ output:
 
 ## 术语
 
-- 片头「术语表（已冻结）」里的译名是定译，译文必须逐字照用；不一致按 `terminology/resource` 报，不自行另定。
-- 表里没有、译名明显错且有把握，按 `terminology/wrong` 报；拿不准或涉及改表，写 `termProposals`（`kind: missing`，带 en 与涉及的 keys）。
-- 认为表里某条锁错了，写 `kind: dispute`，note 说明现译为什么不对。改表的争议不进 `comments`；行内坏译名仍用 `terminology/wrong`。
+- 片头「术语表（已冻结）」里的译名是定译，译文必须逐字照用；不一致按 `accuracy/terminology` 报，不自行另定。
+- 表里没有、译名明显错且有把握，按 `accuracy/terminology` 报；拿不准或涉及改表，写 `termProposals`（`kind: missing`，带 en 与涉及的 keys）。
+- 同一个英文词有多个领域义项时，选错义项也按 `accuracy/terminology` 报；body 写清“领域 A 的 X 应译 Y，Z 是领域 B 的义项”。
+- 同片两种译法、表里又没有这个义项，写 `termProposals`（`kind: missing`，note 带两种写法）；只有其中一种明显错，才按 `accuracy/terminology` 报。
+- 认为表里某条锁错了，写 `kind: dispute`，note 说明现译为什么不对；表里只有一个义项、本 PR 上下文却是另一个义项，也走 dispute。改表的争议不进 `comments`；行内坏译名仍用 `accuracy/terminology`。
 - 不要查任何术语工具或文件；你只有分片和表。
 
 ## 交卷
