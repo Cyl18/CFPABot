@@ -12,6 +12,6 @@ CFPABot/.env
 CFPABot/config/llm.json
 CFPABot/config/*.pem
 CFPABot/config/secret.key
-CFPABot/config/vanilla-terms/
+CFPABot/config/vanilla-terms*/
 desktop.ini
 **/*.tsbuildinfo

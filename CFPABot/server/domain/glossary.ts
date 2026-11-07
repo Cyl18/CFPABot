@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { runGit } from "../git.ts";
 import { logger } from "../log.ts";
 import { paths } from "../paths.ts";
-import { withLock } from "../store.ts";
+import { isNotFound, readJson, withLock, writeJson } from "../store.ts";
 import { loadTermIndex, type TermIndex } from "@cfpa/review-core/domain/terms";
 
 const log = logger("glossary");
@@ -14,6 +14,7 @@ const CLONE_DIR = join(paths.cache, "glossary");
 const SYNC_RETRY_MS = 10 * 60 * 1000;
 
 export const TERMS_DIR = join(paths.config, "vanilla-terms");
+const STATE_FILE = join(paths.state, "glossary.json");
 
 let lastFailedAt = 0;
 let cachedIndex: TermIndex | null = null;
@@ -38,15 +39,52 @@ export async function syncGlossary(): Promise<{ revision: string; files: number 
     const listed = (await runGit(CLONE_DIR, ["ls-files", TERMS_SUBDIR], null))
       .split("\n")
       .filter((line) => line.endsWith(".tsv"));
-    const temp = `${TERMS_DIR}.tmp`;
-    await rm(temp, { recursive: true, force: true });
-    await cp(join(CLONE_DIR, TERMS_SUBDIR), temp, { recursive: true });
-    await rm(TERMS_DIR, { recursive: true, force: true });
-    await rename(temp, TERMS_DIR);
+    const applied = await readJson<{ revision: string }>(STATE_FILE);
+
+    if (applied?.revision === revision && (await stat(TERMS_DIR).catch(() => null)) !== null) {
+      log.info("术语表未变化，跳过", { revision, files: listed.length });
+
+      return { revision, files: listed.length };
+    }
+
+    await installTerms();
+    await writeJson(STATE_FILE, { revision, files: listed.length, syncedAt: new Date().toISOString() });
     log.info("术语表已同步", { revision, files: listed.length });
 
     return { revision, files: listed.length };
   });
+}
+
+async function installTerms(): Promise<void> {
+  const temp = `${TERMS_DIR}.tmp`;
+  const backup = `${TERMS_DIR}.old`;
+
+  await rm(temp, { recursive: true, force: true });
+  await cp(join(CLONE_DIR, TERMS_SUBDIR), temp, { recursive: true });
+  await rm(backup, { recursive: true, force: true });
+  await rename(TERMS_DIR, backup).catch((err) => {
+    if (!isNotFound(err)) throw err;
+  });
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await rename(temp, TERMS_DIR);
+
+      break;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+
+      if (attempt >= 4 || (code !== "EPERM" && code !== "EBUSY" && code !== "EACCES")) {
+        await rename(backup, TERMS_DIR).catch(() => undefined);
+
+        throw err;
+      }
+
+      await Bun.sleep(40 * (attempt + 1));
+    }
+  }
+
+  await rm(backup, { recursive: true, force: true });
 }
 
 async function load(): Promise<TermIndex | null> {
