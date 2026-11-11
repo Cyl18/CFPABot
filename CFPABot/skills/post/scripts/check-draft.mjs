@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { severityWarnings, validateDraft } from "../../../packages/review-core/src/draft.ts";
+import { suggestionWarnings, validateDraft } from "../../../packages/review-core/src/draft.ts";
 
 const file = process.argv[2];
 if (!file) {
@@ -28,7 +28,7 @@ if (shape.length > 0) {
 }
 
 const errors = validateDraft(draft, {});
-const warnings = severityWarnings(draft);
+const warnings = suggestionWarnings(draft);
 if (warnings.length > 0) console.error(["提示（不拦截）：", ...warnings].join("\n"));
 if (errors.length > 0) {
   console.error(errors.join("\n"));

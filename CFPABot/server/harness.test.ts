@@ -112,7 +112,7 @@ describe("draft 回填", () => {
       event: "REQUEST_CHANGES",
       summary: "两处",
       comments: [
-        { id: "c1", path: ZH, key: "a", severity: "major", mqm: "accuracy/mistranslation", body: "错", zhNew: "丙" },
+        { id: "c1", path: ZH, key: "a", mqm: "accuracy/mistranslation", body: "错", zhNew: "丙" },
         { id: "c2", path: ZH, line: 3, key: "b", mqm: "accuracy/omission", body: "错", zhNew: "丁" },
       ],
     });
@@ -122,7 +122,7 @@ describe("draft 回填", () => {
 
     expect(filled.comments[0]).toMatchObject({ line: 41, en: "A", zh: "甲", suggestion: '    "a": "丙",' });
     expect("zhNew" in (filled.comments[0] ?? {})).toBe(false);
-    expect(filled.comments[1]).toMatchObject({ line: 42, severity: "critical", suggestion: '    "b": "丁",' });
+    expect(filled.comments[1]).toMatchObject({ line: 42, suggestion: '    "b": "丁",' });
   });
 });
 

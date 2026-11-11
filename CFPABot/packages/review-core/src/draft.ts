@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { DraftComment, ReviewDraft } from "@cfpa/contracts/api";
-import { REVIEW_EVENTS, REVIEW_EVENT_META, SEVERITIES, SEVERITY_RANK } from "@cfpa/contracts/api";
+import { REVIEW_EVENTS, REVIEW_EVENT_META } from "@cfpa/contracts/api";
 import { MQM_BY_ID } from "@cfpa/contracts/mqm";
 import { inHunks, patchHeadLines, patchHunks } from "./domain/diff.ts";
 import { renderTermBlock } from "./domain/term-table.ts";
@@ -11,14 +11,12 @@ const draftCommentInput = z.object({
   path: z.string().min(1),
   line: z.number().int().positive().optional(),
   key: z.string().default(""),
-  severity: z.enum(SEVERITIES).optional(),
   mqm: z.string(),
   en: z.string().optional(),
   zh: z.string().optional(),
   body: z.string(),
   suggestion: z.string().optional(),
   covers: z.array(z.string()).optional(),
-  suspected: z.boolean().optional(),
   fileLevel: z.boolean().optional(),
 });
 
@@ -44,11 +42,7 @@ export const DRAFT_FILE = "draft.json";
 
 export const reviewDraftSchema = draftInputSchema.extend({
   headSha: z.string().min(1),
-  comments: z.array(
-    draftCommentInput.extend({
-      severity: z.enum(SEVERITIES),
-    }),
-  ),
+  comments: z.array(draftCommentInput),
   terms: z
     .array(
       z.object({
@@ -157,16 +151,6 @@ export function validateDraft(
       else seen.set(slot, index + 1);
     }
 
-    if (comment.suspected && (comment.severity === "critical" || comment.severity === "major")) {
-      errors.push(`${where}: 存疑项 severity 不能高于 minor`);
-    }
-
-    if (!fileLevel && !comment.suspected && !comment.suggestion?.trim()) {
-      errors.push(
-        `${where}: 非存疑的意见必须给出 suggestion（语言包可改给 zhNew，但 path+line 必须能在 pack 里找到该行；covers 不替代）`,
-      );
-    }
-
     if (ctx.patches === undefined) return;
 
     if (!ctx.patches.has(comment.path)) {
@@ -208,6 +192,18 @@ export function validateDraft(
   return errors;
 }
 
+/** suggestion 只是建议：缺了只提示，neutral 维度不提示，都不拦保存与发布。 */
+export function suggestionWarnings(draft: Pick<ReviewDraft, "comments">): string[] {
+  return draft.comments.flatMap((comment) => {
+    if (comment.fileLevel === true || comment.suggestion?.trim()) return [];
+    const type = MQM_BY_ID.get(comment.mqm);
+
+    if (type === undefined || type.dim === "neutral") return [];
+
+    return [`${comment.path}:${comment.line ?? "(文件级)"} ${comment.key}: 没给 suggestion，缺了也能保存和发布`];
+  });
+}
+
 /** suggestion 是整行替换：缩进、行尾逗号跟 head 行一致，json 文件还要能单独解析成一条。 */
 function wholeLineProblem(path: string, head: string, suggestion: string): string | undefined {
   const [headIndent = ""] = /^\s*/.exec(head) ?? [];
@@ -228,25 +224,6 @@ function wholeLineProblem(path: string, head: string, suggestion: string): strin
   }
 }
 
-/** 档位低于词表默认值的条目，只提示不拦。 */
-export function severityWarnings(draft: Pick<ReviewDraft, "comments">): string[] {
-  const warnings: string[] = [];
-
-  for (const comment of draft.comments) {
-    const type = MQM_BY_ID.get(comment.mqm);
-
-    if (type === undefined || comment.suspected === true) continue;
-
-    if (SEVERITY_RANK[comment.severity] > SEVERITY_RANK[type.severity]) {
-      warnings.push(
-        `${comment.path}:${comment.line ?? "(文件级)"} ${comment.key}: ${type.label}默认档位 ${type.severity}，当前 ${comment.severity}；后果确实更轻才保留`,
-      );
-    }
-  }
-
-  return warnings;
-}
-
 export function foldDisplayBreaks(text: string): string {
   return text
     .replace(/\r\n?/g, "\n")
@@ -262,7 +239,7 @@ export function renderInlineBody(comment: DraftComment): string {
   const covers = comment.covers?.length ?? 0;
   const type = MQM_BY_ID.get(comment.mqm);
   const parts = [
-    `\`${comment.severity}\` · ${type === undefined ? comment.mqm : `${type.label}（${comment.mqm}）`}${covers > 0 ? ` · covers ${covers} key` : ""}`,
+    `${type === undefined ? comment.mqm : `${type.label}（${comment.mqm}）`}${covers > 0 ? ` · covers ${covers} key` : ""}`,
   ];
 
   if (comment.en !== undefined) parts.push(`原文：\n\`\`\`\n${foldDisplayBreaks(comment.en)}\n\`\`\``);
@@ -283,11 +260,9 @@ export function renderInlineBody(comment: DraftComment): string {
 export function renderReviewBody(draft: ReviewDraft): string {
   const inline = draft.comments.filter((comment) => comment.fileLevel !== true);
   const fileLevel = draft.comments.filter((comment) => comment.fileLevel === true);
-  const major = inline.filter((comment) => comment.severity === "major" || comment.severity === "critical").length;
-  const minor = inline.length - major;
 
   return [
-    `本批共 ${inline.length} 条 inline（major ${major} / minor ${minor}）${fileLevel.length === 0 ? "" : `、${fileLevel.length} 条文件级`}，结论：**${REVIEW_EVENT_META[draft.event].label}**。`,
+    `本批共 ${inline.length} 条 inline${fileLevel.length === 0 ? "" : `、${fileLevel.length} 条文件级`}，结论：**${REVIEW_EVENT_META[draft.event].label}**。`,
     draft.summary.trim(),
     ...(fileLevel.length === 0
       ? []

@@ -1,9 +1,9 @@
-import type { DraftComment, ReviewDraft, ReviewEvent, Severity } from "@cfpa/contracts/api";
-import { REVIEW_EVENTS, REVIEW_EVENT_META, SEVERITIES, SEVERITY_META } from "@cfpa/contracts/api";
+import type { DraftComment, ReviewDraft, ReviewEvent } from "@cfpa/contracts/api";
+import { REVIEW_EVENTS, REVIEW_EVENT_META } from "@cfpa/contracts/api";
 import { MQM_BY_ID, mqmLabel } from "@cfpa/contracts/mqm";
 import { ExternalLink, Save, Send, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { EventBadge, SeverityBadge } from "@/components/StatusBadges.tsx";
+import { EventBadge } from "@/components/StatusBadges.tsx";
 import { Badge } from "@/ui/Badge.tsx";
 import { Button } from "@/ui/Button.tsx";
 import { Dialog } from "@/ui/Dialog.tsx";
@@ -11,7 +11,6 @@ import { Textarea } from "@/ui/Input.tsx";
 import { Select } from "@/ui/Select.tsx";
 
 const EVENT_OPTIONS = REVIEW_EVENTS.map((value) => ({ value, label: `${REVIEW_EVENT_META[value].label}（${value}）` }));
-const SEVERITY_OPTIONS = SEVERITIES.map((value) => ({ value, label: SEVERITY_META[value].label }));
 
 export interface DraftPanelProps {
   draft: ReviewDraft;
@@ -79,11 +78,9 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
           {draft.comments.map((comment, index) => (
             <div key={comment.id} className="rounded-md border border-line bg-elevated/40 p-2.5">
               <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                <SeverityBadge severity={comment.severity} />
                 <Badge tone="info" title={MQM_BY_ID.get(comment.mqm)?.rule}>
                   {mqmLabel(comment.mqm)}
                 </Badge>
-                {comment.suspected === true && <Badge tone="warn">疑似</Badge>}
                 <code className="min-w-0 truncate font-mono text-[11px] text-muted" title={`${comment.path}:${comment.line ?? "文件级"}`}>
                   {comment.path}:{comment.line ?? "文件级"}
                 </code>
@@ -135,14 +132,6 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
                 value={comment.suggestion ?? ""}
                 disabled={readonly}
                 onChange={(event) => updateComment(index, { suggestion: event.target.value === "" ? undefined : event.target.value })}
-              />
-              <Select
-                wrapperClassName="mt-2 w-28"
-                aria-label="严重程度"
-                options={SEVERITY_OPTIONS}
-                value={comment.severity}
-                disabled={readonly}
-                onChange={(event) => updateComment(index, { severity: event.target.value as Severity })}
               />
             </div>
           ))}
@@ -217,7 +206,6 @@ export function DraftPanel({ draft, dirty, saving, publishing, error, onChange, 
               {draft.comments.map((comment) => (
                 <li key={comment.id} className="rounded border border-line p-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <SeverityBadge severity={comment.severity} />
                     <Badge tone="info" title={MQM_BY_ID.get(comment.mqm)?.rule}>
                       {mqmLabel(comment.mqm)}
                     </Badge>

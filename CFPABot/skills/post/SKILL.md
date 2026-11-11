@@ -12,9 +12,9 @@ description: PR 校对与交付：打包、派单、合并、裁决、写草稿�
 1. **读译前产物**：`local://STYLE.md`、`local://format.md`，没有就跳过。术语只用 `read pr://<n>/terms?candidates=1` 的冻结表；没有表就回 `skill://prep` 第 3–4 步先裁。文件级结论（`key_parity`、`bad_path`、JSON 语法）直接采信 `checks`，不要到仓库源码或 CONTRIBUTING 里找规则出处。
 2. **打包**：`write pr://<n>/pack {}`。不论行数多少都打包派单——行只用来对账，判译文只发生在子代理。返回 manifest：`dir`、`slices[]`（id、doc、kind、workspace、path、rows、首尾 key）、`fileFindings`、`duplicates`、`fileChecks`、`excluded`、`terms`。冻结表会自动写进每个语言包的片头；手册类 PR 的片 `kind=manual`，一对一片。
 3. **派单**：每片一个 `review` 子代理，`resources` 只给那片的文档；跨片裁定写 `local://<manifest.dir>/shared.md` 一起递。命令形状见「流水线」。
-4. **合并**：按 `(path, key)` 去重取高档；跨片同 pattern 归到首现片，其余 key 进 `covers`；同一 key 两片结论冲突时你裁决，依据写进 `body`。
+4. **合并**：按 `(path, key)` 去重；跨片同 pattern 归到首现片，其余 key 进 `covers`；同一 key 两片结论冲突时你裁决，依据写进 `body`。
 5. **回收术语提案**：`termProposals` 每条都裁——`missing` 查 glossary 后补进表，`dispute` 复核后改锁或驳回（驳回理由写进 `body` 或 summary）。改完 `write pr://<n>/terms {terms:[…]}` 覆盖，再重打 pack；不改表不用重打。
-6. **裁决 uncertain**：PR 内同词多译看 `read pr://<n>/terms?changed=1`；冻结表查不到、又必须定的体例问题才查 glossary（规则见 `skill://prep` 第 3 步）。能定的补成 comment 或删掉，零命中或定不了的写进 `summary` 存疑段并标 `suspected`。
+6. **裁决 uncertain**：PR 内同词多译看 `read pr://<n>/terms?changed=1`；冻结表查不到、又必须定的体例问题才查 glossary（规则见 `skill://prep` 第 3 步）。能定的补成 comment 或删掉，零命中或定不了的写进 `summary` 存疑段。
 7. **写草稿**：`read pr://<n>/draft` 拿当前 schema；`write pr://<n>/draft <JSON>` 保存并校验，`errors` 按字段改到 `ok: true`，不需要另跑校验脚本。
    - 手册评论锚点二选一：给 `path`+`line`（文件行级），或标 `fileLevel:true`（文件级，进正文不进 inline，不给 line/key/suggestion）；语言包评论给 `key`，`line` 可省。
    - 内容确与已审片相同的片，写 `skipped:[{slice,reason:"identical",identicalTo}]`；别拿 summary 文字糊弄覆盖率。
@@ -53,7 +53,7 @@ run(f"{root}/skills/prep/scripts/termgen/final.py", "mod", "review", "./scope", 
 
 `event` 是态度，不是评分表；只有 `APPROVE` 表示可以合，另两档都是不能合：
 
-- `APPROVE`：可以合。没问题，或只有 minor；评论里提的可改可不改。
+- `APPROVE`：可以合。没问题，或只有不影响合并的瑕疵；评论里提的可改可不改。
 - `COMMENT`：不能合，按评论改。正常校对回报：逐条指出问题，改完再看。
 - `REQUEST_CHANGES`：不能合，问题太大。错译成片，或错在最不该错的地方（机制、数值、关键术语）。
 
@@ -62,19 +62,18 @@ run(f"{root}/skills/prep/scripts/termgen/final.py", "mod", "review", "./scope", 
 ## 裁定
 
 1. **一致性不是正确性。** 全库统一只证明没有分裂，不证明译对。
-2. **上游英文可能自己就错。** 错在原文，用 `source/defect` + neutral。
+2. **上游英文可能自己就错。** 错在原文，用 `neutral/source`。
 3. **亚文化梗放行。** 引用保留但意思丢了走 `accuracy/mistranslation`，意思还在不报。
-4. **没依据不判 major。** 机制、数值、显示名需要可核来源；拿不准标 `suspected`。
+4. **没依据不下重判。** 机制、数值、显示名需要可核来源；判不了的走 `neutral/query`。
 5. **同一 pattern 只报一条。** 首现 key 给 suggestion，其余进 `covers`，body 写 pattern。
-6. **档位按后果定，词表档位只是默认。** 读者理解错或内容不可用 → critical；不影响理解但明显影响使用或一致性 → major；只是观感或规范上的瑕疵 → minor；拿不准 → neutral 或 suspected。
-7. **文件级问题写 `summary`。** 路径、键集、JSON 语法都写进 `summary`；路径问题引用 `checks` 里的 `/mv` 提示。
-8. **只为本 PR 引入或本 PR 必须补齐的问题改 event。** base 就存在、不是本 PR 引入的文件级差异（缺 key、上游笔误、既有格式问题）写进 `summary` 并注明「base 既有」，event 照旧。
+6. **文件级问题写 `summary`。** 路径、键集、JSON 语法都写进 `summary`；路径问题引用 `checks` 里的 `/mv` 提示。
+7. **只为本 PR 引入或本 PR 必须补齐的问题改 event。** base 就存在、不是本 PR 引入的文件级差异（缺 key、上游笔误、既有格式问题）写进 `summary` 并注明「base 既有」，event 照旧。
 
 ## MQM
 
-`mqm` 取全形 `<dim>/<type>`：词表、label、默认档与 `rule` 都在 `read pr://<n>/draft` 回包的 `mqm` 字段里，写评论前先读，不自编。
+`mqm` 取全形 `<dim>/<type>`：词表、label 与 `rule` 都在 `read pr://<n>/draft` 回包的 `mqm` 字段里，写评论前先读，不自编。
 
-逐条归类归子代理。你只在合并与裁决时用同一份表：子代理的结论与 `rule` 对不上的，按表改，或在 `body` 里写清为什么；跨片冲突先定维度（`accuracy` 先于 `fit`，`fit` 先于 `fluency`/`design`），再定档。
+逐条归类归子代理。你只在合并与裁决时用同一份表：子代理的结论与 `rule` 对不上的，按表改，或在 `body` 里写清为什么；跨片冲突先定维度（`accuracy` 先于 `fit`，`fit` 先于 `fluency`/`design`）。
 
 ## 子代理
 

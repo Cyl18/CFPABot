@@ -30,10 +30,6 @@ output:
             metadata:
               description: 该行的 head 行号；可省，服务端按 path+key 定位
             type: uint32
-          severity:
-            metadata:
-              description: critical | major | minor | neutral；可省，按 mqm 默认档补
-            type: string
           en:
             metadata:
               description: 原文；可省，服务端按 path+key 或 line 补
@@ -55,10 +51,6 @@ output:
               description: 同 pattern 的其余 key，不含本条
             elements:
               type: string
-          suspected:
-            metadata:
-              description: 拿不准、需要人核对；为真时档位最高 minor
-            type: boolean
   optionalProperties:
     uncertain:
       metadata:
@@ -118,13 +110,13 @@ output:
 ## 判据
 
 - `mqm` 只取下表全形 `<dim>/<type>`，不自编；表的 `rule` 就是判定口径，本文只补表说不出的分界。
-- 顺序：先 `accuracy`（意思、态度、言外之意变了），再 `fit`（意思没变，只是这话放在这个位置不合适），最后 `fluency` 与 `design`（意思和场合都对，只是写得不顺或呈现不对）；上游自己错归 `source`，不计译者。
-- 档位按后果定，表里给的是默认值：读者理解错或内容不可用 = critical，不影响理解但明显影响使用或一致性 = major，只是观感或规范上的瑕疵 = minor，拿不准 = neutral 或 `suspected: true`。
+- 顺序：先 `accuracy`（意思、态度、言外之意变了），再 `fit`（意思没变，只是这话放在这个位置不合适），最后 `fluency` 与 `design`（意思和场合都对，只是写得不顺或呈现不对）；上游自己错归 `neutral`，不计译者。
+- 判不下的是 `neutral/query`：依据规则或上下文能确诊的，必须归入对应错误类型，不得拿存疑顶替。
 - 行上的 `find` 是线索不是结论，成立才报；`term` 是 glossary 命中，标 ✗ 表示译文与术语表不一致，按 `accuracy/terminology` 报。
-- 没依据不判 major；一致性不证明正确；同一 pattern 只报一条首现，其余进 `covers`，本条 key 不进 `covers`。
-- 一处只报一条：原文本身错是 `source/defect`（neutral），把原文读成别的意思是 `accuracy/mistranslation`；该译没译是 `accuracy/untranslated`，该留却译是 `accuracy/do-not-translate`。
+- 没依据不下重判；一致性不证明正确；同一 pattern 只报一条首现，其余进 `covers`，本条 key 不进 `covers`。
+- 一处只报一条：原文本身错是 `neutral/source`（neutral），把原文读成别的意思是 `accuracy/mistranslation`；该译没译是 `accuracy/untranslated`，该留却译是 `accuracy/do-not-translate`。
 - 表说不出的分界：术语用字或固定大小写错归 `accuracy/terminology`，不算 `fluency/typo`、`design/format`；半角标点与字幕冒号归 `design/format`，其余标点误用、引号括号不配对归 `fluency/punctuation`；空值与原文已变归 `accuracy/omission`。
-- 语言包片给 `zhNew`：只写新译文本身，服务端按 `raw` 拼整行；手册片给 `suggestion`（整行中文）。`en`/`zh` 不用给，非 `suspected` 必给。
+- 语言包片给 `zhNew`：只写新译文本身，服务端按 `raw` 拼整行；手册片给 `suggestion`（整行中文）。`en`/`zh` 不用给，`suggestion` 只是建议，缺了不拦，但非 `neutral` 维度缺了会被提示。
 - 必要时允许重译：`zhNew` 可以给重译后的整句。措辞、标点这类小问题给最小改法；长度超限该压缩就压缩。重译照样逐字用冻结表，认为表错了走 `termProposals`。
 - 有 `covers` 也一样给当前行的 `zhNew`/`suggestion`。
 - 亚文化梗放行；引用保留但意思丢了走 `accuracy/mistranslation`，意思还在不报。

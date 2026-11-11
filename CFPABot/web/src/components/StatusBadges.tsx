@@ -1,5 +1,5 @@
-import type { PrState, ReviewEvent, SessionStatus, Severity } from "@cfpa/contracts/api";
-import { REVIEW_EVENT_META, SEVERITY_META } from "@cfpa/contracts/api";
+import type { PrState, ReviewEvent, SessionStatus } from "@cfpa/contracts/api";
+import { REVIEW_EVENT_META } from "@cfpa/contracts/api";
 import { Badge } from "@/ui/Badge.tsx";
 
 export const MERGE_SOON_LABEL = "即将合并";
@@ -25,12 +25,6 @@ export function PrStateBadge({ state, draft, labels }: { state: PrState; draft?:
       {draft === true && <Badge>草稿</Badge>}
     </span>
   );
-}
-
-export function SeverityBadge({ severity }: { severity: Severity }) {
-  const meta = SEVERITY_META[severity];
-
-  return <Badge tone={meta.tone}>{meta.label}</Badge>;
 }
 
 export function EventBadge({ event }: { event: ReviewEvent }) {

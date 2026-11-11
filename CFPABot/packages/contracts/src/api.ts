@@ -671,18 +671,12 @@ export type ChatItem =
 
   | { id: string; kind: "tool"; tool: ToolCallView; at: string };
 
-export const SEVERITIES = ["critical", "major", "minor", "neutral"] as const;
-export type Severity = (typeof SEVERITIES)[number];
+/** 体检报告的严重度；审校评论不分档。 */
+export type Severity = "critical" | "major" | "minor" | "neutral";
 
 /** 严重度从高到低 */
 export const SEVERITY_RANK: Record<Severity, number> = { critical: 0, major: 1, minor: 2, neutral: 3 };
 
-export const SEVERITY_META: Record<Severity, { label: string; tone: "danger" | "warn" | "info" | "neutral" }> = {
-  critical: { label: "严重", tone: "danger" },
-  major: { label: "主要", tone: "warn" },
-  minor: { label: "次要", tone: "info" },
-  neutral: { label: "中性", tone: "neutral" },
-};
 export interface DraftComment {
   id: string;
   path: string;
@@ -690,14 +684,12 @@ export interface DraftComment {
   /** 文件级评论没有 line，靠 fileLevel 落到整个文件。 */
   line?: number;
   key: string;
-  severity: Severity;
   mqm: string;
   en?: string;
   zh?: string;
   body: string;
   suggestion?: string;
   covers?: string[];
-  suspected?: boolean;
 
   /** 手册评论的锚点二选一：fileLevel 或 line。 */
   fileLevel?: boolean;

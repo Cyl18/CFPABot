@@ -88,7 +88,6 @@ async function writeDraft(uri: PrParts, content: string | undefined, ctx: Harnes
       path: comment.path,
       line: comment.line,
       key: comment.key,
-      severity: comment.severity,
       ...(comment.suggestion === undefined ? {} : { suggestion: comment.suggestion }),
     })),
     warnings: result.warnings,
